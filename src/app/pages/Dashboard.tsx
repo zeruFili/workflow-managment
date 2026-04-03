@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth, getRoleName } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
 import { mockProjects, mockTasks, mockApprovals } from '../data/mockData';
@@ -8,11 +8,14 @@ import {
   Clock,
   AlertCircle,
   TrendingUp,
-  CheckCircle
+  CheckCircle,
+  Plus,
+  Upload
 } from 'lucide-react';
 
 export function Dashboard() {
   const { user } = useAuth();
+  const [showCreateTask, setShowCreateTask] = useState(false);
 
   if (!user) return null;
 
@@ -38,6 +41,9 @@ export function Dashboard() {
     }
     if (user.role === 'design_team_leader') {
       return t.assignedBy === user.id;
+    }
+    if (user.role === 'marketing_lead') {
+      return t.assignedTo === user.id;
     }
     return false;
   });
@@ -112,7 +118,7 @@ export function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+        <div className="hidden lg:block bg-white rounded-xl p-6 shadow-sm border border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-lg">Recent Projects</h3>
             <Link to="/projects" className="text-sm text-blue-600 hover:text-blue-700">
@@ -152,9 +158,20 @@ export function Dashboard() {
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-lg">My Tasks</h3>
-            <Link to="/tasks" className="text-sm text-blue-600 hover:text-blue-700">
-              View all
-            </Link>
+            <div className="flex items-center gap-3">
+              {user.role === 'marketing_lead' && (
+                <button
+                  onClick={() => setShowCreateTask(true)}
+                  className="hidden md:flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg transition-colors text-sm"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Create Task</span>
+                </button>
+              )}
+              <Link to="/tasks" className="text-sm text-blue-600 hover:text-blue-700">
+                View all
+              </Link>
+            </div>
           </div>
           <div className="space-y-3">
             {userTasks.slice(0, 5).map((task) => (
@@ -221,6 +238,88 @@ export function Dashboard() {
                 </Link>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {showCreateTask && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-semibold mb-4">Create New Task</h3>
+            <form className="space-y-4" onSubmit={(e) => {
+              e.preventDefault();
+              setShowCreateTask(false);
+            }}>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Task Title
+                </label>
+                <input
+                  type="text"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter task title"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Description
+                </label>
+                <textarea
+                  rows={4}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter task description"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Project
+                </label>
+                <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option value="">Select project</option>
+                  {mockProjects.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Deadline
+                </label>
+                <input
+                  type="date"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Attach File (Optional)
+                </label>
+                <button
+                  type="button"
+                  className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>Choose File</span>
+                </button>
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateTask(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                >
+                  Create Task
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

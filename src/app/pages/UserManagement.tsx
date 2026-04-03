@@ -9,7 +9,8 @@ interface UserData {
   name: string;
   role: UserRole;
   email: string;
-  status: 'active' | 'inactive';
+  status: 'active' | 'inactive' | 'deleted';
+  deletedAt?: string;
 }
 
 const mockUsers: UserData[] = [
@@ -25,8 +26,60 @@ const mockUsers: UserData[] = [
 
 export function UserManagement() {
   const { user } = useAuth();
+  const [users, setUsers] = useState<UserData[]>(mockUsers);
   const [searchTerm, setSearchTerm] = useState('');
   const [showNewUser, setShowNewUser] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserData | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<'active' | 'inactive'>('active');
+  const [selectedRole, setSelectedRole] = useState<UserRole>('marketing_lead');
+
+  const openStatusEditor = (userData: UserData) => {
+    if (userData.status === 'deleted') {
+      return;
+    }
+
+    setEditingUser(userData);
+    setSelectedStatus(userData.status);
+    setSelectedRole(userData.role);
+  };
+
+  const saveUserStatus = () => {
+    if (!editingUser) {
+      return;
+    }
+
+    setUsers((currentUsers) =>
+      currentUsers.map((currentUser) =>
+        currentUser.id === editingUser.id
+          ? { ...currentUser, status: selectedStatus, role: selectedRole }
+          : currentUser
+      )
+    );
+    setEditingUser(null);
+  };
+
+  const markUserAsDeleted = (userData: UserData) => {
+    if (userData.status === 'deleted') {
+      return;
+    }
+
+    const shouldDelete = window.confirm(`Mark ${userData.name} as deleted?`);
+    if (!shouldDelete) {
+      return;
+    }
+
+    setUsers((currentUsers) =>
+      currentUsers.map((currentUser) =>
+        currentUser.id === userData.id
+          ? {
+              ...currentUser,
+              status: 'deleted',
+              deletedAt: new Date().toISOString(),
+            }
+          : currentUser
+      )
+    );
+  };
 
   if (!user || user.role !== 'system_administrator') {
     return (
@@ -36,7 +89,7 @@ export function UserManagement() {
     );
   }
 
-  let filteredUsers = mockUsers;
+  let filteredUsers = users;
 
   if (searchTerm) {
     filteredUsers = filteredUsers.filter(u =>
@@ -86,79 +139,79 @@ export function UserManagement() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  User
-                </th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Username
-                </th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Role
-                </th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Email
-                </th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {filteredUsers.map((userData) => (
-                <tr key={userData.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                        <span className="text-blue-600 font-medium">
-                          {userData.name.split(' ').map(n => n[0]).join('')}
-                        </span>
-                      </div>
-                      <div className="ml-4">
-                        <div className="font-medium text-gray-900">{userData.name}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-gray-900">{userData.username}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${roleColors[userData.role]}`}>
-                      {getRoleName(userData.role)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-gray-900">{userData.email}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      userData.status === 'active'
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-red-100 text-red-700'
-                    }`}>
-                      {userData.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                    <button className="text-blue-600 hover:text-blue-900 mr-4">
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button className="text-red-600 hover:text-red-900">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <div className="grid grid-cols-1 gap-4">
+        {filteredUsers.map((userData) => (
+          <div
+            key={userData.id}
+            className={`bg-white rounded-xl p-4 shadow-sm border border-gray-200 ${
+              userData.status === 'deleted' ? 'opacity-80' : ''
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="text-blue-600 font-medium text-sm">
+                    {userData.name.split(' ').map(n => n[0]).join('')}
+                  </span>
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-gray-900 truncate">{userData.name}</p>
+                  <p className="text-xs text-gray-500 truncate">@{userData.username}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => openStatusEditor(userData)}
+                  disabled={userData.status === 'deleted'}
+                  className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg disabled:text-gray-400 disabled:cursor-not-allowed"
+                  title={userData.status === 'deleted' ? 'Deleted users cannot be edited' : 'Edit status and role'}
+                >
+                  <Edit className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => markUserAsDeleted(userData)}
+                  disabled={userData.status === 'deleted'}
+                  className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg disabled:text-gray-400 disabled:cursor-not-allowed"
+                  title={userData.status === 'deleted' ? 'User already deleted' : 'Delete user'}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Role</span>
+                <span className={`px-2 py-1 rounded text-xs font-medium ${roleColors[userData.role]}`}>
+                  {getRoleName(userData.role)}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Status</span>
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                  userData.status === 'active'
+                    ? 'bg-green-100 text-green-700'
+                    : userData.status === 'inactive'
+                    ? 'bg-red-100 text-red-700'
+                    : 'bg-gray-200 text-gray-700'
+                }`}>
+                  {userData.status}
+                </span>
+              </div>
+
+              <div className="border-t border-gray-100 pt-3">
+                <p className="text-xs text-gray-500">Email</p>
+                <p className="text-sm text-gray-700 break-all">{userData.email}</p>
+              </div>
+
+              {userData.status === 'deleted' && userData.deletedAt && (
+                <p className="text-xs text-gray-500">Deleted on {new Date(userData.deletedAt).toLocaleDateString()}</p>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
 
       {filteredUsers.length === 0 && (
@@ -234,6 +287,65 @@ export function UserManagement() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {editingUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50">
+          <div className="bg-white rounded-t-2xl p-5 w-full max-w-sm shadow-2xl border border-gray-200 border-b-0">
+            <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-1">Edit User</h3>
+            <p className="text-sm text-gray-600 mb-4">Update role and status for {editingUser.name}</p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                <select
+                  value={selectedRole}
+                  onChange={(e) => setSelectedRole(e.target.value as UserRole)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="marketing_lead">Marketing Lead</option>
+                  <option value="general_manager">General Manager</option>
+                  <option value="design_team_leader">Design Team Leader</option>
+                  <option value="designer">Designer</option>
+                  <option value="site_engineer">Site Engineer</option>
+                  <option value="finance_officer">Finance Officer</option>
+                  <option value="purchasing_team">Purchasing Team</option>
+                  <option value="system_administrator">System Administrator</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value as 'active' | 'inactive')}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="active">active</option>
+                  <option value="inactive">inactive</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-5">
+              <button
+                type="button"
+                onClick={() => setEditingUser(null)}
+                className="px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveUserStatus}
+                className="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              >
+                Save Changes
+              </button>
+            </div>
           </div>
         </div>
       )}

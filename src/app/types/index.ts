@@ -26,6 +26,7 @@ export type TaskStatus =
   | 'pending'
   | 'in_progress'
   | 'completed'
+  | 'incomplete'
   | 'rejected';
 
 export interface Project {
@@ -51,6 +52,11 @@ export interface Task {
   status: TaskStatus;
   deadline?: string;
   createdAt: string;
+  approvalStatus?: 'pending' | 'approved' | 'rejected';
+  approvalFeedback?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  attachments?: string[];
 }
 
 export interface Document {
