@@ -31,8 +31,11 @@ export function Layout({ children }: LayoutProps) {
     { path: '/projects', label: 'Projects', icon: FolderKanban },
     { path: '/tasks', label: 'Tasks', icon: CheckSquare },
     { path: '/documents', label: 'Documents', icon: FileText },
-    { path: '/approvals', label: 'Approvals', icon: ClipboardCheck },
   ];
+
+  if (user.role !== 'system_administrator') {
+    navigationItems.push({ path: '/approvals', label: 'Approvals', icon: ClipboardCheck });
+  }
 
   if (user.role === 'system_administrator') {
     navigationItems.push({ path: '/users', label: 'Users', icon: Users });
@@ -63,12 +66,15 @@ export function Layout({ children }: LayoutProps) {
             <div className="text-right hidden sm:block">
               <p className="text-xs text-gray-500">{getRoleName(user.role)}</p>
             </div>
-            <button
-              onClick={handleLogout}
-              className="p-2 hover:bg-gray-100 rounded-lg"
-            >
-              <LogOut className="w-5 h-5 text-gray-600" />
-            </button>
+            <div className="flex flex-col items-center">
+              <button
+                onClick={handleLogout}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <LogOut className="w-5 h-5 text-gray-600" />
+              </button>
+              <span className="text-xs text-gray-500 mt-0.5">Logout</span>
+            </div>
           </div>
         </div>
       </header>
