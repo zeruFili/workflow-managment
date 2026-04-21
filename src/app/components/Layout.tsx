@@ -7,6 +7,11 @@ import {
   CheckSquare,
   FileText,
   ClipboardCheck,
+  ClipboardList,
+  Database,
+  CircleDollarSign,
+  LayoutGrid,
+  ClipboardPenLine,
   Users,
   LogOut,
   Menu,
@@ -32,6 +37,26 @@ export function Layout({ children }: LayoutProps) {
     { path: '/tasks', label: 'Tasks', icon: CheckSquare },
     { path: '/documents', label: 'Documents', icon: FileText },
   ];
+
+  if (user.role === 'marketing_lead') {
+    navigationItems.push({ path: '/customer-requests', label: 'Customer Requests', icon: ClipboardList });
+  }
+
+  if (user.role === 'marketing_lead' || user.role === 'system_administrator') {
+    navigationItems.push({ path: '/customer-data', label: 'Customer Data', icon: Database });
+  }
+
+  if (user.role === 'general_manager' || user.role === 'marketing_lead' || user.role === 'system_administrator') {
+    navigationItems.push({ path: '/paid-customers', label: 'Paid Customers', icon: CircleDollarSign });
+  }
+
+  if (user.role === 'general_manager' || user.role === 'system_administrator' || user.role === 'design_team_leader' || user.role === 'designer') {
+    navigationItems.push({ path: '/designer-tasks', label: 'Designer Tasks', icon: LayoutGrid });
+  }
+
+  if (user.role === 'general_manager' || user.role === 'system_administrator') {
+    navigationItems.push({ path: '/task-applications', label: 'Task Applications', icon: ClipboardPenLine });
+  }
 
   if (user.role !== 'system_administrator') {
     navigationItems.push({ path: '/approvals', label: 'Approvals', icon: ClipboardCheck });

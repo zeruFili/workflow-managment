@@ -42,11 +42,57 @@ export interface Project {
   status: 'active' | 'on_hold' | 'completed';
 }
 
+export type CustomerRequestCategory =
+  | 'home_design'
+  | 'finishing_work'
+  | 'hair_salon_design'
+  | 'other';
+
+export type CustomerRequestStatus =
+  | 'new'
+  | 'in_review'
+  | 'scheduled'
+  | 'closed';
+
+export interface CustomerRequest {
+  id: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string;
+  customerAddress: string;
+  category: CustomerRequestCategory;
+  serviceDescription: string;
+  preferredStartDate?: string;
+  budget?: string;
+  notes?: string;
+  status: CustomerRequestStatus;
+  createdAt: string;
+  createdBy: string;
+  createdByName: string;
+}
+
+export interface PaymentProof {
+  name: string;
+  type: string;
+  size: string;
+  dataUrl: string;
+}
+
+export interface PaidCustomer extends CustomerRequest {
+  sourceRequestId: string;
+  transferredAt: string;
+  transferredBy: string;
+  transferredByName: string;
+  paymentNote?: string;
+  proofOfPayment?: PaymentProof;
+}
+
 export interface Task {
   id: string;
   projectId: string;
   title: string;
   description: string;
+  instruction: string;
   assignedTo?: string;
   assignedBy: string;
   status: TaskStatus;
@@ -57,6 +103,27 @@ export interface Task {
   approvedBy?: string;
   approvedAt?: string;
   attachments?: string[];
+}
+
+export interface DesignerTask extends Task {
+  storyPoints: number;
+}
+
+export type DesignerTaskApplicationStatus = 'pending' | 'assigned' | 'rejected';
+
+export interface DesignerTaskApplication {
+  id: string;
+  taskId: string;
+  applicantId: string;
+  applicantName: string;
+  applicantRole: Extract<UserRole, 'designer'>;
+  message: string;
+  appliedAt: string;
+  status: DesignerTaskApplicationStatus;
+  reviewedBy?: string;
+  reviewedByName?: string;
+  reviewedAt?: string;
+  reviewNote?: string;
 }
 
 export interface Document {

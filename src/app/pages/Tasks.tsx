@@ -17,18 +17,58 @@ import {
   AlertCircle
 } from 'lucide-react';
 
+const TASK_STORAGE_KEY = 'workflow-tasks';
+
+const emptyNewTask = {
+  title: '',
+  description: '',
+  instruction: '',
+  projectId: '',
+  deadline: '',
+};
+
 export function Tasks() {
   const { user } = useAuth();
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [editingTask, setEditingTask] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [approvalFeedback, setApprovalFeedback] = useState('');
+  const [tasks, setTasks] = useState<Task[]>(() => {
+    const savedTasks = localStorage.getItem(TASK_STORAGE_KEY);
+    if (savedTasks) {
+      const parsedTasks = JSON.parse(savedTasks) as Task[];
+      const mergedTasks = [
+        ...parsedTasks.map((task) => {
+          const seedTask = mockTasks.find((candidate) => candidate.id === task.id);
+          return seedTask
+            ? {
+                ...seedTask,
+                ...task,
+                instruction: task.instruction || seedTask.instruction,
+              }
+            : task;
+        }),
+        ...mockTasks.filter((seedTask) => !parsedTasks.some((task) => task.id === seedTask.id)),
+      ];
+
+      localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(mergedTasks));
+      return mergedTasks;
+    }
+
+    localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(mockTasks));
+    return mockTasks;
+  });
+  const [newTask, setNewTask] = useState(emptyNewTask);
 
   if (!user) return null;
 
-  let userTasks = mockTasks.filter(t => {
+  let userTasks = tasks.filter(t => {
     if (user.role === 'general_manager' || user.role === 'system_administrator') {
       return true;
+    }
+    if (user.role === 'site_engineer') {
+      return t.assignedTo === user.id;
     }
     if (user.role === 'designer') {
       return t.assignedTo === user.id;
@@ -59,12 +99,48 @@ export function Tasks() {
   ];
 
   const handleStatusChange = (taskId: string, newStatus: TaskStatus) => {
-    console.log(`Updating task ${taskId} status to ${newStatus}`);
+    setTasks((currentTasks) => {
+      const updatedTasks = currentTasks.map((task) =>
+        task.id === taskId ? { ...task, status: newStatus } : task
+      );
+      localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(updatedTasks));
+      return updatedTasks;
+    });
     setEditingTask(null);
   };
 
   const handleUpdateDescription = (taskId: string, description: string) => {
-    console.log(`Updating task ${taskId} description:`, description);
+    setTasks((currentTasks) => {
+      const updatedTasks = currentTasks.map((task) =>
+        task.id === taskId ? { ...task, description } : task
+      );
+      localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(updatedTasks));
+      return updatedTasks;
+    });
+  };
+
+  const handleApproval = (taskId: string, newApprovalStatus: 'approved' | 'rejected') => {
+    if (user.role !== 'general_manager') {
+      return;
+    }
+
+    setTasks((currentTasks) => {
+      const updatedTasks = currentTasks.map((task) =>
+        task.id === taskId
+          ? {
+              ...task,
+              approvalStatus: newApprovalStatus,
+              approvalFeedback: approvalFeedback.trim() || task.approvalFeedback,
+              approvedBy: user.id,
+              approvedAt: new Date().toISOString(),
+              status: newApprovalStatus === 'approved' ? 'completed' : 'rejected',
+            }
+          : task
+      );
+      localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(updatedTasks));
+      return updatedTasks;
+    });
+    setApprovalFeedback('');
   };
 
   const handleAttachFile = (taskId: string) => {
@@ -81,7 +157,41 @@ export function Tasks() {
     if (user.role === 'design_team_leader') {
       return true;
     }
+    if (user.role === 'site_engineer') {
+      return task.assignedTo === user.id;
+    }
     return false;
+  };
+
+  const canApproveTask = (task: Task) => {
+    return user.role === 'general_manager' && task.assignedBy === user.id && task.assignedTo === '5' && task.approvalStatus !== 'approved';
+  };
+
+  const canCreateTask = user.role === 'general_manager' || user.role === 'system_administrator';
+
+  const createTask = (event: React.FormEvent) => {
+    event.preventDefault();
+
+    const taskToAdd: Task = {
+      id: `task-${Date.now()}`,
+      projectId: newTask.projectId,
+      title: newTask.title.trim(),
+      description: newTask.description.trim(),
+      instruction: newTask.instruction.trim(),
+      assignedTo: '5',
+      assignedBy: user.id,
+      status: 'pending',
+      deadline: newTask.deadline || undefined,
+      createdAt: new Date().toISOString(),
+    };
+
+    setTasks((currentTasks) => {
+      const updatedTasks = [taskToAdd, ...currentTasks];
+      localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(updatedTasks));
+      return updatedTasks;
+    });
+    setNewTask(emptyNewTask);
+    setShowCreateTask(false);
   };
 
   return (
@@ -91,7 +201,7 @@ export function Tasks() {
           <h2 className="text-2xl font-bold text-gray-900">Tasks</h2>
           <p className="text-gray-600 mt-1">Manage and track your tasks</p>
         </div>
-        {user.role === 'marketing_lead' && (
+        {canCreateTask && (
           <button
             onClick={() => setShowCreateTask(true)}
             className="hidden md:flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
@@ -160,6 +270,11 @@ export function Tasks() {
 
               <p className="text-sm text-gray-600 mb-4">{task.description}</p>
 
+              <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">Instruction</p>
+                <p className="text-sm text-gray-700 mt-1">{task.instruction}</p>
+              </div>
+
               {project && (
                 <div className="mb-4 p-3 bg-gray-50 rounded-lg">
                   <p className="text-xs text-gray-500">Project</p>
@@ -197,6 +312,38 @@ export function Tasks() {
                       By GM on {new Date(task.approvedAt).toLocaleDateString()}
                     </p>
                   )}
+                </div>
+              )}
+
+              {canApproveTask(task) && (
+                <div className="mb-4 p-3 rounded-lg bg-indigo-50 border border-indigo-200 space-y-3">
+                  <div>
+                    <p className="text-xs font-medium text-indigo-700 uppercase tracking-wide">General Manager Approval</p>
+                    <p className="text-sm text-gray-700 mt-1">Review the instruction and mark the task as approved or rejected.</p>
+                  </div>
+                  <textarea
+                    value={approvalFeedback}
+                    onChange={(e) => setApprovalFeedback(e.target.value)}
+                    className="w-full px-3 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                    rows={3}
+                    placeholder="Optional approval feedback"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleApproval(task.id, 'approved')}
+                      className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm"
+                    >
+                      Approve Task
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApproval(task.id, 'rejected')}
+                      className="flex-1 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm"
+                    >
+                      Reject Task
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -255,6 +402,7 @@ export function Tasks() {
                         </label>
                         <textarea
                           defaultValue={task.description}
+                          onChange={(e) => handleUpdateDescription(task.id, e.target.value)}
                           rows={3}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                           placeholder="Add description..."
@@ -313,16 +461,15 @@ export function Tasks() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-semibold mb-4">Create New Task</h3>
-            <form className="space-y-4" onSubmit={(e) => {
-              e.preventDefault();
-              setShowCreateTask(false);
-            }}>
+            <form className="space-y-4" onSubmit={createTask}>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Task Title
                 </label>
                 <input
                   type="text"
+                  value={newTask.title}
+                  onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Enter task title"
                   required
@@ -334,6 +481,8 @@ export function Tasks() {
                 </label>
                 <textarea
                   rows={4}
+                  value={newTask.description}
+                  onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Enter task description"
                   required
@@ -341,9 +490,27 @@ export function Tasks() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Instruction for Site Engineer
+                </label>
+                <textarea
+                  rows={4}
+                  value={newTask.instruction}
+                  onChange={(e) => setNewTask({ ...newTask, instruction: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="State what data needs to be collected or measured"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Project
                 </label>
-                <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <select
+                  value={newTask.projectId}
+                  onChange={(e) => setNewTask({ ...newTask, projectId: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                >
                   <option value="">Select project</option>
                   {mockProjects.map(p => (
                     <option key={p.id} value={p.id}>{p.name}</option>
@@ -356,6 +523,8 @@ export function Tasks() {
                 </label>
                 <input
                   type="date"
+                  value={newTask.deadline}
+                  onChange={(e) => setNewTask({ ...newTask, deadline: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>

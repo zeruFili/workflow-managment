@@ -10,6 +10,11 @@ import { Tasks } from './pages/Tasks';
 import { Documents } from './pages/Documents';
 import { Approvals } from './pages/Approvals';
 import { UserManagement } from './pages/UserManagement';
+import { CustomerRequests } from './pages/CustomerRequests';
+import { CustomerData } from './pages/CustomerData';
+import { PaidCustomers } from './pages/PaidCustomers';
+import { DesignerTasks } from './pages/DesignerTasks';
+import { TaskApplications } from './pages/TaskApplications';
 import { useEffect } from 'react';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -108,6 +113,56 @@ function AppContent() {
             <ProtectedRoute>
               <Layout>
                 <UserManagement />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/customer-requests"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <CustomerRequests />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/customer-data"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <CustomerData />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/paid-customers"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <PaidCustomers />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/designer-tasks"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <DesignerTasks />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/task-applications"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <TaskApplications />
               </Layout>
             </ProtectedRoute>
           }
