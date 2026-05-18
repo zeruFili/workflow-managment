@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { CustomerRequest, CustomerRequestCategory, CustomerRequestStatus } from '../types';
-import { Calendar, Building2, Mail, MapPin, Phone, Plus, User, Users } from 'lucide-react';
+import { Calendar, Building2, Mail, MapPin, Phone, Plus, User, Users, X } from 'lucide-react';
 
 const STORAGE_KEY = 'customer-requests';
 
 const categoryLabels: Record<CustomerRequestCategory, string> = {
   home_design: 'Home Design',
   finishing_work: 'Finishing Work',
-  hair_salon_design: 'Women\'s Hair Salon Design',
+  hair_salon_design: "Women's Hair Salon Design",
   other: 'Other',
 };
 
@@ -26,7 +26,12 @@ const statusStyles: Record<CustomerRequestStatus, string> = {
   closed: 'bg-gray-100 text-gray-700',
 };
 
-const initialRequests: CustomerRequest[] = [
+// Extended interface to include optional custom category description
+interface CustomerRequestExtended extends CustomerRequest {
+  otherCategoryDescription?: string;
+}
+
+const initialRequests: CustomerRequestExtended[] = [
   {
     id: 'cr-1',
     customerName: 'Nadia Hassan',
@@ -50,7 +55,7 @@ const initialRequests: CustomerRequest[] = [
     customerEmail: 'mona@example.com',
     customerAddress: 'Abu Dhabi Corniche, Abu Dhabi',
     category: 'hair_salon_design',
-    serviceDescription: 'Women\'s hair salon interior design with reception, styling stations, and waiting area.',
+    serviceDescription: "Women's hair salon interior design with reception, styling stations, and waiting area.",
     preferredStartDate: '2026-05-05',
     budget: 'AED 95,000',
     notes: 'Needs privacy zoning and premium finishes.',
@@ -71,11 +76,13 @@ const emptyForm = {
   preferredStartDate: '',
   budget: '',
   notes: '',
+  otherCategoryDescription: '',
 };
 
 export function CustomerRequests() {
   const { user } = useAuth();
-  const [requests, setRequests] = useState<CustomerRequest[]>([]);
+  const [requests, setRequests] = useState<CustomerRequestExtended[]>([]);
+  const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState(emptyForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -85,7 +92,6 @@ export function CustomerRequests() {
       setRequests(JSON.parse(savedRequests));
       return;
     }
-
     setRequests(initialRequests);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(initialRequests));
   }, []);
@@ -100,10 +106,10 @@ export function CustomerRequests() {
     return null;
   }
 
-  if (user.role !== 'marketing_lead') {
+  if (user.role !== 'marketing_lead' && user.role !== 'ceo' && user.role !== 'system_administrator') {
     return (
       <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
-        <p className="text-gray-500">Access denied. Marketing Lead access required.</p>
+        <p className="text-gray-500">Access denied. Marketing Lead, CEO, or System Administrator access required.</p>
       </div>
     );
   }
@@ -112,7 +118,7 @@ export function CustomerRequests() {
     event.preventDefault();
     setIsSubmitting(true);
 
-    const newRequest: CustomerRequest = {
+    const newRequest: CustomerRequestExtended = {
       id: `cr-${Date.now()}`,
       customerName: formData.customerName.trim(),
       customerPhone: formData.customerPhone.trim(),
@@ -127,15 +133,19 @@ export function CustomerRequests() {
       createdAt: new Date().toISOString(),
       createdBy: user.id,
       createdByName: user.name,
+      otherCategoryDescription:
+        formData.category === 'other' ? formData.otherCategoryDescription.trim() : undefined,
     };
 
     setRequests((currentRequests) => [newRequest, ...currentRequests]);
     setFormData(emptyForm);
+    setShowForm(false);
     setIsSubmitting(false);
   };
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-col lg:flex-row">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Customer Requests</h2>
@@ -143,219 +153,263 @@ export function CustomerRequests() {
             Capture customer service requests and track the user who created each record.
           </p>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 shadow-sm min-w-[220px]">
-          <div className="flex items-center gap-3">
-            <Users className="w-5 h-5 text-blue-600" />
-            <div>
-              <p className="text-sm text-gray-500">Logged in as</p>
-              <p className="font-medium text-gray-900">{user.name}</p>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Add Request</span>
+          </button>
+          <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 shadow-sm min-w-[220px]">
+            <div className="flex items-center gap-3">
+              <Users className="w-5 h-5 text-blue-600" />
+              <div>
+                <p className="text-sm text-gray-500">Logged in as</p>
+                <p className="font-medium text-gray-900">{user.name}</p>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-        <div className="xl:col-span-2 bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-              <Plus className="w-5 h-5 text-blue-600" />
+      {/* Request list */}
+      <div className="space-y-4">
+        {requests.map((request) => (
+          <div key={request.id} className="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
+            <div className="flex items-start justify-between gap-4 flex-col sm:flex-row">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-semibold text-lg text-gray-900">{request.customerName}</h3>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusStyles[request.status]}`}>
+                    {request.status.replace('_', ' ')}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-500 mt-1">
+                  {request.category === 'other' && request.otherCategoryDescription
+                    ? request.otherCategoryDescription
+                    : categoryLabels[request.category]}
+                </p>
+              </div>
+              <div className="text-sm text-gray-500 flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                {new Date(request.createdAt).toLocaleString()}
+              </div>
             </div>
-            <div>
-              <h3 className="font-semibold text-lg text-gray-900">New Request</h3>
-              <p className="text-sm text-gray-500">Create a service request record</p>
+
+            <p className="text-gray-700 mt-4">{request.serviceDescription}</p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5 text-sm text-gray-600">
+              <div className="flex items-center gap-2">
+                <Phone className="w-4 h-4 text-gray-400" />
+                <span>{request.customerPhone}</span>
+              </div>
+              {request.customerEmail && (
+                <div className="flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-gray-400" />
+                  <span>{request.customerEmail}</span>
+                </div>
+              )}
+              <div className="flex items-center gap-2 md:col-span-2">
+                <MapPin className="w-4 h-4 text-gray-400" />
+                <span>{request.customerAddress}</span>
+              </div>
+              {request.preferredStartDate && (
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-gray-400" />
+                  <span>Preferred start: {new Date(request.preferredStartDate).toLocaleDateString()}</span>
+                </div>
+              )}
+              {request.budget && (
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-gray-900">Budget:</span>
+                  <span>{request.budget}</span>
+                </div>
+              )}
+            </div>
+
+            {request.notes && (
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg text-sm text-gray-700">
+                {request.notes}
+              </div>
+            )}
+
+            <div className="mt-5 pt-4 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-gray-500">
+              <div className="flex items-center gap-2">
+                <User className="w-4 h-4" />
+                <span>Created by {request.createdByName}</span>
+                <span className="text-gray-300">•</span>
+                <span>Owner ID: {request.createdBy}</span>
+              </div>
+              <span className="text-xs uppercase tracking-wide text-gray-400">
+                {categoryDescriptions[request.category]}
+              </span>
             </div>
           </div>
+        ))}
 
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Customer Name</label>
-                <input
-                  value={formData.customerName}
-                  onChange={(event) => setFormData({ ...formData, customerName: event.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter customer name"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
-                <input
-                  value={formData.customerPhone}
-                  onChange={(event) => setFormData({ ...formData, customerPhone: event.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter phone number"
-                  required
-                />
-              </div>
-            </div>
+        {requests.length === 0 && (
+          <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+            <p className="text-gray-500">No customer requests have been created yet.</p>
+          </div>
+        )}
+      </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                <input
-                  type="email"
-                  value={formData.customerEmail}
-                  onChange={(event) => setFormData({ ...formData, customerEmail: event.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="customer@example.com"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Preferred Start Date</label>
-                <input
-                  type="date"
-                  value={formData.preferredStartDate}
-                  onChange={(event) => setFormData({ ...formData, preferredStartDate: event.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Customer Address</label>
-              <input
-                value={formData.customerAddress}
-                onChange={(event) => setFormData({ ...formData, customerAddress: event.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter customer address"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Request Category</label>
-              <select
-                value={formData.category}
-                onChange={(event) => setFormData({ ...formData, category: event.target.value as CustomerRequestCategory })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      {/* Add Request Modal */}
+      {showForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold">New Customer Request</h3>
+              <button
+                onClick={() => {
+                  setShowForm(false);
+                  setFormData(emptyForm);
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg"
               >
-                {Object.entries(categoryLabels).map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Service Description</label>
-              <textarea
-                value={formData.serviceDescription}
-                onChange={(event) => setFormData({ ...formData, serviceDescription: event.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-h-[120px]"
-                placeholder="Describe the customer request in detail"
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Estimated Budget</label>
-                <input
-                  value={formData.budget}
-                  onChange={(event) => setFormData({ ...formData, budget: event.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="AED 50,000"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Internal Notes</label>
-                <input
-                  value={formData.notes}
-                  onChange={(event) => setFormData({ ...formData, notes: event.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Optional notes"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-3 rounded-lg transition-colors"
-            >
-              <Plus className="w-5 h-5" />
-              Create Request
-            </button>
-          </form>
-        </div>
-
-        <div className="xl:col-span-3 space-y-4">
-          {requests.map((request) => (
-            <div key={request.id} className="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
-              <div className="flex items-start justify-between gap-4 flex-col sm:flex-row">
+            <form className="space-y-4" onSubmit={handleSubmit}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-semibold text-lg text-gray-900">{request.customerName}</h3>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusStyles[request.status]}`}>
-                      {request.status.replace('_', ' ')}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-500 mt-1">{categoryLabels[request.category]}</p>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Customer Name</label>
+                  <input
+                    value={formData.customerName}
+                    onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter customer name"
+                    required
+                  />
                 </div>
-                <div className="text-sm text-gray-500 flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
-                  {new Date(request.createdAt).toLocaleString()}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+                  <input
+                    value={formData.customerPhone}
+                    onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter phone number"
+                    required
+                  />
                 </div>
               </div>
 
-              <p className="text-gray-700 mt-4">{request.serviceDescription}</p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5 text-sm text-gray-600">
-                <div className="flex items-center gap-2">
-                  <Phone className="w-4 h-4 text-gray-400" />
-                  <span>{request.customerPhone}</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                  <input
+                    type="email"
+                    value={formData.customerEmail}
+                    onChange={(e) => setFormData({ ...formData, customerEmail: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="customer@example.com"
+                  />
                 </div>
-                {request.customerEmail && (
-                  <div className="flex items-center gap-2">
-                    <Mail className="w-4 h-4 text-gray-400" />
-                    <span>{request.customerEmail}</span>
-                  </div>
-                )}
-                <div className="flex items-center gap-2 md:col-span-2">
-                  <MapPin className="w-4 h-4 text-gray-400" />
-                  <span>{request.customerAddress}</span>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Preferred Start Date</label>
+                  <input
+                    type="date"
+                    value={formData.preferredStartDate}
+                    onChange={(e) => setFormData({ ...formData, preferredStartDate: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
                 </div>
-                {request.preferredStartDate && (
-                  <div className="flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-gray-400" />
-                    <span>Preferred start: {new Date(request.preferredStartDate).toLocaleDateString()}</span>
-                  </div>
-                )}
-                {request.budget && (
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-gray-900">Budget:</span>
-                    <span>{request.budget}</span>
-                  </div>
-                )}
               </div>
 
-              {request.notes && (
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg text-sm text-gray-700">
-                  {request.notes}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Customer Address</label>
+                <input
+                  value={formData.customerAddress}
+                  onChange={(e) => setFormData({ ...formData, customerAddress: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter customer address"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Request Category</label>
+                <select
+                  value={formData.category}
+                  onChange={(e) =>
+                    setFormData({ ...formData, category: e.target.value as CustomerRequestCategory })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  {Object.entries(categoryLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Other category description field */}
+              {formData.category === 'other' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Other Category Description
+                  </label>
+                  <input
+                    value={formData.otherCategoryDescription}
+                    onChange={(e) =>
+                      setFormData({ ...formData, otherCategoryDescription: e.target.value })
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Describe the custom category"
+                    required
+                  />
                 </div>
               )}
 
-              <div className="mt-5 pt-4 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-gray-500">
-                <div className="flex items-center gap-2">
-                  <User className="w-4 h-4" />
-                  <span>Created by {request.createdByName}</span>
-                  <span className="text-gray-300">•</span>
-                  <span>Owner ID: {request.createdBy}</span>
-                </div>
-                <span className="text-xs uppercase tracking-wide text-gray-400">
-                  {categoryDescriptions[request.category]}
-                </span>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Service Description</label>
+                <textarea
+                  value={formData.serviceDescription}
+                  onChange={(e) =>
+                    setFormData({ ...formData, serviceDescription: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent min-h-[120px]"
+                  placeholder="Describe the customer request in detail"
+                  required
+                />
               </div>
-            </div>
-          ))}
 
-          {requests.length === 0 && (
-            <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
-              <p className="text-gray-500">No customer requests have been created yet.</p>
-            </div>
-          )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Estimated Budget</label>
+                  <input
+                    value={formData.budget}
+                    onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="AED 50,000"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Internal Notes</label>
+                  <input
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Optional notes"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-3 rounded-lg transition-colors"
+              >
+                <Plus className="w-5 h-5" />
+                Create Request
+              </button>
+            </form>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

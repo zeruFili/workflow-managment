@@ -22,6 +22,7 @@ export function Login() {
   };
 
   const demoUsers = [
+    { username: 'ceo', role: 'CEO' },
     { username: 'marketing', role: 'Marketing Lead' },
     { username: 'gm', role: 'General Manager' },
     { username: 'design_lead', role: 'Design Team Leader' },

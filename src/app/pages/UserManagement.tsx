@@ -238,10 +238,10 @@ export function UserManagement() {
     );
   };
 
-  if (!user || user.role !== 'system_administrator') {
+  if (!user || (user.role !== 'system_administrator' && user.role !== 'ceo')) {
     return (
       <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
-        <p className="text-gray-500">Access denied. Administrator privileges required.</p>
+        <p className="text-gray-500">Access denied. CEO or Administrator privileges required.</p>
       </div>
     );
   }

@@ -19,8 +19,8 @@ import {
 const TASK_STORAGE_KEY = 'designer-tasks';
 const APPLICATION_STORAGE_KEY = 'designer-task-applications';
 
-const allowedRoles = new Set(['general_manager', 'system_administrator', 'design_team_leader', 'designer']);
-const reviewRoles = new Set(['general_manager', 'system_administrator']);
+const allowedRoles = new Set(['ceo', 'general_manager', 'system_administrator', 'design_team_leader', 'designer']);
+const reviewRoles = new Set(['ceo', 'general_manager', 'system_administrator']);
 
 const emptyNewTask = {
   title: '',
@@ -112,7 +112,7 @@ export function DesignerTasks() {
     return (
       <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
         <p className="text-gray-500">
-          Access denied. Designer tasks are visible to the General Manager, System Administrator, Design Team Leader, and Designer only.
+          Access denied. Designer assignments are visible to the CEO, General Manager, System Administrator, Design Team Leader, and Designer only.
         </p>
       </div>
     );

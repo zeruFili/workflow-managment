@@ -11,7 +11,7 @@ import {
 const APPLICATION_STORAGE_KEY = 'designer-task-applications';
 const TASK_STORAGE_KEY = 'designer-tasks';
 
-const reviewRoles = new Set(['general_manager', 'system_administrator']);
+const reviewRoles = new Set(['ceo', 'general_manager', 'system_administrator']);
 
 const designerRoster = [
   { id: '3', name: 'Emily Chen', role: 'Design Team Leader' },
@@ -78,7 +78,7 @@ export function TaskApplications() {
   if (!reviewRoles.has(user.role)) {
     return (
       <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
-        <p className="text-gray-500">Access denied. Admin and General Manager only.</p>
+        <p className="text-gray-500">Access denied. CEO, General Manager, and System Administrator only.</p>
       </div>
     );
   }

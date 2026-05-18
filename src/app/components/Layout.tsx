@@ -24,6 +24,12 @@ interface LayoutProps {
   children: React.ReactNode;
 }
 
+type NavigationItem = {
+  path: string;
+  label: string;
+  icon: React.ElementType;
+};
+
 export function Layout({ children }: LayoutProps) {
   const { user, logout } = useAuth();
   const location = useLocation();
@@ -32,14 +38,21 @@ export function Layout({ children }: LayoutProps) {
 
   if (!user) return <>{children}</>;
 
-  const navigationItems = [
+  const navigationItems: NavigationItem[] = [
     { path: '/dashboard', label: 'Dashboard', icon: Home },
-    { path: '/projects', label: 'Projects', icon: FolderKanban },
-    { path: '/tasks', label: 'Tasks', icon: CheckSquare },
-    { path: '/documents', label: 'Documents', icon: FileText },
   ];
 
-  if (user.role === 'marketing_lead') {
+  if (user.role !== 'ceo' && user.role !== 'general_manager') {
+    navigationItems.push({ path: '/tasks', label: 'Tasks', icon: CheckSquare });
+  }
+
+  const addNavigationItem = (item: NavigationItem) => {
+    if (!navigationItems.some((candidate) => candidate.path === item.path)) {
+      navigationItems.push(item);
+    }
+  };
+
+  if (user.role === 'marketing_lead' || user.role === 'ceo') {
     navigationItems.push({ path: '/customer-requests', label: 'Customer Requests', icon: ClipboardList });
   }
 
@@ -47,28 +60,34 @@ export function Layout({ children }: LayoutProps) {
     navigationItems.push({ path: '/customer-data', label: 'Customer Data', icon: Database });
   }
 
-  if (user.role === 'general_manager' || user.role === 'marketing_lead' || user.role === 'system_administrator') {
+  if (user.role === 'general_manager' || user.role === 'marketing_lead' || user.role === 'ceo' || user.role === 'system_administrator') {
     navigationItems.push({ path: '/paid-customers', label: 'Paid Customers', icon: CircleDollarSign });
   }
 
-  if (user.role === 'general_manager' || user.role === 'system_administrator' || user.role === 'design_team_leader' || user.role === 'designer') {
-    navigationItems.push({ path: '/designer-tasks', label: 'Designer Tasks', icon: LayoutGrid });
+  if (user.role === 'ceo' || user.role === 'general_manager' || user.role === 'system_administrator') {
+    addNavigationItem({ path: '/finance-verifications', label: 'Finance Verifications', icon: ClipboardCheck });
+    addNavigationItem({ path: '/data-collector-tasks', label: 'Data Collector Tasks', icon: Database });
+    addNavigationItem({ path: '/job-postings', label: 'Job Postings', icon: FolderKanban });
+    addNavigationItem({ path: '/designer-applications', label: 'Designer Applications', icon: ClipboardPenLine });
+    addNavigationItem({ path: '/designer-assignments', label: 'Designer Assignments', icon: LayoutGrid });
+    addNavigationItem({ path: '/quantity-surveyor-tasks', label: 'Quantity Surveyor Tasks', icon: CheckSquare });
+    addNavigationItem({ path: '/performance-ratings', label: 'Performance Ratings', icon: TrendingUp });
   }
 
-  if (user.role === 'general_manager' || user.role === 'system_administrator') {
-    navigationItems.push({ path: '/task-applications', label: 'Task Applications', icon: ClipboardPenLine });
+  if (user.role === 'design_team_leader' || user.role === 'designer') {
+    addNavigationItem({ path: '/designer-tasks', label: 'Designer Tasks', icon: LayoutGrid });
   }
 
-  if (user.role === 'system_administrator' || user.role === 'general_manager' || user.role === 'designer') {
-    navigationItems.push({ path: '/designer-performance', label: 'Designer Performance', icon: TrendingUp });
+  if (user.role === 'design_team_leader' || user.role === 'designer' || user.role === 'ceo' || user.role === 'general_manager' || user.role === 'system_administrator') {
+    addNavigationItem({ path: '/performance-ratings', label: 'Performance Ratings', icon: TrendingUp });
   }
 
   if (user.role !== 'system_administrator') {
     navigationItems.push({ path: '/approvals', label: 'Approvals', icon: ClipboardCheck });
   }
 
-  if (user.role === 'system_administrator') {
-    navigationItems.push({ path: '/users', label: 'Users', icon: Users });
+  if (user.role === 'system_administrator' || user.role === 'ceo') {
+    navigationItems.push({ path: '/users', label: 'User Management', icon: Users });
   }
 
   const handleLogout = () => {

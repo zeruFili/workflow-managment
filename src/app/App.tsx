@@ -4,10 +4,7 @@ import { useTelegram } from './hooks/useTelegram';
 import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
-import { Projects } from './pages/Projects';
-import { ProjectDetails } from './pages/ProjectDetails';
 import { Tasks } from './pages/Tasks';
-import { Documents } from './pages/Documents';
 import { Approvals } from './pages/Approvals';
 import { UserManagement } from './pages/UserManagement';
 import { CustomerRequests } from './pages/CustomerRequests';
@@ -16,6 +13,10 @@ import { PaidCustomers } from './pages/PaidCustomers';
 import { DesignerTasks } from './pages/DesignerTasks';
 import { TaskApplications } from './pages/TaskApplications';
 import { DesignerPerformanceDashboard } from './pages/DesignerPerfromanceDashboards';
+import { FinanceVerifications } from './pages/FinanceVerifications';
+import { DataCollectorTasks } from './pages/DataCollectorTasks';
+import { JobPostings } from './pages/JobPostings';
+import { QuantitySurveyorTasks } from './pages/QuantitySurveyorTasks';
 import { UserRole } from './types';
 import { useEffect } from 'react';
 
@@ -73,9 +74,7 @@ function AppContent() {
           path="/projects"
           element={
             <ProtectedRoute>
-              <Layout>
-                <Projects />
-              </Layout>
+              <Navigate to="/dashboard" replace />
             </ProtectedRoute>
           }
         />
@@ -83,16 +82,14 @@ function AppContent() {
           path="/projects/:id"
           element={
             <ProtectedRoute>
-              <Layout>
-                <ProjectDetails />
-              </Layout>
+              <Navigate to="/dashboard" replace />
             </ProtectedRoute>
           }
         />
         <Route
           path="/tasks"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['marketing_lead', 'design_team_leader', 'designer', 'site_engineer', 'finance_officer', 'purchasing_team', 'data_collector', 'quantity_surveyor', 'system_administrator']}>
               <Layout>
                 <Tasks />
               </Layout>
@@ -103,9 +100,7 @@ function AppContent() {
           path="/documents"
           element={
             <ProtectedRoute>
-              <Layout>
-                <Documents />
-              </Layout>
+              <Navigate to="/dashboard" replace />
             </ProtectedRoute>
           }
         />
@@ -132,7 +127,7 @@ function AppContent() {
         <Route
           path="/customer-requests"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['ceo', 'marketing_lead', 'system_administrator']}>
               <Layout>
                 <CustomerRequests />
               </Layout>
@@ -152,7 +147,7 @@ function AppContent() {
         <Route
           path="/paid-customers"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'marketing_lead', 'system_administrator']}>
               <Layout>
                 <PaidCustomers />
               </Layout>
@@ -160,9 +155,69 @@ function AppContent() {
           }
         />
         <Route
+          path="/finance-verifications"
+          element={
+            <ProtectedRoute allowedRoles={['ceo', 'system_administrator']}>
+              <Layout>
+                <FinanceVerifications />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/data-collector-tasks"
+          element={
+            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'system_administrator']}>
+              <Layout>
+                <DataCollectorTasks />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/job-postings"
+          element={
+            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'system_administrator']}>
+              <Layout>
+                <JobPostings />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/designer-applications"
+          element={
+            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'system_administrator']}>
+              <Layout>
+                <TaskApplications />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/designer-assignments"
+          element={
+            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'system_administrator', 'design_team_leader', 'designer']}>
+              <Layout>
+                <DesignerTasks />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/quantity-surveyor-tasks"
+          element={
+            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'system_administrator']}>
+              <Layout>
+                <QuantitySurveyorTasks />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/designer-tasks"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'system_administrator', 'design_team_leader', 'designer']}>
               <Layout>
                 <DesignerTasks />
               </Layout>
@@ -172,7 +227,7 @@ function AppContent() {
         <Route
           path="/task-applications"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'system_administrator']}>
               <Layout>
                 <TaskApplications />
               </Layout>
@@ -180,11 +235,19 @@ function AppContent() {
           }
         />
         <Route
+          path="/performance-ratings"
+          element={
+            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'designer', 'system_administrator']}>
+              <Layout>
+                <DesignerPerformanceDashboard />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/designer-performance"
           element={
-            <ProtectedRoute
-              allowedRoles={['system_administrator', 'general_manager', 'designer']}
-            >
+            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'designer', 'system_administrator']}>
               <Layout>
                 <DesignerPerformanceDashboard />
               </Layout>

@@ -89,10 +89,10 @@ export function PaidCustomers() {
     return null;
   }
 
-  if (user.role !== 'general_manager' && user.role !== 'marketing_lead' && user.role !== 'system_administrator') {
+  if (user.role !== 'general_manager' && user.role !== 'marketing_lead' && user.role !== 'ceo' && user.role !== 'system_administrator') {
     return (
       <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
-        <p className="text-gray-500">Access denied. General Manager, Marketing Lead, or System Administrator access required.</p>
+        <p className="text-gray-500">Access denied. General Manager, Marketing Lead, CEO, or System Administrator access required.</p>
       </div>
     );
   }
