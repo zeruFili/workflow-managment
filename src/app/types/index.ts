@@ -1,6 +1,9 @@
 export type UserRole =
   | 'marketing_lead'
   | 'general_manager'
+  | 'ceo'
+  | 'data_collector'
+  | 'quantity_surveyor'
   | 'design_team_leader'
   | 'designer'
   | 'site_engineer'

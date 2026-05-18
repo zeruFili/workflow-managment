@@ -519,3 +519,377 @@ export const mockApprovals: Approval[] = [
     feedback: 'All requirements met. Approved for completion.',
   },
 ];
+
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DESIGNER PERFORMANCE DATA — add this to your existing mockData.ts
+// References user IDs from your existing mockUsers:
+//   '3' = Emily Chen  (design_team_leader)
+//   '4' = Michael Brown (designer)
+// Two additional mock designers added below for richer analytics.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface DesignerRating {
+  id: string;
+  designerId: string;
+  taskId: string;
+  taskTitle: string;
+  projectId: string;
+  projectName: string;
+  storyPoints: number;
+  overallRating: number; // 1–5
+  renderingQuality: number;
+  timeliness: number;
+  creativity: number;
+  clientUnderstanding: number;
+  revisionEfficiency: number;
+  revisionCount: number;
+  completedAt: string; // ISO date string
+  feedback: string;
+  ratedBy: string; // userId
+  week: number;   // 1–52
+  month: number;  // 1–12
+  quarter: number; // 1–4
+  year: number;
+}
+
+export interface DesignerProfile {
+  designerId: string;
+  displayName: string; // editable by CEO
+  username: string;
+  email: string;
+  avatarInitials: string;
+  role: 'designer' | 'design_team_leader';
+  joinedAt: string;
+}
+
+// ─── Designer Profiles ────────────────────────────────────────────────────────
+
+export const designerProfiles: DesignerProfile[] = [
+  {
+    designerId: '3',
+    displayName: 'Emily Chen',
+    username: 'design_lead',
+    email: 'emily@company.com',
+    avatarInitials: 'EC',
+    role: 'design_team_leader',
+    joinedAt: '2024-01-15T00:00:00Z',
+  },
+  {
+    designerId: '4',
+    displayName: 'Michael Brown',
+    username: 'designer',
+    email: 'michael@company.com',
+    avatarInitials: 'MB',
+    role: 'designer',
+    joinedAt: '2024-03-01T00:00:00Z',
+  },
+  {
+    designerId: '9',
+    displayName: 'Sophia Ahmed',
+    username: 'sophia_designer',
+    email: 'sophia@company.com',
+    avatarInitials: 'SA',
+    role: 'designer',
+    joinedAt: '2024-06-10T00:00:00Z',
+  },
+  {
+    designerId: '10',
+    displayName: 'Daniel Reed',
+    username: 'daniel_designer',
+    email: 'daniel@company.com',
+    avatarInitials: 'DR',
+    role: 'designer',
+    joinedAt: '2025-01-20T00:00:00Z',
+  },
+];
+
+// ─── Designer Ratings / Task History ─────────────────────────────────────────
+// Covers Jan 2025 – May 2026 across all 4 designers
+
+export const designerRatings: DesignerRating[] = [
+  // ── Emily Chen (id: '3') ──────────────────────────────────────────────────
+  {
+    id: 'r-ec-001', designerId: '3', taskId: 'dtask-2', taskTitle: 'Prepare material palette board',
+    projectId: 'proj-2', projectName: 'Residential Complex - Phase 2',
+    storyPoints: 5, overallRating: 4.7, renderingQuality: 4.8, timeliness: 4.5, creativity: 4.9,
+    clientUnderstanding: 4.7, revisionEfficiency: 4.6, revisionCount: 1, status: 'approved',
+    completedAt: '2026-05-10T14:00:00Z', feedback: 'Excellent material choices, very cohesive palette.',
+    ratedBy: '2', week: 19, month: 5, quarter: 2, year: 2026,
+  },
+  {
+    id: 'r-ec-002', designerId: '3', taskId: 'dtask-4', taskTitle: 'Update bedroom palette options',
+    projectId: 'proj-5', projectName: 'Hotel Lobby Redesign',
+    storyPoints: 3, overallRating: 3.2, renderingQuality: 3.0, timeliness: 3.5, creativity: 3.2,
+    clientUnderstanding: 3.0, revisionEfficiency: 3.2, revisionCount: 3, status: 'rejected',
+    completedAt: '2026-05-08T11:30:00Z', feedback: 'Palette options were incomplete. Needs stronger material references.',
+    ratedBy: '8', week: 19, month: 5, quarter: 2, year: 2026,
+  },
+  {
+    id: 'r-ec-003', designerId: '3', taskId: 'dtask-6', taskTitle: 'Finalize kitchen cabinetry sketch',
+    projectId: 'proj-2', projectName: 'Residential Complex - Phase 2',
+    storyPoints: 5, overallRating: 4.9, renderingQuality: 5.0, timeliness: 4.8, creativity: 4.9,
+    clientUnderstanding: 5.0, revisionEfficiency: 4.9, revisionCount: 0, status: 'approved',
+    completedAt: '2026-05-13T13:20:00Z', feedback: 'All dimensions and work notes were complete. Outstanding.',
+    ratedBy: '2', week: 20, month: 5, quarter: 2, year: 2026,
+  },
+  {
+    id: 'r-ec-004', designerId: '3', taskId: 'dtask-8', taskTitle: 'Compile finish sample references',
+    projectId: 'proj-1', projectName: 'City Plaza Renovation',
+    storyPoints: 3, overallRating: 4.5, renderingQuality: 4.4, timeliness: 4.6, creativity: 4.5,
+    clientUnderstanding: 4.5, revisionEfficiency: 4.4, revisionCount: 1, status: 'approved',
+    completedAt: '2026-04-26T16:00:00Z', feedback: 'Well organized reference sheet, easy for client review.',
+    ratedBy: '2', week: 17, month: 4, quarter: 2, year: 2026,
+  },
+  // Emily Q1 2026
+  {
+    id: 'r-ec-005', designerId: '3', taskId: 'prev-ec-1', taskTitle: 'Office Lighting Concept',
+    projectId: 'proj-3', projectName: 'Commercial Tower Interior',
+    storyPoints: 8, overallRating: 4.3, renderingQuality: 4.4, timeliness: 4.0, creativity: 4.5,
+    clientUnderstanding: 4.2, revisionEfficiency: 4.2, revisionCount: 2, status: 'approved',
+    completedAt: '2026-03-12T10:00:00Z', feedback: 'Good concept, minor revisions on fixture spacing.',
+    ratedBy: '2', week: 11, month: 3, quarter: 1, year: 2026,
+  },
+  {
+    id: 'r-ec-006', designerId: '3', taskId: 'prev-ec-2', taskTitle: 'Reception Area Moodboard',
+    projectId: 'proj-3', projectName: 'Commercial Tower Interior',
+    storyPoints: 5, overallRating: 4.6, renderingQuality: 4.7, timeliness: 4.5, creativity: 4.8,
+    clientUnderstanding: 4.5, revisionEfficiency: 4.4, revisionCount: 1, status: 'approved',
+    completedAt: '2026-02-20T15:00:00Z', feedback: 'Very strong moodboard, client loved the direction.',
+    ratedBy: '2', week: 8, month: 2, quarter: 1, year: 2026,
+  },
+  {
+    id: 'r-ec-007', designerId: '3', taskId: 'prev-ec-3', taskTitle: 'Furniture Layout Plan',
+    projectId: 'proj-1', projectName: 'City Plaza Renovation',
+    storyPoints: 5, overallRating: 3.8, renderingQuality: 3.9, timeliness: 3.5, creativity: 4.0,
+    clientUnderstanding: 3.8, revisionEfficiency: 3.7, revisionCount: 3, status: 'approved',
+    completedAt: '2026-01-18T12:00:00Z', feedback: 'Needed extra revisions due to site constraint issues.',
+    ratedBy: '2', week: 3, month: 1, quarter: 1, year: 2026,
+  },
+  // Emily 2025
+  {
+    id: 'r-ec-008', designerId: '3', taskId: 'prev-ec-4', taskTitle: 'Annual Design Report',
+    projectId: 'proj-5', projectName: 'Hotel Lobby Redesign',
+    storyPoints: 13, overallRating: 4.4, renderingQuality: 4.5, timeliness: 4.2, creativity: 4.6,
+    clientUnderstanding: 4.3, revisionEfficiency: 4.4, revisionCount: 2, status: 'approved',
+    completedAt: '2025-12-15T11:00:00Z', feedback: 'Comprehensive and well-structured annual report.',
+    ratedBy: '2', week: 51, month: 12, quarter: 4, year: 2025,
+  },
+  {
+    id: 'r-ec-009', designerId: '3', taskId: 'prev-ec-5', taskTitle: 'Brand Identity Package',
+    projectId: 'proj-4', projectName: 'Park & Recreation Center',
+    storyPoints: 8, overallRating: 4.8, renderingQuality: 5.0, timeliness: 4.6, creativity: 4.9,
+    clientUnderstanding: 4.8, revisionEfficiency: 4.7, revisionCount: 1, status: 'approved',
+    completedAt: '2025-09-10T14:00:00Z', feedback: 'Exceptional brand package, very creative direction.',
+    ratedBy: '2', week: 37, month: 9, quarter: 3, year: 2025,
+  },
+  {
+    id: 'r-ec-010', designerId: '3', taskId: 'prev-ec-6', taskTitle: 'Landscape Concept Boards',
+    projectId: 'proj-4', projectName: 'Park & Recreation Center',
+    storyPoints: 8, overallRating: 4.1, renderingQuality: 4.0, timeliness: 4.3, creativity: 4.2,
+    clientUnderstanding: 4.0, revisionEfficiency: 4.0, revisionCount: 2, status: 'approved',
+    completedAt: '2025-06-22T10:00:00Z', feedback: 'Solid concept, needed one extra revision for plant specs.',
+    ratedBy: '2', week: 25, month: 6, quarter: 2, year: 2025,
+  },
+
+  // ── Michael Brown (id: '4') ───────────────────────────────────────────────
+  {
+    id: 'r-mb-001', designerId: '4', taskId: 'dtask-1', taskTitle: 'Draft living room elevation',
+    projectId: 'proj-1', projectName: 'City Plaza Renovation',
+    storyPoints: 8, overallRating: 4.8, renderingQuality: 5.0, timeliness: 4.5, creativity: 4.9,
+    clientUnderstanding: 4.8, revisionEfficiency: 4.8, revisionCount: 1, status: 'approved',
+    completedAt: '2026-05-05T14:00:00Z', feedback: 'Outstanding elevation drawing, client loved the detail.',
+    ratedBy: '2', week: 19, month: 5, quarter: 2, year: 2026,
+  },
+  {
+    id: 'r-mb-002', designerId: '4', taskId: 'dtask-3', taskTitle: 'Review ceiling detail drawings',
+    projectId: 'proj-3', projectName: 'Commercial Tower Interior',
+    storyPoints: 8, overallRating: 4.1, renderingQuality: 4.0, timeliness: 4.3, creativity: 4.0,
+    clientUnderstanding: 4.2, revisionEfficiency: 4.0, revisionCount: 2, status: 'approved',
+    completedAt: '2026-05-10T15:00:00Z', feedback: 'Good work, confirmed measurements matched site.',
+    ratedBy: '2', week: 19, month: 5, quarter: 2, year: 2026,
+  },
+  {
+    id: 'r-mb-003', designerId: '4', taskId: 'dtask-7', taskTitle: 'Prepare hallway lighting notes',
+    projectId: 'proj-3', projectName: 'Commercial Tower Interior',
+    storyPoints: 2, overallRating: 2.8, renderingQuality: 2.5, timeliness: 3.0, creativity: 2.8,
+    clientUnderstanding: 2.9, revisionEfficiency: 2.8, revisionCount: 4, status: 'rejected',
+    completedAt: '2026-05-13T18:10:00Z', feedback: 'Missed fixture spacing calculations. Needs redo.',
+    ratedBy: '2', week: 20, month: 5, quarter: 2, year: 2026,
+  },
+  {
+    id: 'r-mb-004', designerId: '4', taskId: 'dtask-5', taskTitle: 'Measure reception desk area',
+    projectId: 'proj-4', projectName: 'Park & Recreation Center',
+    storyPoints: 8, overallRating: 3.9, renderingQuality: 3.8, timeliness: 4.0, creativity: 3.9,
+    clientUnderstanding: 4.0, revisionEfficiency: 3.8, revisionCount: 2, status: 'in_review',
+    completedAt: '2026-04-25T10:00:00Z', feedback: 'Measurements are complete, under review for accuracy.',
+    ratedBy: '2', week: 17, month: 4, quarter: 2, year: 2026,
+  },
+  // Michael Q1 2026
+  {
+    id: 'r-mb-005', designerId: '4', taskId: 'prev-mb-1', taskTitle: 'Villa Interior Rendering',
+    projectId: 'proj-1', projectName: 'City Plaza Renovation',
+    storyPoints: 13, overallRating: 4.8, renderingQuality: 5.0, timeliness: 4.7, creativity: 4.8,
+    clientUnderstanding: 4.8, revisionEfficiency: 4.7, revisionCount: 1, status: 'approved',
+    completedAt: '2026-03-05T10:00:00Z', feedback: 'Photorealistic quality, client was very impressed.',
+    ratedBy: '2', week: 10, month: 3, quarter: 1, year: 2026,
+  },
+  {
+    id: 'r-mb-006', designerId: '4', taskId: 'prev-mb-2', taskTitle: 'Office Design Concept',
+    projectId: 'proj-2', projectName: 'Residential Complex - Phase 2',
+    storyPoints: 21, overallRating: 4.1, renderingQuality: 4.2, timeliness: 4.0, creativity: 4.3,
+    clientUnderstanding: 4.0, revisionEfficiency: 4.0, revisionCount: 2, status: 'approved',
+    completedAt: '2026-02-10T14:00:00Z', feedback: 'Solid design, a couple of revisions required.',
+    ratedBy: '2', week: 6, month: 2, quarter: 1, year: 2026,
+  },
+  {
+    id: 'r-mb-007', designerId: '4', taskId: 'prev-mb-3', taskTitle: 'Interior Render - Lobby',
+    projectId: 'proj-5', projectName: 'Hotel Lobby Redesign',
+    storyPoints: 8, overallRating: 3.9, renderingQuality: 4.1, timeliness: 3.6, creativity: 4.0,
+    clientUnderstanding: 3.8, revisionEfficiency: 3.9, revisionCount: 3, status: 'approved',
+    completedAt: '2026-01-13T10:00:00Z', feedback: 'Good render but timeliness was an issue.',
+    ratedBy: '2', week: 2, month: 1, quarter: 1, year: 2026,
+  },
+  // Michael 2025
+  {
+    id: 'r-mb-008', designerId: '4', taskId: 'prev-mb-4', taskTitle: 'Showroom 3D Model',
+    projectId: 'proj-3', projectName: 'Commercial Tower Interior',
+    storyPoints: 13, overallRating: 4.6, renderingQuality: 4.8, timeliness: 4.4, creativity: 4.7,
+    clientUnderstanding: 4.5, revisionEfficiency: 4.5, revisionCount: 1, status: 'approved',
+    completedAt: '2025-11-20T12:00:00Z', feedback: 'Excellent 3D work, very accurate to brief.',
+    ratedBy: '2', week: 47, month: 11, quarter: 4, year: 2025,
+  },
+  {
+    id: 'r-mb-009', designerId: '4', taskId: 'prev-mb-5', taskTitle: 'Outdoor Terrace Layout',
+    projectId: 'proj-4', projectName: 'Park & Recreation Center',
+    storyPoints: 5, overallRating: 3.7, renderingQuality: 3.6, timeliness: 3.8, creativity: 3.8,
+    clientUnderstanding: 3.7, revisionEfficiency: 3.5, revisionCount: 3, status: 'approved',
+    completedAt: '2025-08-14T10:00:00Z', feedback: 'Layout needed extra revisions for furniture clearance.',
+    ratedBy: '2', week: 33, month: 8, quarter: 3, year: 2025,
+  },
+  {
+    id: 'r-mb-010', designerId: '4', taskId: 'prev-mb-6', taskTitle: 'Concept Board - Minimalist',
+    projectId: 'proj-1', projectName: 'City Plaza Renovation',
+    storyPoints: 5, overallRating: 4.4, renderingQuality: 4.5, timeliness: 4.3, creativity: 4.6,
+    clientUnderstanding: 4.3, revisionEfficiency: 4.3, revisionCount: 1, status: 'approved',
+    completedAt: '2025-05-08T15:00:00Z', feedback: 'Clean concept, well received by client.',
+    ratedBy: '2', week: 19, month: 5, quarter: 2, year: 2025,
+  },
+
+  // ── Sophia Ahmed (id: '9') ────────────────────────────────────────────────
+  {
+    id: 'r-sa-001', designerId: '9', taskId: 'sa-task-1', taskTitle: 'Lounge Concept Layout',
+    projectId: 'proj-4', projectName: 'Park & Recreation Center',
+    storyPoints: 8, overallRating: 4.6, renderingQuality: 4.7, timeliness: 4.5, creativity: 4.8,
+    clientUnderstanding: 4.5, revisionEfficiency: 4.5, revisionCount: 1, status: 'approved',
+    completedAt: '2026-05-07T10:00:00Z', feedback: 'Clean modern style, circulation was well considered.',
+    ratedBy: '2', week: 19, month: 5, quarter: 2, year: 2026,
+  },
+  {
+    id: 'r-sa-002', designerId: '9', taskId: 'sa-task-2', taskTitle: 'Bathroom Tile Scheme',
+    projectId: 'proj-2', projectName: 'Residential Complex - Phase 2',
+    storyPoints: 3, overallRating: 4.2, renderingQuality: 4.1, timeliness: 4.4, creativity: 4.2,
+    clientUnderstanding: 4.2, revisionEfficiency: 4.1, revisionCount: 2, status: 'approved',
+    completedAt: '2026-05-12T14:00:00Z', feedback: 'Good tile selection, minor color adjustment requested.',
+    ratedBy: '2', week: 20, month: 5, quarter: 2, year: 2026,
+  },
+  {
+    id: 'r-sa-003', designerId: '9', taskId: 'sa-task-3', taskTitle: 'Staircase Detail Drawing',
+    projectId: 'proj-3', projectName: 'Commercial Tower Interior',
+    storyPoints: 5, overallRating: 3.5, renderingQuality: 3.4, timeliness: 3.6, creativity: 3.5,
+    clientUnderstanding: 3.5, revisionEfficiency: 3.4, revisionCount: 3, status: 'in_review',
+    completedAt: '2026-04-28T16:00:00Z', feedback: 'Under review; handrail detailing needs clarification.',
+    ratedBy: '2', week: 17, month: 4, quarter: 2, year: 2026,
+  },
+  {
+    id: 'r-sa-004', designerId: '9', taskId: 'sa-task-4', taskTitle: 'Entry Canopy Sketch',
+    projectId: 'proj-1', projectName: 'City Plaza Renovation',
+    storyPoints: 5, overallRating: 4.8, renderingQuality: 4.9, timeliness: 4.7, creativity: 5.0,
+    clientUnderstanding: 4.7, revisionEfficiency: 4.8, revisionCount: 0, status: 'approved',
+    completedAt: '2026-03-18T10:00:00Z', feedback: 'Perfect entry canopy design, zero revisions needed!',
+    ratedBy: '2', week: 11, month: 3, quarter: 1, year: 2026,
+  },
+  {
+    id: 'r-sa-005', designerId: '9', taskId: 'sa-task-5', taskTitle: 'Facade Material Board',
+    projectId: 'proj-3', projectName: 'Commercial Tower Interior',
+    storyPoints: 8, overallRating: 4.3, renderingQuality: 4.4, timeliness: 4.1, creativity: 4.5,
+    clientUnderstanding: 4.2, revisionEfficiency: 4.2, revisionCount: 2, status: 'approved',
+    completedAt: '2026-02-14T12:00:00Z', feedback: 'Solid facade selection, needed minor supplier updates.',
+    ratedBy: '2', week: 7, month: 2, quarter: 1, year: 2026,
+  },
+  {
+    id: 'r-sa-006', designerId: '9', taskId: 'sa-task-6', taskTitle: 'Lighting Fixture Schedule',
+    projectId: 'proj-5', projectName: 'Hotel Lobby Redesign',
+    storyPoints: 5, overallRating: 2.9, renderingQuality: 2.8, timeliness: 3.1, creativity: 3.0,
+    clientUnderstanding: 2.8, revisionEfficiency: 2.8, revisionCount: 4, status: 'rejected',
+    completedAt: '2025-12-10T16:00:00Z', feedback: 'Fixture schedule was incomplete, missing lumen data.',
+    ratedBy: '2', week: 50, month: 12, quarter: 4, year: 2025,
+  },
+  {
+    id: 'r-sa-007', designerId: '9', taskId: 'sa-task-7', taskTitle: 'Roof Garden Concept',
+    projectId: 'proj-4', projectName: 'Park & Recreation Center',
+    storyPoints: 8, overallRating: 4.7, renderingQuality: 4.8, timeliness: 4.6, creativity: 4.9,
+    clientUnderstanding: 4.6, revisionEfficiency: 4.6, revisionCount: 1, status: 'approved',
+    completedAt: '2025-09-22T10:00:00Z', feedback: 'Stunning roof garden concept, highly creative.',
+    ratedBy: '2', week: 38, month: 9, quarter: 3, year: 2025,
+  },
+
+  // ── Daniel Reed (id: '10') ────────────────────────────────────────────────
+  {
+    id: 'r-dr-001', designerId: '10', taskId: 'dr-task-1', taskTitle: 'Master Plan Diagram',
+    projectId: 'proj-4', projectName: 'Park & Recreation Center',
+    storyPoints: 13, overallRating: 3.8, renderingQuality: 3.9, timeliness: 3.6, creativity: 4.0,
+    clientUnderstanding: 3.8, revisionEfficiency: 3.7, revisionCount: 3, status: 'approved',
+    completedAt: '2026-05-06T10:00:00Z', feedback: 'Diagram is clear but needed layout adjustments.',
+    ratedBy: '2', week: 19, month: 5, quarter: 2, year: 2026,
+  },
+  {
+    id: 'r-dr-002', designerId: '10', taskId: 'dr-task-2', taskTitle: 'Interior Partition Plan',
+    projectId: 'proj-2', projectName: 'Residential Complex - Phase 2',
+    storyPoints: 8, overallRating: 4.3, renderingQuality: 4.4, timeliness: 4.1, creativity: 4.4,
+    clientUnderstanding: 4.3, revisionEfficiency: 4.2, revisionCount: 2, status: 'approved',
+    completedAt: '2026-05-11T12:00:00Z', feedback: 'Clear partition plan, measurements were accurate.',
+    ratedBy: '2', week: 19, month: 5, quarter: 2, year: 2026,
+  },
+  {
+    id: 'r-dr-003', designerId: '10', taskId: 'dr-task-3', taskTitle: 'Window Detail Section',
+    projectId: 'proj-1', projectName: 'City Plaza Renovation',
+    storyPoints: 5, overallRating: 2.5, renderingQuality: 2.4, timeliness: 2.6, creativity: 2.5,
+    clientUnderstanding: 2.5, revisionEfficiency: 2.4, revisionCount: 5, status: 'rejected',
+    completedAt: '2026-04-30T16:00:00Z', feedback: 'Window section had multiple dimensional errors.',
+    ratedBy: '2', week: 18, month: 4, quarter: 2, year: 2026,
+  },
+  {
+    id: 'r-dr-004', designerId: '10', taskId: 'dr-task-4', taskTitle: 'Signage Layout Plan',
+    projectId: 'proj-3', projectName: 'Commercial Tower Interior',
+    storyPoints: 3, overallRating: 4.5, renderingQuality: 4.5, timeliness: 4.4, creativity: 4.6,
+    clientUnderstanding: 4.5, revisionEfficiency: 4.4, revisionCount: 1, status: 'approved',
+    completedAt: '2026-03-25T10:00:00Z', feedback: 'Well-positioned signage, good wayfinding logic.',
+    ratedBy: '2', week: 12, month: 3, quarter: 1, year: 2026,
+  },
+  {
+    id: 'r-dr-005', designerId: '10', taskId: 'dr-task-5', taskTitle: 'Color Scheme Review',
+    projectId: 'proj-5', projectName: 'Hotel Lobby Redesign',
+    storyPoints: 5, overallRating: 3.6, renderingQuality: 3.5, timeliness: 3.8, creativity: 3.7,
+    clientUnderstanding: 3.5, revisionEfficiency: 3.5, revisionCount: 3, status: 'approved',
+    completedAt: '2026-02-18T14:00:00Z', feedback: 'Color review completed with some hesitations on accent choices.',
+    ratedBy: '2', week: 7, month: 2, quarter: 1, year: 2026,
+  },
+  {
+    id: 'r-dr-006', designerId: '10', taskId: 'dr-task-6', taskTitle: 'Entrance Gate Drawing',
+    projectId: 'proj-4', projectName: 'Park & Recreation Center',
+    storyPoints: 8, overallRating: 4.7, renderingQuality: 4.8, timeliness: 4.6, creativity: 4.8,
+    clientUnderstanding: 4.6, revisionEfficiency: 4.7, revisionCount: 1, status: 'approved',
+    completedAt: '2025-11-05T10:00:00Z', feedback: 'Beautiful gate drawing, exceeded expectations.',
+    ratedBy: '2', week: 45, month: 11, quarter: 4, year: 2025,
+  },
+  {
+    id: 'r-dr-007', designerId: '10', taskId: 'dr-task-7', taskTitle: 'Furniture Arrangement Plan',
+    projectId: 'proj-2', projectName: 'Residential Complex - Phase 2',
+    storyPoints: 5, overallRating: 3.4, renderingQuality: 3.3, timeliness: 3.5, creativity: 3.4,
+    clientUnderstanding: 3.4, revisionEfficiency: 3.3, revisionCount: 4, status: 'approved',
+    completedAt: '2025-07-20T12:00:00Z', feedback: 'Plan was usable but circulation paths needed work.',
+    ratedBy: '2', week: 29, month: 7, quarter: 3, year: 2025,
+  },
+];

@@ -12,6 +12,7 @@ import {
   CircleDollarSign,
   LayoutGrid,
   ClipboardPenLine,
+  TrendingUp,
   Users,
   LogOut,
   Menu,
@@ -56,6 +57,10 @@ export function Layout({ children }: LayoutProps) {
 
   if (user.role === 'general_manager' || user.role === 'system_administrator') {
     navigationItems.push({ path: '/task-applications', label: 'Task Applications', icon: ClipboardPenLine });
+  }
+
+  if (user.role === 'system_administrator' || user.role === 'general_manager' || user.role === 'designer') {
+    navigationItems.push({ path: '/designer-performance', label: 'Designer Performance', icon: TrendingUp });
   }
 
   if (user.role !== 'system_administrator') {

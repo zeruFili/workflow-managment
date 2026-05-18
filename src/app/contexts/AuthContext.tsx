@@ -70,6 +70,9 @@ export function getRoleName(role: UserRole): string {
   const roleNames: Record<UserRole, string> = {
     marketing_lead: 'Marketing Lead',
     general_manager: 'General Manager',
+    ceo: 'CEO',
+    data_collector: 'Data Collector',
+    quantity_surveyor: 'Quantity Surveyor',
     design_team_leader: 'Design Team Leader',
     designer: 'Designer',
     site_engineer: 'Site Engineer',

@@ -15,13 +15,25 @@ import { CustomerData } from './pages/CustomerData';
 import { PaidCustomers } from './pages/PaidCustomers';
 import { DesignerTasks } from './pages/DesignerTasks';
 import { TaskApplications } from './pages/TaskApplications';
+import { DesignerPerformanceDashboard } from './pages/DesignerPerfromanceDashboards';
+import { UserRole } from './types';
 import { useEffect } from 'react';
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
+function ProtectedRoute({
+  children,
+  allowedRoles,
+}: {
+  children: React.ReactNode;
+  allowedRoles?: UserRole[];
+}) {
+  const { isAuthenticated, user } = useAuth();
 
   if (!isAuthenticated) {
     return <Navigate to="/" replace />;
+  }
+
+  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return <>{children}</>;
@@ -163,6 +175,18 @@ function AppContent() {
             <ProtectedRoute>
               <Layout>
                 <TaskApplications />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/designer-performance"
+          element={
+            <ProtectedRoute
+              allowedRoles={['system_administrator', 'general_manager', 'designer']}
+            >
+              <Layout>
+                <DesignerPerformanceDashboard />
               </Layout>
             </ProtectedRoute>
           }
