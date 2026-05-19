@@ -6,13 +6,14 @@ export type QuantityReviewRecommendation = 'recommended_for_approval' | 'recomme
 
 export type QuantityReviewDecision = 'pending' | 'approved' | 'feedback';
 
-export type QuantityReviewNotificationType = 'task_assigned' | 'evaluation_submitted';
+export type QuantityReviewNotificationType = 'task_assigned' | 'evaluation_submitted' | 'decision_made';
 
 export interface QuantityReviewTask {
   id: string;
   jobId: string;
   designWorkReference: string;
   telegramScreenshot: string;
+  telegramScreenshotDescription?: string;
   description: string;
   designerName: string;
   submissionDate: string;
@@ -68,6 +69,7 @@ const seedQuantityReviewTasks: QuantityReviewTask[] = [
     jobId: 'JOB-2048',
     designWorkReference: 'DW-2048-A',
     telegramScreenshot: 'https://placehold.co/240x160/0f172a/f8fafc?text=Telegram+Screenshot',
+      telegramScreenshotDescription: 'Screenshot shows the Telegram preview with message and attached files.',
     description: 'Ceiling plan and finish set forwarded for cost validation after GM review.',
     designerName: 'Emily Chen',
     submissionDate: '2026-05-18T09:30:00Z',
@@ -87,6 +89,7 @@ const seedQuantityReviewTasks: QuantityReviewTask[] = [
     jobId: 'JOB-2061',
     designWorkReference: 'DW-2061-B',
     telegramScreenshot: 'https://placehold.co/240x160/1e293b/e2e8f0?text=Submission+Preview',
+    telegramScreenshotDescription: 'Preview of the lobby redesign sent by the designer, includes scope notes.',
     description: 'Lobby redesign package requiring a budget comparison before client presentation.',
     designerName: 'Michael Brown',
     submissionDate: '2026-05-17T14:10:00Z',
@@ -107,6 +110,7 @@ const seedQuantityReviewTasks: QuantityReviewTask[] = [
     jobId: 'JOB-2074',
     designWorkReference: 'DW-2074-C',
     telegramScreenshot: 'https://placehold.co/240x160/111827/d1d5db?text=Evidence',
+    telegramScreenshotDescription: 'Evidence image showing the warehouse fit-out plan and annotations.',
     description: 'Warehouse fit-out submission with a completed review note from the surveyor.',
     designerName: 'Sophia Ahmed',
     submissionDate: '2026-05-16T11:45:00Z',
@@ -338,6 +342,29 @@ export function createEvaluationSubmittedNotification(
     description: task.description,
     createdAt: new Date().toISOString(),
     targetRoles: ['general_manager', 'ceo'],
+    readByRoles: [],
+  };
+}
+
+export function createDecisionMadeNotification(
+  task: QuantityReviewTask,
+  evaluation: QuantityReviewEvaluation
+): QuantityReviewNotification {
+  const isApproved = evaluation.decisionStatus === 'approved';
+
+  return {
+    id: createQuantityReviewNotificationId(),
+    type: 'decision_made',
+    taskId: task.id,
+    evaluationId: evaluation.id,
+    jobId: task.jobId,
+    message: isApproved ? 'Your quantity review record was approved.' : 'Your quantity review record received feedback.',
+    description: isApproved
+      ? 'CEO/General Manager approved the submitted quantity review record.'
+      : 'CEO/General Manager provided feedback on the quantity review record.',
+    telegramScreenshot: task.telegramScreenshot,
+    createdAt: new Date().toISOString(),
+    targetRoles: ['quantity_surveyor'],
     readByRoles: [],
   };
 }

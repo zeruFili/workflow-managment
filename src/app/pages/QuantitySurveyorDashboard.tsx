@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Badge } from '../components/ui/badge';
 import {
   createEvaluationSubmittedNotification,
+  createDecisionMadeNotification,
   createQuantityReviewEvaluationId,
   getQuantityReviewApprovalCount,
   getQuantityReviewFeedbackCount,
@@ -43,10 +44,18 @@ export function QuantitySurveyorDashboard() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedEvaluationId, setSelectedEvaluationId] = useState<string | null>(null);
   const [form, setForm] = useState<EvaluationFormState>(emptyForm);
+  const [decisionFeedback, setDecisionFeedback] = useState('');
+  const [showEvidencePreview, setShowEvidencePreview] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const [activePanelLastVisitedAt, setActivePanelLastVisitedAt] = useState(() => localStorage.getItem(ACTIVE_PANEL_LAST_VISITED_KEY) ?? '');
   const [approvalPanelLastVisitedAt, setApprovalPanelLastVisitedAt] = useState(() => localStorage.getItem(APPROVAL_PANEL_LAST_VISITED_KEY) ?? '');
 
   useEffect(() => { return () => { setSelectedTaskId(null); setSelectedEvaluationId(null); }; }, []);
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 2800);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
   if (!user) return null;
 
   const pendingTasks = tasks.filter((t) => t.status === 'pending_review');
@@ -77,6 +86,10 @@ export function QuantitySurveyorDashboard() {
     setForm({ designCostValue: selectedTaskEvaluation ? String(selectedTaskEvaluation.costValue) : '', evaluationNotes: selectedTaskEvaluation?.evaluationNotes ?? '', recommendation: selectedTaskEvaluation?.recommendation ?? 'recommended_for_approval' });
   }, [selectedTask, selectedTaskEvaluation]);
 
+  useEffect(() => {
+    setDecisionFeedback(selectedEvaluation?.decisionNotes ?? '');
+  }, [selectedEvaluation]);
+
   const persistTasks = (next: QuantityReviewTask[]) => { setTasks(next); saveQuantityReviewTasks(next); };
   const persistEvaluations = (next: QuantityReviewEvaluation[]) => { setEvaluations(next); saveQuantityReviewEvaluations(next); };
   const persistNotifications = (next: QuantityReviewNotification[]) => { setNotifications(next); saveQuantityReviewNotifications(next); };
@@ -84,7 +97,7 @@ export function QuantitySurveyorDashboard() {
   const openTask = (task: QuantityReviewTask) => {
     let nextId = task.id;
     if (task.status === 'pending_review') {
-      const updated = { ...task, status: 'in_review', updatedAt: new Date().toISOString() };
+      const updated: QuantityReviewTask = { ...task, status: 'in_review', updatedAt: new Date().toISOString() };
       persistTasks(tasks.map((t) => (t.id === task.id ? updated : t)));
       nextId = updated.id;
     }
@@ -93,6 +106,32 @@ export function QuantitySurveyorDashboard() {
 
   const openEvaluation = (evaluation: QuantityReviewEvaluation) => {
     setSelectedEvaluationId(evaluation.id); setSelectedTaskId(evaluation.taskId); setActivePanel('approval');
+  };
+
+  const handleDecision = (decision: QuantityReviewDecision) => {
+    if (!selectedEvaluation || !selectedTask) return;
+
+    const isApproved = decision === 'approved';
+    const notes = isApproved ? 'Approved by CEO/General Manager.' : decisionFeedback.trim();
+
+    if (!isApproved && !notes) {
+      setToast('Enter feedback before sending it to the Quantity Surveyor.');
+      return;
+    }
+
+    const nextEvaluation: QuantityReviewEvaluation = {
+      ...selectedEvaluation,
+      decisionStatus: decision,
+      decisionNotes: notes,
+      decidedBy: user.id,
+      decidedByName: user.name,
+      decidedAt: new Date().toISOString(),
+    };
+
+    persistEvaluations(evaluations.map((evaluation) => (evaluation.id === nextEvaluation.id ? nextEvaluation : evaluation)));
+    persistNotifications([createDecisionMadeNotification(selectedTask, nextEvaluation), ...notifications]);
+    setDecisionFeedback(nextEvaluation.decisionNotes ?? '');
+    setToast(isApproved ? 'Task approved and Quantity Surveyor notified.' : 'Feedback sent and Quantity Surveyor notified.');
   };
 
   const saveEvaluation = (event: React.FormEvent) => {
@@ -107,7 +146,11 @@ export function QuantitySurveyorDashboard() {
       decidedBy: selectedTaskEvaluation?.decidedBy, decidedByName: selectedTaskEvaluation?.decidedByName, decidedAt: selectedTaskEvaluation?.decidedAt,
     };
     const nextEvaluations = selectedTaskEvaluation ? evaluations.map((e) => (e.id === next.id ? next : e)) : [next, ...evaluations];
-    const nextTasks = tasks.map((t) => t.id === selectedTask.id ? { ...t, status: 'record_submitted', evaluationId: next.id, updatedAt: new Date().toISOString() } : t);
+    const nextTasks = tasks.map((t): QuantityReviewTask => (
+      t.id === selectedTask.id
+        ? { ...t, status: 'record_submitted', evaluationId: next.id, updatedAt: new Date().toISOString() }
+        : t
+    ));
     persistEvaluations(nextEvaluations); persistTasks(nextTasks);
     persistNotifications([createEvaluationSubmittedNotification(selectedTask, next), ...notifications]);
     setSelectedEvaluationId(next.id); setActivePanel('approval');
@@ -345,6 +388,40 @@ export function QuantitySurveyorDashboard() {
                 <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">{newApprovalItemIds.size} new</span>
               </div>
             </div>
+
+            <div className="mb-6">
+              <div className="flex items-center gap-2 mb-3 text-gray-700">
+                <Clock3 className="w-4 h-4" />
+                <h4 className="font-semibold text-sm">Pending decisions</h4>
+              </div>
+              {pendingDecisionEvaluations.length > 0 ? (
+                <div className="grid gap-3 lg:grid-cols-2">
+                  {pendingDecisionEvaluations.map((ev) => {
+                    const task = tasks.find((t) => t.id === ev.taskId);
+                    const isSelected = selectedEvaluationId === ev.id;
+                    return (
+                      <button
+                        key={ev.id}
+                        onClick={() => openEvaluation(ev)}
+                        className={`rounded-xl border p-4 text-left transition-colors ${isSelected ? 'border-blue-600 bg-blue-50' : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/50'}`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-gray-900">{ev.jobId}</p>
+                            <p className="text-sm text-gray-500 mt-0.5">{task?.designerName ?? ev.surveyorName}</p>
+                          </div>
+                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Pending</span>
+                        </div>
+                        <p className="mt-2 text-sm text-gray-600 line-clamp-2">{ev.evaluationNotes}</p>
+                        <p className="mt-2 text-xs text-gray-400 uppercase tracking-wide">Submission: {formatDateTime(ev.submittedAt)}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">No pending decisions right now.</div>
+              )}
+            </div>
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-green-700 mb-1"><CheckCircle2 className="w-4 h-4" /><h4 className="font-semibold text-sm">Approval cards</h4></div>
@@ -390,19 +467,110 @@ export function QuantitySurveyorDashboard() {
           {selectedEvaluation && (
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
               <h4 className="text-lg font-bold text-gray-900 mb-4">Selected item</h4>
-              <div className="grid gap-2 text-sm text-gray-600 md:grid-cols-2">
-                <p>Evaluation ID: {selectedEvaluation.id}</p>
-                <p>Decision: {getDecisionLabel(selectedEvaluation.decisionStatus)}</p>
-                <p>Surveyor: {selectedEvaluation.surveyorName}</p>
-                <p>Submitted: {formatDateTime(selectedEvaluation.submittedAt)}</p>
-                <p>Cost: {selectedEvaluation.costValue.toLocaleString()}</p>
-                <p>Recommendation: {getRecommendationLabel(selectedEvaluation.recommendation)}</p>
+              <div className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Task statement</p>
+                  <p className="mt-2 text-sm text-gray-700">{selectedTask?.description ?? selectedEvaluation.evaluationNotes}</p>
+
+                  <div className="mt-4 flex items-start gap-2 text-sm text-gray-700">
+                    <FileText className="mt-0.5 h-4 w-4 text-gray-400" />
+                    <div>
+                      <p className="font-medium">Quantity surveyor submission notes</p>
+                      <p className="text-gray-600">{selectedEvaluation.evaluationNotes}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex items-start gap-2 text-sm text-gray-700">
+                    <ImageIcon className="mt-0.5 h-4 w-4 text-gray-400" />
+                    <div className="w-full">
+                      <p className="font-medium">Uploaded screenshot evidence</p>
+                      <button
+                        type="button"
+                        onClick={() => selectedTask?.telegramScreenshot && setShowEvidencePreview(selectedTask.telegramScreenshot)}
+                        className="mt-2 block w-full overflow-hidden rounded-xl border border-gray-200 bg-white"
+                      >
+                        <img src={selectedTask?.telegramScreenshot} alt="Telegram destination preview" className="h-48 w-full object-cover" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Submission metadata</p>
+                  <div className="mt-3 space-y-2 text-sm text-gray-700">
+                    <p>Job ID: {selectedEvaluation.jobId}</p>
+                    <p>Surveyor: {selectedEvaluation.surveyorName}</p>
+                    <p>Cost value: {selectedEvaluation.costValue.toLocaleString()}</p>
+                    <p>Recommendation: {getRecommendationLabel(selectedEvaluation.recommendation)}</p>
+                    <p>Decision status: {getDecisionLabel(selectedEvaluation.decisionStatus)}</p>
+                    <p>Submission timestamp: {formatDateTime(selectedEvaluation.submittedAt)}</p>
+                    <p>Decision timestamp: {formatDateTime(selectedEvaluation.decidedAt)}</p>
+                    <p>Decided by: {selectedEvaluation.decidedByName ?? 'Not decided yet'}</p>
+                  </div>
+                </div>
               </div>
-              <div className="mt-4 rounded-xl bg-gray-50 border border-gray-200 p-4 text-sm text-gray-700">
-                {selectedEvaluation.decisionStatus === 'approved' ? selectedEvaluation.decisionNotes ?? 'Approved with no additional notes.' : selectedEvaluation.decisionNotes ?? selectedEvaluation.evaluationNotes}
-              </div>
+
+              {selectedEvaluation.decisionStatus === 'pending' && selectedTask && (
+                <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
+                  <p className="font-semibold text-blue-900">Approve or provide feedback</p>
+                  <p className="mt-1 text-sm text-blue-800">Approving marks this item as approved. Providing feedback sends a note to the Quantity Surveyor.</p>
+                  <div className="mt-4 space-y-3">
+                    <textarea
+                      value={decisionFeedback}
+                      onChange={(event) => setDecisionFeedback(event.target.value)}
+                      rows={4}
+                      placeholder="Write feedback for the Quantity Surveyor..."
+                      className="w-full rounded-xl border border-blue-200 bg-white px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    />
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() => handleDecision('approved')}
+                        className="rounded-lg bg-green-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-green-700"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDecision('feedback')}
+                        className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+                      >
+                        Provide Feedback
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedEvaluation.decisionStatus !== 'pending' && (
+                <div className="mt-4 rounded-xl bg-gray-50 border border-gray-200 p-4 text-sm text-gray-700">
+                  {selectedEvaluation.decisionStatus === 'approved'
+                    ? selectedEvaluation.decisionNotes ?? 'Approved with no additional notes.'
+                    : selectedEvaluation.decisionNotes ?? 'Feedback sent with no additional notes.'}
+                </div>
+              )}
             </div>
           )}
+        </div>
+      )}
+
+      {showEvidencePreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
+          <div className="w-full max-w-5xl rounded-2xl bg-white p-4 shadow-2xl">
+            <div className="flex items-center justify-between gap-3 pb-3">
+              <p className="text-sm font-semibold text-gray-900">Telegram destination preview</p>
+              <button onClick={() => setShowEvidencePreview(null)} className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">
+                Close
+              </button>
+            </div>
+            <img src={showEvidencePreview} alt="Telegram destination preview fullscreen" className="max-h-[80vh] w-full rounded-xl object-contain bg-gray-100" />
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 rounded-xl bg-gray-900 px-4 py-3 text-sm font-medium text-white shadow-xl">
+          {toast}
         </div>
       )}
     </div>
