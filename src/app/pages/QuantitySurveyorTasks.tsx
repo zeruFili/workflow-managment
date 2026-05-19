@@ -18,9 +18,7 @@ import {
 import { Plus, Send, X, Image } from 'lucide-react';
 
 type ForwardFormState = {
-  jobId: string;
-  designWorkReference: string;
-  designerName: string;
+  assignedTo: string;
   description: string;
   telegramScreenshot: string; // will store data URL
   telegramScreenshotDescription: string;
@@ -28,9 +26,7 @@ type ForwardFormState = {
 };
 
 const emptyForm: ForwardFormState = {
-  jobId: '',
-  designWorkReference: '',
-  designerName: '',
+  assignedTo: '11',
   description: '',
   telegramScreenshot: '',
   telegramScreenshotDescription: '',
@@ -80,12 +76,12 @@ export function QuantitySurveyorTasks() {
 
     const nextTask: QuantityReviewTask = {
       id: createQuantityReviewTaskId(),
-      jobId: form.jobId.trim(),
-      designWorkReference: form.designWorkReference.trim(),
+      jobId: `JOB-${Date.now()}`,
+      designWorkReference: `DW-${Date.now()}`,
       telegramScreenshot: form.telegramScreenshot.trim(), // data URL
-    telegramScreenshotDescription: form.telegramScreenshotDescription.trim() || undefined,
+      telegramScreenshotDescription: form.telegramScreenshotDescription.trim() || undefined,
       description: form.description.trim(),
-      designerName: form.designerName.trim(),
+      designerName: '',
       submissionDate: new Date().toISOString(),
       budgetExpectationReference: form.budgetExpectationReference.trim() || undefined,
       submissionHistory: [
@@ -94,7 +90,7 @@ export function QuantitySurveyorTasks() {
       ],
       status: 'pending_review',
       createdBy: user.id,
-      assignedTo: '11',
+      assignedTo: form.assignedTo || '11',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -281,34 +277,17 @@ export function QuantitySurveyorTasks() {
             <form onSubmit={handleForwardTask} className="px-6 py-5 space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-700">Job Reference</label>
-                  <input
+                  <label className="mb-2 block text-sm font-medium text-slate-700">Assign Quantity Surveyor</label>
+                  <select
                     required
-                    value={form.jobId}
-                    onChange={(e) => setForm((c) => ({ ...c, jobId: e.target.value }))}
+                    value={form.assignedTo}
+                    onChange={(e) => setForm((c) => ({ ...c, assignedTo: e.target.value }))}
                     className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-200"
-                    placeholder="JOB-2090"
-                  />
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-700">Design Work Reference</label>
-                  <input
-                    required
-                    value={form.designWorkReference}
-                    onChange={(e) => setForm((c) => ({ ...c, designWorkReference: e.target.value }))}
-                    className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-200"
-                    placeholder="DW-2090-A"
-                  />
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-700">Designer Name</label>
-                  <input
-                    required
-                    value={form.designerName}
-                    onChange={(e) => setForm((c) => ({ ...c, designerName: e.target.value }))}
-                    className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-200"
-                    placeholder="Designer full name"
-                  />
+                  >
+                    <option value="11">Oliver Grant</option>
+                    <option value="12">Sam Lee</option>
+                    <option value="13">Aisha Khan</option>
+                  </select>
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-medium text-slate-700">Budget Expectation Reference</label>

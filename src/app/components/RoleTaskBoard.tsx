@@ -12,6 +12,7 @@ interface RoleTaskBoardProps {
   emptyStateText?: string;
   hideStatus?: boolean;
   hideInstruction?: boolean;
+  showStoryPoints?: boolean;
 }
 
 interface TaskFormState {
@@ -63,6 +64,7 @@ export function RoleTaskBoard({
   emptyStateText = 'No tasks found yet.',
   hideStatus = false,
   hideInstruction = false,
+  showStoryPoints = false,
 }: RoleTaskBoardProps) {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<Task[]>(() => loadTasks(storageKey, seedTasks));
@@ -252,7 +254,7 @@ export function RoleTaskBoard({
                 instruction: hideInstruction ? '' : form.instruction.trim(),
                 deadline: form.deadline || undefined,
                 status: form.status,
-                storyPoints: form.storyPoints,
+                ...(showStoryPoints ? { storyPoints: form.storyPoints } : {}),
                 telegramScreenshot: form.telegramScreenshot,
               }
             : task,
@@ -260,7 +262,7 @@ export function RoleTaskBoard({
       );
     } else {
       const nextTask: Task = {
-        id: `${storageKey}-${Date.now()}`,
+       
         projectId: storageKey,
         title: form.title.trim(),
         description: form.description.trim(),
@@ -270,7 +272,7 @@ export function RoleTaskBoard({
         deadline: form.deadline || undefined,
         createdAt: new Date().toISOString(),
         // Extra fields stored directly on the object (still compatible with Task)
-        storyPoints: form.storyPoints,
+        ...(showStoryPoints ? { storyPoints: form.storyPoints } : {}),
         telegramScreenshot: form.telegramScreenshot,
       } as Task & { storyPoints?: number; telegramScreenshot?: string };
 
@@ -330,9 +332,11 @@ export function RoleTaskBoard({
                   <p className="text-sm text-gray-500 mt-1">ID: {task.id}</p>
 
                   <div className="mt-2 flex items-center gap-2 flex-wrap">
-                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
-                      {extra.storyPoints ?? 0} Story Pts
-                    </span>
+                    {showStoryPoints && (
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
+                        {extra.storyPoints ?? 0} Story Pts
+                      </span>
+                    )}
                     {task.feedbacks && task.feedbacks.length > 0 && (
                       <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                         Feedback Provided
@@ -497,17 +501,19 @@ export function RoleTaskBoard({
                   </div>
                 )}
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Story Points</label>
-                <input
-                  type="number"
-                  min={0}
-                  step={1}
-                  value={form.storyPoints}
-                  onChange={(e) => setForm((c) => ({ ...c, storyPoints: parseInt(e.target.value, 10) || 0 }))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
+              {showStoryPoints && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Story Points</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={form.storyPoints}
+                    onChange={(e) => setForm((c) => ({ ...c, storyPoints: parseInt(e.target.value, 10) || 0 }))}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Telegram Screenshot (Evidence)</label>
                 <div className="flex items-center gap-2">
@@ -573,11 +579,13 @@ export function RoleTaskBoard({
               <div>
                 <h3 className="text-2xl font-semibold">{selectedTask.title}</h3>
                 <p className="text-sm text-gray-500">ID: {selectedTask.id}</p>
-                <div className="mt-1">
-                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
-                    {((selectedTask as any).storyPoints ?? 0)} Story Points
-                  </span>
-                </div>
+                {showStoryPoints && (
+                  <div className="mt-1">
+                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
+                      {((selectedTask as any).storyPoints ?? 0)} Story Points
+                    </span>
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={() => { setShowDetail(false); setSelectedTask(null); }} className="px-3 py-2 rounded-lg border">

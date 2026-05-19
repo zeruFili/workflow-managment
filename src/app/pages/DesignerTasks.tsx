@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { mockDesignerTasks, mockDesignerTaskApplications, mockProjects } from '../data/mockData';
+import { designerProfiles, mockDesignerTasks, mockDesignerTaskApplications, mockProjects } from '../data/mockData';
 import { DesignerTask, DesignerTaskApplication, TaskStatus } from '../types';
 import {
   AlertCircle,
@@ -12,15 +12,19 @@ import {
   Edit,
   Plus,
   Send,
+  Image,
   User,
+  UserCheck,
   XCircle,
+  Briefcase,
+  ListFilter,
 } from 'lucide-react';
 
 const TASK_STORAGE_KEY = 'designer-tasks';
 const APPLICATION_STORAGE_KEY = 'designer-task-applications';
 
 const allowedRoles = new Set(['ceo', 'general_manager', 'system_administrator', 'design_team_leader', 'designer']);
-const reviewRoles = new Set(['ceo', 'general_manager', 'system_administrator']);
+const adminRoles = new Set(['ceo', 'general_manager', 'system_administrator', 'design_team_leader']);
 
 const emptyNewTask = {
   title: '',
@@ -29,8 +33,10 @@ const emptyNewTask = {
   storyPoints: '',
   projectId: '',
   deadline: '',
+  telegramScreenshot: '',
 };
 
+// Mapping for creator/assigner – keeps role names
 const roleNamesByUserId: Record<string, string> = {
   '1': 'Marketing Lead',
   '2': 'General Manager',
@@ -56,11 +62,9 @@ function loadDesignerTasks(): DesignerTask[] {
       }),
       ...mockDesignerTasks.filter((seedTask) => !parsedTasks.some((task) => task.id === seedTask.id)),
     ];
-
     localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(mergedTasks));
     return mergedTasks;
   }
-
   localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(mockDesignerTasks));
   return mockDesignerTasks;
 }
@@ -78,26 +82,28 @@ function loadDesignerApplications(): DesignerTaskApplication[] {
         (seedApplication) => !parsedApplications.some((application) => application.id === seedApplication.id)
       ),
     ];
-
     localStorage.setItem(APPLICATION_STORAGE_KEY, JSON.stringify(mergedApplications));
     return mergedApplications;
   }
-
   localStorage.setItem(APPLICATION_STORAGE_KEY, JSON.stringify(mockDesignerTaskApplications));
   return mockDesignerTaskApplications;
 }
 
+// Returns the full name of the assigned user, or a fallback if not found
 function getTaskAssigneeLabel(assignedTo?: string) {
-  if (!assignedTo) {
-    return 'Open for application';
-  }
+  if (!assignedTo) return 'Open for application';
 
+  // First try to get the designer profile display name
+  const designerProfile = designerProfiles.find((profile) => profile.designerId === assignedTo);
+  if (designerProfile) return designerProfile.displayName;
+
+  // Fallback to the role/name mapping (covers IDs without a mock user)
   return roleNamesByUserId[assignedTo] ?? `User ${assignedTo}`;
 }
 
 export function DesignerTasks() {
   const { user } = useAuth();
-  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [activeTab, setActiveTab] = useState<'applications' | 'assignments'>('assignments');
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [editingTask, setEditingTask] = useState<string | null>(null);
   const [selectedApplicationTask, setSelectedApplicationTask] = useState<DesignerTask | null>(null);
@@ -105,6 +111,19 @@ export function DesignerTasks() {
   const [tasks, setTasks] = useState<DesignerTask[]>(loadDesignerTasks);
   const [applications, setApplications] = useState<DesignerTaskApplication[]>(loadDesignerApplications);
   const [newTask, setNewTask] = useState(emptyNewTask);
+  const [newTaskImagePreview, setNewTaskImagePreview] = useState<string | null>(null);
+
+  const handleNewTaskImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setNewTask({ ...newTask, telegramScreenshot: dataUrl });
+      setNewTaskImagePreview(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  };
 
   if (!user) return null;
 
@@ -120,19 +139,9 @@ export function DesignerTasks() {
 
   const canCreateTask = user.role === 'general_manager' || user.role === 'system_administrator';
   const canApplyForTasks = user.role === 'designer';
+  const isAdmin = adminRoles.has(user.role);
 
-  const visibleTasks = tasks.filter((task) => {
-    if (user.role === 'design_team_leader') {
-      return true;
-    }
-
-    return !task.assignedTo || task.assignedTo === user.id;
-  });
-
-  const filteredTasks = filterStatus === 'all'
-    ? visibleTasks
-    : visibleTasks.filter((task) => task.status === filterStatus);
-
+  // ---- Persistent helpers ----
   const persistTasks = (updatedTasks: DesignerTask[]) => {
     setTasks(updatedTasks);
     localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(updatedTasks));
@@ -143,11 +152,7 @@ export function DesignerTasks() {
     localStorage.setItem(APPLICATION_STORAGE_KEY, JSON.stringify(updatedApplications));
   };
 
-  const getTaskApplications = (taskId: string) => applications.filter((application) => application.taskId === taskId);
-
-  const getMyApplication = (taskId: string) =>
-    applications.find((application) => application.taskId === taskId && application.applicantId === user.id);
-
+  // ---- Task creation ----
   const createTask = (event: React.FormEvent) => {
     event.preventDefault();
 
@@ -158,6 +163,7 @@ export function DesignerTasks() {
       description: newTask.description.trim(),
       instruction: newTask.instruction.trim(),
       storyPoints: Number(newTask.storyPoints),
+      telegramScreenshot: (newTask as any).telegramScreenshot || undefined,
       assignedBy: user.id,
       status: 'pending',
       deadline: newTask.deadline,
@@ -169,11 +175,34 @@ export function DesignerTasks() {
     setShowCreateTask(false);
   };
 
-  const handleStatusChange = (taskId: string, newStatus: TaskStatus) => {
-    persistTasks(tasks.map((task) => (task.id === taskId ? { ...task, status: newStatus } : task)));
-    setEditingTask(null);
+  // ---- Assign a designer from an application ----
+  const assignDesigner = (taskId: string, application: DesignerTaskApplication) => {
+    const updatedTasks = tasks.map((task) => {
+      if (task.id === taskId) {
+        return {
+          ...task,
+          assignedTo: application.applicantId,
+          status: 'in_progress' as TaskStatus,
+        };
+      }
+      return task;
+    });
+
+    const updatedApplications = applications.map((app) => {
+      if (app.id === application.id) {
+        return { ...app, status: 'assigned' as const };
+      }
+      if (app.taskId === taskId && app.id !== application.id) {
+        return { ...app, status: 'rejected' as const };
+      }
+      return app;
+    });
+
+    persistTasks(updatedTasks);
+    persistApplications(updatedApplications);
   };
 
+  // ---- Apply for a task (designer side) ----
   const openApplicationModal = (task: DesignerTask) => {
     setSelectedApplicationTask(task);
     setApplicationMessage('');
@@ -187,12 +216,10 @@ export function DesignerTasks() {
   const handleSubmitApplication = (event: React.FormEvent) => {
     event.preventDefault();
 
-    if (!selectedApplicationTask) {
-      return;
-    }
+    if (!selectedApplicationTask) return;
 
     const alreadyApplied = applications.some(
-      (application) => application.taskId === selectedApplicationTask.id && application.applicantId === user.id
+      (app) => app.taskId === selectedApplicationTask.id && app.applicantId === user.id
     );
 
     if (alreadyApplied) {
@@ -215,12 +242,34 @@ export function DesignerTasks() {
     closeApplicationModal();
   };
 
+  // ---- Status change (for assigned tasks) ----
+  const handleStatusChange = (taskId: string, newStatus: TaskStatus) => {
+    persistTasks(tasks.map((task) => (task.id === taskId ? { ...task, status: newStatus } : task)));
+    setEditingTask(null);
+  };
+
+  // ---- Derived views ----
+  const unassignedTasksWithApplications = tasks.filter(
+    (task) => !task.assignedTo && applications.some((app) => app.taskId === task.id)
+  );
+
+  const assignedTasks = tasks.filter((task) => !!task.assignedTo);
+
+  const visibleAssignedTasks = user.role === 'designer'
+    ? assignedTasks.filter((task) => task.assignedTo === user.id)
+    : assignedTasks;
+
+  const applicationsByTask = unassignedTasksWithApplications.map((task) => {
+    const taskApplications = applications.filter((app) => app.taskId === task.id);
+    return { task, applications: taskApplications };
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4 flex-col md:flex-row">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Designer Tasks</h2>
-          <p className="text-gray-600 mt-1">Tasks for the design team with story points and deadlines.</p>
+          <p className="text-gray-600 mt-1">Manage applications and assigned design work.</p>
         </div>
         {canCreateTask && (
           <button
@@ -233,261 +282,329 @@ export function DesignerTasks() {
         )}
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      {/* Tabs */}
+      <div className="flex border-b border-gray-200 gap-6">
         <button
-          onClick={() => setFilterStatus('all')}
-          className={`px-4 py-2 rounded-lg transition-colors text-sm ${
-            filterStatus === 'all'
-              ? 'bg-blue-600 text-white'
-              : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+          onClick={() => setActiveTab('assignments')}
+          className={`pb-2 px-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'assignments'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
         >
-          All Tasks ({visibleTasks.length})
+          <div className="flex items-center gap-2">
+            <UserCheck className="w-4 h-4" />
+            <span>Designer Assignments ({visibleAssignedTasks.length})</span>
+          </div>
         </button>
-        {[
-          { status: 'pending', label: 'Pending' },
-          { status: 'in_progress', label: 'In Progress' },
-          { status: 'completed', label: 'Completed' },
-          { status: 'incomplete', label: 'Incomplete' },
-          { status: 'rejected', label: 'Rejected' },
-        ].map((group) => {
-          const count = filteredTasks.filter((task) => task.status === group.status).length;
-          return (
-            <button
-              key={group.status}
-              onClick={() => setFilterStatus(group.status)}
-              className={`px-4 py-2 rounded-lg transition-colors text-sm ${
-                filterStatus === group.status
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              {group.label} ({count})
-            </button>
-          );
-        })}
+        <button
+          onClick={() => setActiveTab('applications')}
+          className={`pb-2 px-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'applications'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <ListFilter className="w-4 h-4" />
+            <span>Designer Applications ({unassignedTasksWithApplications.length} tasks)</span>
+          </div>
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {filteredTasks.map((task) => {
-          const project = mockProjects.find((candidate) => candidate.id === task.projectId);
-          const isEditing = editingTask === task.id;
-          const isOverdue = task.deadline && new Date(task.deadline) < new Date() && task.status !== 'completed';
-          const taskApplications = getTaskApplications(task.id);
-          const myApplication = getMyApplication(task.id);
-          const canApplyToTask =
-            canApplyForTasks && !task.assignedTo && (task.assignedBy === '2' || task.assignedBy === '8') && !myApplication;
+      {/* ========== DESIGNER ASSIGNMENTS TAB ========== */}
+      {activeTab === 'assignments' && (
+        <>
+          {visibleAssignedTasks.length === 0 ? (
+            <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+              <Briefcase className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500">No assigned designer tasks yet.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {visibleAssignedTasks.map((task) => {
+                const project = mockProjects.find((candidate) => candidate.id === task.projectId);
+                const isEditing = editingTask === task.id;
+                const isOverdue = task.deadline && new Date(task.deadline) < new Date() && task.status !== 'completed';
 
-          return (
-            <div key={task.id} className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between mb-3 gap-3">
-                <div>
-                  <h3 className="font-semibold text-lg text-gray-900">{task.title}</h3>
-                  <p className="text-xs text-gray-500 mt-1">{getTaskAssigneeLabel(task.assignedTo)}</p>
-                </div>
-                <span
-                  className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
-                    task.status === 'completed'
-                      ? 'bg-green-100 text-green-700'
-                      : task.status === 'in_progress'
-                        ? 'bg-blue-100 text-blue-700'
-                        : task.status === 'incomplete'
-                          ? 'bg-orange-100 text-orange-700'
-                          : task.status === 'rejected'
-                            ? 'bg-red-100 text-red-700'
-                            : 'bg-gray-100 text-gray-700'
-                  }`}
-                >
-                  {task.status.replace('_', ' ')}
-                </span>
-              </div>
-
-              <div className="flex flex-wrap gap-2 mb-4">
-                <span className="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium">
-                  Story Points: {task.storyPoints}
-                </span>
-                <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-medium">
-                  Created by {roleNamesByUserId[task.assignedBy] ?? `User ${task.assignedBy}`}
-                </span>
-                {!task.assignedTo && (
-                  <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-medium">
-                    Open for application
-                  </span>
-                )}
-                {taskApplications.length > 0 && (
-                  <span className="px-2 py-1 rounded-full bg-violet-100 text-violet-700 text-xs font-medium">
-                    Applications: {taskApplications.length}
-                  </span>
-                )}
-              </div>
-
-              <p className="text-sm text-gray-600 mb-3">{task.description}</p>
-
-              <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">Work Instruction</p>
-                <p className="text-sm text-gray-700 mt-1">{task.instruction}</p>
-              </div>
-
-              {myApplication && (
-                <div
-                  className={`mb-4 p-3 rounded-lg border ${
-                    myApplication.status === 'assigned'
-                      ? 'bg-green-50 border-green-200'
-                      : myApplication.status === 'rejected'
-                        ? 'bg-red-50 border-red-200'
-                        : 'bg-yellow-50 border-yellow-200'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <BadgeCheck
-                      className={`w-4 h-4 ${
-                        myApplication.status === 'assigned'
-                          ? 'text-green-600'
-                          : myApplication.status === 'rejected'
-                            ? 'text-red-600'
-                            : 'text-yellow-600'
-                      }`}
-                    />
-                    <p
-                      className={`text-sm font-medium ${
-                        myApplication.status === 'assigned'
-                          ? 'text-green-700'
-                          : myApplication.status === 'rejected'
-                            ? 'text-red-700'
-                            : 'text-yellow-700'
-                      }`}
-                    >
-                      Your application is {myApplication.status}
-                    </p>
-                  </div>
-                  <p className="text-sm text-gray-700">{myApplication.message}</p>
-                </div>
-              )}
-
-              {project && (
-                <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                  <p className="text-xs text-gray-500">Project</p>
-                  <p className="font-medium text-gray-900 mt-1">{project.name}</p>
-                </div>
-              )}
-
-              {task.approvalStatus && (
-                <div
-                  className={`mb-4 p-3 rounded-lg ${
-                    task.approvalStatus === 'approved'
-                      ? 'bg-green-50 border border-green-200'
-                      : task.approvalStatus === 'rejected'
-                        ? 'bg-red-50 border border-red-200'
-                        : 'bg-yellow-50 border border-yellow-200'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    {task.approvalStatus === 'approved' ? (
-                      <CheckCircle2 className="w-4 h-4 text-green-600" />
-                    ) : (
-                      <AlertCircle className="w-4 h-4 text-yellow-600" />
-                    )}
-                    <p
-                      className={`text-sm font-medium ${
-                        task.approvalStatus === 'approved'
-                          ? 'text-green-700'
-                          : task.approvalStatus === 'rejected'
-                            ? 'text-red-700'
-                            : 'text-yellow-700'
-                      }`}
-                    >
-                      {task.approvalStatus === 'approved'
-                        ? 'Approved'
-                        : task.approvalStatus === 'rejected'
-                          ? 'Rejected'
-                          : 'Pending Approval'}
-                    </p>
-                  </div>
-                  {task.approvalFeedback && <p className="text-sm text-gray-700 italic">"{task.approvalFeedback}"</p>}
-                </div>
-              )}
-
-              <div className="space-y-2 text-sm">
-                {task.deadline && (
-                  <div className={`flex items-center gap-2 ${isOverdue ? 'text-red-600' : 'text-gray-500'}`}>
-                    <Calendar className="w-4 h-4" />
-                    <span>
-                      Due: {new Date(task.deadline).toLocaleDateString()}
-                      {isOverdue && ' (Overdue)'}
-                    </span>
-                  </div>
-                )}
-                <div className="flex items-center gap-2 text-gray-500">
-                  <Clock className="w-4 h-4" />
-                  <span>Created: {new Date(task.createdAt).toLocaleDateString()}</span>
-                </div>
-              </div>
-
-              {canApplyToTask && (
-                <button
-                  onClick={() => openApplicationModal(task)}
-                  className="mt-4 w-full inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-lg transition-colors text-sm"
-                >
-                  <Send className="w-4 h-4" />
-                  Apply for Task
-                </button>
-              )}
-
-              {(user.role === 'general_manager' || user.role === 'system_administrator' || user.role === 'design_team_leader') && (
-                <div className="mt-4 pt-4 border-t border-gray-200 space-y-3">
-                  {isEditing ? (
-                    <div className="space-y-3">
+                return (
+                  <div key={task.id} className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+                    <div className="flex items-start justify-between mb-3 gap-3">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Update Status</label>
-                        <select
-                          defaultValue={task.status}
-                          onChange={(event) => handleStatusChange(task.id, event.target.value as TaskStatus)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                        >
-                          <option value="pending">Pending</option>
-                          <option value="in_progress">In Progress</option>
-                          <option value="completed">Completed</option>
-                          <option value="incomplete">Incomplete</option>
-                          <option value="rejected">Rejected</option>
-                        </select>
+                        <h3 className="font-semibold text-lg text-gray-900">{task.title}</h3>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Assigned to: {getTaskAssigneeLabel(task.assignedTo)}
+                        </p>
                       </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setEditingTask(null)}
-                          className="flex-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors text-sm"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={() => setEditingTask(null)}
-                          className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
-                        >
-                          Save Changes
-                        </button>
+                      <span
+                        className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
+                          task.status === 'completed'
+                            ? 'bg-green-100 text-green-700'
+                            : task.status === 'in_progress'
+                              ? 'bg-blue-100 text-blue-700'
+                              : task.status === 'incomplete'
+                                ? 'bg-orange-100 text-orange-700'
+                                : task.status === 'rejected'
+                                  ? 'bg-red-100 text-red-700'
+                                  : 'bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        {task.status.replace('_', ' ')}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      <span className="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium">
+                        Story Points: {task.storyPoints}
+                      </span>
+                      <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-medium">
+                        Created by {roleNamesByUserId[task.assignedBy] ?? `User ${task.assignedBy}`}
+                      </span>
+                      {task.assignedTo && (
+                        <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-medium">
+                          Assigned to {getTaskAssigneeLabel(task.assignedTo)}
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-sm text-gray-600 mb-3">{task.description}</p>
+
+                    <div className="mb-3">
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Telegram Evidence</p>
+                      {(task as any).telegramScreenshot ? (
+                        <img
+                          src={(task as any).telegramScreenshot}
+                          alt="telegram"
+                          className="mt-2 w-full max-h-32 object-cover rounded-lg border"
+                        />
+                      ) : (
+                        <p className="mt-1 text-sm text-gray-500">No Telegram evidence attached.</p>
+                      )}
+                    </div>
+
+                    <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                      <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">Work Instruction</p>
+                      <p className="text-sm text-gray-700 mt-1">{task.instruction}</p>
+                    </div>
+
+                    {project && (
+                      <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                        <p className="text-xs text-gray-500">Project</p>
+                        <p className="font-medium text-gray-900 mt-1">{project.name}</p>
+                      </div>
+                    )}
+
+                    {task.approvalStatus && (
+                      <div
+                        className={`mb-4 p-3 rounded-lg ${
+                          task.approvalStatus === 'approved'
+                            ? 'bg-green-50 border border-green-200'
+                            : task.approvalStatus === 'rejected'
+                              ? 'bg-red-50 border border-red-200'
+                              : 'bg-yellow-50 border border-yellow-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          {task.approvalStatus === 'approved' ? (
+                            <CheckCircle2 className="w-4 h-4 text-green-600" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-yellow-600" />
+                          )}
+                          <p className={`text-sm font-medium ${
+                            task.approvalStatus === 'approved'
+                              ? 'text-green-700'
+                              : task.approvalStatus === 'rejected'
+                                ? 'text-red-700'
+                                : 'text-yellow-700'
+                          }`}>
+                            {task.approvalStatus === 'approved'
+                              ? 'Approved'
+                              : task.approvalStatus === 'rejected'
+                                ? 'Rejected'
+                                : 'Pending Approval'}
+                          </p>
+                        </div>
+                        {task.approvalFeedback && <p className="text-sm text-gray-700 italic">"{task.approvalFeedback}"</p>}
+                      </div>
+                    )}
+
+                    <div className="space-y-2 text-sm">
+                      {task.deadline && (
+                        <div className={`flex items-center gap-2 ${isOverdue ? 'text-red-600' : 'text-gray-500'}`}>
+                          <Calendar className="w-4 h-4" />
+                          <span>
+                            Due: {new Date(task.deadline).toLocaleDateString()}
+                            {isOverdue && ' (Overdue)'}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 text-gray-500">
+                        <Clock className="w-4 h-4" />
+                        <span>Created: {new Date(task.createdAt).toLocaleDateString()}</span>
                       </div>
                     </div>
-                  ) : (
-                    <button
-                      onClick={() => setEditingTask(task.id)}
-                      className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg transition-colors text-sm"
-                    >
-                      <Edit className="w-4 h-4" />
-                      <span>Update Task</span>
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
 
-      {filteredTasks.length === 0 && (
-        <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
-          <p className="text-gray-500">No designer tasks found</p>
-        </div>
+                    {/* Admin status update for assigned tasks */}
+                    {isAdmin && (
+                      <div className="mt-4 pt-4 border-t border-gray-200 space-y-3">
+                        {isEditing ? (
+                          <div className="space-y-3">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Update Status</label>
+                              <select
+                                defaultValue={task.status}
+                                onChange={(event) => handleStatusChange(task.id, event.target.value as TaskStatus)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                              >
+                                <option value="pending">Pending</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="completed">Completed</option>
+                                <option value="incomplete">Incomplete</option>
+                                <option value="rejected">Rejected</option>
+                              </select>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setEditingTask(null)}
+                                className="flex-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors text-sm"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={() => setEditingTask(null)}
+                                className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
+                              >
+                                Save Changes
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setEditingTask(task.id)}
+                            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg transition-colors text-sm"
+                          >
+                            <Edit className="w-4 h-4" />
+                            <span>Update Task</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
 
+      {/* ========== DESIGNER APPLICATIONS TAB ========== */}
+      {activeTab === 'applications' && (
+        <>
+          {applicationsByTask.length === 0 ? (
+            <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+              <Send className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500">No pending applications for open tasks.</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {applicationsByTask.map(({ task, applications: taskApplications }) => {
+                const project = mockProjects.find((p) => p.id === task.projectId);
+                const visibleApplications = isAdmin
+                  ? taskApplications
+                  : taskApplications.filter((app) => app.applicantId === user.id);
+
+                if (visibleApplications.length === 0) return null;
+
+                return (
+                  <div key={task.id} className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h3 className="font-semibold text-lg text-gray-900">{task.title}</h3>
+                        <p className="text-xs text-gray-500 mt-1">Open for application</p>
+                      </div>
+                      <span className="px-2 py-1 rounded bg-gray-100 text-gray-700 text-xs font-medium">
+                        {taskApplications.length} application(s)
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      <span className="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium">
+                        Story Points: {task.storyPoints}
+                      </span>
+                      {project && (
+                        <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-medium">
+                          Project: {project.name}
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-sm text-gray-600 mb-4">{task.description}</p>
+
+                    <div className="space-y-3">
+                      {visibleApplications.map((app) => (
+                        <div
+                          key={app.id}
+                          className={`p-4 rounded-lg border ${
+                            app.status === 'assigned'
+                              ? 'bg-green-50 border-green-200'
+                              : app.status === 'rejected'
+                                ? 'bg-red-50 border-red-200'
+                                : 'bg-blue-50 border-blue-200'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <User className="w-4 h-4 text-gray-500" />
+                            <span className="text-sm font-medium text-gray-900">
+                              {app.applicantName}
+                            </span>
+                            <span
+                              className={`ml-auto text-xs px-2 py-0.5 rounded-full font-medium ${
+                                app.status === 'assigned'
+                                  ? 'bg-green-100 text-green-700'
+                                  : app.status === 'rejected'
+                                    ? 'bg-red-100 text-red-700'
+                                    : 'bg-yellow-100 text-yellow-700'
+                              }`}
+                            >
+                              {app.status}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-600 italic">"{app.message}"</p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            Applied {new Date(app.appliedAt).toLocaleDateString()}
+                          </p>
+
+                          {isAdmin && app.status === 'pending' && !task.assignedTo && (
+                            <button
+                              onClick={() => assignDesigner(task.id, app)}
+                              className="mt-3 flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm transition-colors"
+                            >
+                              <UserCheck className="w-4 h-4" />
+                              Assign Designer
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {canApplyForTasks && !task.assignedTo && !visibleApplications.some((app) => app.applicantId === user.id) && (
+                      <button
+                        onClick={() => openApplicationModal(task)}
+                        className="mt-4 w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-lg transition-colors text-sm"
+                      >
+                        <Send className="w-4 h-4" />
+                        Apply for this task
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ========== CREATE TASK MODAL ========== */}
       {showCreateTask && canCreateTask && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
@@ -528,6 +645,31 @@ export function DesignerTasks() {
                   placeholder="Enter story points"
                   required
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Telegram Screenshot (optional)</label>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-sm text-gray-700">
+                    <Image className="w-4 h-4" />
+                    Choose Image
+                    <input type="file" accept="image/*" onChange={handleNewTaskImageUpload} className="hidden" />
+                  </label>
+                  {newTaskImagePreview && (
+                    <button
+                      type="button"
+                      onClick={() => { setNewTask({ ...newTask, telegramScreenshot: '' }); setNewTaskImagePreview(null); }}
+                      className="text-sm text-red-600 hover:underline"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                {newTaskImagePreview && (
+                  <div className="mt-3">
+                    <p className="text-xs text-gray-500 mb-1">Preview:</p>
+                    <img src={newTaskImagePreview} alt="preview" className="max-w-full h-auto max-h-48 rounded-lg border object-contain" />
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Instruction</label>
@@ -586,6 +728,7 @@ export function DesignerTasks() {
         </div>
       )}
 
+      {/* ========== APPLICATION MODAL (for designers) ========== */}
       {selectedApplicationTask && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-xl border border-gray-200">
@@ -603,6 +746,19 @@ export function DesignerTasks() {
               <div className="rounded-lg bg-gray-50 p-4 text-sm text-gray-700">
                 <p className="font-medium text-gray-900">{selectedApplicationTask.title}</p>
                 <p className="mt-1">{selectedApplicationTask.description}</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium">
+                    Story Points: {selectedApplicationTask.storyPoints}
+                  </span>
+                </div>
+                <div className="mt-2">
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Telegram Evidence</p>
+                  {(selectedApplicationTask as any).telegramScreenshot ? (
+                    <img src={(selectedApplicationTask as any).telegramScreenshot} alt="telegram" className="mt-2 w-full max-h-32 object-cover rounded-lg border" />
+                  ) : (
+                    <p className="mt-1 text-sm text-gray-500">No Telegram evidence attached.</p>
+                  )}
+                </div>
               </div>
 
               <div>

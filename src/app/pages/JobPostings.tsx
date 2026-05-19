@@ -45,6 +45,7 @@ export function JobPostings() {
       description="Create and publish designer job postings."
       storageKey={STORAGE_KEY}
       seedTasks={seedTasks}
+      showStoryPoints={true}
       hideStatus={true}
       hideInstruction={true}
       createButtonLabel="Create Task"

@@ -106,6 +106,7 @@ export interface Task {
   approvedBy?: string;
   approvedAt?: string;
   attachments?: string[];
+  telegramScreenshot?: string;
   submissions?: Submission[];
   feedbacks?: Feedback[];
 }
