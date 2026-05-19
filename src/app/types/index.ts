@@ -106,6 +106,27 @@ export interface Task {
   approvedBy?: string;
   approvedAt?: string;
   attachments?: string[];
+  submissions?: Submission[];
+  feedbacks?: Feedback[];
+}
+
+export interface Submission {
+  id: string;
+  submittedBy: string;
+  submittedByName?: string;
+  submittedAt: string;
+  notes?: string;
+  attachments?: string[]; // data URLs or paths
+  metadata?: Record<string, any>;
+}
+
+export interface Feedback {
+  id: string;
+  senderId: string;
+  senderName?: string;
+  sentAt: string;
+  body: string; // rich text (HTML)
+  version: number;
 }
 
 export interface DesignerTask extends Task {

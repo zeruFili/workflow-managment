@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Task, TaskStatus } from '../types';
 import { Calendar, Edit, Plus, Trash2 } from 'lucide-react';
@@ -61,6 +61,22 @@ export function RoleTaskBoard({
   const [showEditor, setShowEditor] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [form, setForm] = useState<TaskFormState>(emptyForm);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [showDetail, setShowDetail] = useState(false);
+  const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
+  const [imageZoom, setImageZoom] = useState<number>(1);
+  const imageRef = useRef<HTMLImageElement | null>(null);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackEditorHtml, setFeedbackEditorHtml] = useState<string>('');
+  const [editingFeedbackId, setEditingFeedbackId] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const editorRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   if (!user) {
     return null;
@@ -81,6 +97,83 @@ export function RoleTaskBoard({
     setTasks(updatedTasks);
     localStorage.setItem(storageKey, JSON.stringify(updatedTasks));
   };
+
+  function pushNotification(notification: { id: string; toUserId?: string; message: string; createdAt: string }) {
+    try {
+      const key = 'role-notifications';
+      const saved = localStorage.getItem(key);
+      const list = saved ? JSON.parse(saved) : [];
+      list.unshift(notification);
+      localStorage.setItem(key, JSON.stringify(list));
+    } catch (err) {
+      // ignore
+    }
+  }
+
+  function handleApprove(task: Task) {
+    if (!canManage) return;
+    const updated = tasks.map((t) => {
+      if (t.id !== task.id) return t;
+      return {
+        ...t,
+        approvalStatus: 'approved',
+        approvedBy: user.id,
+        approvedAt: new Date().toISOString(),
+        status: 'completed',
+      };
+    });
+
+    persistTasks(updated);
+    setToast('Task approved successfully');
+    setShowDetail(false);
+    setSelectedTask(null);
+
+    // notify assigned data collector if present
+    const recipient = task.assignedTo;
+    pushNotification({ id: `notify-${Date.now()}`, toUserId: recipient, message: `Your submission for task ${task.title} was approved.`, createdAt: new Date().toISOString() });
+  }
+
+  function saveFeedback() {
+    if (!canManage || !selectedTask) return;
+
+    const body = feedbackEditorHtml.trim();
+    if (!body) {
+      setToast('Please enter feedback before saving');
+      return;
+    }
+
+    const existing = tasks.find((t) => t.id === selectedTask.id);
+    if (!existing) return;
+
+    const prevVersions = existing.feedbacks || [];
+    const version = (prevVersions.length > 0 ? Math.max(...prevVersions.map((v) => v.version)) : 0) + 1;
+
+    const fb = {
+      id: `fb-${Date.now()}`,
+      senderId: user.id,
+      senderName: user.name,
+      sentAt: new Date().toISOString(),
+      body,
+      version,
+    };
+
+    const updated = tasks.map((t) => {
+      if (t.id !== existing.id) return t;
+      return {
+        ...t,
+        feedbacks: [...(t.feedbacks || []), fb],
+        status: 'in_progress',
+      };
+    });
+
+    persistTasks(updated);
+    setToast('Feedback saved');
+    setShowFeedbackModal(false);
+    setFeedbackEditorHtml('');
+
+    // notify assigned data collector
+    pushNotification({ id: `notify-${Date.now()}`, toUserId: existing.assignedTo, message: `Feedback provided for task ${existing.title}.`, createdAt: new Date().toISOString() });
+  }
 
   const openCreate = () => {
     setEditingTaskId(null);
@@ -200,6 +293,20 @@ export function RoleTaskBoard({
               <div>
                 <h3 className="font-semibold text-lg text-gray-900">{task.title}</h3>
                 <p className="text-sm text-gray-500 mt-1">ID: {task.id}</p>
+
+                <div className="mt-2 flex items-center gap-2">
+                  {task.feedbacks && task.feedbacks.length > 0 && (
+                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Feedback Provided</span>
+                  )}
+
+                  {task.approvalStatus === 'approved' && (
+                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">Approved</span>
+                  )}
+
+                  {task.approvalStatus === 'rejected' && (
+                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">Rejected</span>
+                  )}
+                </div>
               </div>
               <span
                 className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -217,6 +324,15 @@ export function RoleTaskBoard({
             </div>
 
             <p className="text-gray-700 mt-4">{task.description}</p>
+
+            <div className="mt-4">
+              <button
+                onClick={() => { setSelectedTask(task); setShowDetail(true); }}
+                className="text-sm text-blue-600 hover:underline"
+              >
+                Open Submission Detail
+              </button>
+            </div>
 
             <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Instruction</p>
@@ -334,6 +450,218 @@ export function RoleTaskBoard({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Detail modal for reviewers */}
+      {showDetail && selectedTask && (
+        <div className="fixed inset-0 bg-black/60 flex items-start justify-center p-6 z-50 overflow-auto">
+          <div className="bg-white rounded-xl p-6 w-full max-w-4xl shadow-xl max-h-[92vh] overflow-y-auto">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-2xl font-semibold">{selectedTask.title}</h3>
+                <p className="text-sm text-gray-500">ID: {selectedTask.id}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => { setShowDetail(false); setSelectedTask(null); }} className="px-3 py-2 rounded-lg border">Close</button>
+              </div>
+            </div>
+
+            <section className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="md:col-span-2">
+                <h4 className="text-sm font-medium text-gray-600">Task Statement</h4>
+                <p className="mt-2 text-gray-800">{selectedTask.description}</p>
+
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg border">
+                  <h5 className="text-sm font-medium text-gray-600">Instruction</h5>
+                  <p className="mt-1 text-gray-700">{selectedTask.instruction}</p>
+                </div>
+
+                <div className="mt-6">
+                  <h5 className="text-sm font-medium text-gray-600">Submission Notes from the Data Collector</h5>
+                  {selectedTask.submissions && selectedTask.submissions.length > 0 ? (
+                    selectedTask.submissions.slice().reverse().map((s) => (
+                      <div key={s.id} className="mt-3 p-3 border rounded-lg bg-white">
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm text-gray-600">{s.submittedByName || s.submittedBy}</div>
+                          <div className="text-xs text-gray-400">{new Date(s.submittedAt).toLocaleString()}</div>
+                        </div>
+                        <div className="mt-2 text-gray-700">{s.notes}</div>
+                        {s.attachments && s.attachments.length > 0 && (
+                          <div>
+                            <h6 className="text-xs text-gray-500 mt-3">Uploaded Evidence (Telegram preview)</h6>
+                            <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                              {s.attachments.map((att, idx) => (
+                                <img
+                                  key={idx}
+                                  src={att}
+                                  alt={`evidence-${idx}`}
+                                  className="w-full h-28 object-cover rounded-md cursor-pointer border"
+                                  onClick={() => { setImageViewerSrc(att); setImageZoom(1); }}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="mt-2 text-gray-500">No submissions yet.</p>
+                  )}
+                </div>
+
+                <div className="mt-6">
+                  <h5 className="text-sm font-medium text-gray-600">Feedback History</h5>
+                  {selectedTask.feedbacks && selectedTask.feedbacks.length > 0 ? (
+                    selectedTask.feedbacks.slice().reverse().map((f) => (
+                      <div key={f.id} className="mt-3 p-3 border rounded-lg bg-white">
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm text-gray-600">{f.senderName || f.senderId} — v{f.version}</div>
+                          <div className="text-xs text-gray-400">{new Date(f.sentAt).toLocaleString()}</div>
+                        </div>
+                        <div className="mt-2 text-gray-700" dangerouslySetInnerHTML={{ __html: f.body }} />
+                        {canManage && (
+                          <div className="mt-2">
+                            <button
+                              onClick={() => {
+                                setEditingFeedbackId(f.id);
+                                setFeedbackEditorHtml(f.body);
+                                setShowFeedbackModal(true);
+                              }}
+                              className="text-sm text-blue-600 hover:underline"
+                            >
+                              Edit
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="mt-2 text-gray-500">No feedback provided yet.</p>
+                  )}
+                </div>
+              </div>
+
+              <aside className="space-y-4">
+                <div className="p-4 bg-gray-50 rounded-lg border">
+                  <h5 className="text-sm font-medium text-gray-600">Submission Metadata</h5>
+                  <div className="mt-2 text-sm text-gray-700">
+                    <div>Submitted: {selectedTask.submissions && selectedTask.submissions.length > 0 ? new Date(selectedTask.submissions[selectedTask.submissions.length-1].submittedAt).toLocaleString() : '—'}</div>
+                    <div>Submitted By: {selectedTask.submissions && selectedTask.submissions.length > 0 ? (selectedTask.submissions[selectedTask.submissions.length-1].submittedByName || selectedTask.submissions[selectedTask.submissions.length-1].submittedBy) : '—'}</div>
+                    <div className="mt-2">Status: {selectedTask.approvalStatus ? selectedTask.approvalStatus : selectedTask.status}</div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-white rounded-lg border shadow-sm">
+                  <h5 className="text-sm font-medium text-gray-600">Actions</h5>
+                  <div className="mt-3 flex flex-col gap-2">
+                    <button
+                      onClick={() => handleApprove(selectedTask)}
+                      className="w-full px-3 py-2 bg-green-600 text-white rounded-lg"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => { setEditingFeedbackId(null); setFeedbackEditorHtml(''); setShowFeedbackModal(true); }}
+                      className="w-full px-3 py-2 border rounded-lg text-gray-700"
+                    >
+                      Provide Feedback
+                    </button>
+                  </div>
+                </div>
+              </aside>
+            </section>
+          </div>
+        </div>
+      )}
+
+      {/* Image viewer / fullscreen modal */}
+      {imageViewerSrc && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
+          <div className="relative max-w-[95vw] max-h-[95vh]">
+            <img
+              ref={imageRef}
+              src={imageViewerSrc}
+              alt="evidence"
+              style={{ transform: `scale(${imageZoom})` }}
+              className="max-w-full max-h-[90vh] object-contain rounded transition-transform"
+            />
+
+            <div className="absolute top-2 right-2 flex gap-2">
+              <button
+                onClick={() => {
+                  if (imageRef.current && imageRef.current.requestFullscreen) {
+                    imageRef.current.requestFullscreen();
+                  } else {
+                    document.documentElement.requestFullscreen?.();
+                  }
+                }}
+                className="px-3 py-2 bg-white/80 rounded"
+              >
+                Fullscreen
+              </button>
+              <button onClick={() => setImageViewerSrc(null)} className="px-3 py-2 bg-white/80 rounded">Close</button>
+            </div>
+
+            <div className="absolute left-2 bottom-2 flex items-center gap-2 bg-white/90 rounded p-2">
+              <button
+                onClick={() => setImageZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))}
+                className="px-2 py-1 border rounded"
+              >
+                -
+              </button>
+              <div className="text-sm px-2">{Math.round(imageZoom * 100)}%</div>
+              <button
+                onClick={() => setImageZoom((z) => Math.min(3, +(z + 0.25).toFixed(2)))}
+                className="px-2 py-1 border rounded"
+              >
+                +
+              </button>
+              <button onClick={() => setImageZoom(1)} className="px-2 py-1 border rounded">Reset</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Feedback modal */}
+      {showFeedbackModal && selectedTask && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-6 z-60">
+          <div className="bg-white rounded-xl p-6 w-full max-w-3xl shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h4 className="text-lg font-semibold">Provide Feedback</h4>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setShowFeedbackModal(false)} className="px-3 py-2 rounded border">Cancel</button>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <div className="flex gap-2">
+                <button onClick={() => document.execCommand('bold')} className="px-2 py-1 border rounded">B</button>
+                <button onClick={() => document.execCommand('italic')} className="px-2 py-1 border rounded">I</button>
+                <button onClick={() => document.execCommand('underline')} className="px-2 py-1 border rounded">U</button>
+                <button onClick={() => { const url = prompt('Link URL'); if (url) document.execCommand('createLink', false, url); }} className="px-2 py-1 border rounded">Link</button>
+              </div>
+
+              <div
+                ref={editorRef}
+                contentEditable
+                suppressContentEditableWarning
+                onInput={(e) => setFeedbackEditorHtml((e.target as HTMLDivElement).innerHTML)}
+                className="mt-3 min-h-[160px] border p-3 rounded"
+                dangerouslySetInnerHTML={{ __html: feedbackEditorHtml }}
+              />
+            </div>
+
+            <div className="mt-4 flex justify-end gap-3">
+              <button onClick={() => setShowFeedbackModal(false)} className="px-4 py-2 border rounded">Close</button>
+              <button onClick={() => saveFeedback()} className="px-4 py-2 bg-blue-600 text-white rounded">Save Feedback</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 bg-black text-white px-4 py-2 rounded shadow">{toast}</div>
       )}
     </div>
   );
