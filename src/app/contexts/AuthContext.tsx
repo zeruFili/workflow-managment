@@ -14,6 +14,7 @@ const mockUsers: Array<User & { password: string }> = [
   { id: '0', username: 'ceo', password: 'demo123', name: 'Ava Reynolds', role: 'ceo' },
   { id: '1', username: 'marketing', password: 'demo123', name: 'Sarah Johnson', role: 'marketing_lead' },
   { id: '2', username: 'gm', password: 'demo123', name: 'John Smith', role: 'general_manager' },
+  { id: '11', username: 'quantity', password: 'demo123', name: 'Oliver Grant', role: 'quantity_surveyor' },
   { id: '3', username: 'design_lead', password: 'demo123', name: 'Emily Chen', role: 'design_team_leader' },
   { id: '4', username: 'designer', password: 'demo123', name: 'Michael Brown', role: 'designer' },
   { id: '5', username: 'engineer', password: 'demo123', name: 'David Wilson', role: 'site_engineer' },

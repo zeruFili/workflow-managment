@@ -3,6 +3,13 @@ import { useAuth, getRoleName } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
 import { mockProjects, mockTasks, mockApprovals } from '../data/mockData';
 import {
+  getRoleNotificationCount,
+  loadQuantityReviewNotifications,
+  markRoleNotificationsRead,
+  QuantityReviewNotification,
+  saveQuantityReviewNotifications,
+} from '../data/quantitySurveyorWorkflow';
+import {
   FolderKanban,
   CheckSquare,
   Clock,
@@ -10,12 +17,16 @@ import {
   TrendingUp,
   CheckCircle,
   Plus,
-  Upload
+  Upload,
+  Bell
 } from 'lucide-react';
 
 export function Dashboard() {
   const { user } = useAuth();
   const [showCreateTask, setShowCreateTask] = useState(false);
+  const [quantityNotifications, setQuantityNotifications] = useState<QuantityReviewNotification[]>(
+    () => loadQuantityReviewNotifications()
+  );
 
   if (!user) return null;
 
@@ -51,6 +62,19 @@ export function Dashboard() {
   const pendingApprovals = mockApprovals.filter(a =>
     a.status === 'pending' && user.role === 'general_manager'
   );
+  const leadershipRoles = user.role === 'general_manager' || user.role === 'ceo';
+  const unreadQuantityReviewCount = getRoleNotificationCount(quantityNotifications, user.role, 'evaluation_submitted');
+  const quantityReviewItems = quantityNotifications.filter(
+    (notification) =>
+      notification.type === 'evaluation_submitted' &&
+      notification.targetRoles.includes(user.role)
+  );
+
+  const markQuantityNotificationsRead = () => {
+    const nextNotifications = markRoleNotificationsRead(quantityNotifications, user.role, 'evaluation_submitted');
+    setQuantityNotifications(nextNotifications);
+    saveQuantityReviewNotifications(nextNotifications);
+  };
 
   const activeProjects = userProjects.filter(p => p.status === 'active').length;
   const pendingTasks = userTasks.filter(t => t.status === 'pending' || t.status === 'in_progress').length;
@@ -116,6 +140,65 @@ export function Dashboard() {
           );
         })}
       </div>
+
+      {leadershipRoles && (
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <Bell className="w-5 h-5 text-slate-700" />
+                <h3 className="font-semibold text-lg text-gray-900">Quantity Review Notifications</h3>
+              </div>
+              <p className="text-sm text-gray-600 mt-1">
+                Evaluation submissions from Quantity Surveyor are delivered here for GM and CEO.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                {unreadQuantityReviewCount} unread
+              </span>
+              <button
+                type="button"
+                onClick={markQuantityNotificationsRead}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                Mark as read
+              </button>
+              <Link
+                to="/quantity-surveyor-tasks"
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-white hover:bg-slate-800"
+              >
+                Open Desk
+              </Link>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-3">
+            {quantityReviewItems.slice(0, 3).map((item) => {
+              const unread = !item.readByRoles.includes(user.role);
+
+              return (
+                <div
+                  key={item.id}
+                  className={`rounded-lg border p-3 ${unread ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-gray-50'}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-sm font-medium text-gray-900">{item.message}</p>
+                    {unread && <span className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">new</span>}
+                  </div>
+                  <p className="text-sm text-gray-600 mt-1">Job Reference: {item.jobId}</p>
+                  <p className="text-sm text-gray-600">{item.description}</p>
+                </div>
+              );
+            })}
+            {quantityReviewItems.length === 0 && (
+              <div className="rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-500 text-center">
+                No quantity review notifications yet.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="hidden lg:block bg-white rounded-xl p-6 shadow-sm border border-gray-200">

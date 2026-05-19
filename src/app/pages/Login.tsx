@@ -25,6 +25,7 @@ export function Login() {
     { username: 'ceo', role: 'CEO' },
     { username: 'marketing', role: 'Marketing Lead' },
     { username: 'gm', role: 'General Manager' },
+    { username: 'quantity', role: 'Quantity Surveyor' },
     { username: 'design_lead', role: 'Design Team Leader' },
     { username: 'designer', role: 'Designer' },
     { username: 'engineer', role: 'Site Engineer' },
