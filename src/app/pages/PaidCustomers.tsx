@@ -8,7 +8,7 @@ const STORAGE_KEY = 'paid-customers';
 const categoryLabels: Record<CustomerRequestCategory, string> = {
   home_design: 'Home Design',
   finishing_work: 'Finishing Work',
-  hair_salon_design: 'Women\'s Hair Salon Design',
+  hair_salon_design: "Women's Hair Salon Design",
   other: 'Other',
 };
 
@@ -49,7 +49,7 @@ const initialPaidCustomers: PaidCustomer[] = [
     customerEmail: 'mona@example.com',
     customerAddress: 'Abu Dhabi Corniche, Abu Dhabi',
     category: 'hair_salon_design',
-    serviceDescription: 'Women\'s hair salon interior design with reception, styling stations, and waiting area.',
+    serviceDescription: "Women's hair salon interior design with reception, styling stations, and waiting area.",
     preferredStartDate: '2026-05-05',
     budget: 'AED 95,000',
     notes: 'Client paid deposit and shared screenshot proof.',
@@ -75,24 +75,43 @@ export function PaidCustomers() {
   const [paidCustomers, setPaidCustomers] = useState<PaidCustomer[]>([]);
 
   useEffect(() => {
-    const savedPaidCustomers = localStorage.getItem(STORAGE_KEY);
-    if (savedPaidCustomers) {
-      setPaidCustomers(JSON.parse(savedPaidCustomers));
-      return;
+    const saved = localStorage.getItem(STORAGE_KEY);
+    let parsed: PaidCustomer[] | null = null;
+
+    if (saved) {
+      try {
+        const raw = JSON.parse(saved);
+        if (Array.isArray(raw)) parsed = raw;
+      } catch {
+        parsed = null;
+      }
     }
 
-    setPaidCustomers(initialPaidCustomers);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(initialPaidCustomers));
+    if (parsed && parsed.length > 0) {
+      // Merge: keep saved entries, but ensure initial seed entries are always present
+      const savedIds = new Set(parsed.map((c) => c.id));
+      const missingInitial = initialPaidCustomers.filter((c) => !savedIds.has(c.id));
+      const merged = [...missingInitial, ...parsed];
+      setPaidCustomers(merged);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+    } else {
+      setPaidCustomers(initialPaidCustomers);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(initialPaidCustomers));
+    }
   }, []);
 
-  if (!user) {
-    return null;
-  }
+  if (!user) return null;
 
-  if (user.role !== 'general_manager' && user.role !== 'marketing_lead' && user.role !== 'ceo' && user.role !== 'system_administrator') {
+  if (
+    user.role !== 'general_manager' &&
+    user.role !== 'marketing_lead' &&
+    user.role !== 'system_administrator'
+  ) {
     return (
       <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
-        <p className="text-gray-500">Access denied. General Manager, Marketing Lead, CEO, or System Administrator access required.</p>
+        <p className="text-gray-500">
+          Access denied. General Manager, Marketing Lead, or System Administrator access required.
+        </p>
       </div>
     );
   }
@@ -122,15 +141,19 @@ export function PaidCustomers() {
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-semibold text-lg text-gray-900">{customer.customerName}</h3>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusStyles[customer.status]}`}>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusStyles[customer.status] ?? 'bg-gray-100 text-gray-700'}`}>
                     Paid
                   </span>
                 </div>
-                <p className="text-sm text-gray-500 mt-1">{categoryLabels[customer.category]}</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  {categoryLabels[customer.category] ?? customer.category}
+                </p>
               </div>
               <div className="text-sm text-gray-500 flex items-center gap-2">
                 <Calendar className="w-4 h-4" />
-                {new Date(customer.transferredAt).toLocaleString()}
+                {customer.transferredAt
+                  ? new Date(customer.transferredAt).toLocaleString()
+                  : new Date(customer.createdAt).toLocaleString()}
               </div>
             </div>
 
@@ -139,7 +162,7 @@ export function PaidCustomers() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5 text-sm text-gray-600">
               <div className="flex items-center gap-2">
                 <Phone className="w-4 h-4 text-gray-400" />
-                <span>{customer.customerPhone}</span>
+                <span>{customer.customerPhone || '—'}</span>
               </div>
               {customer.customerEmail && (
                 <div className="flex items-center gap-2">
@@ -149,17 +172,28 @@ export function PaidCustomers() {
               )}
               <div className="flex items-center gap-2 md:col-span-2">
                 <MapPin className="w-4 h-4 text-gray-400" />
-                <span>{customer.customerAddress}</span>
+                <span>{customer.customerAddress || '—'}</span>
               </div>
+              {customer.preferredStartDate && (
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-gray-900">Preferred Start:</span>
+                  <span>{new Date(customer.preferredStartDate).toLocaleDateString()}</span>
+                </div>
+              )}
               {customer.budget && (
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-gray-900">Budget:</span>
                   <span>{customer.budget}</span>
                 </div>
               )}
+              {customer.notes && (
+                <div className="md:col-span-2 p-3 bg-blue-50 rounded-lg text-gray-700">
+                  <span className="font-medium text-gray-800">Notes: </span>{customer.notes}
+                </div>
+              )}
               {customer.paymentNote && (
                 <div className="md:col-span-2 p-3 bg-gray-50 rounded-lg text-gray-700">
-                  {customer.paymentNote}
+                  <span className="font-medium text-gray-800">Payment Note: </span>{customer.paymentNote}
                 </div>
               )}
             </div>
@@ -167,15 +201,30 @@ export function PaidCustomers() {
             <div className="mt-5 pt-4 border-t border-gray-200 grid grid-cols-1 lg:grid-cols-3 gap-4 text-sm text-gray-500">
               <div className="flex items-center gap-2">
                 <User className="w-4 h-4" />
-                <span>Transferred by {customer.transferredByName}</span>
+                <span>
+                  Transferred by{' '}
+                  <span className="font-medium text-gray-700">
+                    {customer.transferredByName || '—'}
+                  </span>
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4" />
-                <span>Source request owner: {customer.createdByName}</span>
+                <span>
+                  Source request owner:{' '}
+                  <span className="font-medium text-gray-700">
+                    {customer.createdByName || '—'}
+                  </span>
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <CircleDollarSign className="w-4 h-4" />
-                <span>Transfer ID: {customer.sourceRequestId}</span>
+                <span>
+                  Transfer ID:{' '}
+                  <span className="font-medium text-gray-700">
+                    {customer.sourceRequestId || '—'}
+                  </span>
+                </span>
               </div>
             </div>
 
@@ -185,16 +234,18 @@ export function PaidCustomers() {
                   <FileText className="w-4 h-4" />
                   Proof of payment attached
                 </div>
-                <p className="text-sm text-green-800 mt-1">{customer.proofOfPayment.name} ({customer.proofOfPayment.size})</p>
-                {customer.proofOfPayment.type.startsWith('image/') && (
+                <p className="text-sm text-green-800 mt-1">
+                  {customer.proofOfPayment.name} ({customer.proofOfPayment.size})
+                </p>
+                {customer.proofOfPayment.type.startsWith('image/') ? (
                   <img
                     src={customer.proofOfPayment.dataUrl}
                     alt={customer.proofOfPayment.name}
                     className="mt-3 max-h-56 rounded-lg border border-green-200 object-contain bg-white"
                   />
-                )}
-                {!customer.proofOfPayment.type.startsWith('image/') && (
-                  <a
+                ) : (
+                  
+                    <a
                     href={customer.proofOfPayment.dataUrl}
                     download={customer.proofOfPayment.name}
                     className="inline-flex mt-3 text-sm text-green-700 underline"
