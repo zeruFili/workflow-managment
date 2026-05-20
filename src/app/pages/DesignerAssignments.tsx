@@ -190,7 +190,6 @@ function findFirstNonApprovedPhaseIndex(
   if (!progress) return -1;
   for (let i = 0; i < phases.length; i++) {
     const phaseData = progress[phases[i].key];
-    // Only stop if the phase has a history and the latest status isn't 'approved'
     if (phaseData && phaseData.history && phaseData.history.length > 0 && getCurrentStatus(phaseData) !== 'approved') {
       return i;
     }
@@ -219,34 +218,27 @@ function generateMockProgress(lastReviewedPhaseIndex: number, taskId?: string): 
   for (let i = 0; i <= lastReviewedPhaseIndex; i++) {
     const key = PHASES[i].key;
     const isLastPhase = i === lastReviewedPhaseIndex;
-    
-    // Build history: intermediate phases always have feedback then approved
-    // Last phase uses the determined endStatus
+
     let history: PhaseHistoryEntry[] = [];
-    
+
     if (isLastPhase) {
       if (endStatus === 'approved') {
-        // Approved: feedback -> approved
         history = [
           { status: 'feedback', message: 'Minor clarifications needed.', timestamp: '2026-05-10T09:00:00Z' },
           { status: 'approved', message: 'Looks good, proceed.', timestamp: '2026-05-10T14:00:00Z' },
         ];
       } else if (endStatus === 'feedback') {
-        // Feedback: only feedback entry
         history = [
           { status: 'feedback', message: 'Minor revisions needed before approval.', timestamp: '2026-05-10T09:00:00Z' },
         ];
       } else if (endStatus === 'rejected') {
-        // Rejected: only rejected entry
         history = [
           { status: 'rejected', message: 'This does not meet requirements.', timestamp: '2026-05-10T09:00:00Z' },
         ];
       } else {
-        // Pending: no history (awaiting review)
         history = [];
       }
     } else {
-      // Intermediate phases: always feedback -> approved
       history = [
         { status: 'feedback', message: 'Minor clarifications needed.', timestamp: '2026-05-10T09:00:00Z' },
         { status: 'approved', message: 'Looks good, proceed.', timestamp: '2026-05-10T14:00:00Z' },
@@ -268,7 +260,7 @@ function generateMockProgress(lastReviewedPhaseIndex: number, taskId?: string): 
       })),
     };
   }
-  
+
   for (let i = lastReviewedPhaseIndex + 1; i < PHASES.length; i++) {
     progress[PHASES[i].key] = defaultPhase();
   }
@@ -578,6 +570,26 @@ export function DesignerAssignments() {
             const isOverdue =
               task.deadline && new Date(task.deadline) < new Date() && task.status !== 'completed';
 
+            // Determine current phase info from submission progress
+            const progress = getDisplayProgress(task.id);
+            const stopIdx = findFirstNonApprovedPhaseIndex(PHASES, progress);
+            let currentPhaseKey: PhaseKey | null = null;
+            let currentPhaseLabel = '';
+            let currentPhaseStatus: PhaseHistoryEntry['status'] | 'pending' = 'pending';
+
+            if (stopIdx !== -1) {
+              currentPhaseKey = PHASES[stopIdx].key;
+              currentPhaseLabel = PHASES[stopIdx].label;
+              currentPhaseStatus = getCurrentStatus(progress[currentPhaseKey]);
+            } else {
+              const lastPopulatedIdx = getLastPopulatedPhaseIndex(progress);
+              if (lastPopulatedIdx >= 0) {
+                currentPhaseKey = PHASES[lastPopulatedIdx].key;
+                currentPhaseLabel = PHASES[lastPopulatedIdx].label;
+                currentPhaseStatus = getCurrentStatus(progress[currentPhaseKey]);
+              }
+            }
+
             return (
               <div
                 key={task.id}
@@ -590,21 +602,45 @@ export function DesignerAssignments() {
                       Assigned to: {getTaskAssigneeLabel(task.assignedTo)}
                     </p>
                   </div>
-                  <span
-                    className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
-                      task.status === 'completed'
-                        ? 'bg-green-100 text-green-700'
-                        : task.status === 'in_progress'
-                        ? 'bg-blue-100 text-blue-700'
-                        : task.status === 'incomplete'
-                        ? 'bg-orange-100 text-orange-700'
-                        : task.status === 'rejected'
-                        ? 'bg-red-100 text-red-700'
-                        : 'bg-gray-100 text-gray-700'
-                    }`}
-                  >
-                    {task.status.replace('_', ' ')}
-                  </span>
+                  {/* UPDATED STATUS BADGE */}
+                  {currentPhaseKey ? (
+                    <span
+                      className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
+                        currentPhaseStatus === 'approved'
+                          ? 'bg-green-100 text-green-700'
+                          : currentPhaseStatus === 'feedback'
+                          ? 'bg-yellow-100 text-yellow-700'
+                          : currentPhaseStatus === 'rejected'
+                          ? 'bg-red-100 text-red-700'
+                          : 'bg-blue-100 text-blue-700'
+                      }`}
+                    >
+                      {currentPhaseLabel} -{' '}
+                      {currentPhaseStatus === 'approved'
+                        ? 'Approved'
+                        : currentPhaseStatus === 'feedback'
+                        ? 'Feedback Given'
+                        : currentPhaseStatus === 'rejected'
+                        ? 'Rejected'
+                        : 'Pending Review'}
+                    </span>
+                  ) : (
+                    <span
+                      className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
+                        task.status === 'completed'
+                          ? 'bg-green-100 text-green-700'
+                          : task.status === 'in_progress'
+                          ? 'bg-blue-100 text-blue-700'
+                          : task.status === 'incomplete'
+                          ? 'bg-orange-100 text-orange-700'
+                          : task.status === 'rejected'
+                          ? 'bg-red-100 text-red-700'
+                          : 'bg-gray-100 text-gray-700'
+                      }`}
+                    >
+                      {task.status.replace('_', ' ')}
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap gap-2 mb-4">
@@ -623,8 +659,6 @@ export function DesignerAssignments() {
 
                 <p className="text-sm text-gray-600 mb-3">{task.description}</p>
 
-                
-
                 <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
                   <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">
                     Work Instruction
@@ -639,48 +673,61 @@ export function DesignerAssignments() {
                   Open Submission Detail
                 </button>
 
+                {/* NEW: Last Phase Status from Submission Progress */}
+                {(() => {
+                  const progress = getDisplayProgress(task.id);
+                  const stopIdx = findFirstNonApprovedPhaseIndex(PHASES, progress);
+                  const lastPopulated = getLastPopulatedPhaseIndex(progress);
+                  const displayIdx = stopIdx !== -1 ? stopIdx : lastPopulated;
+                  if (displayIdx === -1) return null;
+                  const phaseKey = PHASES[displayIdx].key;
+                  const phaseLabel = PHASES[displayIdx].label;
+                  const phaseData = progress[phaseKey];
+                  if (!phaseData || !phaseData.history || phaseData.history.length === 0) return null;
+                  const latest = phaseData.history[phaseData.history.length - 1];
+                  const status = latest.status;
+                  const message = latest.message;
+                  const isApproved = status === 'approved';
+                  const isRejected = status === 'rejected';
+                  const isFeedback = status === 'feedback';
+                  const BadgeIcon = isApproved ? CheckCircle2 : isRejected ? XCircle : AlertCircle;
+                  const containerColor = isApproved
+                    ? 'bg-green-50 border-green-200'
+                    : isRejected
+                    ? 'bg-red-50 border-red-200'
+                    : 'bg-yellow-50 border-yellow-200';
+                  const textColor = isApproved
+                    ? 'text-green-700'
+                    : isRejected
+                    ? 'text-red-700'
+                    : 'text-yellow-700';
+                  const iconColor = isApproved
+                    ? 'text-green-600'
+                    : isRejected
+                    ? 'text-red-600'
+                    : 'text-yellow-600';
+                  const displayLabel = isApproved
+                    ? `${phaseLabel} - Approved`
+                    : isFeedback
+                    ? 'Feedback'
+                    : `${phaseLabel} - Rejected`;
+                  return (
+                    <div className={`mb-4 p-3 rounded-lg border ${containerColor}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <BadgeIcon className={`w-4 h-4 ${iconColor}`} />
+                        <p className={`text-sm font-medium ${textColor}`}>{displayLabel}</p>
+                      </div>
+                      {message && (
+                        <p className="text-sm text-gray-700 italic">"{message}"</p>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {project && (
                   <div className="mb-4 p-3 bg-gray-50 rounded-lg">
                     <p className="text-xs text-gray-500">Project</p>
                     <p className="font-medium text-gray-900 mt-1">{project.name}</p>
-                  </div>
-                )}
-
-                {task.approvalStatus && (
-                  <div
-                    className={`mb-4 p-3 rounded-lg ${
-                      task.approvalStatus === 'approved'
-                        ? 'bg-green-50 border border-green-200'
-                        : task.approvalStatus === 'rejected'
-                        ? 'bg-red-50 border border-red-200'
-                        : 'bg-yellow-50 border border-yellow-200'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      {task.approvalStatus === 'approved' ? (
-                        <CheckCircle2 className="w-4 h-4 text-green-600" />
-                      ) : (
-                        <AlertCircle className="w-4 h-4 text-yellow-600" />
-                      )}
-                      <p
-                        className={`text-sm font-medium ${
-                          task.approvalStatus === 'approved'
-                            ? 'text-green-700'
-                            : task.approvalStatus === 'rejected'
-                            ? 'text-red-700'
-                            : 'text-yellow-700'
-                        }`}
-                      >
-                        {task.approvalStatus === 'approved'
-                          ? 'Approved'
-                          : task.approvalStatus === 'rejected'
-                          ? 'Rejected'
-                          : 'Pending Approval'}
-                      </p>
-                    </div>
-                    {task.approvalFeedback && (
-                      <p className="text-sm text-gray-700 italic">"{task.approvalFeedback}"</p>
-                    )}
                   </div>
                 )}
 
@@ -703,8 +750,6 @@ export function DesignerAssignments() {
                     <span>Created: {new Date(task.createdAt).toLocaleDateString()}</span>
                   </div>
                 </div>
-
-                
               </div>
             );
           })}
@@ -883,12 +928,72 @@ export function DesignerAssignments() {
                     Submission Progress & Review
                   </h5>
 
+                  {/* Last Phase Status Summary */}
+                  {(() => {
+                    const displayPhaseIdx = stopIdx !== -1 ? stopIdx : lastPopulatedIdx;
+                    if (displayPhaseIdx === -1) return null;
+                    const phaseKey = PHASES[displayPhaseIdx].key;
+                    const phaseLabel = PHASES[displayPhaseIdx].label;
+                    const phaseData = currentProgress?.[phaseKey];
+                    if (!phaseData) return null;
+                    const history = phaseData.history ?? [];
+                    if (history.length === 0) return null;
+                    const latestEntry = history[history.length - 1];
+                    const status = latestEntry.status;
+                    const message = latestEntry.message;
+                    const isApproved = status === 'approved';
+                    const isRejected = status === 'rejected';
+                    const isFeedback = status === 'feedback';
+                    const BadgeIcon = isApproved ? CheckCircle2 : isRejected ? XCircle : AlertCircle;
+                    const badgeColor = isApproved
+                      ? 'bg-green-100 text-green-700'
+                      : isRejected
+                      ? 'bg-red-100 text-red-700'
+                      : 'bg-yellow-100 text-yellow-700';
+                    const statusLabel = isApproved
+                      ? 'Approved'
+                      : isRejected
+                      ? 'Rejected'
+                      : 'Feedback';
+                    const displayLabel = isApproved
+                      ? `${phaseLabel} - Approved`
+                      : isFeedback
+                      ? 'Feedback'
+                      : `${phaseLabel} - Rejected`;
+                    return (
+                      <div
+                        className={`p-4 rounded-lg border mb-4 ${
+                          isApproved
+                            ? 'bg-green-50 border-green-200'
+                            : isRejected
+                            ? 'bg-red-50 border-red-200'
+                            : 'bg-yellow-50 border-yellow-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          <BadgeIcon
+                            className={`w-4 h-4 ${
+                              isApproved
+                                ? 'text-green-600'
+                                : isRejected
+                                ? 'text-red-600'
+                                : 'text-yellow-600'
+                            }`}
+                          />
+                          <p className="text-sm font-medium text-gray-800">{displayLabel}</p>
+                        </div>
+                        {message && (
+                          <p className="text-sm text-gray-700 italic">"{message}"</p>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   {visiblePhases.length === 0 ? (
                     <p className="text-sm text-gray-500">No submission data yet.</p>
                   ) : (
                     <div className="space-y-3">
                       {visiblePhases.map((phase, idx) => {
-                        // Hide any phase after the first non‑approved (feedback or rejected) phase
                         if (stopIdx !== -1 && idx > stopIdx) return null;
 
                         const taskId = selectedTaskDetail.id;
@@ -900,27 +1005,27 @@ export function DesignerAssignments() {
                         const taskHistoryIdx = expandedHistoryIdx[taskId]?.[phase.key];
 
                         const statusBadge = {
-                                feedback: {
-                                  label: 'Feedback Given',
-                                  icon: MessageSquare,
-                                  color: 'bg-yellow-100 text-yellow-700',
-                                },
-                                approved: {
-                                  label: 'Approved',
-                                  icon: ThumbsUp,
-                                  color: 'bg-green-100 text-green-700',
-                                },
-                                rejected: {
-                                  label: 'Rejected',
-                                  icon: ThumbsDown,
-                                  color: 'bg-red-100 text-red-700',
-                                },
-                                pending: {
-                                  label: 'Pending Review',
-                                  icon: Clock,
-                                  color: 'bg-blue-100 text-blue-700',
-                                },
-                              }[currentStatus];
+                          feedback: {
+                            label: 'Feedback Given',
+                            icon: MessageSquare,
+                            color: 'bg-yellow-100 text-yellow-700',
+                          },
+                          approved: {
+                            label: 'Approved',
+                            icon: ThumbsUp,
+                            color: 'bg-green-100 text-green-700',
+                          },
+                          rejected: {
+                            label: 'Rejected',
+                            icon: ThumbsDown,
+                            color: 'bg-red-100 text-red-700',
+                          },
+                          pending: {
+                            label: 'Pending Review',
+                            icon: Clock,
+                            color: 'bg-blue-100 text-blue-700',
+                          },
+                        }[currentStatus];
 
                         return (
                           <div
@@ -1355,3 +1460,5 @@ export function DesignerAssignments() {
     </div>
   );
 }
+
+export default DesignerAssignments;
