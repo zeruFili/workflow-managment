@@ -56,12 +56,10 @@ export function Layout({ children }: LayoutProps) {
       }
     };
 
-    if (user.role === 'marketing_lead' || user.role === 'ceo') {
-      navigationItems.push({ path: '/customer-requests', label: 'Customer Requests', icon: ClipboardList });
-    }
+    
 
     if (user.role === 'marketing_lead' || user.role === 'system_administrator') {
-      navigationItems.push({ path: '/customer-data', label: 'Customer Data', icon: Database });
+      navigationItems.push({ path: '/customer-data', label: 'Customer Requests', icon: ClipboardList });
     }
 
     if (user.role === 'general_manager' || user.role === 'marketing_lead' || user.role === 'ceo' || user.role === 'system_administrator') {

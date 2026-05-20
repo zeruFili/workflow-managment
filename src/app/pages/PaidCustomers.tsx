@@ -6,6 +6,7 @@ import { Calendar, CircleDollarSign, Mail, MapPin, Phone, User, ClipboardList, P
 const STORAGE_KEY = 'paid-customers';
 const DC_TASKS_KEY = 'data-collector-tasks';
 const USERS_KEY = 'users';
+const CREATE_TASK_ROLES = new Set(['ceo', 'general_manager', 'system_administrator']);
 
 const categoryLabels: Record<CustomerRequestCategory, string> = {
   home_design: 'Home Design', finishing_work: 'Finishing Work',
@@ -162,12 +163,15 @@ export function PaidCustomers() {
   }
 
   if (!user) return null;
-  if (!['general_manager', 'marketing_lead', 'system_administrator'].includes(user.role))
+  if (!['general_manager', 'marketing_lead', 'system_administrator', 'ceo'].includes(user.role))
     return <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center"><p className="text-gray-500">Access denied.</p></div>;
+
+  const canCreateTask = CREATE_TASK_ROLES.has(user.role);
+  const isMarketing = user.role === 'marketing_lead'; // Hide all task-related UI for Marketing Lead
 
   return (
     <>
-      {modalCustomer && <CreateTaskModal customer={modalCustomer} dataCollectors={dataCollectors}
+      {canCreateTask && modalCustomer && <CreateTaskModal customer={modalCustomer} dataCollectors={dataCollectors}
         currentUser={{ id: user.id, name: user.name }} onClose={() => setModalCustomer(null)} onSave={handleCreateTask} />}
       <div className="space-y-6">
         <div className="flex items-start justify-between gap-4 flex-col lg:flex-row">
@@ -189,7 +193,12 @@ export function PaidCustomers() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-semibold text-lg text-gray-900">{customer.customerName}</h3>
                       <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Paid</span>
-                      {linkedTask && <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700 flex items-center gap-1"><ClipboardList className="w-3 h-3" />Task Assigned</span>}
+                      {/* Hide task badge for Marketing Lead */}
+                      {!isMarketing && linkedTask && (
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700 flex items-center gap-1">
+                          <ClipboardList className="w-3 h-3" />Task Assigned
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm text-gray-500 mt-1">{categoryLabels[customer.category] ?? customer.category}</p>
                   </div>
@@ -208,24 +217,35 @@ export function PaidCustomers() {
                 <div className="mt-5 pt-4 border-t border-gray-200 text-sm text-gray-500 flex items-center gap-2">
                   <User className="w-4 h-4" /><span>Transferred by <span className="font-medium text-gray-700">{customer.transferredByName || '—'}</span></span>
                 </div>
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  {linkedTask ? (
-                    <div className="flex items-center gap-3 p-4 bg-purple-50 border border-purple-200 rounded-xl">
-                      <ClipboardList className="w-5 h-5 text-purple-600 shrink-0" />
-                      <div>
-                        <p className="text-sm font-semibold text-purple-900">Assigned Data Collector</p>
-                        <p className="text-sm font-medium text-purple-800">{linkedTask.assignedToName}</p>
+
+                {/* Entire task section hidden for Marketing Lead */}
+                {!isMarketing && (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    {linkedTask ? (
+                      <div className="flex items-center gap-3 p-4 bg-purple-50 border border-purple-200 rounded-xl">
+                        <ClipboardList className="w-5 h-5 text-purple-600 shrink-0" />
+                        <div>
+                          <p className="text-sm font-semibold text-purple-900">Assigned Data Collector</p>
+                          <p className="text-sm font-medium text-purple-800">{linkedTask.assignedToName}</p>
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between gap-3 p-3 bg-gray-50 border border-dashed border-gray-300 rounded-xl">
-                      <div className="flex items-center gap-2 text-sm text-gray-500"><ClipboardList className="w-4 h-4 text-gray-400" /><span>No data collector task assigned yet.</span></div>
-                      <button onClick={() => setModalCustomer(customer)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm whitespace-nowrap">
-                        <Plus className="w-4 h-4" />Create Task
-                      </button>
-                    </div>
-                  )}
-                </div>
+                    ) : (
+                      <div className="flex items-center justify-between gap-3 p-3 bg-gray-50 border border-dashed border-gray-300 rounded-xl">
+                        <div className="flex items-center gap-2 text-sm text-gray-500">
+                          <ClipboardList className="w-4 h-4 text-gray-400" />
+                          <span>No data collector task assigned yet.</span>
+                        </div>
+                        {canCreateTask ? (
+                          <button onClick={() => setModalCustomer(customer)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm whitespace-nowrap">
+                            <Plus className="w-4 h-4" />Create Task
+                          </button>
+                        ) : (
+                          <span className="text-xs font-medium text-gray-400 whitespace-nowrap">Create task disabled for your role</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}

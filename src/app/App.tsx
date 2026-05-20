@@ -7,7 +7,6 @@ import { Dashboard } from './pages/Dashboard';
 import { Tasks } from './pages/Tasks';
 import { Approvals } from './pages/Approvals';
 import { UserManagement } from './pages/UserManagement';
-import { CustomerRequests } from './pages/CustomerRequests';
 import { CustomerData } from './pages/CustomerData';
 import { PaidCustomers } from './pages/PaidCustomers';
 import { DesignerTasks } from './pages/DesignerTasks';
@@ -144,16 +143,7 @@ function AppContent() {
           }
         />
 
-        <Route
-          path="/customer-requests"
-          element={
-            <ProtectedRoute allowedRoles={['ceo', 'marketing_lead', 'system_administrator']}>
-              <Layout>
-                <CustomerRequests />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+
 
         <Route
           path="/customer-data"
