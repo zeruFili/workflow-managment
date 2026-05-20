@@ -623,20 +623,7 @@ export function DesignerAssignments() {
 
                 <p className="text-sm text-gray-600 mb-3">{task.description}</p>
 
-                <div className="mb-3">
-                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                    Telegram Evidence
-                  </p>
-                  {(task as any).telegramScreenshot ? (
-                    <img
-                      src={(task as any).telegramScreenshot}
-                      alt="telegram"
-                      className="mt-2 w-full max-h-32 object-cover rounded-lg border"
-                    />
-                  ) : (
-                    <p className="mt-1 text-sm text-gray-500">No Telegram evidence attached.</p>
-                  )}
-                </div>
+                
 
                 <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
                   <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">
@@ -717,54 +704,7 @@ export function DesignerAssignments() {
                   </div>
                 </div>
 
-                {isAdmin && (
-                  <div className="mt-4 pt-4 border-t border-gray-200 space-y-3">
-                    {isEditing ? (
-                      <div className="space-y-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Update Status
-                          </label>
-                          <select
-                            defaultValue={task.status}
-                            onChange={(event) =>
-                              handleStatusChange(task.id, event.target.value as TaskStatus)
-                            }
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                          >
-                            <option value="pending">Pending</option>
-                            <option value="in_progress">In Progress</option>
-                            <option value="completed">Completed</option>
-                            <option value="incomplete">Incomplete</option>
-                            <option value="rejected">Rejected</option>
-                          </select>
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => setEditingTask(null)}
-                            className="flex-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors text-sm"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            onClick={() => setEditingTask(null)}
-                            className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
-                          >
-                            Save Changes
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setEditingTask(task.id)}
-                        className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg transition-colors text-sm"
-                      >
-                        <Edit className="w-4 h-4" />
-                        <span>Update Task</span>
-                      </button>
-                    )}
-                  </div>
-                )}
+                
               </div>
             );
           })}
@@ -1415,5 +1355,3 @@ export function DesignerAssignments() {
     </div>
   );
 }
-
-export default DesignerAssignments;
