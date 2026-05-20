@@ -11,7 +11,8 @@ import { CustomerRequests } from './pages/CustomerRequests';
 import { CustomerData } from './pages/CustomerData';
 import { PaidCustomers } from './pages/PaidCustomers';
 import { DesignerTasks } from './pages/DesignerTasks';
-import { TaskApplications } from './pages/TaskApplications';
+import { DesignerApplications } from './pages/DesignerApplications';
+import { DesignerAssignments } from './pages/DesignerAssignments';
 import { DesignerPerformanceDashboard } from './pages/DesignerPerfromanceDashboards';
 import { FinanceVerifications } from './pages/FinanceVerifications';
 import { DataCollectorTasks } from './pages/DataCollectorTasks';
@@ -221,7 +222,7 @@ function AppContent() {
           element={
             <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'system_administrator']}>
               <Layout>
-                <TaskApplications />
+                <DesignerApplications />
               </Layout>
             </ProtectedRoute>
           }
@@ -230,9 +231,9 @@ function AppContent() {
         <Route
           path="/designer-assignments"
           element={
-            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'system_administrator', 'design_team_leader', 'designer']}>
+            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'system_administrator']}>
               <Layout>
-                <DesignerTasks />
+                <DesignerAssignments />
               </Layout>
             </ProtectedRoute>
           }
@@ -252,7 +253,7 @@ function AppContent() {
         <Route
           path="/designer-tasks"
           element={
-            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'system_administrator', 'design_team_leader', 'designer']}>
+            <ProtectedRoute allowedRoles={['design_team_leader', 'designer']}>
               <Layout>
                 <DesignerTasks />
               </Layout>
@@ -264,9 +265,7 @@ function AppContent() {
           path="/task-applications"
           element={
             <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'system_administrator']}>
-              <Layout>
-                <TaskApplications />
-              </Layout>
+              <Navigate to="/designer-applications" replace />
             </ProtectedRoute>
           }
         />

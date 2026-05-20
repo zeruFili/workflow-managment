@@ -251,6 +251,18 @@ export const mockDesignerTasks: DesignerTask[] = [
     assignedTo: '4',
     assignedBy: '2',
     status: 'pending',
+    telegramScreenshot: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="800" height="480"><rect width="100%" height="100%" fill="%230f172a"/><text x="50%25" y="50%25" fill="%23f8fafc" font-size="28" font-family="Arial,Helvetica,sans-serif" text-anchor="middle" dominant-baseline="middle">Telegram%20Preview</text></svg>',
+    submissions: [
+      {
+        id: 'sub-1001',
+        submittedBy: '4',
+        submittedByName: 'Michael Brown',
+        submittedAt: '2026-04-21T10:05:00Z',
+        notes: 'Initial submission via Telegram with elevation screenshot.',
+        attachments: ['data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="800" height="480"><rect width="100%" height="100%" fill="%230f172a"/><text x="50%25" y="50%25" fill="%23f8fafc" font-size="22" font-family="Arial,Helvetica,sans-serif" text-anchor="middle" dominant-baseline="middle">Submission%20Image</text></svg>'],
+        metadata: { progressType: 'Design Stage' },
+      },
+    ],
     deadline: '2026-04-24T23:59:59Z',
     createdAt: '2026-04-21T08:30:00Z',
   },
@@ -419,6 +431,16 @@ export const mockDesignerTaskApplications: DesignerTaskApplication[] = [
     status: 'pending',
   },
   {
+    id: 'dapp-10',
+    taskId: 'dtask-1',
+    applicantId: '4',
+    applicantName: 'Michael Brown',
+    applicantRole: 'designer',
+    message: 'Here is my submission via Telegram. Please review and confirm assignment.',
+    appliedAt: '2026-04-21T10:00:00Z',
+    status: 'assigned',
+  },
+  {
     id: 'dapp-2',
     taskId: 'dtask-10',
     applicantId: '4',
@@ -538,6 +560,7 @@ export interface DesignerRating {
   projectId: string;
   projectName: string;
   storyPoints: number;
+  status?: 'approved' | 'rejected' | 'in_review';
   overallRating: number; // 1–5
   renderingQuality: number;
   timeliness: number;
