@@ -10,6 +10,7 @@ import { UserManagement } from './pages/UserManagement';
 import { CustomerData } from './pages/CustomerData';
 import { PaidCustomers } from './pages/PaidCustomers';
 import { DesignerTasks } from './pages/DesignerTasks';
+import { DesignerOpenJobPostings } from './pages/DesignerOpenJobPostings';
 import { DesignerApplications } from './pages/DesignerApplications';
 import { DesignerAssignments } from './pages/DesignerAssignments';
 import { DesignerPerformanceDashboard } from './pages/DesignerPerfromanceDashboards';
@@ -239,6 +240,17 @@ function AppContent() {
             <ProtectedRoute allowedRoles={['design_team_leader', 'designer']}>
               <Layout>
                 <DesignerTasks />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/open-job-postings"
+          element={
+            <ProtectedRoute allowedRoles={['design_team_leader', 'designer', 'ceo', 'general_manager', 'system_administrator']}>
+              <Layout>
+                <DesignerOpenJobPostings />
               </Layout>
             </ProtectedRoute>
           }

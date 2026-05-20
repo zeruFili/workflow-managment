@@ -78,6 +78,7 @@ export function Layout({ children }: LayoutProps) {
 
     if (user.role === 'design_team_leader' || user.role === 'designer') {
       addNavigationItem({ path: '/designer-tasks', label: 'Designer Tasks', icon: LayoutGrid });
+      addNavigationItem({ path: '/open-job-postings', label: 'Open Job Postings', icon: FolderKanban });
     }
 
     if (user.role === 'design_team_leader' || user.role === 'designer' || user.role === 'ceo' || user.role === 'general_manager' || user.role === 'system_administrator') {

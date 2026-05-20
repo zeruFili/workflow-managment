@@ -8,6 +8,7 @@ export const designerRoles = new Set(['design_team_leader', 'designer']);
 export const assignmentRoles = new Set(['ceo', 'general_manager', 'system_administrator']);
 
 export const roleNamesByUserId: Record<string, string> = {
+  '0': 'CEO',
   '1': 'Marketing Lead',
   '2': 'General Manager',
   '3': 'Design Team Leader',
