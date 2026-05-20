@@ -17,7 +17,6 @@ import {
   Edit,
   Image,
   Plus,
-  UserCheck,
   XCircle,
   Briefcase,
 } from 'lucide-react';
@@ -38,12 +37,6 @@ export function DesignerAssignments() {
   const [editingTask, setEditingTask] = useState<string | null>(null);
   const [selectedTaskDetail, setSelectedTaskDetail] = useState<DesignerTask | null>(null);
   const [showDetail, setShowDetail] = useState(false);
-  const [submissionType, setSubmissionType] = useState<'Case Study' | 'Design Stage' | 'Rendering'>('Design Stage');
-  const [submissionNote, setSubmissionNote] = useState('');
-  const [submissionFilePreview, setSubmissionFilePreview] = useState<string | null>(null);
-  const [submissionForms, setSubmissionForms] = useState<
-    Record<string, { submissionType: 'Case Study' | 'Design Stage' | 'Rendering'; submissionNote: string; submissionFilePreview: string | null }>
-  >({});
   const [tasks, setTasks] = useState<DesignerTask[]>(loadDesignerTasks);
   const [applications, setApplications] = useState<DesignerTaskApplication[]>(loadDesignerApplications);
   const [newTask, setNewTask] = useState(emptyNewTask);
@@ -60,7 +53,6 @@ export function DesignerAssignments() {
   }
 
   const canCreateTask = true;
-  const canSubmitProgress = user.role === 'general_manager' || user.role === 'ceo';
   const isAdmin = true;
 
   const persistTasks = (updatedTasks: DesignerTask[]) => {
@@ -116,93 +108,6 @@ export function DesignerAssignments() {
   const closeDetail = () => {
     setSelectedTaskDetail(null);
     setShowDetail(false);
-  };
-
-  const handleSubmissionFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      setSubmissionFilePreview(dataUrl);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleTaskFieldChange = (taskId: string, field: 'submissionType' | 'submissionNote', value: string) => {
-    setSubmissionForms((prev) => ({
-      ...prev,
-      [taskId]: {
-        submissionType: field === 'submissionType' ? (value as 'Case Study' | 'Design Stage' | 'Rendering') : prev[taskId]?.submissionType ?? 'Design Stage',
-        submissionNote: field === 'submissionNote' ? value : prev[taskId]?.submissionNote ?? '',
-        submissionFilePreview: prev[taskId]?.submissionFilePreview ?? null,
-      },
-    }));
-  };
-
-  const addSubmissionForTask = (taskId: string) => {
-    const form = submissionForms[taskId];
-    if (!form) return;
-
-    const newSubmission = {
-      id: `sub-${Date.now()}`,
-      submittedBy: user.id,
-      submittedByName: user.name,
-      submittedAt: new Date().toISOString(),
-      notes: form.submissionNote.trim(),
-      attachments: form.submissionFilePreview ? [form.submissionFilePreview] : undefined,
-      metadata: { progressType: form.submissionType },
-    };
-
-    const updatedTasks = tasks.map((task) => {
-      if (task.id === taskId) {
-        const nextSubs = task.submissions ? [...task.submissions, newSubmission] : [newSubmission];
-        return { ...task, submissions: nextSubs } as DesignerTask;
-      }
-      return task;
-    });
-
-    persistTasks(updatedTasks);
-
-    if (selectedTaskDetail && selectedTaskDetail.id === taskId) {
-      setSelectedTaskDetail({
-        ...selectedTaskDetail,
-        submissions: selectedTaskDetail.submissions ? [...selectedTaskDetail.submissions, newSubmission] : [newSubmission],
-      });
-    }
-
-    setSubmissionForms((prev) => ({ ...prev, [taskId]: { submissionType: 'Design Stage', submissionNote: '', submissionFilePreview: null } }));
-  };
-
-  const addSubmissionToTask = () => {
-    if (!selectedTaskDetail) return;
-
-    const newSubmission = {
-      id: `sub-${Date.now()}`,
-      submittedBy: user.id,
-      submittedByName: user.name,
-      submittedAt: new Date().toISOString(),
-      notes: submissionNote.trim(),
-      attachments: submissionFilePreview ? [submissionFilePreview] : undefined,
-      metadata: { progressType: submissionType },
-    };
-
-    const updatedTasks = tasks.map((task) => {
-      if (task.id === selectedTaskDetail.id) {
-        const nextSubs = task.submissions ? [...task.submissions, newSubmission] : [newSubmission];
-        return { ...task, submissions: nextSubs } as DesignerTask;
-      }
-      return task;
-    });
-
-    persistTasks(updatedTasks);
-    setSelectedTaskDetail({
-      ...selectedTaskDetail,
-      submissions: selectedTaskDetail.submissions ? [...selectedTaskDetail.submissions, newSubmission] : [newSubmission],
-    });
-    setSubmissionNote('');
-    setSubmissionFilePreview(null);
-    setSubmissionType('Design Stage');
   };
 
   const assignedTasks = tasks.filter((task) => !!task.assignedTo);
@@ -284,64 +189,6 @@ export function DesignerAssignments() {
                     <p className="mt-1 text-sm text-gray-500">No Telegram evidence attached.</p>
                   )}
                 </div>
-
-                {canSubmitProgress && (
-                  <div className="mb-4 rounded-lg border border-gray-200 p-3 bg-white">
-                    <h5 className="text-sm font-medium text-gray-700">Add Submission</h5>
-                    <div className="mt-2 space-y-2">
-                      <div>
-                        <select
-                          value={submissionForms[task.id]?.submissionType ?? 'Design Stage'}
-                          onChange={(e) => handleTaskFieldChange(task.id, 'submissionType', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                        >
-                          <option>Case Study</option>
-                          <option>Design Stage</option>
-                          <option>Rendering</option>
-                        </select>
-                      </div>
-                      <div>
-                        <textarea
-                          rows={2}
-                          value={submissionForms[task.id]?.submissionNote ?? ''}
-                          onChange={(e) => handleTaskFieldChange(task.id, 'submissionNote', e.target.value)}
-                          placeholder="Progress note"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                        />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <label className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-sm text-gray-700">
-                          <Image className="w-4 h-4" />
-                          Attach Image
-                          <input type="file" accept="image/*" onChange={(e) => handleSubmissionFileUpload(e)} className="hidden" />
-                        </label>
-                        {submissionFilePreview && (
-                          <button
-                            type="button"
-                            onClick={() => setSubmissionFilePreview(null)}
-                            className="text-sm text-red-600 hover:underline"
-                          >
-                            Remove
-                          </button>
-                        )}
-                      </div>
-                      {submissionFilePreview && (
-                        <img src={submissionFilePreview} alt="preview" className="mt-2 w-full max-h-28 object-contain rounded-lg border" />
-                      )}
-                      <div className="flex gap-2">
-                        <button onClick={() => addSubmissionForTask(task.id)} className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm">
-                          Add Submission
-                        </button>
-                        <button
-                          onClick={() => setSubmissionForms((prev) => ({ ...prev, [task.id]: { submissionType: 'Design Stage', submissionNote: '', submissionFilePreview: null } }))}
-                          className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
                   <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">Work Instruction</p>

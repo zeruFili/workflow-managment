@@ -194,24 +194,7 @@ export function QuantitySurveyorDashboard() {
         </div>
       </div>
 
-      {/* Unread notifications */}
-      {unreadAssignmentNotifications.length > 0 && (
-        <div className="bg-white rounded-xl border border-amber-200 shadow-sm p-4">
-          <p className="text-sm font-semibold text-amber-800 mb-3">A new design submission is ready for quantity review.</p>
-          <div className="space-y-3">
-            {unreadAssignmentNotifications.slice(0, 2).map((n) => (
-              <div key={n.id} className="rounded-xl border border-amber-100 bg-amber-50 p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div><p className="text-xs text-amber-700 font-medium uppercase tracking-wide">Job Reference</p><p className="font-semibold text-gray-900">{n.jobId}</p></div>
-                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">new</span>
-                </div>
-                <p className="mt-2 text-sm text-gray-600">{n.description}</p>
-                {n.telegramScreenshot && <img src={n.telegramScreenshot} alt="screenshot" className="mt-3 h-24 w-36 rounded-lg border border-gray-200 object-cover" />}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      
 
       {/* Panel switcher */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">

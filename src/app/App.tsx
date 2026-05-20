@@ -120,14 +120,7 @@ function AppContent() {
           }
         />
 
-        <Route
-          path="/documents"
-          element={
-            <ProtectedRoute>
-              <Navigate to="/dashboard" replace />
-            </ProtectedRoute>
-          }
-        />
+       
 
         <Route
           path="/approvals"

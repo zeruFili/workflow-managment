@@ -18,8 +18,14 @@ export function DesignerTasks() {
   const [showDetail, setShowDetail] = useState(false);
   const [selectedApplicationTask, setSelectedApplicationTask] = useState<DesignerTask | null>(null);
   const [applicationMessage, setApplicationMessage] = useState('');
-  const [tasks] = useState<DesignerTask[]>(loadDesignerTasks);
+  const [tasks, setTasks] = useState<DesignerTask[]>(loadDesignerTasks);
   const [applications, setApplications] = useState<DesignerTaskApplication[]>(loadDesignerApplications);
+
+  // Submission form state – inside the detail modal
+  const [submissionType, setSubmissionType] = useState<'Case Study' | 'Design Stage' | 'Rendering' | 'Final Stage'>('Design Stage');
+  const [submissionNote, setSubmissionNote] = useState('');
+  const [submissionFilePreview, setSubmissionFilePreview] = useState<string | null>(null);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
 
   if (!user) return null;
 
@@ -31,9 +37,67 @@ export function DesignerTasks() {
     );
   }
 
+  const persistTasks = (updatedTasks: DesignerTask[]) => {
+    setTasks(updatedTasks);
+    localStorage.setItem('designer-tasks', JSON.stringify(updatedTasks));
+  };
+
   const persistApplications = (updatedApplications: DesignerTaskApplication[]) => {
     setApplications(updatedApplications);
     localStorage.setItem('designer-task-applications', JSON.stringify(updatedApplications));
+  };
+
+  const handleSubmissionFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setSubmissionError(null); // clear any attachment error
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setSubmissionFilePreview(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const addSubmission = () => {
+    if (!selectedTaskDetail) return;
+
+    // Validate Final Stage attachment
+    if (submissionType === 'Final Stage' && !submissionFilePreview) {
+      setSubmissionError('A Telegram screenshot is required for Final Stage submissions.');
+      return;
+    }
+
+    const newSubmission = {
+      id: `sub-${Date.now()}`,
+      submittedBy: user.id,
+      submittedByName: user.name,
+      submittedAt: new Date().toISOString(),
+      notes: submissionNote.trim(),
+      attachments: submissionFilePreview ? [submissionFilePreview] : undefined,
+      metadata: { progressType: submissionType },
+    };
+
+    const updatedTasks = tasks.map((task) => {
+      if (task.id === selectedTaskDetail.id) {
+        const nextSubs = task.submissions ? [...task.submissions, newSubmission] : [newSubmission];
+        return { ...task, submissions: nextSubs } as DesignerTask;
+      }
+      return task;
+    });
+
+    persistTasks(updatedTasks);
+
+    setSelectedTaskDetail({
+      ...selectedTaskDetail,
+      submissions: selectedTaskDetail.submissions ? [...selectedTaskDetail.submissions, newSubmission] : [newSubmission],
+    });
+
+    // Reset form
+    setSubmissionNote('');
+    setSubmissionFilePreview(null);
+    setSubmissionType('Design Stage');
+    setSubmissionError(null);
   };
 
   const openApplicationModal = (task: DesignerTask) => {
@@ -74,6 +138,11 @@ export function DesignerTasks() {
 
   const openDetail = (task: DesignerTask) => {
     setSelectedTaskDetail(task);
+    // Reset submission form for new detail
+    setSubmissionNote('');
+    setSubmissionFilePreview(null);
+    setSubmissionType('Design Stage');
+    setSubmissionError(null);
     setShowDetail(true);
   };
 
@@ -349,6 +418,7 @@ export function DesignerTasks() {
 
             <div className="grid grid-cols-1 gap-6 px-6 py-5 lg:grid-cols-3">
               <div className="lg:col-span-2 space-y-5">
+                {/* Task Overview */}
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -383,6 +453,7 @@ export function DesignerTasks() {
                   )}
                 </section>
 
+                {/* Existing Submission Entries */}
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Submission Entries</h5>
                   <div className="mt-3 space-y-3">
@@ -409,6 +480,94 @@ export function DesignerTasks() {
                   </div>
                 </section>
 
+                {/* Add Submission Form with Final Stage option */}
+                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Add Submission</h5>
+                  <div className="mt-3 space-y-3">
+                    <div>
+                      <select
+                        value={submissionType}
+                        onChange={(e) => {
+                          setSubmissionType(e.target.value as any);
+                          setSubmissionError(null); // clear error on type change
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      >
+                        <option>Case Study</option>
+                        <option>Design Stage</option>
+                        <option>Rendering</option>
+                        <option>Final Stage</option>
+                      </select>
+                    </div>
+                    <div>
+                      <textarea
+                        rows={3}
+                        value={submissionNote}
+                        onChange={(e) => setSubmissionNote(e.target.value)}
+                        placeholder="Progress note"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <label className={`flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-sm ${
+                          submissionType === 'Final Stage' ? 'text-red-600 border-red-300' : 'text-gray-700'
+                        }`}>
+                          <Image className="w-4 h-4" />
+                          Attach Telegram Screenshot
+                          {submissionType === 'Final Stage' && <span className="text-red-500">*</span>}
+                          <input type="file" accept="image/*" onChange={handleSubmissionFileUpload} className="hidden" />
+                        </label>
+                        {submissionFilePreview && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSubmissionFilePreview(null);
+                              setSubmissionError(null);
+                            }}
+                            className="text-sm text-red-600 hover:underline"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                      {submissionType === 'Final Stage' && (
+                        <p className="mt-1 text-xs text-red-500">Telegram screenshot is required for Final Stage submissions.</p>
+                      )}
+                      {submissionFilePreview && (
+                        <img src={submissionFilePreview} alt="preview" className="mt-2 w-full max-h-32 object-contain rounded-lg border" />
+                      )}
+                    </div>
+
+                    {submissionError && (
+                      <div className="p-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                        {submissionError}
+                      </div>
+                    )}
+
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        onClick={addSubmission}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm transition-colors"
+                      >
+                        Submit Progress
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSubmissionNote('');
+                          setSubmissionFilePreview(null);
+                          setSubmissionType('Design Stage');
+                          setSubmissionError(null);
+                        }}
+                        className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition-colors"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Communication History */}
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Communication History</h5>
                   <div className="mt-3 space-y-3">
@@ -442,6 +601,7 @@ export function DesignerTasks() {
                 </section>
               </div>
 
+              {/* Sidebar */}
               <aside className="space-y-4">
                 {selectedTaskDetail.approvalStatus && (
                   <section className="rounded-xl border border-gray-200 bg-white p-4">
