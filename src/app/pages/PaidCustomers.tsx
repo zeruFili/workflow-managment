@@ -212,29 +212,7 @@ export function PaidCustomers() {
                 </p>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
-                {/* Payment verification status badge */}
-                <span
-                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    customer.paymentVerificationStatus === 'verified'
-                      ? 'bg-green-100 text-green-700'
-                      : customer.paymentVerificationStatus === 'rejected'
-                      ? 'bg-red-100 text-red-700'
-                      : 'bg-yellow-100 text-yellow-700'
-                  }`}
-                >
-                  {customer.paymentVerificationStatus === 'verified' ? (
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                  ) : customer.paymentVerificationStatus === 'rejected' ? (
-                    <AlertCircle className="w-3.5 h-3.5" />
-                  ) : (
-                    <Clock className="w-3.5 h-3.5" />
-                  )}
-                  {customer.paymentVerificationStatus === 'pending'
-                    ? 'Payment Pending'
-                    : customer.paymentVerificationStatus === 'verified'
-                    ? 'Payment Verified'
-                    : 'Payment Rejected'}
-                </span>
+               
                 <div className="text-sm text-gray-500 flex items-center gap-2">
                   <Calendar className="w-4 h-4" />
                   Transferred: {new Date(customer.transferredAt).toLocaleDateString()}
