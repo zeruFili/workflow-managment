@@ -1,7 +1,23 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { CustomerRequest, CustomerRequestCategory, CustomerRequestStatus, PaidCustomer, PaymentProof } from '../types';
-import { Calendar, CheckCircle2, Mail, MapPin, Phone, Plus, User, Users, X } from 'lucide-react';
+import {
+  CustomerRequest,
+  CustomerRequestCategory,
+  CustomerRequestStatus,
+  PaidCustomer,
+  PaymentProof,
+} from '../types';
+import {
+  Calendar,
+  CheckCircle2,
+  Mail,
+  MapPin,
+  Phone,
+  Plus,
+  User,
+  Users,
+  X,
+} from 'lucide-react';
 
 const STORAGE_KEY = 'customer-requests';
 const PAID_STORAGE_KEY = 'paid-customers';
@@ -11,13 +27,6 @@ const categoryLabels: Record<CustomerRequestCategory, string> = {
   finishing_work: 'Finishing Work',
   hair_salon_design: "Women's Hair Salon Design",
   other: 'Other',
-};
-
-const statusStyles: Record<CustomerRequestStatus, string> = {
-  new: 'bg-blue-100 text-blue-700',
-  in_review: 'bg-amber-100 text-amber-700',
-  scheduled: 'bg-emerald-100 text-emerald-700',
-  closed: 'bg-gray-100 text-gray-700',
 };
 
 const initialRequests: CustomerRequest[] = [
@@ -151,7 +160,7 @@ export function CustomerData() {
     }
   }, [requests]);
 
-  // Load paid customers
+  // Load paid customers (still needed for transfer logic)
   useEffect(() => {
     const savedPaidCustomers = localStorage.getItem(PAID_STORAGE_KEY);
     if (savedPaidCustomers) {
@@ -246,7 +255,8 @@ export function CustomerData() {
       transferredByName: user.name,
       paymentNote: paymentNote.trim() || undefined,
       proofOfPayment: proofOfPaymentArray.length > 0 ? proofOfPaymentArray : undefined,
-    } as PaidCustomer;
+      paymentVerificationStatus: 'pending',
+    };
 
     const updatedRequests = requests.filter((request) => request.id !== selectedRequest.id);
     const updatedPaidCustomers = [paidCustomer, ...paidCustomers];
@@ -291,7 +301,10 @@ export function CustomerData() {
     return null;
   }
 
-  if (user.role !== 'marketing_lead' && user.role !== 'system_administrator') {
+  const canTransferToPaid = user.role === 'marketing_lead' || user.role === 'system_administrator';
+
+  // Only marketing lead / sys admin may access this page
+  if (!canTransferToPaid) {
     return (
       <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
         <p className="text-gray-500">Access denied. Marketing Lead or System Administrator access required.</p>
@@ -333,10 +346,7 @@ export function CustomerData() {
           <div key={request.id} className="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
             <div className="flex items-start justify-between gap-4 flex-col sm:flex-row">
               <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-semibold text-lg text-gray-900">{request.customerName}</h3>
-                  
-                </div>
+                <h3 className="font-semibold text-lg text-gray-900">{request.customerName}</h3>
                 <p className="text-sm text-gray-500 mt-1">
                   {categoryLabels[request.category]}
                   {'otherCategoryDescription' in request && request.otherCategoryDescription

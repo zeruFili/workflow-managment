@@ -81,13 +81,33 @@ export interface PaymentProof {
   dataUrl: string;
 }
 
+export type PaymentVerificationStatus =
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'request_clarification';
+
+export interface MarketingClarificationResponse {
+  description: string;
+  attachments?: PaymentProof[];
+  respondedAt: string;
+  respondedBy: string;
+  respondedByName: string;
+}
+
 export interface PaidCustomer extends CustomerRequest {
   sourceRequestId: string;
   transferredAt: string;
   transferredBy: string;
   transferredByName: string;
   paymentNote?: string;
-  proofOfPayment?: PaymentProof;
+  proofOfPayment?: PaymentProof[];
+  paymentVerificationStatus?: PaymentVerificationStatus;
+  paymentVerificationMessage?: string;
+  paymentVerifiedAt?: string;
+  paymentVerifiedBy?: string;
+  paymentVerifiedByName?: string;
+  marketingClarificationResponse?: MarketingClarificationResponse;
 }
 
 export interface Task {
