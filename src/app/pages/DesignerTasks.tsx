@@ -186,6 +186,20 @@ function getLastPopulatedPhaseIndex(progress: Record<PhaseKey, PhaseData> | null
   return -1;
 }
 
+// NEW: Check if any phase in the task has been rejected
+function isTaskRejected(progress: Record<PhaseKey, PhaseData> | null): boolean {
+  if (!progress) return false;
+  for (const phase of PHASES) {
+    const data = progress[phase.key];
+    if (data && data.history && data.history.length > 0) {
+      if (getCurrentStatus(data) === 'rejected') {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 // -----------------------------------------------
 
 export function DesignerTasks() {
@@ -708,6 +722,7 @@ export function DesignerTasks() {
 
                   {(() => {
                     const progress = getDisplayProgress(selectedTaskDetail.id);
+                    const taskRejected = isTaskRejected(progress);
                     const stopIdx = findFirstNonApprovedPhaseIndex(PHASES, progress);
                     const lastPopulated = getLastPopulatedPhaseIndex(progress);
                     const displayPhaseIdx = stopIdx !== -1 ? stopIdx : lastPopulated;
@@ -725,6 +740,12 @@ export function DesignerTasks() {
 
                     return (
                       <div className="space-y-3">
+                        {taskRejected && (
+                          <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+                            <XCircle className="w-4 h-4 text-red-600" />
+                            <span className="text-sm font-medium text-red-700">This task has been rejected. No further submissions can be made.</span>
+                          </div>
+                        )}
                         {visiblePhases.map((phase) => {
                           const taskId = selectedTaskDetail.id;
                           const phaseData = progress[phase.key] ?? defaultPhase();
@@ -732,7 +753,8 @@ export function DesignerTasks() {
                           const currentStatus = getCurrentStatus(phaseData);
                           const history = phaseData.history || [];
                           const isApproved = currentStatus === 'approved';
-                          const canSubmit = !isApproved;
+                          // Submission is allowed only if phase is NOT approved AND the task is NOT rejected
+                          const canSubmit = !isApproved && !taskRejected;
                           const noteDraft = draftNotes[taskId]?.[phase.key] ?? '';
                           const newScreenshot = draftScreenshots[taskId]?.[phase.key] ?? null;
                           const existingScreenshot = phaseData.screenshot;
@@ -768,7 +790,7 @@ export function DesignerTasks() {
 
                               {isExpanded && (
                                 <div className="p-4 space-y-4 bg-white">
-                                  {/* Open Submission (editable only when not approved) */}
+                                  {/* Open Submission (only when allowed) */}
                                   {canSubmit && (
                                     <div className="border border-dashed border-gray-300 rounded-lg p-4 bg-blue-50/50">
                                       <h6 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
@@ -876,8 +898,8 @@ export function DesignerTasks() {
                                     </div>
                                   )}
 
-                                  {/* Designer's Progress Note (read-only when approved) */}
-                                  {isApproved && (
+                                  {/* Designer's Progress Note (read-only when approved or task rejected) */}
+                                  {(isApproved || !canSubmit) && (
                                     <div>
                                       <h6 className="text-sm font-medium text-gray-700 mb-1">Designer's Progress Note</h6>
                                       {phaseData.note ? (
@@ -890,8 +912,8 @@ export function DesignerTasks() {
                                     </div>
                                   )}
 
-                                  {/* Telegram Screenshot (read-only when approved) */}
-                                  {isApproved && (
+                                  {/* Telegram Screenshot (read-only when approved or task rejected) */}
+                                  {(isApproved || !canSubmit) && (
                                     <div>
                                       <h6 className="text-sm font-medium text-gray-700 mb-1">Telegram Screenshot</h6>
                                       {existingScreenshot ? (
