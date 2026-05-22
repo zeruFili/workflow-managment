@@ -186,7 +186,6 @@ function getLastPopulatedPhaseIndex(progress: Record<PhaseKey, PhaseData> | null
   return -1;
 }
 
-// NEW: Check if any phase in the task has been rejected
 function isTaskRejected(progress: Record<PhaseKey, PhaseData> | null): boolean {
   if (!progress) return false;
   for (const phase of PHASES) {
@@ -219,7 +218,7 @@ export function DesignerTasks() {
   const [draftNotes, setDraftNotes] = useState<Record<string, Record<PhaseKey, string>>>({});
   const [draftScreenshots, setDraftScreenshots] = useState<Record<string, Record<PhaseKey, string | null>>>({});
 
-  // Seed demo tasks and varied submission progress for a rich card set
+  // Seed demo tasks and varied submission progress for 8 cards
   useEffect(() => {
     if (!user || seededRef.current) return;
     seededRef.current = true;
@@ -252,69 +251,65 @@ export function DesignerTasks() {
     }
     setTasks(existingTasks);
 
-    // Seed varied submission progress for every task
+    // Seed varied submission progress with specific patterns to cover required scenarios
     const storedProgress = loadSubmissionProgress();
     const updatedProgress = { ...storedProgress };
     let progressChanged = false;
 
+    const createHistoryEntry = (status: PhaseHistoryEntry['status'], message: string, label: string): PhaseHistoryEntry => ({
+      status,
+      message,
+      timestamp: new Date().toISOString(),
+      designerSubmission: buildDesignerSubmissionSnapshot(label),
+    });
+
     existingTasks.forEach((task, idx) => {
       if (!updatedProgress[task.id]) {
-        const phaseProgress: Partial<Record<PhaseKey, PhaseData>> = {};
-        const pattern = idx % 5;
+        const configs: Partial<Record<PhaseKey, PhaseData>>[] = [
+          // 0: All pending
+          {},
+          // 1: Case Study approved, Design Stage approved → next stage (Rendering) open
+          {
+            caseStudy: { note: 'Case study done.', screenshot: null, history: [createHistoryEntry('approved', 'Approved.', 'Case Study')] },
+            designStage: { note: 'Design final.', screenshot: null, history: [createHistoryEntry('approved', 'Looks great.', 'Design Stage')] },
+          },
+          // 2: Case Study approved, Design Stage feedback (cannot advance)
+          {
+            caseStudy: { note: 'Case study completed.', screenshot: null, history: [createHistoryEntry('approved', 'Good.', 'Case Study')] },
+            designStage: { note: 'Design draft.', screenshot: null, history: [createHistoryEntry('feedback', 'Please revise layout.', 'Design Stage')] },
+          },
+          // 3: Case Study approved, Design Stage rejected → task locked
+          {
+            caseStudy: { note: 'Case study done.', screenshot: null, history: [createHistoryEntry('approved', 'Perfect.', 'Case Study')] },
+            designStage: { note: 'Design final.', screenshot: null, history: [createHistoryEntry('rejected', 'Does not meet standards.', 'Design Stage')] },
+          },
+          // 4: Case Study approved, Design Stage approved, Rendering feedback
+          {
+            caseStudy: { note: 'Case study done.', screenshot: null, history: [createHistoryEntry('approved', 'Approved.', 'Case Study')] },
+            designStage: { note: 'Design draft.', screenshot: null, history: [createHistoryEntry('approved', 'Looks great.', 'Design Stage')] },
+            rendering: { note: 'Rendering preview.', screenshot: null, history: [createHistoryEntry('feedback', 'Adjust colors.', 'Rendering')] },
+          },
+          // 5: All phases approved → final stage locked, no further submission
+          {
+            caseStudy: { note: 'Case study completed.', screenshot: null, history: [createHistoryEntry('approved', 'Good.', 'Case Study')] },
+            designStage: { note: 'Design finalized.', screenshot: null, history: [createHistoryEntry('approved', 'Nice work.', 'Design Stage')] },
+            rendering: { note: 'Rendering done.', screenshot: null, history: [createHistoryEntry('approved', 'Looks perfect.', 'Rendering')] },
+            finalStage: { note: 'Final stage submitted.', screenshot: null, history: [createHistoryEntry('approved', 'All approved.', 'Final Stage')] },
+          },
+          // 6: All but final stage approved, final stage feedback
+          {
+            caseStudy: { note: 'Case study done.', screenshot: null, history: [createHistoryEntry('approved', 'Good.', 'Case Study')] },
+            designStage: { note: 'Design done.', screenshot: null, history: [createHistoryEntry('approved', 'Looks great.', 'Design Stage')] },
+            rendering: { note: 'Rendering done.', screenshot: null, history: [createHistoryEntry('approved', 'Perfect.', 'Rendering')] },
+            finalStage: { note: 'Final stage draft.', screenshot: null, history: [createHistoryEntry('feedback', 'Adjust final details.', 'Final Stage')] },
+          },
+          // 7: Case Study feedback only (stuck at first phase)
+          {
+            caseStudy: { note: 'Initial case study.', screenshot: null, history: [createHistoryEntry('feedback', 'Add more details.', 'Case Study')] },
+          },
+        ];
 
-        const createHistoryEntry = (status: PhaseHistoryEntry['status'], message: string, label: string): PhaseHistoryEntry => ({
-          status,
-          message,
-          timestamp: new Date().toISOString(),
-          designerSubmission: buildDesignerSubmissionSnapshot(label),
-        });
-
-        if (pattern === 1) {
-          phaseProgress.caseStudy = {
-            note: 'Case study completed.',
-            screenshot: null,
-            history: [createHistoryEntry('approved', 'Looks good.', 'Case Study')],
-          };
-          phaseProgress.designStage = {
-            note: 'Design draft.',
-            screenshot: null,
-            history: [createHistoryEntry('feedback', 'Please revise layout.', 'Design Stage')],
-          };
-        } else if (pattern === 2) {
-          phaseProgress.caseStudy = {
-            note: 'Case study done.',
-            screenshot: null,
-            history: [createHistoryEntry('approved', 'Perfect.', 'Case Study')],
-          };
-          phaseProgress.designStage = {
-            note: 'Design final.',
-            screenshot: null,
-            history: [createHistoryEntry('rejected', 'Does not meet standards.', 'Design Stage')],
-          };
-        } else if (pattern === 3) {
-          phaseProgress.caseStudy = {
-            note: 'Initial case study.',
-            screenshot: null,
-            history: [createHistoryEntry('feedback', 'Add more details.', 'Case Study')],
-          };
-        } else if (pattern === 4) {
-          phaseProgress.caseStudy = {
-            note: 'Case study done.',
-            screenshot: null,
-            history: [createHistoryEntry('approved', 'Approved.', 'Case Study')],
-          };
-          phaseProgress.designStage = {
-            note: 'Design draft.',
-            screenshot: null,
-            history: [createHistoryEntry('approved', 'Looks great.', 'Design Stage')],
-          };
-          phaseProgress.rendering = {
-            note: 'Rendering preview.',
-            screenshot: null,
-            history: [createHistoryEntry('feedback', 'Adjust colors.', 'Rendering')],
-          };
-        }
-        // pattern 0 leaves everything as default (pending)
+        const phaseProgress: Partial<Record<PhaseKey, PhaseData>> = configs[idx % configs.length] || {};
 
         PHASES.forEach((phase) => {
           if (!phaseProgress[phase.key]) phaseProgress[phase.key] = defaultPhase();
@@ -753,7 +748,6 @@ export function DesignerTasks() {
                           const currentStatus = getCurrentStatus(phaseData);
                           const history = phaseData.history || [];
                           const isApproved = currentStatus === 'approved';
-                          // Submission is allowed only if phase is NOT approved AND the task is NOT rejected
                           const canSubmit = !isApproved && !taskRejected;
                           const noteDraft = draftNotes[taskId]?.[phase.key] ?? '';
                           const newScreenshot = draftScreenshots[taskId]?.[phase.key] ?? null;
