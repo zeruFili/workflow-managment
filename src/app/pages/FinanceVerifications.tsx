@@ -419,6 +419,100 @@ function createAttachmentPreview(file: File): Promise<PaymentProof> {
   });
 }
 
+// ── Shared record-list renderer (used in both desktop inline and sub-page views) ──
+function RecordList({
+  records,
+  onOpenDetail,
+}: {
+  records: FinanceRecord[];
+  onOpenDetail: (record: FinanceRecord) => void;
+}) {
+  if (records.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center shadow-sm">
+        <ClipboardList className="mx-auto h-12 w-12 text-slate-300 mb-4" />
+        <p className="text-slate-500">No records in this category.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {records.map((record) => (
+        <div
+          key={record.id}
+          className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow"
+        >
+          <div className="flex items-start justify-between mb-3 gap-3">
+            <div>
+              <p className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+                <ClipboardList className="h-3.5 w-3.5" />
+                {record.id}
+              </p>
+              <h3 className="mt-3 text-lg font-semibold text-gray-900">{record.customerName}</h3>
+              <p className="mt-1 text-sm text-gray-500">Submitted by {record.transferredByName}</p>
+            </div>
+            <span className={`rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap ${statusTone(record.paymentVerificationStatus)}`}>
+              {statusLabel(record.paymentVerificationStatus)}
+            </span>
+          </div>
+
+          <p className="text-sm text-gray-600 mb-4 line-clamp-2">{record.serviceDescription}</p>
+
+          <div className="flex flex-wrap gap-2 mb-4">
+            <span className="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium">
+              {record.budget}
+            </span>
+            <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-medium capitalize">
+              {record.category?.replace(/_/g, ' ')}
+            </span>
+            {record.transferredByName === 'CEO' && (
+              <span className="px-2 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-medium">
+                CEO Transfer
+              </span>
+            )}
+          </div>
+
+          <div className="space-y-2 text-sm mb-4">
+            <div className="flex items-center gap-2 text-gray-500">
+              <Calendar className="h-3.5 w-3.5" />
+              <span>Submission: {new Date(record.transferredAt).toLocaleDateString()}</span>
+            </div>
+            <div className="flex items-center gap-2 text-gray-500">
+              <User className="h-3.5 w-3.5" />
+              <span>Status: {statusLabel(record.paymentVerificationStatus)}</span>
+            </div>
+          </div>
+
+          {(record.financeHistory ?? []).length > 0 && (() => {
+            const latest = record.financeHistory![record.financeHistory!.length - 1];
+            const isRej = latest.action === 'reject';
+            const isVerif = latest.action === 'verify' || latest.action === 'ceo-approve';
+            return (
+              <div className={`mb-4 p-3 rounded-lg border text-sm ${isRej ? 'bg-red-50 border-red-200' : isVerif ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
+                <p className={`font-medium ${isRej ? 'text-red-700' : isVerif ? 'text-green-700' : 'text-yellow-700'}`}>
+                  {latest.action.replace('_', ' ')}
+                </p>
+                <p className={`italic mt-0.5 ${isRej ? 'text-red-600' : isVerif ? 'text-green-600' : 'text-yellow-600'}`}>
+                  "{latest.note}"
+                </p>
+              </div>
+            );
+          })()}
+
+          <button
+            type="button"
+            onClick={() => onOpenDetail(record)}
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
+          >
+            Open Verification Detail
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function FinanceVerifications() {
   const { user } = useAuth();
   const [records, setRecords] = useState<FinanceRecord[]>([]);
@@ -459,9 +553,13 @@ export function FinanceVerifications() {
     [records]
   );
 
+  // For desktop: the inline section below tiles always shows the active tab's records.
+  // Default tab for desktop inline view is 'unapproved-request'.
+  const activeDesktopTab: FinanceTab = currentView ?? 'unapproved-request';
+
   const filteredRecords = useMemo(() => {
-    if (!currentView) return [];
-    switch (currentView) {
+    const tab = currentView ?? 'unapproved-request';
+    switch (tab) {
       case 'unapproved-request':
         return records.filter((r) => r.paymentVerificationStatus === 'pending');
       case 'request-clarification-task':
@@ -478,7 +576,8 @@ export function FinanceVerifications() {
   }, [currentView, records]);
 
   const viewLabel = useMemo(() => {
-    switch (currentView) {
+    const tab = currentView ?? 'unapproved-request';
+    switch (tab) {
       case 'unapproved-request': return 'Unapproved Requests';
       case 'request-clarification-task': return 'Request Clarification Tasks';
       case 'verified-records': return 'Verified Records';
@@ -673,6 +772,14 @@ export function FinanceVerifications() {
       selectedRecord.paymentVerificationStatus === 'request_clarification'
     : false;
 
+  const tiles = [
+    { label: 'Unapproved Request', value: summary.unapprovedTasks, icon: ClipboardList, tone: 'bg-blue-50 text-blue-700', activeTone: 'ring-2 ring-blue-400', tab: 'unapproved-request' as FinanceTab },
+    { label: 'Request Clarification', value: summary.clarificationTasks, icon: CircleAlert, tone: 'bg-amber-50 text-amber-700', activeTone: 'ring-2 ring-amber-400', tab: 'request-clarification-task' as FinanceTab },
+    { label: 'Verified Payments', value: summary.verifiedPayments, icon: CheckCircle2, tone: 'bg-green-50 text-green-700', activeTone: 'ring-2 ring-green-400', tab: 'verified-records' as FinanceTab },
+    { label: 'Rejected Payments', value: summary.rejectedPayments, icon: Ban, tone: 'bg-red-50 text-red-700', activeTone: 'ring-2 ring-red-400', tab: 'rejected-records' as FinanceTab },
+    { label: 'Approve CEO-transferred', value: summary.ceoApprovedRequests, icon: Bell, tone: 'bg-amber-50 text-amber-700', activeTone: 'ring-2 ring-amber-400', tab: 'ceo-approved-requests' as FinanceTab },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -696,23 +803,64 @@ export function FinanceVerifications() {
         </div>
       </div>
 
-      {currentView === null ? (
-        /* DASHBOARD VIEW – Summary Tiles only */
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          {[
-            { label: 'Unapproved Request', value: summary.unapprovedTasks, icon: ClipboardList, tone: 'bg-blue-50 text-blue-700', tab: 'unapproved-request' as FinanceTab },
-            { label: 'Request Clarification', value: summary.clarificationTasks, icon: CircleAlert, tone: 'bg-amber-50 text-amber-700', tab: 'request-clarification-task' as FinanceTab },
-            { label: 'Verified Payments', value: summary.verifiedPayments, icon: CheckCircle2, tone: 'bg-green-50 text-green-700', tab: 'verified-records' as FinanceTab },
-            { label: 'Rejected Payments', value: summary.rejectedPayments, icon: Ban, tone: 'bg-red-50 text-red-700', tab: 'rejected-records' as FinanceTab },
-            { label: 'Approve CEO-transferred', value: summary.ceoApprovedRequests, icon: Bell, tone: 'bg-amber-50 text-amber-700', tab: 'ceo-approved-requests' as FinanceTab },
-          ].map((tile) => {
+      {/* ── MOBILE VIEW: vertical nav buttons → tap to sub-page ── */}
+      <div className="block lg:hidden">
+        {currentView === null ? (
+          <div className="flex flex-col gap-3">
+            {tiles.map((tile) => {
+              const Icon = tile.icon;
+              return (
+                <button
+                  key={tile.label}
+                  type="button"
+                  onClick={() => setCurrentView(tile.tab)}
+                  className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm transition active:bg-slate-50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`inline-flex rounded-xl p-2 ${tile.tone}`}>
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <span className="text-sm font-medium text-slate-700">{tile.label}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl font-bold text-slate-900">{tile.value}</span>
+                    <ChevronDown className="h-4 w-4 -rotate-90 text-slate-400" />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <button
+              type="button"
+              onClick={() => setCurrentView(null)}
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Dashboard
+            </button>
+            <h3 className="text-xl font-semibold text-slate-900">{viewLabel}</h3>
+            <RecordList records={filteredRecords} onOpenDetail={openDetail} />
+          </div>
+        )}
+      </div>
+
+      {/* ── DESKTOP VIEW: always show tiles as nav tabs + inline record list below ── */}
+      <div className="hidden lg:block space-y-6">
+        {/* Nav tiles – always visible on desktop, act as tab selectors */}
+        <div className="grid grid-cols-5 gap-4">
+          {tiles.map((tile) => {
             const Icon = tile.icon;
+            const isActive = activeDesktopTab === tile.tab;
             return (
               <button
                 key={tile.label}
                 type="button"
                 onClick={() => setCurrentView(tile.tab)}
-                className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                className={`rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                  isActive ? `border-slate-400 ${tile.activeTone}` : 'border-slate-200'
+                }`}
               >
                 <div className={`inline-flex rounded-xl p-2 ${tile.tone}`}>
                   <Icon className="h-5 w-5" />
@@ -723,115 +871,15 @@ export function FinanceVerifications() {
             );
           })}
         </div>
-      ) : (
-        /* SUB‑PAGE VIEW – Filtered list with back button */
-        <div className="space-y-6">
-          <button
-            type="button"
-            onClick={() => setCurrentView(null)}
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Navigate to Dashboard
-          </button>
 
+        {/* Inline record list – always shown below tiles on desktop */}
+        <div className="space-y-4">
           <h3 className="text-xl font-semibold text-slate-900">{viewLabel}</h3>
-
-          {filteredRecords.length > 0 ? (
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              {filteredRecords.map((record) => (
-                <div
-                  key={record.id}
-                  className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow"
-                >
-                  <div className="flex items-start justify-between mb-3 gap-3">
-                    <div>
-                      <p className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
-                        <ClipboardList className="h-3.5 w-3.5" />
-                        {record.id}
-                      </p>
-                      <h3 className="mt-3 text-lg font-semibold text-gray-900">{record.customerName}</h3>
-                      <p className="mt-1 text-sm text-gray-500">Submitted by {record.transferredByName}</p>
-                    </div>
-                    <span className={`rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap ${statusTone(record.paymentVerificationStatus)}`}>
-                      {statusLabel(record.paymentVerificationStatus)}
-                    </span>
-                  </div>
-
-                  <p className="text-sm text-gray-600 mb-4 line-clamp-2">{record.serviceDescription}</p>
-
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    <span className="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium">
-                      {record.budget}
-                    </span>
-                    <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-medium capitalize">
-                      {record.category?.replace(/_/g, ' ')}
-                    </span>
-                    {record.transferredByName === 'CEO' && (
-                      <span className="px-2 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-medium">
-                        CEO Transfer
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="space-y-2 text-sm mb-4">
-                    <div className="flex items-center gap-2 text-gray-500">
-                      <Calendar className="h-3.5 w-3.5" />
-                      <span>Submission: {new Date(record.transferredAt).toLocaleDateString()}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-gray-500">
-                      <User className="h-3.5 w-3.5" />
-                      <span>Status: {statusLabel(record.paymentVerificationStatus)}</span>
-                    </div>
-                  </div>
-
-                  {(record.financeHistory ?? []).length > 0 && (() => {
-                    const latest = record.financeHistory![record.financeHistory!.length - 1];
-                    const isRej = latest.action === 'reject';
-                    const isVerif = latest.action === 'verify' || latest.action === 'ceo-approve';
-                    return (
-                      <div className={`mb-4 p-3 rounded-lg border text-sm ${isRej ? 'bg-red-50 border-red-200' : isVerif ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
-                        <p className={`font-medium ${isRej ? 'text-red-700' : isVerif ? 'text-green-700' : 'text-yellow-700'}`}>
-                          {latest.action.replace('_', ' ')}
-                        </p>
-                        <p className={`italic mt-0.5 ${isRej ? 'text-red-600' : isVerif ? 'text-green-600' : 'text-yellow-600'}`}>
-                          "{latest.note}"
-                        </p>
-                      </div>
-                    );
-                  })()}
-
-                  <button
-                    type="button"
-                    onClick={() => openDetail(record)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
-                  >
-                    Open Verification Detail
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center shadow-sm">
-              <ClipboardList className="mx-auto h-12 w-12 text-slate-300 mb-4" />
-              <p className="text-slate-500">No records in this category.</p>
-            </div>
-          )}
+          <RecordList records={filteredRecords} onOpenDetail={openDetail} />
         </div>
-      )}
-
-      {/* Audit Summary – always visible (can be adjusted if needed) */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
-          <MessageSquare className="h-4 w-4 text-slate-500" />
-          Audit summary
-        </div>
-        <p className="mt-2 text-sm text-slate-600">
-          {selectedRecord
-            ? `Selected record has ${attachmentCount} proof attachment(s) and ${historyCount} recorded finance history item(s).`
-            : 'Open a record detail to view audit info.'}
-        </p>
       </div>
+
+      
 
       {/* ── FULL-PAGE DETAIL MODAL ── */}
       {showDetail && selectedRecord && (
