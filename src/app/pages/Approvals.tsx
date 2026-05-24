@@ -59,6 +59,14 @@ const verificationMeta: Record<
     icon: ThumbsUp,
     iconClass: 'text-green-600',
   },
+  verified: {
+    label: 'Verified',
+    badgeClass: 'bg-green-100 text-green-700',
+    panelClass: 'bg-green-50 border-green-200',
+    textClass: 'text-green-700',
+    icon: ThumbsUp,
+    iconClass: 'text-green-600',
+  },
   rejected: {
     label: 'Rejected',
     badgeClass: 'bg-red-100 text-red-700',
@@ -75,6 +83,16 @@ const verificationMeta: Record<
     icon: AlertCircle,
     iconClass: 'text-amber-600',
   },
+};
+
+// Fallback for any unexpected status (e.g., corrupted localStorage data)
+const FALLBACK_META = {
+  label: 'Unknown Status',
+  badgeClass: 'bg-gray-100 text-gray-700',
+  panelClass: 'bg-gray-50 border-gray-200',
+  textClass: 'text-gray-700',
+  icon: AlertCircle,
+  iconClass: 'text-gray-600',
 };
 
 // ---------- Mock Data Generation ----------
@@ -452,7 +470,8 @@ export function Approvals() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {paidCustomers.map((customer) => {
             const status = customer.paymentVerificationStatus ?? 'pending';
-            const meta = verificationMeta[status];
+            // --- SAFETY FIX: use FALLBACK_META if status is unknown ---
+            const meta = verificationMeta[status] || FALLBACK_META;
             const StatusIcon = meta.icon;
             const financeMessage = customer.paymentVerificationMessage?.trim();
             const clarificationResponse = customer.marketingClarificationResponse;

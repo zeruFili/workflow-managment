@@ -83,6 +83,7 @@ export interface PaymentProof {
 
 export type PaymentVerificationStatus =
   | 'pending'
+  | 'verified'
   | 'approved'
   | 'rejected'
   | 'request_clarification';

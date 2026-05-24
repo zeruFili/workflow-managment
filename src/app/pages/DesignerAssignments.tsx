@@ -8,15 +8,13 @@ import {
   loadDesignerTasks,
   roleNamesByUserId,
 } from './designerTaskShared';
-import { DesignerTask, DesignerTaskApplication, TaskStatus } from '../types';
+import { DesignerTask, DesignerTaskApplication } from '../types';
 import {
   AlertCircle,
   Calendar,
   CheckCircle2,
   Clock,
   Edit,
-  Image,
-  Plus,
   XCircle,
   Briefcase,
   ChevronDown,
@@ -27,16 +25,6 @@ import {
   Send,
   Star,
 } from 'lucide-react';
-
-const emptyNewTask = {
-  title: '',
-  description: '',
-  instruction: '',
-  storyPoints: '',
-  projectId: '',
-  deadline: '',
-  telegramScreenshot: '',
-};
 
 // ---------- Types ----------
 type PhaseKey = 'caseStudy' | 'designStage' | 'rendering' | 'finalStage';
@@ -62,6 +50,18 @@ export interface PhaseData {
 
 type SubmissionProgress = Record<string, Record<PhaseKey, PhaseData>>;
 
+interface ReviewData {
+  reviewerName: string;
+  reviewText: string;
+  ratings: {
+    creativity: number;
+    timeliness: number;
+    clientUnderstanding: number;
+    rendering: number;
+  };
+  submittedAt: string;
+}
+
 const PHASES: { key: PhaseKey; label: string }[] = [
   { key: 'caseStudy', label: 'Case Study' },
   { key: 'designStage', label: 'Design Stage' },
@@ -70,12 +70,22 @@ const PHASES: { key: PhaseKey; label: string }[] = [
 ];
 
 const STORAGE_KEY = 'designer-submission-progress';
+const REVIEW_STORAGE_KEY = 'designer-task-reviews';
 
 // ---------- Helpers ----------
 function loadSubmissionProgress(): SubmissionProgress {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     return stored ? normalizeSubmissionProgress(JSON.parse(stored)) : {};
+  } catch {
+    return {};
+  }
+}
+
+function loadReviews(): Record<string, ReviewData> {
+  try {
+    const stored = localStorage.getItem(REVIEW_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : {};
   } catch {
     return {};
   }
@@ -122,12 +132,9 @@ function normalizeSubmissionProgress(progress: SubmissionProgress): SubmissionPr
   const normalized: SubmissionProgress = {};
 
   for (const [taskId, taskProgress] of Object.entries(progress)) {
-    const mergedProgress = {
-      caseStudy: defaultPhase(),
-      designStage: defaultPhase(),
-      rendering: defaultPhase(),
-      finalStage: defaultPhase(),
-      ...(taskProgress as Record<PhaseKey, PhaseData>),
+    const mergedProgress: Record<PhaseKey, PhaseData> = {
+      ...defaultTaskProgress(),
+      ...(taskProgress as Partial<Record<PhaseKey, PhaseData>>),
     };
 
     normalized[taskId] = {
@@ -212,15 +219,19 @@ function getTaskEndStatus(taskId: string): 'approved' | 'feedback' | 'rejected' 
   return 'pending';
 }
 
-function generateMockProgress(lastReviewedPhaseIndex: number, taskId?: string): Record<PhaseKey, PhaseData> {
+function generateMockProgress(
+  lastReviewedPhaseIndex: number,
+  taskId?: string,
+  forceFinalApproved = false
+): Record<PhaseKey, PhaseData> {
   const progress: Partial<Record<PhaseKey, PhaseData>> = {};
-  const endStatus = taskId ? getTaskEndStatus(taskId) : 'approved';
+  const endStatus = forceFinalApproved ? 'approved' : (taskId ? getTaskEndStatus(taskId) : 'approved');
 
   for (let i = 0; i <= lastReviewedPhaseIndex; i++) {
     const key = PHASES[i].key;
     const isLastPhase = i === lastReviewedPhaseIndex;
 
-    let history: PhaseHistoryEntry[] = [];
+    let history: Omit<PhaseHistoryEntry, 'designerSubmission'>[] = [];
 
     if (isLastPhase) {
       if (endStatus === 'approved') {
@@ -249,7 +260,7 @@ function generateMockProgress(lastReviewedPhaseIndex: number, taskId?: string): 
     const designerSubmission = buildDesignerSubmissionSnapshot(PHASES[i].label, {
       note: `Designer note for ${PHASES[i].label}`,
       screenshot: null,
-      history,
+      history: [],
     });
 
     progress[key] = {
@@ -258,7 +269,7 @@ function generateMockProgress(lastReviewedPhaseIndex: number, taskId?: string): 
       history: history.map((entry) => ({
         ...entry,
         designerSubmission,
-      })),
+      })) as PhaseHistoryEntry[],
     };
   }
 
@@ -266,12 +277,6 @@ function generateMockProgress(lastReviewedPhaseIndex: number, taskId?: string): 
     progress[PHASES[i].key] = defaultPhase();
   }
   return progress as Record<PhaseKey, PhaseData>;
-}
-
-function getTaskMockPhaseIndex(task: DesignerTask): number {
-  if (task.id === 'dtask-1') return 0;
-  const charCode = task.id.charCodeAt(task.id.length - 1);
-  return 1 + (charCode % 3);
 }
 
 function getLastPopulatedPhaseIndex(progress: Record<PhaseKey, PhaseData> | null): number {
@@ -284,25 +289,29 @@ function getLastPopulatedPhaseIndex(progress: Record<PhaseKey, PhaseData> | null
   return -1;
 }
 
+function isFinalStageApprovedFromProgress(progress: Record<PhaseKey, PhaseData> | null): boolean {
+  if (!progress) return false;
+  const finalData = progress.finalStage;
+  if (!finalData || !finalData.history || finalData.history.length === 0) return false;
+  return getCurrentStatus(finalData) === 'approved';
+}
+
 // -----------------------------------------------
 
 export function DesignerAssignments() {
   const { user } = useAuth();
-  const [showCreateTask, setShowCreateTask] = useState(false);
-  const [editingTask, setEditingTask] = useState<string | null>(null);
   const [selectedTaskDetail, setSelectedTaskDetail] = useState<DesignerTask | null>(null);
   const [showDetail, setShowDetail] = useState(false);
-  const [tasks, setTasks] = useState<DesignerTask[]>(loadDesignerTasks);
-  const [applications, setApplications] = useState<DesignerTaskApplication[]>(loadDesignerApplications);
-  const [newTask, setNewTask] = useState(emptyNewTask);
-  const [newTaskImagePreview, setNewTaskImagePreview] = useState<string | null>(null);
+  const [tasks] = useState<DesignerTask[]>(loadDesignerTasks);
+  const [applications] = useState<DesignerTaskApplication[]>(loadDesignerApplications);
 
   const [submissionProgress, setSubmissionProgress] = useState<SubmissionProgress>(loadSubmissionProgress);
   const [expandedPhase, setExpandedPhase] = useState<PhaseKey | null>(null);
   const [feedbackDrafts, setFeedbackDrafts] = useState<Record<string, Record<PhaseKey, string>>>({});
   const [expandedHistoryIdx, setExpandedHistoryIdx] = useState<Record<string, Record<PhaseKey, number | null>>>({});
 
-  // ---- New state for rating panel ----
+  // ---- Review & Rating state ----
+  const [reviews, setReviews] = useState<Record<string, ReviewData>>(loadReviews);
   const [reviewTaskId, setReviewTaskId] = useState<string | null>(null);
   const [reviewRatings, setReviewRatings] = useState<Record<string, {
     creativity: number;
@@ -310,14 +319,19 @@ export function DesignerAssignments() {
     clientUnderstanding: number;
     rendering: number;
   }>>({});
-  const [ratingSubmitted, setRatingSubmitted] = useState<Record<string, boolean>>({});
+  const [reviewComments, setReviewComments] = useState<Record<string, string>>({});
 
-  // Persist progress to localStorage on change
+  // Persist progress
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(submissionProgress));
   }, [submissionProgress]);
 
-  // ---- Ensure mock progress exists for all tasks so that the Review button appears directly ----
+  // Persist reviews
+  useEffect(() => {
+    localStorage.setItem(REVIEW_STORAGE_KEY, JSON.stringify(reviews));
+  }, [reviews]);
+
+  // Seed mock progress: force Final Stage Approved for ALL tasks
   useEffect(() => {
     setSubmissionProgress(prev => {
       let updated = { ...prev };
@@ -326,11 +340,53 @@ export function DesignerAssignments() {
         const existing = updated[task.id];
         const hasContent = existing && Object.values(existing).some(p => phaseHasDisplayableContent(p));
         if (!hasContent) {
-          const phaseIndex = getTaskMockPhaseIndex(task);
-          updated[task.id] = generateMockProgress(phaseIndex, task.id);
+          updated[task.id] = generateMockProgress(3, task.id, true);
           changed = true;
         }
       });
+      return changed ? updated : prev;
+    });
+  }, [tasks]);
+
+  // Seed reviews for dtask-1 and dtask-2 only
+  useEffect(() => {
+    setReviews(prev => {
+      let updated = { ...prev };
+      let changed = false;
+
+      const reviewedTaskIds = ['dtask-1', 'dtask-2'];
+
+      tasks.forEach(task => {
+        if (reviewedTaskIds.includes(task.id) && !updated[task.id]) {
+          if (task.id === 'dtask-1') {
+            updated[task.id] = {
+              reviewerName: 'System Admin',
+              reviewText: 'Great work, all requirements met. Task completed successfully.',
+              ratings: {
+                creativity: 4.5,
+                timeliness: 4.0,
+                clientUnderstanding: 5.0,
+                rendering: 4.8,
+              },
+              submittedAt: new Date().toISOString(),
+            };
+          } else if (task.id === 'dtask-2') {
+            updated[task.id] = {
+              reviewerName: 'General Manager',
+              reviewText: 'Solid execution overall. The rendering quality exceeded expectations and the client brief was well understood.',
+              ratings: {
+                creativity: 4.0,
+                timeliness: 3.5,
+                clientUnderstanding: 4.7,
+                rendering: 5.0,
+              },
+              submittedAt: new Date().toISOString(),
+            };
+          }
+          changed = true;
+        }
+      });
+
       return changed ? updated : prev;
     });
   }, [tasks]);
@@ -345,53 +401,6 @@ export function DesignerAssignments() {
     );
   }
 
-  const canCreateTask = true;
-  const isAdmin = true;
-
-  const persistTasks = (updatedTasks: DesignerTask[]) => {
-    setTasks(updatedTasks);
-    localStorage.setItem('designer-tasks', JSON.stringify(updatedTasks));
-  };
-
-  const handleNewTaskImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      setNewTask({ ...newTask, telegramScreenshot: reader.result as string });
-      setNewTaskImagePreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const createTask = (event: React.FormEvent) => {
-    event.preventDefault();
-
-    const nextTask: DesignerTask = {
-      id: `dtask-${Date.now()}`,
-      projectId: newTask.projectId,
-      title: newTask.title.trim(),
-      description: newTask.description.trim(),
-      instruction: newTask.instruction.trim(),
-      storyPoints: Number(newTask.storyPoints),
-      telegramScreenshot: newTask.telegramScreenshot || undefined,
-      assignedBy: user.id,
-      status: 'pending',
-      deadline: newTask.deadline,
-      createdAt: new Date().toISOString(),
-    };
-
-    persistTasks([nextTask, ...tasks]);
-    setNewTask(emptyNewTask);
-    setNewTaskImagePreview(null);
-    setShowCreateTask(false);
-  };
-
-  const handleStatusChange = (taskId: string, newStatus: TaskStatus) => {
-    persistTasks(tasks.map((task) => (task.id === taskId ? { ...task, status: newStatus } : task)));
-    setEditingTask(null);
-  };
-
   const openDetail = (task: DesignerTask) => {
     setSelectedTaskDetail(task);
     setShowDetail(true);
@@ -401,16 +410,10 @@ export function DesignerAssignments() {
       const existing = prev[task.id];
       const hasContent =
         existing &&
-        Object.values(existing).some(
-          (p) => phaseHasDisplayableContent(p)
-        );
-      const lastPopulatedIndex = getLastPopulatedPhaseIndex(existing ?? null);
-      const shouldSeedProgress =
-        !hasContent || (task.id !== 'dtask-1' && lastPopulatedIndex <= 0);
+        Object.values(existing).some((p) => phaseHasDisplayableContent(p));
 
-      if (shouldSeedProgress) {
-        const phaseIndex = getTaskMockPhaseIndex(task);
-        const mockProgress = generateMockProgress(phaseIndex, task.id);
+      if (!hasContent) {
+        const mockProgress = generateMockProgress(3, task.id, true);
         return { ...prev, [task.id]: mockProgress };
       }
       return prev;
@@ -432,12 +435,16 @@ export function DesignerAssignments() {
     setExpandedPhase(null);
   };
 
-  const addHistoryEntry = (taskId: string, phase: PhaseKey, entry: PhaseHistoryEntry) => {
+  const addHistoryEntry = (taskId: string, phase: PhaseKey, entry: Omit<PhaseHistoryEntry, 'designerSubmission'>) => {
     setSubmissionProgress((prev) => {
       const taskProgress = prev[taskId] ?? defaultTaskProgress();
       const phaseData = taskProgress[phase] ?? defaultPhase();
       const phaseLabel = PHASES.find((candidate) => candidate.key === phase)?.label ?? phase;
       const designerSubmission = buildDesignerSubmissionSnapshot(phaseLabel, phaseData, entry.timestamp);
+      const fullEntry: PhaseHistoryEntry = {
+        ...entry,
+        designerSubmission,
+      };
       return {
         ...prev,
         [taskId]: {
@@ -446,10 +453,7 @@ export function DesignerAssignments() {
             ...phaseData,
             history: [
               ...(phaseData.history || []),
-              {
-                ...entry,
-                designerSubmission,
-              },
+              fullEntry,
             ],
           },
         },
@@ -485,13 +489,9 @@ export function DesignerAssignments() {
     return defaultTaskProgress();
   };
 
-  // Helper: check if final stage is approved
   const isFinalStageApproved = (taskId: string): boolean => {
     const progress = getDisplayProgress(taskId);
-    const finalData = progress.finalStage;
-    if (!finalData || !finalData.history || finalData.history.length === 0) return false;
-    const lastEntry = finalData.history[finalData.history.length - 1];
-    return lastEntry.status === 'approved';
+    return isFinalStageApprovedFromProgress(progress);
   };
 
   // ---------- Review actions ----------
@@ -564,12 +564,7 @@ export function DesignerAssignments() {
     ? getDisplayProgress(selectedTaskDetail.id)
     : null;
 
-  const lastPopulatedIdx = getLastPopulatedPhaseIndex(currentProgress);
-  const visiblePhases = lastPopulatedIdx >= 0 ? PHASES.slice(0, lastPopulatedIdx + 1).filter(
-    (phase) => phaseHasDisplayableContent(currentProgress?.[phase.key])
-  ) : [];
-
-  const stopIdx = findFirstNonApprovedPhaseIndex(PHASES, currentProgress);
+  const visiblePhases = PHASES;
 
   const assignedTasks = tasks.filter((task) => !!task.assignedTo);
 
@@ -602,44 +597,53 @@ export function DesignerAssignments() {
 
   const submitRating = (taskId: string) => {
     const ratings = reviewRatings[taskId];
+    const comment = reviewComments[taskId]?.trim() || '';
     if (!ratings) return;
-    // Here you would normally persist to backend – for demo we show success
-    setRatingSubmitted((prev) => ({ ...prev, [taskId]: true }));
-    setTimeout(() => {
-      setRatingSubmitted((prev) => ({ ...prev, [taskId]: false }));
-    }, 2000);
+
+    const reviewerName = user?.name || user?.email || 'Admin';
+    const newReview: ReviewData = {
+      reviewerName,
+      reviewText: comment,
+      ratings: { ...ratings },
+      submittedAt: new Date().toISOString(),
+    };
+
+    setReviews(prev => ({ ...prev, [taskId]: newReview }));
     setReviewTaskId(null);
+    setReviewComments(prev => ({ ...prev, [taskId]: '' }));
   };
 
   const toggleReviewPanel = (taskId: string) => {
     if (reviewTaskId === taskId) {
       setReviewTaskId(null);
+      return;
+    }
+    const existingReview = reviews[taskId];
+    if (existingReview) {
+      setReviewRatings(prev => ({
+        ...prev,
+        [taskId]: { ...existingReview.ratings },
+      }));
+      setReviewComments(prev => ({
+        ...prev,
+        [taskId]: existingReview.reviewText,
+      }));
     } else {
       initializeRatingsForTask(taskId);
-      setReviewTaskId(taskId);
+      setReviewComments(prev => ({ ...prev, [taskId]: '' }));
     }
+    setReviewTaskId(taskId);
   };
 
   // ── Render ──
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 flex-col md:flex-row">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Designer Assignments</h2>
-          <p className="text-gray-600 mt-1">
-            Manage created designer tasks, assignments, and progress updates.
-          </p>
-        </div>
-        {canCreateTask && (
-          <button
-            onClick={() => setShowCreateTask(true)}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Create Designer Task</span>
-          </button>
-        )}
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900">Designer Assignments</h2>
+        <p className="text-gray-600 mt-1">
+          Manage created designer tasks, assignments, and progress updates.
+        </p>
       </div>
 
       {/* Task Cards */}
@@ -649,14 +653,12 @@ export function DesignerAssignments() {
           <p className="text-gray-500">No assigned designer tasks yet.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
           {assignedTasks.map((task) => {
             const project = mockProjects.find((candidate) => candidate.id === task.projectId);
-            const isEditing = editingTask === task.id;
             const isOverdue =
               task.deadline && new Date(task.deadline) < new Date() && task.status !== 'completed';
 
-            // Determine current phase info from submission progress
             const progress = getDisplayProgress(task.id);
             const stopIdx = findFirstNonApprovedPhaseIndex(PHASES, progress);
             let currentPhaseKey: PhaseKey | null = null;
@@ -678,6 +680,7 @@ export function DesignerAssignments() {
 
             const finalStageApproved = isFinalStageApproved(task.id);
             const showReview = finalStageApproved;
+            const existingReview = reviews[task.id];
 
             return (
               <div
@@ -691,7 +694,6 @@ export function DesignerAssignments() {
                       Assigned to: {getTaskAssigneeLabel(task.assignedTo)}
                     </p>
                   </div>
-                  {/* STATUS BADGE */}
                   {currentPhaseKey ? (
                     <span
                       className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
@@ -762,7 +764,7 @@ export function DesignerAssignments() {
                   Open Submission Detail
                 </button>
 
-                {/* NEW: Last Phase Status from Submission Progress */}
+                {/* Last Phase Status */}
                 {(() => {
                   const progress = getDisplayProgress(task.id);
                   const stopIdx = findFirstNonApprovedPhaseIndex(PHASES, progress);
@@ -840,113 +842,160 @@ export function DesignerAssignments() {
                   </div>
                 </div>
 
-                {/* ---- REVIEW BUTTON & PANEL ---- */}
-              {showReview && (
-  <div className="mt-4 border-t pt-4">
-    <button
-      onClick={() => toggleReviewPanel(task.id)}
-      className="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-800"
-    >
-      <Star className="w-4 h-4" />
-      {reviewTaskId === task.id ? 'Close Rating' : 'Review'}
-    </button>
-    {reviewTaskId === task.id && (
-      <div className="mt-3 bg-gray-50 rounded-lg border border-gray-200 p-4">
-        <h6 className="text-sm font-semibold text-gray-700 mb-3">Rate this task</h6>
-        <div className="space-y-3">
-          {(
-            [
-              { key: 'creativity', label: 'Creativity' },
-              { key: 'timeliness', label: 'Timeliness' },
-              { key: 'clientUnderstanding', label: 'Client Understanding' },
-              { key: 'rendering', label: 'Rendering' },
-            ] as const
-          ).map(({ key, label }) => {
-            const rating = reviewRatings[task.id]?.[key] ?? 0;
-            const fillPercent = (rating / 5) * 100;
-            return (
-              <div key={key} className="flex items-center gap-3">
-                <label className="text-sm text-gray-600 w-28 flex-shrink-0">
-                  {label}
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="5"
-                  step="0.1"
-                  value={rating}
-                  onChange={(e) =>
-                    updateRating(task.id, key, parseFloat(e.target.value))
-                  }
-                  style={{
-                    background: `linear-gradient(to right, #1d4ed8 ${fillPercent}%, #e5e7eb ${fillPercent}%)`,
-                  }}
-                  className="flex-1 h-2 rounded-lg appearance-none cursor-pointer"
-                />
-                <input
-                  type="number"
-                  min="0"
-                  max="5"
-                  step="0.1"
-                  value={rating}
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    if (raw === '' || raw === '0') {
-                      updateRating(task.id, key, 0);
-                      return;
-                    }
-                    const val = parseFloat(raw);
-                    if (!isNaN(val)) {
-                      // Clamp to max 5
-                      updateRating(task.id, key, Math.min(val, 5));
-                    }
-                  }}
-                  onFocus={(e) => {
-                    // Clear the field when focused so default 0 doesn't prefix the new input
-                    if (rating === 0) e.target.value = '';
-                  }}
-                  onBlur={(e) => {
-                    // Restore 0 if left empty on blur
-                    if (e.target.value === '') {
-                      updateRating(task.id, key, 0);
-                    }
-                  }}
-                  className="w-16 px-2 py-1 border border-gray-300 rounded text-sm text-center"
-                />
-              </div>
-            );
-          })}
-        </div>
-        <div className="mt-4 flex gap-2 justify-end">
-          <button
-            onClick={() => setReviewTaskId(null)}
-            className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-100"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => submitRating(task.id)}
-            className="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-          >
-            Submit Rating
-          </button>
-        </div>
-        {ratingSubmitted[task.id] && (
-          <p className="text-xs text-green-600 mt-2">
-            Rating submitted successfully!
-          </p>
-        )}
-      </div>
-    )}
-  </div>
-)}
+                {/* ---- REVIEW SECTION ---- */}
+                {showReview && (
+                  <div className="mt-4 border-t pt-4">
+                    {existingReview ? (
+                      /* Already reviewed: show details and edit button */
+                      <div>
+                        <div className="flex items-center gap-2 text-sm text-green-700 mb-2">
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span className="font-medium">Reviewed by {existingReview.reviewerName}</span>
+                          <span className="text-gray-500 text-xs">
+                            {new Date(existingReview.submittedAt).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="mb-2">
+                          <p className="text-xs font-medium text-gray-500">Ratings:</p>
+                          <div className="flex flex-wrap gap-2 text-xs mt-1">
+                            <span className="bg-gray-100 px-2 py-0.5 rounded-full">Creativity: {existingReview.ratings.creativity}</span>
+                            <span className="bg-gray-100 px-2 py-0.5 rounded-full">Timeliness: {existingReview.ratings.timeliness}</span>
+                            <span className="bg-gray-100 px-2 py-0.5 rounded-full">Client Understanding: {existingReview.ratings.clientUnderstanding}</span>
+                            <span className="bg-gray-100 px-2 py-0.5 rounded-full">Rendering: {existingReview.ratings.rendering}</span>
+                          </div>
+                        </div>
+                        {existingReview.reviewText && (
+                          <div className="mb-3">
+                            <p className="text-xs font-medium text-gray-500">Comment:</p>
+                            <p className="text-sm text-gray-700 italic mt-1">"{existingReview.reviewText}"</p>
+                          </div>
+                        )}
+                        <button
+                          onClick={() => toggleReviewPanel(task.id)}
+                          className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                          Edit Review
+                        </button>
+                      </div>
+                    ) : (
+                      /* Not yet reviewed: show Review button */
+                      <button
+                        onClick={() => toggleReviewPanel(task.id)}
+                        className="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-800"
+                      >
+                        <Star className="w-4 h-4" />
+                        Review
+                      </button>
+                    )}
+
+                    {/* Rating/Review Panel */}
+                    {reviewTaskId === task.id && (
+                      <div className="mt-3 bg-gray-50 rounded-lg border border-gray-200 p-4">
+                        <h6 className="text-sm font-semibold text-gray-700 mb-3">
+                          {existingReview ? 'Edit Review' : 'Rate this task'}
+                        </h6>
+                        <div className="space-y-3">
+                          {(
+                            [
+                              { key: 'creativity', label: 'Creativity' },
+                              { key: 'timeliness', label: 'Timeliness' },
+                              { key: 'clientUnderstanding', label: 'Client Understanding' },
+                              { key: 'rendering', label: 'Rendering' },
+                            ] as const
+                          ).map(({ key, label }) => {
+                            const rating = reviewRatings[task.id]?.[key] ?? 0;
+                            const fillPercent = (rating / 5) * 100;
+                            return (
+                              <div key={key} className="flex flex-wrap items-center gap-2">
+                                <label className="text-sm text-gray-600 w-24 sm:w-28 flex-shrink-0">
+                                  {label}
+                                </label>
+                                <input
+                                  type="range"
+                                  min="0"
+                                  max="5"
+                                  step="0.1"
+                                  value={rating}
+                                  onChange={(e) =>
+                                    updateRating(task.id, key, parseFloat(e.target.value))
+                                  }
+                                  style={{
+                                    background: `linear-gradient(to right, #1d4ed8 ${fillPercent}%, #e5e7eb ${fillPercent}%)`,
+                                  }}
+                                  className="flex-1 min-w-0 h-2 rounded-lg appearance-none cursor-pointer"
+                                />
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="5"
+                                  step="0.1"
+                                  value={rating}
+                                  onChange={(e) => {
+                                    const raw = e.target.value;
+                                    if (raw === '' || raw === '0') {
+                                      updateRating(task.id, key, 0);
+                                      return;
+                                    }
+                                    const val = parseFloat(raw);
+                                    if (!isNaN(val)) {
+                                      updateRating(task.id, key, Math.min(val, 5));
+                                    }
+                                  }}
+                                  onFocus={(e) => {
+                                    if (rating === 0) e.target.value = '';
+                                  }}
+                                  onBlur={(e) => {
+                                    if (e.target.value === '') {
+                                      updateRating(task.id, key, 0);
+                                    }
+                                  }}
+                                  className="w-14 sm:w-16 px-2 py-1 border border-gray-300 rounded text-sm text-center flex-shrink-0"
+                                />
+                              </div>
+                            );
+                          })}
+                          <div className="pt-2">
+                            <label className="text-sm text-gray-600 block mb-1">Review Comment (optional)</label>
+                            <textarea
+                              rows={2}
+                              value={reviewComments[task.id] || ''}
+                              onChange={(e) =>
+                                setReviewComments(prev => ({
+                                  ...prev,
+                                  [task.id]: e.target.value,
+                                }))
+                              }
+                              placeholder="Add a written review..."
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            />
+                          </div>
+                        </div>
+                        <div className="mt-4 flex gap-2 justify-end">
+                          <button
+                            onClick={() => setReviewTaskId(null)}
+                            className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-100"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => submitRating(task.id)}
+                            className="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                          >
+                            {existingReview ? 'Update Review' : 'Submit Review'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       )}
 
-      {/* Detail Modal – unchanged */}
+      {/* Detail Modal */}
       {showDetail && selectedTaskDetail && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-6 overflow-y-auto">
           <div className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl max-h-[92vh] overflow-y-auto">
@@ -1112,18 +1161,17 @@ export function DesignerAssignments() {
                   </div>
                 </section>
 
-                {/* Submission Progress & Review – unchanged */}
+                {/* Submission Progress & Review */}
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-4">
                     Submission Progress & Review
                   </h5>
 
-                  {/* Last Phase Status Summary */}
                   {(() => {
-                    const displayPhaseIdx = stopIdx !== -1 ? stopIdx : lastPopulatedIdx;
-                    if (displayPhaseIdx === -1) return null;
-                    const phaseKey = PHASES[displayPhaseIdx].key;
-                    const phaseLabel = PHASES[displayPhaseIdx].label;
+                    const summaryIdx = getLastPopulatedPhaseIndex(currentProgress);
+                    if (summaryIdx === -1) return null;
+                    const phaseKey = PHASES[summaryIdx].key;
+                    const phaseLabel = PHASES[summaryIdx].label;
                     const phaseData = currentProgress?.[phaseKey];
                     if (!phaseData) return null;
                     const history = phaseData.history ?? [];
@@ -1140,11 +1188,6 @@ export function DesignerAssignments() {
                       : isRejected
                       ? 'bg-red-100 text-red-700'
                       : 'bg-yellow-100 text-yellow-700';
-                    const statusLabel = isApproved
-                      ? 'Approved'
-                      : isRejected
-                      ? 'Rejected'
-                      : 'Feedback';
                     const displayLabel = isApproved
                       ? `${phaseLabel} - Approved`
                       : isFeedback
@@ -1183,9 +1226,7 @@ export function DesignerAssignments() {
                     <p className="text-sm text-gray-500">No submission data yet.</p>
                   ) : (
                     <div className="space-y-3">
-                      {visiblePhases.map((phase, idx) => {
-                        if (stopIdx !== -1 && idx > stopIdx) return null;
-
+                      {visiblePhases.map((phase) => {
                         const taskId = selectedTaskDetail.id;
                         const phaseData = currentProgress?.[phase.key] ?? defaultPhase();
                         const isExpanded = expandedPhase === phase.key;
@@ -1245,7 +1286,6 @@ export function DesignerAssignments() {
 
                             {isExpanded && (
                               <div className="p-4 space-y-4 bg-white">
-                                {/* Designer's Progress Note */}
                                 <div>
                                   <h6 className="text-sm font-medium text-gray-700 mb-1">
                                     Designer's Progress Note
@@ -1261,7 +1301,6 @@ export function DesignerAssignments() {
                                   )}
                                 </div>
 
-                                {/* Telegram Screenshot */}
                                 <div>
                                   <h6 className="text-sm font-medium text-gray-700 mb-1">
                                     Telegram Screenshot{' '}
@@ -1289,7 +1328,6 @@ export function DesignerAssignments() {
                                   )}
                                 </div>
 
-                                {/* Prior Feedback Messages */}
                                 {history.length > 0 && (
                                   <div className="border-t border-gray-100 pt-4">
                                     <h6 className="text-sm font-medium text-gray-700 mb-2">
@@ -1382,7 +1420,6 @@ export function DesignerAssignments() {
                                   </div>
                                 )}
 
-                                {/* Review Actions */}
                                 <div className="border-t border-gray-100 pt-4">
                                   <h6 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
                                     <MessageSquare className="w-4 h-4" />
@@ -1445,7 +1482,6 @@ export function DesignerAssignments() {
                 </section>
               </div>
 
-              {/* Sidebar – unchanged */}
               <aside className="space-y-4">
                 {selectedTaskDetail.approvalStatus && (
                   <section className="rounded-xl border border-gray-200 bg-white p-4">
@@ -1486,164 +1522,6 @@ export function DesignerAssignments() {
                 </section>
               </aside>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Create Task Modal – unchanged */}
-      {showCreateTask && canCreateTask && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-semibold mb-4">Create Available Designer Task</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              This task will be visible to designers so they can apply for it.
-            </p>
-            <form className="space-y-4" onSubmit={createTask}>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Task Title
-                </label>
-                <input
-                  type="text"
-                  value={newTask.title}
-                  onChange={(event) => setNewTask({ ...newTask, title: event.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter task title"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Description
-                </label>
-                <textarea
-                  rows={4}
-                  value={newTask.description}
-                  onChange={(event) =>
-                    setNewTask({ ...newTask, description: event.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Describe the work to be done"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Story Points
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max="100"
-                  value={newTask.storyPoints}
-                  onChange={(event) =>
-                    setNewTask({ ...newTask, storyPoints: event.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter story points"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Telegram Screenshot (optional)
-                </label>
-                <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-sm text-gray-700">
-                    <Image className="w-4 h-4" />
-                    Choose Image
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleNewTaskImageUpload}
-                      className="hidden"
-                    />
-                  </label>
-                  {newTaskImagePreview && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setNewTask({ ...newTask, telegramScreenshot: '' });
-                        setNewTaskImagePreview(null);
-                      }}
-                      className="text-sm text-red-600 hover:underline"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-                {newTaskImagePreview && (
-                  <div className="mt-3">
-                    <p className="text-xs text-gray-500 mb-1">Preview:</p>
-                    <img
-                      src={newTaskImagePreview}
-                      alt="preview"
-                      className="max-w-full h-auto max-h-48 rounded-lg border object-contain"
-                    />
-                  </div>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Instruction
-                </label>
-                <textarea
-                  rows={4}
-                  value={newTask.instruction}
-                  onChange={(event) =>
-                    setNewTask({ ...newTask, instruction: event.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Describe what the designer must collect or measure"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Project</label>
-                <select
-                  value={newTask.projectId}
-                  onChange={(event) =>
-                    setNewTask({ ...newTask, projectId: event.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                >
-                  <option value="">Select project</option>
-                  {mockProjects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Deadline</label>
-                <input
-                  type="date"
-                  value={newTask.deadline}
-                  onChange={(event) =>
-                    setNewTask({ ...newTask, deadline: event.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateTask(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-                >
-                  Create Task
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}

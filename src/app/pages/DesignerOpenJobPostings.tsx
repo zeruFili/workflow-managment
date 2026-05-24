@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { Calendar, Clock, Image, Landmark, Megaphone, ShieldCheck } from 'lucide-react';
-import { mockProjects } from '../data/mockData';
-import { Task } from '../types';
+import { Calendar, CheckCircle2, Clock, Landmark, Megaphone, ShieldCheck, Send } from 'lucide-react';
 import { JOB_POSTINGS_STORAGE_KEY, jobPostingSeedTasks } from './JobPostings';
-import { roleNamesByUserId } from './designerTaskShared';
+import { roleNamesByUserId, APPLICATION_STORAGE_KEY } from './designerTaskShared';
+import { useAuth } from '../contexts/AuthContext';
+import { DesignerTaskApplication, Task } from '../types';
 
 type JobPostingTask = Task & {
   storyPoints?: number;
@@ -30,6 +30,14 @@ function loadJobPostings(): JobPostingTask[] {
   return mergedTasks;
 }
 
+function loadApplications(): DesignerTaskApplication[] {
+  const saved = localStorage.getItem(APPLICATION_STORAGE_KEY);
+  if (saved) {
+    return JSON.parse(saved) as DesignerTaskApplication[];
+  }
+  return [];
+}
+
 function getStatusTone(status: string) {
   if (status === 'completed') return 'bg-green-100 text-green-700';
   if (status === 'in_progress') return 'bg-blue-100 text-blue-700';
@@ -37,7 +45,11 @@ function getStatusTone(status: string) {
 }
 
 export function DesignerOpenJobPostings() {
+  const { user } = useAuth();
   const [postings] = useState<JobPostingTask[]>(() => loadJobPostings());
+  const [applications, setApplications] = useState<DesignerTaskApplication[]>(loadApplications);
+  const [applyingForTaskId, setApplyingForTaskId] = useState<string | null>(null);
+  const [applyMessage, setApplyMessage] = useState('');
 
   const summary = useMemo(
     () => ({
@@ -48,6 +60,36 @@ export function DesignerOpenJobPostings() {
     }),
     [postings]
   );
+
+  const startApply = (taskId: string) => {
+    setApplyingForTaskId(taskId);
+    setApplyMessage('');
+  };
+
+  const cancelApply = () => {
+    setApplyingForTaskId(null);
+    setApplyMessage('');
+  };
+
+  const submitApplication = (posting: JobPostingTask) => {
+    if (!user || !applyMessage.trim()) return;
+
+    const newApplication: DesignerTaskApplication = {
+      id: `app-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      taskId: posting.id,
+      applicantId: user.id,
+      applicantName: user.name ?? 'Unknown Designer',
+      status: 'pending',
+      message: applyMessage.trim(),
+      appliedAt: new Date().toISOString(),
+    };
+
+    const updated = [...applications, newApplication];
+    setApplications(updated);
+    localStorage.setItem(APPLICATION_STORAGE_KEY, JSON.stringify(updated));
+    setApplyingForTaskId(null);
+    setApplyMessage('');
+  };
 
   return (
     <div className="space-y-6">
@@ -90,15 +132,20 @@ export function DesignerOpenJobPostings() {
           <p className="mt-4 text-slate-500">No job postings are available yet.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4" style={{ gridAutoRows: '260px' }}>
+        <div className="grid grid-cols-2 gap-4 auto-rows-auto">
           {postings.map((posting) => {
             const createdByLabel = roleNamesByUserId[posting.assignedBy] ?? `User ${posting.assignedBy}`;
+            const hasApplied = user
+              ? applications.some(
+                  (app) => app.taskId === posting.id && app.applicantId === user.id
+                )
+              : false;
+            const isApplying = applyingForTaskId === posting.id;
 
             return (
               <div
                 key={posting.id}
-                style={{ height: '260px' }}
-                className="w-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm overflow-hidden flex flex-col"
+                className="w-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col"
               >
                 {/* Row 1: role badge + status pill */}
                 <div className="flex items-center justify-between gap-2 shrink-0">
@@ -112,10 +159,10 @@ export function DesignerOpenJobPostings() {
                 </div>
 
                 {/* Row 2: title */}
-                <h4 className="mt-3 text-base font-semibold text-slate-900 line-clamp-1 shrink-0">{posting.title}</h4>
+                <h4 className="mt-3 text-base font-semibold text-slate-900 line-clamp-2 shrink-0">{posting.title}</h4>
 
-                {/* Row 3: description — grows to fill available space */}
-                <p className="mt-1.5 text-sm text-slate-600 line-clamp-2 grow">{posting.description}</p>
+                {/* Row 3: description – no height restriction, grows naturally */}
+                <p className="mt-1.5 text-sm text-slate-600 whitespace-pre-wrap">{posting.description}</p>
 
                 {/* Row 4: badges */}
                 <div className="mt-3 flex flex-wrap gap-2 text-xs shrink-0">
@@ -138,6 +185,50 @@ export function DesignerOpenJobPostings() {
                     <span>Created: {new Date(posting.createdAt).toLocaleDateString()}</span>
                   </div>
                 </div>
+
+                {/* Row 6: apply / applied / inline form */}
+                {user && (
+                  <div className="mt-3 shrink-0">
+                    {hasApplied ? (
+                      <span className="inline-flex items-center gap-1 text-green-600 text-xs font-medium">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Applied
+                      </span>
+                    ) : isApplying ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={applyMessage}
+                          onChange={(e) => setApplyMessage(e.target.value)}
+                          placeholder="Tell us why you’re interested…"
+                          rows={3}
+                          className="w-full resize-none rounded-lg border border-slate-300 p-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-400 outline-none"
+                          autoFocus
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => submitApplication(posting)}
+                            disabled={!applyMessage.trim()}
+                            className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <Send className="h-3.5 w-3.5" /> Submit
+                          </button>
+                          <button
+                            onClick={cancelApply}
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => startApply(posting.id)}
+                        className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
+                      >
+                        Apply
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}

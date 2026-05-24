@@ -66,9 +66,9 @@ function AppContent() {
           path="/dashboard"
           element={
             <ProtectedRoute>
-              {user?.role === 'quantity_surveyor' ? (
+              {user?.role === 'quantity_surveyor' || user?.role === 'finance_officer' ? (
                 <Layout>
-                  <QuantitySurveyorDashboard />
+                  {user?.role === 'finance_officer' ? <FinanceVerifications /> : <QuantitySurveyorDashboard />}
                 </Layout>
                 
               ) : (
@@ -171,7 +171,7 @@ function AppContent() {
         <Route
           path="/finance-verifications"
           element={
-            <ProtectedRoute allowedRoles={['ceo', 'system_administrator']}>
+            <ProtectedRoute allowedRoles={['finance_officer', 'ceo', 'general_manager', 'system_administrator']}>
               <Layout>
                 <FinanceVerifications />
               </Layout>

@@ -167,7 +167,7 @@ export function PaidCustomers() {
 
   if (!user) return null;
 
-  const canAccess = user.role === 'marketing_lead' || user.role === 'system_administrator';
+  const canAccess = user.role === 'marketing_lead' || user.role === 'ceo' || user.role === 'system_administrator';
   if (!canAccess) {
     return (
       <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">

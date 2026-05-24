@@ -38,12 +38,12 @@ export function Layout({ children }: LayoutProps) {
 
   if (!user) return <>{children}</>;
 
-  // Quantity surveyors get a simplified header only – no sidebar
-  const isQuantitySurveyor = user.role === 'quantity_surveyor';
+  // Quantity surveyors and finance officers get a simplified header only – no sidebar
+  const isSidebarlessRole = user.role === 'quantity_surveyor' || user.role === 'finance_officer';
 
   // Build navigation items for the sidebar (only used if NOT quantity_surveyor)
   const navigationItems: NavigationItem[] = [];
-  if (!isQuantitySurveyor) {
+  if (!isSidebarlessRole) {
     navigationItems.push({ path: '/dashboard', label: 'Dashboard', icon: Home });
 
     if (user.role !== 'ceo' && user.role !== 'general_manager') {
@@ -106,7 +106,7 @@ export function Layout({ children }: LayoutProps) {
         <div className="px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* Hamburger only for non‑quantity_surveyor roles (to toggle sidebar) */}
-            {!isQuantitySurveyor && (
+            {!isSidebarlessRole && (
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="md:hidden p-2 hover:bg-gray-100 rounded-lg"
@@ -137,7 +137,7 @@ export function Layout({ children }: LayoutProps) {
       </header>
 
       {/* Main area: either full layout with sidebar, or just content for quantity_surveyor */}
-      {isQuantitySurveyor ? (
+      {isSidebarlessRole ? (
         <main className="p-4 md:p-6">{children}</main>
       ) : (
         <div className="flex">
