@@ -20,7 +20,7 @@ import { Plus, Send, X, Image } from 'lucide-react';
 type ForwardFormState = {
   assignedTo: string;
   description: string;
-  telegramScreenshot: string; // will store data URL
+  telegramScreenshot: string;
   telegramScreenshotDescription: string;
   budgetExpectationReference: string;
 };
@@ -33,15 +33,123 @@ const emptyForm: ForwardFormState = {
   budgetExpectationReference: '',
 };
 
+// ── Mock data (5 extra tasks) ──────────────────────────────────────────
+const MOCK_TASKS: QuantityReviewTask[] = [
+  {
+    id: 'mock-task-1',
+    jobId: 'JOB-101',
+    designWorkReference: 'DW-501',
+    telegramScreenshot: 'https://via.placeholder.com/150/3B82F6/FFFFFF?text=Screen+1',
+    telegramScreenshotDescription: 'Initial sketch from designer',
+    description: 'Two‑storey residential extension with cantilever balcony.',
+    designerName: 'Alice Johnson',
+    submissionDate: new Date('2026-05-20T09:00:00Z').toISOString(),
+    budgetExpectationReference: 'BUD-901',
+    submissionHistory: [
+      'Designer submission received in Telegram.',
+      'Manager forwarded for quantity review.',
+    ],
+    status: 'pending_review',
+    createdBy: 'user-1',
+    assignedTo: '11',
+    createdAt: new Date('2026-05-20T09:05:00Z').toISOString(),
+    updatedAt: new Date('2026-05-20T09:05:00Z').toISOString(),
+  },
+  {
+    id: 'mock-task-2',
+    jobId: 'JOB-102',
+    designWorkReference: 'DW-502',
+    telegramScreenshot: 'https://via.placeholder.com/150/10B981/FFFFFF?text=Screen+2',
+    telegramScreenshotDescription: 'Interior layout option A',
+    description: 'Open‑plan living area with kitchen island and skylights.',
+    designerName: 'Bob Chen',
+    submissionDate: new Date('2026-05-21T10:30:00Z').toISOString(),
+    budgetExpectationReference: undefined,
+    submissionHistory: [
+      'Designer submission received in Telegram.',
+      'CEO forwarded for quantity review.',
+    ],
+    status: 'pending_review',
+    createdBy: 'user-2',
+    assignedTo: '12',
+    createdAt: new Date('2026-05-21T10:35:00Z').toISOString(),
+    updatedAt: new Date('2026-05-21T10:35:00Z').toISOString(),
+  },
+  {
+    id: 'mock-task-3',
+    jobId: 'JOB-103',
+    designWorkReference: 'DW-503',
+    telegramScreenshot: 'https://via.placeholder.com/150/F59E0B/FFFFFF?text=Screen+3',
+    telegramScreenshotDescription: 'Roof structural detail',
+    description: 'Steel truss system for commercial warehouse.',
+    designerName: 'Clara Mendez',
+    submissionDate: new Date('2026-05-22T08:15:00Z').toISOString(),
+    budgetExpectationReference: 'BUD-902',
+    submissionHistory: [
+      'Designer submission received in Telegram.',
+      'General Manager forwarded.',
+    ],
+    status: 'pending_review',
+    createdBy: 'user-3',
+    assignedTo: '13',
+    createdAt: new Date('2026-05-22T08:20:00Z').toISOString(),
+    updatedAt: new Date('2026-05-22T08:20:00Z').toISOString(),
+  },
+  {
+    id: 'mock-task-4',
+    jobId: 'JOB-104',
+    designWorkReference: 'DW-504',
+    telegramScreenshot: 'https://via.placeholder.com/150/8B5CF6/FFFFFF?text=Screen+4',
+    telegramScreenshotDescription: 'Facade cladding options',
+    description: 'Aluminium composite panel system for high‑rise office.',
+    designerName: 'David Park',
+    submissionDate: new Date('2026-05-23T14:45:00Z').toISOString(),
+    budgetExpectationReference: undefined,
+    submissionHistory: [
+      'Designer submission received in Telegram.',
+      'Administrator forwarded.',
+    ],
+    status: 'pending_review',
+    createdBy: 'user-4',
+    assignedTo: '11',
+    createdAt: new Date('2026-05-23T14:50:00Z').toISOString(),
+    updatedAt: new Date('2026-05-23T14:50:00Z').toISOString(),
+  },
+  {
+    id: 'mock-task-5',
+    jobId: 'JOB-105',
+    designWorkReference: 'DW-505',
+    telegramScreenshot: 'https://via.placeholder.com/150/EC4899/FFFFFF?text=Screen+5',
+    telegramScreenshotDescription: 'Landscape plan',
+    description: 'Rooftop garden with irrigation and seating areas.',
+    designerName: 'Elena Rossi',
+    submissionDate: new Date('2026-05-24T07:00:00Z').toISOString(),
+    budgetExpectationReference: 'BUD-903',
+    submissionHistory: [
+      'Designer submission received in Telegram.',
+      'Manager forwarded for quantity review.',
+    ],
+    status: 'pending_review',
+    createdBy: 'user-2',
+    assignedTo: '12',
+    createdAt: new Date('2026-05-24T07:10:00Z').toISOString(),
+    updatedAt: new Date('2026-05-24T07:10:00Z').toISOString(),
+  },
+];
+
 export function QuantitySurveyorTasks() {
   const { user } = useAuth();
-  const [tasks, setTasks] = useState<QuantityReviewTask[]>(() => loadQuantityReviewTasks());
+  const [tasks, setTasks] = useState<QuantityReviewTask[]>(() => {
+    const stored = loadQuantityReviewTasks();
+    // Always prepend the 5 mock tasks so the queue shows at least 5 extra items
+    return [...MOCK_TASKS, ...stored];
+  });
   const [evaluations, setEvaluations] = useState(() => _loadQuantityReviewEvaluations());
   const [notifications, setNotifications] = useState(() => loadQuantityReviewNotifications());
   const [form, setForm] = useState<ForwardFormState>(emptyForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [imagePreview, setImagePreview] = useState<string | null>(null); // separate preview URL
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   if (!user) {
     return null;
@@ -78,7 +186,7 @@ export function QuantitySurveyorTasks() {
       id: createQuantityReviewTaskId(),
       jobId: `JOB-${Date.now()}`,
       designWorkReference: `DW-${Date.now()}`,
-      telegramScreenshot: form.telegramScreenshot.trim(), // data URL
+      telegramScreenshot: form.telegramScreenshot.trim(),
       telegramScreenshotDescription: form.telegramScreenshotDescription.trim() || undefined,
       description: form.description.trim(),
       designerName: '',
@@ -107,7 +215,6 @@ export function QuantitySurveyorTasks() {
     setShowForm(false);
   };
 
-  // Detail modal for leadership to review submissions
   const [selectedTask, setSelectedTask] = useState<QuantityReviewTask | null>(null);
   const [showDetail, setShowDetail] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -138,7 +245,6 @@ export function QuantitySurveyorTasks() {
   const handleApprove = (task: QuantityReviewTask | null) => {
     if (!canManage || !task) return;
 
-    // create or update a minimal evaluation to record decision
     const existing = evaluations.find((e) => e.taskId === task.id);
     const decisionEvaluation = existing ? { ...existing, decisionStatus: 'approved', decisionNotes: 'Approved by leadership', decidedBy: user.id, decidedByName: user.name, decidedAt: new Date().toISOString() } : {
       id: createQuantityReviewEvaluationId(), taskId: task.id, jobId: task.jobId, surveyorId: task.assignedTo, surveyorName: '', costValue: 0, evaluationNotes: '', recommendation: 'recommended_for_approval', submittedAt: new Date().toISOString(), decisionStatus: 'approved', decisionNotes: 'Approved by leadership', decidedBy: user.id, decidedByName: user.name, decidedAt: new Date().toISOString(),
@@ -147,7 +253,7 @@ export function QuantitySurveyorTasks() {
     const nextEvaluations = existing ? evaluations.map((e) => e.id === decisionEvaluation.id ? decisionEvaluation : e) : [decisionEvaluation, ...evaluations];
     persistEvaluations(nextEvaluations);
     pushNotification(createDecisionMadeNotification(task as any, decisionEvaluation as any));
-    // update task status
+
     const nextTasks = tasks.map((t) => t.id === task.id ? { ...t, status: 'record_submitted', updatedAt: new Date().toISOString() } : t);
     persistTasks(nextTasks as QuantityReviewTask[]);
     setShowDetail(false);
@@ -166,6 +272,7 @@ export function QuantitySurveyorTasks() {
     const nextEvaluations = existing ? evaluations.map((e) => e.id === decisionEvaluation.id ? decisionEvaluation : e) : [decisionEvaluation, ...evaluations];
     persistEvaluations(nextEvaluations);
     pushNotification(createDecisionMadeNotification(task as any, decisionEvaluation as any));
+
     const nextTasks = tasks.map((t) => t.id === task.id ? { ...t, status: 'in_review', updatedAt: new Date().toISOString() } : t);
     persistTasks(nextTasks as QuantityReviewTask[]);
     setShowFeedbackModal(false);
@@ -300,7 +407,7 @@ export function QuantitySurveyorTasks() {
                 </div>
               </div>
 
-              {/* Updated Image Upload */}
+              {/* Image Upload */}
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">Telegram Screenshot</label>
                 <div className="flex items-center gap-2">
@@ -375,7 +482,7 @@ export function QuantitySurveyorTasks() {
                   className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
                 >
                   <Send className="h-4 w-4" />
-                  Forward to Quantity Surveyor
+                  Submit Task
                 </button>
               </div>
             </form>
@@ -383,7 +490,7 @@ export function QuantitySurveyorTasks() {
         </div>
       )}
 
-      {/* Detail modal for leadership review */}
+      {/* Detail modal */}
       {showDetail && selectedTask && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-6">
           <div className="bg-white rounded-xl p-6 w-full max-w-4xl shadow-xl max-h-[92vh] overflow-y-auto">
@@ -410,7 +517,6 @@ export function QuantitySurveyorTasks() {
                   </ul>
                 </div>
 
-                {/* Quantity Surveyor's submitted evaluation / observations */}
                 {(() => {
                   const ev = evaluations.find((e) => e.taskId === selectedTask.id);
                   if (!ev) return null;
