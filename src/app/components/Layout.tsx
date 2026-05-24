@@ -32,6 +32,8 @@ type NavigationItem = {
 
 export const PAID_CUSTOMERS_NOTIFICATIONS_KEY = 'paid-customers-notifications-v2';
 export const DATA_COLLECTOR_NOTIFICATIONS_KEY = 'data-collector-notifications-v2';
+export const QUANTITY_SURVEYOR_NOTIFICATIONS_KEY = 'quantity-surveyor-notifications-v2';
+export const FINANCE_VERIFICATIONS_NOTIFICATIONS_KEY = 'finance-verifications-notifications-v2';
 
 export function Layout({ children }: LayoutProps) {
   const { user, logout } = useAuth();
@@ -39,9 +41,11 @@ export function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Initialize both badges to 3 (the mock “new” count) – they update via events
+  // Initialize badges to 3 (the mock “new” count) – they update via events
   const [paidCustomerNotifications, setPaidCustomerNotifications] = useState(3);
   const [dataCollectorNotifications, setDataCollectorNotifications] = useState(3);
+  const [quantitySurveyorNotifications, setQuantitySurveyorNotifications] = useState(3);
+  const [financeVerificationsNotifications, setFinanceVerificationsNotifications] = useState(3);
 
   useEffect(() => {
     const onPaidCustomers = (e: Event) => {
@@ -54,12 +58,26 @@ export function Layout({ children }: LayoutProps) {
       setDataCollectorNotifications(customEvent.detail ?? 0);
     };
 
+    const onQuantitySurveyor = (e: Event) => {
+      const customEvent = e as CustomEvent<number>;
+      setQuantitySurveyorNotifications(customEvent.detail ?? 0);
+    };
+
+    const onFinanceVerifications = (e: Event) => {
+      const customEvent = e as CustomEvent<number>;
+      setFinanceVerificationsNotifications(customEvent.detail ?? 0);
+    };
+
     window.addEventListener('paid-customers-notifications-updated', onPaidCustomers);
     window.addEventListener('data-collector-notifications-updated', onDataCollector);
+    window.addEventListener('quantity-surveyor-notifications-updated', onQuantitySurveyor);
+    window.addEventListener('finance-verifications-notifications-updated', onFinanceVerifications);
 
     return () => {
       window.removeEventListener('paid-customers-notifications-updated', onPaidCustomers);
       window.removeEventListener('data-collector-notifications-updated', onDataCollector);
+      window.removeEventListener('quantity-surveyor-notifications-updated', onQuantitySurveyor);
+      window.removeEventListener('finance-verifications-notifications-updated', onFinanceVerifications);
     };
   }, []);
 
@@ -115,6 +133,7 @@ export function Layout({ children }: LayoutProps) {
         path: '/finance-verifications',
         label: 'Finance Verifications',
         icon: ClipboardCheck,
+        badge: financeVerificationsNotifications > 0 ? financeVerificationsNotifications : undefined,
       });
       addNavigationItem({
         path: '/data-collector-tasks',
@@ -137,6 +156,7 @@ export function Layout({ children }: LayoutProps) {
         path: '/quantity-surveyor-tasks',
         label: 'Quantity Surveyor Tasks',
         icon: CheckSquare,
+        badge: quantitySurveyorNotifications > 0 ? quantitySurveyorNotifications : undefined,
       });
       addNavigationItem({
         path: '/performance-ratings',

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Badge } from '../components/ui/badge';
 import {
@@ -137,11 +137,20 @@ const MOCK_TASKS: QuantityReviewTask[] = [
   },
 ];
 
+// ── Highlight / notification logic (same pattern as Paid Customers) ────
+const HIGHLIGHTED_IDS = ['mock-task-1', 'mock-task-2', 'mock-task-3'];
+const viewedQuantitySurveyorTaskCards = new Set<string>();
+
+function publishBadgeCount(count: number) {
+  window.dispatchEvent(
+    new CustomEvent('quantity-surveyor-notifications-updated', { detail: count })
+  );
+}
+
 export function QuantitySurveyorTasks() {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<QuantityReviewTask[]>(() => {
     const stored = loadQuantityReviewTasks();
-    // Always prepend the 5 mock tasks so the queue shows at least 5 extra items
     return [...MOCK_TASKS, ...stored];
   });
   const [evaluations, setEvaluations] = useState(() => _loadQuantityReviewEvaluations());
@@ -151,6 +160,79 @@ export function QuantitySurveyorTasks() {
   const [showForm, setShowForm] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
+  // ── Highlight state ──────────────────────────────────────────────
+  const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
+  const seenThisSession = useRef<Set<string>>(new Set());
+  const observedElements = useRef<Set<string>>(new Set());
+  const observerRef = useRef<IntersectionObserver | null>(null);
+
+  // Seed customer data from localStorage already done above
+
+  // Initialize highlighted IDs and publish initial badge count
+  useEffect(() => {
+    const unseen = new Set(
+      HIGHLIGHTED_IDS.filter((id) => !viewedQuantitySurveyorTaskCards.has(id))
+    );
+    setHighlightedIds(unseen);
+    publishBadgeCount(unseen.size);
+  }, []);
+
+  // IntersectionObserver: track which highlighted cards have been scrolled into view
+  useEffect(() => {
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+      observedElements.current.clear();
+    }
+
+    if (highlightedIds.size === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const id = (entry.target as HTMLElement).dataset.highlightedId;
+          if (!id || !highlightedIds.has(id)) return;
+
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.7) {
+            if (!observedElements.current.has(id)) {
+              observedElements.current.add(id);
+              seenThisSession.current.add(id);
+            }
+          }
+        });
+      },
+      { threshold: [0.7] }
+    );
+
+    observerRef.current = observer;
+
+    highlightedIds.forEach((id) => {
+      const el = document.querySelector(`[data-highlighted-id="${id}"]`);
+      if (el && !observedElements.current.has(id)) {
+        observer.observe(el);
+      }
+    });
+
+    return () => {
+      observer.disconnect();
+      observedElements.current.clear();
+    };
+  }, [highlightedIds]);
+
+  // Cleanup on unmount: mark seen items as read and update badge
+  useEffect(() => {
+    return () => {
+      const idsSeen = Array.from(seenThisSession.current);
+      if (idsSeen.length > 0) {
+        idsSeen.forEach((id) => viewedQuantitySurveyorTaskCards.add(id));
+        const remaining = new Set(
+          HIGHLIGHTED_IDS.filter((id) => !viewedQuantitySurveyorTaskCards.has(id))
+        );
+        publishBadgeCount(remaining.size);
+      }
+    };
+  }, []);
+
+  // ── Business logic unchanged ─────────────────────────────────────
   if (!user) {
     return null;
   }
@@ -168,7 +250,6 @@ export function QuantitySurveyorTasks() {
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = reader.result as string;
@@ -244,16 +325,13 @@ export function QuantitySurveyorTasks() {
 
   const handleApprove = (task: QuantityReviewTask | null) => {
     if (!canManage || !task) return;
-
     const existing = evaluations.find((e) => e.taskId === task.id);
     const decisionEvaluation = existing ? { ...existing, decisionStatus: 'approved', decisionNotes: 'Approved by leadership', decidedBy: user.id, decidedByName: user.name, decidedAt: new Date().toISOString() } : {
       id: createQuantityReviewEvaluationId(), taskId: task.id, jobId: task.jobId, surveyorId: task.assignedTo, surveyorName: '', costValue: 0, evaluationNotes: '', recommendation: 'recommended_for_approval', submittedAt: new Date().toISOString(), decisionStatus: 'approved', decisionNotes: 'Approved by leadership', decidedBy: user.id, decidedByName: user.name, decidedAt: new Date().toISOString(),
     };
-
     const nextEvaluations = existing ? evaluations.map((e) => e.id === decisionEvaluation.id ? decisionEvaluation : e) : [decisionEvaluation, ...evaluations];
     persistEvaluations(nextEvaluations);
     pushNotification(createDecisionMadeNotification(task as any, decisionEvaluation as any));
-
     const nextTasks = tasks.map((t) => t.id === task.id ? { ...t, status: 'record_submitted', updatedAt: new Date().toISOString() } : t);
     persistTasks(nextTasks as QuantityReviewTask[]);
     setShowDetail(false);
@@ -262,17 +340,14 @@ export function QuantitySurveyorTasks() {
   const handleProvideFeedback = () => {
     if (!canManage || !selectedTask) return;
     if (!feedbackText.trim()) return;
-
     const task = selectedTask;
     const existing = evaluations.find((e) => e.taskId === task.id);
     const decisionEvaluation = existing ? { ...existing, decisionStatus: 'feedback', decisionNotes: feedbackText.trim(), decidedBy: user.id, decidedByName: user.name, decidedAt: new Date().toISOString() } : {
       id: createQuantityReviewEvaluationId(), taskId: task.id, jobId: task.jobId, surveyorId: task.assignedTo, surveyorName: '', costValue: 0, evaluationNotes: '', recommendation: 'recommends_revision', submittedAt: new Date().toISOString(), decisionStatus: 'feedback', decisionNotes: feedbackText.trim(), decidedBy: user.id, decidedByName: user.name, decidedAt: new Date().toISOString(),
     };
-
     const nextEvaluations = existing ? evaluations.map((e) => e.id === decisionEvaluation.id ? decisionEvaluation : e) : [decisionEvaluation, ...evaluations];
     persistEvaluations(nextEvaluations);
     pushNotification(createDecisionMadeNotification(task as any, decisionEvaluation as any));
-
     const nextTasks = tasks.map((t) => t.id === task.id ? { ...t, status: 'in_review', updatedAt: new Date().toISOString() } : t);
     persistTasks(nextTasks as QuantityReviewTask[]);
     setShowFeedbackModal(false);
@@ -281,6 +356,14 @@ export function QuantitySurveyorTasks() {
   };
 
   const forwardedByCurrentUser = tasks.filter((task) => task.createdBy === user.id).length;
+
+  // Sort: highlighted first, then by creation date descending
+  const sortedTasks = [...tasks].sort((a, b) => {
+    const aHL = highlightedIds.has(a.id) ? 1 : 0;
+    const bHL = highlightedIds.has(b.id) ? 1 : 0;
+    if (bHL !== aHL) return bHL - aHL;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
 
   return (
     <div className="space-y-6">
@@ -291,6 +374,14 @@ export function QuantitySurveyorTasks() {
           <p className="mt-1 text-sm text-slate-600">
             Forward design submissions from Telegram to Quantity Surveyor with screenshot evidence and job details.
           </p>
+          {highlightedIds.size > 0 && (
+            <p className="text-sm text-blue-600 mt-2 flex items-center gap-2">
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-semibold">
+                {highlightedIds.size}
+              </span>
+              new {highlightedIds.size === 1 ? 'record' : 'records'} since your last visit
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Badge variant="outline">Forwarded by you: {forwardedByCurrentUser}</Badge>
@@ -313,53 +404,73 @@ export function QuantitySurveyorTasks() {
         <p className="mt-1 text-sm text-slate-600">Latest Telegram design submissions sent for quantity review.</p>
 
         <div className="mt-4 space-y-3">
-          {tasks.map((task) => (
-            <div key={task.id} className="rounded-xl border border-slate-200 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-semibold text-slate-900">{task.jobId}</p>
-                  <p className="text-sm text-slate-500">{task.designWorkReference}</p>
+          {sortedTasks.map((task) => {
+            const isHighlighted = highlightedIds.has(task.id);
+            return (
+              <div
+                key={task.id}
+                data-highlighted-id={isHighlighted ? task.id : undefined}
+                className={[
+                  'rounded-xl p-4 transition-all duration-300',
+                  isHighlighted
+                    ? 'border-2 border-blue-400 ring-4 ring-blue-100 shadow-blue-100'
+                    : 'border border-slate-200',
+                ].join(' ')}
+              >
+                {isHighlighted && (
+                  <div className="mb-3">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                      New
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-slate-900">{task.jobId}</p>
+                    <p className="text-sm text-slate-500">{task.designWorkReference}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      className={
+                        task.status === 'pending_review'
+                          ? 'bg-amber-100 text-amber-700 border-amber-200'
+                          : 'bg-slate-100 text-slate-700 border-slate-200'
+                      }
+                    >
+                      {task.status.replace('_', ' ')}
+                    </Badge>
+                    {(() => {
+                      const ev = evaluations.find((e) => e.taskId === task.id);
+                      if (!ev) return null;
+                      return (
+                        <div className="flex items-center gap-2">
+                          {ev.decisionStatus === 'feedback' && <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Feedback Provided</span>}
+                          {ev.decisionStatus === 'approved' && <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">Approved</span>}
+                          {ev.decisionStatus === 'pending' && <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Pending Decision</span>}
+                          {ev.recommendation === 'recommends_revision' && <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Recommends Revision</span>}
+                          {ev.recommendation === 'recommended_for_approval' && <span className="px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">Within budget</span>}
+                        </div>
+                      );
+                    })()}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge
-                    className={
-                      task.status === 'pending_review'
-                        ? 'bg-amber-100 text-amber-700 border-amber-200'
-                        : 'bg-slate-100 text-slate-700 border-slate-200'
-                    }
+                <div className="mt-3">
+                  <button
+                    onClick={() => openDetail(task)}
+                    className="text-sm text-blue-600 hover:underline"
                   >
-                    {task.status.replace('_', ' ')}
-                  </Badge>
-                  {(() => {
-                    const ev = evaluations.find((e) => e.taskId === task.id);
-                    if (!ev) return null;
-                    return (
-                      <div className="flex items-center gap-2">
-                        {ev.decisionStatus === 'feedback' && <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Feedback Provided</span>}
-                        {ev.decisionStatus === 'approved' && <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">Approved</span>}
-                        {ev.decisionStatus === 'pending' && <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Pending Decision</span>}
-                        {ev.recommendation === 'recommends_revision' && <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Recommends Revision</span>}
-                        {ev.recommendation === 'recommended_for_approval' && <span className="px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">Within budget</span>}
-                      </div>
-                    );
-                  })()}
+                    Open Submission Detail
+                  </button>
                 </div>
+                <p className="mt-2 text-sm text-slate-600">{task.description}</p>
+                <p className="mt-2 text-xs uppercase tracking-wide text-slate-500">
+                  Designer: {task.designerName}
+                </p>
               </div>
-               <div className="mt-3">
-                <button
-                  onClick={() => openDetail(task)}
-                  className="text-sm text-blue-600 hover:underline"
-                >
-                  Open Submission Detail
-                </button>
-              </div>
-              <p className="mt-2 text-sm text-slate-600">{task.description}</p>
-              <p className="mt-2 text-xs uppercase tracking-wide text-slate-500">
-                Designer: {task.designerName}
-              </p>
-             
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
