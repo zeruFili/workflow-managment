@@ -1,12 +1,16 @@
-import React, { useMemo, useState, useRef } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Task } from '../types';
 import { Badge } from '../components/ui/badge';
 import { Calendar, Plus, Image, X, Send } from 'lucide-react';
 
-const STORAGE_KEY = 'data-collector-tasks';
+const STORAGE_KEY = 'data-collector-tasks-v2';
 
-// Updated seedTasks array inside DataCollectorTasks.tsx
+// In‑memory “viewed” set – survives route changes but resets on page refresh
+const viewedDataCollectorCards = new Set<string>();
+
+// First 3 tasks are always “new” until the user navigates away
+const HIGHLIGHTED_IDS = ['dc-task-1', 'dc-task-2', 'dc-task-3'];
 
 const seedTasks: Task[] = [
   {
@@ -131,8 +135,19 @@ const seedTasks: Task[] = [
   },
 ];
 
+// ─── In‑memory notification helper ─────────────────────────────────────────
+
+function publishBadgeCount(count: number) {
+  window.dispatchEvent(
+    new CustomEvent('data-collector-notifications-updated', { detail: count })
+  );
+}
+
+// ─── Component ──────────────────────────────────────────────────────────────
+
 export function DataCollectorTasks() {
   const { user } = useAuth();
+
   const [tasks, setTasks] = useState<Task[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (!saved) {
@@ -150,6 +165,37 @@ export function DataCollectorTasks() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
     return merged;
   });
+
+  const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
+
+  // Ref always mirrors highlightedIds so the unmount cleanup never reads stale state
+  const highlightedIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    highlightedIdsRef.current = highlightedIds;
+  }, [highlightedIds]);
+
+  // ── On mount: determine which tasks are still unseen ──────────────────────
+  useEffect(() => {
+    const unseen = new Set(
+      HIGHLIGHTED_IDS.filter((id) => !viewedDataCollectorCards.has(id))
+    );
+    setHighlightedIds(unseen);
+    publishBadgeCount(unseen.size);
+  }, []);
+
+  // ── On unmount: mark all currently-highlighted tasks as viewed ────────────
+  useEffect(() => {
+    return () => {
+      const current = highlightedIdsRef.current;
+      if (current.size === 0) return;
+
+      current.forEach((id) => viewedDataCollectorCards.add(id));
+      const remaining = HIGHLIGHTED_IDS.filter(
+        (id) => !viewedDataCollectorCards.has(id)
+      );
+      publishBadgeCount(remaining.length);
+    };
+  }, []); // empty deps — runs only on unmount
 
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showDetail, setShowDetail] = useState(false);
@@ -172,21 +218,23 @@ export function DataCollectorTasks() {
 
   if (!user) return null;
 
-  const canManage = user.role === 'ceo' || user.role === 'general_manager' || user.role === 'system_administrator';
+  const canManage =
+    user.role === 'ceo' ||
+    user.role === 'general_manager' ||
+    user.role === 'system_administrator';
 
-  const summary = useMemo(() => ({
+  const summary = {
     total: tasks.length,
     pending: tasks.filter((t) => t.status === 'pending').length,
     inProgress: tasks.filter((t) => t.status === 'in_progress').length,
     completed: tasks.filter((t) => t.status === 'completed').length,
-  }), [tasks]);
+  };
 
   const persistTasks = (updated: Task[]) => {
     setTasks(updated);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
   };
 
-  // Open detail modal
   const openDetail = (task: Task) => {
     setSelectedTask(task);
     setShowDetail(true);
@@ -197,14 +245,11 @@ export function DataCollectorTasks() {
     setShowDetail(false);
   };
 
-  // Handle screenshot upload for new task creation
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
-      setScreenshotPreview(reader.result as string);
-    };
+    reader.onload = () => setScreenshotPreview(reader.result as string);
     reader.readAsDataURL(file);
   };
 
@@ -233,17 +278,17 @@ export function DataCollectorTasks() {
     setShowCreateModal(false);
   };
 
-  // Approval action
   const handleApprove = (task: Task) => {
     if (!canManage) return;
     const updated = tasks.map((t) =>
-      t.id === task.id ? { ...t, approvalStatus: 'approved', updatedAt: new Date().toISOString() } : t
+      t.id === task.id
+        ? { ...t, approvalStatus: 'approved', updatedAt: new Date().toISOString() }
+        : t
     );
     persistTasks(updated);
     closeDetail();
   };
 
-  // Feedback action
   const handleProvideFeedback = () => {
     if (!canManage || !selectedTask) return;
     if (!feedbackText.trim()) return;
@@ -258,11 +303,7 @@ export function DataCollectorTasks() {
 
     const updated = tasks.map((t) =>
       t.id === selectedTask.id
-        ? {
-            ...t,
-            feedbacks: [...(t.feedbacks || []), feedback],
-            updatedAt: new Date().toISOString(),
-          }
+        ? { ...t, feedbacks: [...(t.feedbacks || []), feedback], updatedAt: new Date().toISOString() }
         : t
     );
     persistTasks(updated);
@@ -271,15 +312,32 @@ export function DataCollectorTasks() {
     closeDetail();
   };
 
+  // Sort tasks so highlighted ones always appear at the top
+  const sortedTasks = useMemo(() => {
+    return [...tasks].sort((a, b) => {
+      const aHL = highlightedIds.has(a.id) ? 1 : 0;
+      const bHL = highlightedIds.has(b.id) ? 1 : 0;
+      return bHL - aHL; // highlighted first
+    });
+  }, [tasks, highlightedIds]);
+
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* ── Header ── */}
       <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
         <div>
           <h2 className="text-2xl font-semibold text-slate-900">Data Collector Assignment Desk</h2>
           <p className="mt-1 text-sm text-slate-600">
             Create and manage field data collection tasks with screenshot evidence and review submissions.
           </p>
+          {highlightedIds.size > 0 && (
+            <p className="mt-2 text-sm text-blue-600 flex items-center gap-2">
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-semibold">
+                {highlightedIds.size}
+              </span>
+              new {highlightedIds.size === 1 ? 'task' : 'tasks'} since your last visit
+            </p>
+          )}
         </div>
         {canManage && (
           <button
@@ -292,7 +350,7 @@ export function DataCollectorTasks() {
         )}
       </div>
 
-      {/* Summary cards */}
+      {/* ── Summary cards ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: 'Total', value: summary.total },
@@ -307,67 +365,94 @@ export function DataCollectorTasks() {
         ))}
       </div>
 
-      {/* Task list */}
+      {/* ── Task list (sorted) ── */}
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h3 className="text-lg font-semibold text-slate-900">Data collection queue</h3>
         <p className="mt-1 text-sm text-slate-600">Latest field tasks with submissions and status.</p>
 
         <div className="mt-4 space-y-3">
-          {tasks.map((task) => (
-            <div key={task.id} className="rounded-xl border border-slate-200 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-semibold text-slate-900">{task.title}</p>
-                  <p className="text-sm text-slate-500">ID: {task.id}</p>
+          {sortedTasks.map((task) => {
+            const isHighlighted = highlightedIds.has(task.id);
+            return (
+              <div
+                key={task.id}
+                className={[
+                  'rounded-xl p-4 transition-all duration-300',
+                  isHighlighted
+                    ? 'border-2 border-blue-400 ring-4 ring-blue-100 bg-white shadow-blue-100 shadow-sm'
+                    : 'border border-slate-200',
+                ].join(' ')}
+              >
+                {/* "New" pill */}
+                {isHighlighted && (
+                  <div className="mb-2">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                      New
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-slate-900">{task.title}</p>
+                    <p className="text-sm text-slate-500">ID: {task.id}</p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge
+                      className={
+                        task.status === 'completed'
+                          ? 'bg-green-100 text-green-700 border-green-200'
+                          : task.status === 'in_progress'
+                          ? 'bg-blue-100 text-blue-700 border-blue-200'
+                          : 'bg-amber-100 text-amber-700 border-amber-200'
+                      }
+                    >
+                      {task.status.replace('_', ' ')}
+                    </Badge>
+                    {task.feedbacks && task.feedbacks.length > 0 && (
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                        Feedback Provided
+                      </span>
+                    )}
+                    {task.approvalStatus === 'approved' && (
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        Approved
+                      </span>
+                    )}
+                    {task.approvalStatus === 'rejected' && (
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                        Rejected
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Badge
-                    className={
-                      task.status === 'completed'
-                        ? 'bg-green-100 text-green-700 border-green-200'
-                        : task.status === 'in_progress'
-                        ? 'bg-blue-100 text-blue-700 border-blue-200'
-                        : 'bg-amber-100 text-amber-700 border-amber-200'
-                    }
+
+                <p className="mt-2 text-sm text-slate-600">{task.description}</p>
+
+                <div className="mt-3 flex items-center justify-between text-sm text-slate-500">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    <span>
+                      {task.deadline
+                        ? new Date(task.deadline).toLocaleDateString()
+                        : 'No deadline'}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => openDetail(task)}
+                    className="text-blue-600 hover:underline text-sm font-medium"
                   >
-                    {task.status.replace('_', ' ')}
-                  </Badge>
-                  {task.feedbacks && task.feedbacks.length > 0 && (
-                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                      Feedback Provided
-                    </span>
-                  )}
-                  {task.approvalStatus === 'approved' && (
-                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      Approved
-                    </span>
-                  )}
-                  {task.approvalStatus === 'rejected' && (
-                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                      Rejected
-                    </span>
-                  )}
+                    Open Submission Detail
+                  </button>
                 </div>
               </div>
-              <p className="mt-2 text-sm text-slate-600">{task.description}</p>
-              <div className="mt-3 flex items-center justify-between text-sm text-slate-500">
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
-                  <span>{task.deadline ? new Date(task.deadline).toLocaleDateString() : 'No deadline'}</span>
-                </div>
-                <button
-                  onClick={() => openDetail(task)}
-                  className="text-blue-600 hover:underline text-sm font-medium"
-                >
-                  Open Submission Detail
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
-      {/* Create task modal */}
+      {/* ── Create task modal ── */}
       {showCreateModal && canManage && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -424,7 +509,9 @@ export function DataCollectorTasks() {
                   <label className="mb-2 block text-sm font-medium text-slate-700">Status</label>
                   <select
                     value={newTaskForm.status}
-                    onChange={(e) => setNewTaskForm((f) => ({ ...f, status: e.target.value as Task['status'] }))}
+                    onChange={(e) =>
+                      setNewTaskForm((f) => ({ ...f, status: e.target.value as Task['status'] }))
+                    }
                     className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm"
                   >
                     <option value="pending">Pending</option>
@@ -434,7 +521,9 @@ export function DataCollectorTasks() {
                 </div>
               </div>
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Telegram Screenshot (Evidence)</label>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Telegram Screenshot (Evidence)
+                </label>
                 <div className="flex items-center gap-2">
                   <label className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-sm">
                     <Image className="w-4 h-4" />
@@ -452,14 +541,25 @@ export function DataCollectorTasks() {
                   )}
                 </div>
                 {screenshotPreview && (
-                  <img src={screenshotPreview} alt="preview" className="mt-3 max-h-48 rounded-lg border object-contain" />
+                  <img
+                    src={screenshotPreview}
+                    alt="preview"
+                    className="mt-3 max-h-48 rounded-lg border object-contain"
+                  />
                 )}
               </div>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200"
+                >
                   Cancel
                 </button>
-                <button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                >
                   <Send className="h-4 w-4" />
                   Create Task
                 </button>
@@ -469,7 +569,7 @@ export function DataCollectorTasks() {
         </div>
       )}
 
-      {/* Detail modal */}
+      {/* ── Detail modal ── */}
       {showDetail && selectedTask && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-6">
           <div className="bg-white rounded-xl p-6 w-full max-w-4xl shadow-xl max-h-[92vh] overflow-y-auto">
@@ -477,9 +577,16 @@ export function DataCollectorTasks() {
               <div>
                 <h3 className="text-2xl font-semibold">{selectedTask.title}</h3>
                 <p className="text-sm text-gray-500">Task ID: {selectedTask.id}</p>
-                <p className="text-sm text-gray-500">Deadline: {selectedTask.deadline ? new Date(selectedTask.deadline).toLocaleString() : 'None'}</p>
+                <p className="text-sm text-gray-500">
+                  Deadline:{' '}
+                  {selectedTask.deadline
+                    ? new Date(selectedTask.deadline).toLocaleString()
+                    : 'None'}
+                </p>
               </div>
-              <button onClick={closeDetail} className="px-3 py-2 rounded-lg border">Close</button>
+              <button onClick={closeDetail} className="px-3 py-2 rounded-lg border">
+                Close
+              </button>
             </div>
 
             <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -494,13 +601,16 @@ export function DataCollectorTasks() {
 
                 {/* Submissions */}
                 <div className="mt-4">
-                  <h5 className="text-sm font-medium text-gray-600">Submissions ({selectedTask.submissions?.length || 0})</h5>
+                  <h5 className="text-sm font-medium text-gray-600">
+                    Submissions ({selectedTask.submissions?.length || 0})
+                  </h5>
                   {selectedTask.submissions && selectedTask.submissions.length > 0 ? (
                     <div className="mt-2 space-y-3">
                       {selectedTask.submissions.map((sub) => (
                         <div key={sub.id} className="bg-gray-50 p-4 rounded-lg border">
                           <div className="text-sm">
-                            <span className="font-medium">Submitted by:</span> {sub.submittedByName} ({new Date(sub.submittedAt).toLocaleString()})
+                            <span className="font-medium">Submitted by:</span> {sub.submittedByName}{' '}
+                            ({new Date(sub.submittedAt).toLocaleString()})
                           </div>
                           <p className="mt-2 text-sm text-gray-700">{sub.notes}</p>
                           {sub.metadata && (
@@ -533,7 +643,7 @@ export function DataCollectorTasks() {
                   )}
                 </div>
 
-                {/* Telegram screenshot evidence */}
+                {/* Screenshot evidence */}
                 <div className="mt-6">
                   <h5 className="text-sm font-medium text-gray-600">Task Screenshot Evidence</h5>
                   {selectedTask.telegramScreenshot ? (
@@ -564,7 +674,9 @@ export function DataCollectorTasks() {
                         {selectedTask.feedbacks.map((fb) => (
                           <div key={fb.id} className="text-xs mt-1 pl-2 border-l-2 border-yellow-400">
                             <span className="font-medium">{fb.createdByName}:</span> {fb.text}
-                            <div className="text-gray-400">{new Date(fb.createdAt).toLocaleString()}</div>
+                            <div className="text-gray-400">
+                              {new Date(fb.createdAt).toLocaleString()}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -576,10 +688,16 @@ export function DataCollectorTasks() {
                   <div className="p-4 bg-white rounded-lg border shadow-sm">
                     <h5 className="text-sm font-medium text-gray-600">Actions</h5>
                     <div className="mt-3 flex flex-col gap-2">
-                      <button onClick={() => handleApprove(selectedTask)} className="w-full px-3 py-2 bg-green-600 text-white rounded-lg">
+                      <button
+                        onClick={() => handleApprove(selectedTask)}
+                        className="w-full px-3 py-2 bg-green-600 text-white rounded-lg"
+                      >
                         Approve
                       </button>
-                      <button onClick={() => setShowFeedbackModal(true)} className="w-full px-3 py-2 border rounded-lg text-gray-700">
+                      <button
+                        onClick={() => setShowFeedbackModal(true)}
+                        className="w-full px-3 py-2 border rounded-lg text-gray-700"
+                      >
                         Provide Feedback
                       </button>
                     </div>
@@ -591,13 +709,15 @@ export function DataCollectorTasks() {
         </div>
       )}
 
-      {/* Feedback modal */}
+      {/* ── Feedback modal ── */}
       {showFeedbackModal && selectedTask && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6">
           <div className="bg-white rounded-xl p-6 w-full max-w-2xl shadow-xl">
             <div className="flex items-center justify-between">
               <h4 className="text-lg font-semibold">Provide Feedback</h4>
-              <button onClick={() => setShowFeedbackModal(false)} className="px-3 py-2 rounded-lg border">Cancel</button>
+              <button onClick={() => setShowFeedbackModal(false)} className="px-3 py-2 rounded-lg border">
+                Cancel
+              </button>
             </div>
             <textarea
               value={feedbackText}
@@ -607,14 +727,24 @@ export function DataCollectorTasks() {
               placeholder="Enter feedback for the data collector..."
             />
             <div className="mt-4 flex justify-end gap-3">
-              <button onClick={() => setShowFeedbackModal(false)} className="px-4 py-2 rounded-lg border">Close</button>
-              <button onClick={handleProvideFeedback} className="px-4 py-2 bg-blue-600 text-white rounded-lg">Send Feedback</button>
+              <button
+                onClick={() => setShowFeedbackModal(false)}
+                className="px-4 py-2 rounded-lg border"
+              >
+                Close
+              </button>
+              <button
+                onClick={handleProvideFeedback}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg"
+              >
+                Send Feedback
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Image viewer modal */}
+      {/* ── Image viewer modal ── */}
       {imageViewerSrc && (
         <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
           <div className="relative max-w-[95vw] max-h-[95vh]">
@@ -637,10 +767,22 @@ export function DataCollectorTasks() {
               </button>
             </div>
             <div className="absolute left-2 bottom-2 flex items-center gap-2 bg-white/90 rounded p-2">
-              <button onClick={() => setImageZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))} className="px-2 py-1 border rounded">-</button>
+              <button
+                onClick={() => setImageZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))}
+                className="px-2 py-1 border rounded"
+              >
+                -
+              </button>
               <div className="text-sm px-2">{Math.round(imageZoom * 100)}%</div>
-              <button onClick={() => setImageZoom((z) => Math.min(3, +(z + 0.25).toFixed(2)))} className="px-2 py-1 border rounded">+</button>
-              <button onClick={() => setImageZoom(1)} className="px-2 py-1 border rounded">Reset</button>
+              <button
+                onClick={() => setImageZoom((z) => Math.min(3, +(z + 0.25).toFixed(2)))}
+                className="px-2 py-1 border rounded"
+              >
+                +
+              </button>
+              <button onClick={() => setImageZoom(1)} className="px-2 py-1 border rounded">
+                Reset
+              </button>
             </div>
           </div>
         </div>

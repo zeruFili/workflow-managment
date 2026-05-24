@@ -10,10 +10,11 @@ import {
   Users,
   FileText,
 } from 'lucide-react';
-import { PAID_CUSTOMERS_NOTIFICATIONS_KEY } from '../components/Layout';
 
 const PAID_STORAGE_KEY = 'paid-customers-v2';
-const VIEWED_CARDS_KEY = 'paid-customers-viewed-cards-v2';
+
+// In‑memory “viewed” set – survives route changes but resets on page refresh
+const viewedPaidCustomerCards = new Set<string>();
 
 const categoryLabels: Record<CustomerRequestCategory, string> = {
   home_design: 'Home Design',
@@ -22,7 +23,7 @@ const categoryLabels: Record<CustomerRequestCategory, string> = {
   other: 'Other',
 };
 
-// These three IDs are always "new" until the user visits the page
+// These three IDs are always “new” until the user navigates away
 const HIGHLIGHTED_IDS = ['pc-1', 'pc-2', 'pc-3'];
 
 const initialPaidCustomers: PaidCustomer[] = [
@@ -33,7 +34,8 @@ const initialPaidCustomers: PaidCustomer[] = [
     customerEmail: 'nadia@example.com',
     customerAddress: 'Dubai Marina, Dubai',
     category: 'home_design',
-    serviceDescription: 'Modern home concept – living room, kitchen, bedroom layout planning.',
+    serviceDescription:
+      'Modern home concept – living room, kitchen, bedroom layout planning.',
     preferredStartDate: '2026-04-28',
     budget: 'AED 180,000',
     notes: 'Warm minimal style with natural materials.',
@@ -56,7 +58,8 @@ const initialPaidCustomers: PaidCustomer[] = [
     customerEmail: 'mona@example.com',
     customerAddress: 'Abu Dhabi Corniche, Abu Dhabi',
     category: 'hair_salon_design',
-    serviceDescription: "Women's salon interior with reception, styling stations, waiting area.",
+    serviceDescription:
+      "Women's salon interior with reception, styling stations, waiting area.",
     preferredStartDate: '2026-05-05',
     budget: 'AED 95,000',
     notes: 'Privacy zoning and premium finishes.',
@@ -79,7 +82,8 @@ const initialPaidCustomers: PaidCustomer[] = [
     customerEmail: 'omar.elsayed@example.com',
     customerAddress: 'Jumeirah Beach Residence, Dubai',
     category: 'finishing_work',
-    serviceDescription: 'Complete finishing for 3-bedroom apartment – flooring, painting, custom cabinetry.',
+    serviceDescription:
+      'Complete finishing for 3-bedroom apartment – flooring, painting, custom cabinetry.',
     preferredStartDate: '2026-05-12',
     budget: 'AED 250,000',
     notes: 'Marble flooring in living areas, wooden flooring in bedrooms.',
@@ -102,7 +106,8 @@ const initialPaidCustomers: PaidCustomer[] = [
     customerEmail: '',
     customerAddress: 'Al Ain, Abu Dhabi',
     category: 'other',
-    serviceDescription: 'Custom built-in library and reading nook for a private residence.',
+    serviceDescription:
+      'Custom built-in library and reading nook for a private residence.',
     preferredStartDate: '2026-05-20',
     budget: 'AED 45,000',
     notes: 'Woodwork must match existing mahogany furniture.',
@@ -126,7 +131,8 @@ const initialPaidCustomers: PaidCustomer[] = [
     customerEmail: 'layla.h@example.com',
     customerAddress: 'Dubai Hills Estate, Dubai',
     category: 'hair_salon_design',
-    serviceDescription: 'Luxury salon with VIP rooms, bridal suite, and retail display.',
+    serviceDescription:
+      'Luxury salon with VIP rooms, bridal suite, and retail display.',
     preferredStartDate: '2026-05-25',
     budget: 'AED 180,000',
     notes: 'Rose gold and marble branding, custom product shelves.',
@@ -144,28 +150,15 @@ const initialPaidCustomers: PaidCustomer[] = [
   },
 ];
 
-// ─── localStorage helpers ────────────────────────────────────────────────────
-
-function getViewedCards(): Set<string> {
-  try {
-    const raw = localStorage.getItem(VIEWED_CARDS_KEY);
-    return raw ? new Set<string>(JSON.parse(raw)) : new Set<string>();
-  } catch {
-    return new Set<string>();
-  }
-}
-
-function saveViewedCards(viewed: Set<string>) {
-  localStorage.setItem(VIEWED_CARDS_KEY, JSON.stringify([...viewed]));
-}
+// ─── In‑memory notification helper ─────────────────────────────────────────
 
 function publishBadgeCount(count: number) {
-  localStorage.setItem(PAID_CUSTOMERS_NOTIFICATIONS_KEY, String(count));
-  // Notify the Layout sidebar in the same tab immediately
-  window.dispatchEvent(new Event('paid-customers-notifications-updated'));
+  window.dispatchEvent(
+    new CustomEvent('paid-customers-notifications-updated', { detail: count })
+  );
 }
 
-// ─── component ───────────────────────────────────────────────────────────────
+// ─── Component ──────────────────────────────────────────────────────────────
 
 export function PaidCustomers() {
   const { user } = useAuth();
@@ -192,29 +185,28 @@ export function PaidCustomers() {
 
   // ── 2. On mount: work out which highlighted cards are still unseen ─────────
   useEffect(() => {
-    const viewed = getViewedCards();
-    const unseen = new Set(HIGHLIGHTED_IDS.filter((id) => !viewed.has(id)));
+    const unseen = new Set(
+      HIGHLIGHTED_IDS.filter((id) => !viewedPaidCustomerCards.has(id))
+    );
     setHighlightedIds(unseen);      // drives the card highlight UI
     publishBadgeCount(unseen.size); // drives the sidebar badge
   }, []);
 
   // ── 3. On unmount: mark every card that was highlighted as viewed ──────────
-  //    We use the ref so we always get the correct current value.
   useEffect(() => {
     return () => {
       const current = highlightedIdsRef.current;
       if (current.size === 0) return;
 
-      const viewed = getViewedCards();
-      current.forEach((id) => viewed.add(id));
-      saveViewedCards(viewed);
-
-      const remaining = HIGHLIGHTED_IDS.filter((id) => !viewed.has(id));
+      current.forEach((id) => viewedPaidCustomerCards.add(id));
+      const remaining = HIGHLIGHTED_IDS.filter(
+        (id) => !viewedPaidCustomerCards.has(id)
+      );
       publishBadgeCount(remaining.length);
     };
   }, []); // intentionally empty – runs only on unmount
 
-  // ── 4. Persist any customer-list changes ──────────────────────────────────
+  // ── 4. Persist any customer‑list changes ──────────────────────────────────
   useEffect(() => {
     if (paidCustomers.length > 0) {
       localStorage.setItem(PAID_STORAGE_KEY, JSON.stringify(paidCustomers));
@@ -226,6 +218,7 @@ export function PaidCustomers() {
   const canAccess =
     user.role === 'marketing_lead' ||
     user.role === 'ceo' ||
+    user.role === 'general_manager' ||
     user.role === 'system_administrator';
 
   if (!canAccess) {
@@ -237,6 +230,13 @@ export function PaidCustomers() {
       </div>
     );
   }
+
+  // Sort so that highlighted cards appear at the top
+  const sortedCustomers = [...paidCustomers].sort((a, b) => {
+    const aHL = highlightedIds.has(a.id) ? 1 : 0;
+    const bHL = highlightedIds.has(b.id) ? 1 : 0;
+    return bHL - aHL; // highlighted (1) before normal (0)
+  });
 
   return (
     <div className="space-y-6">
@@ -269,9 +269,9 @@ export function PaidCustomers() {
         </div>
       </div>
 
-      {/* ── Card list ── */}
+      {/* ── Card list (sorted) ── */}
       <div className="grid grid-cols-1 gap-4">
-        {paidCustomers.map((customer) => {
+        {sortedCustomers.map((customer) => {
           const isHighlighted = highlightedIds.has(customer.id);
 
           return (
@@ -297,10 +297,13 @@ export function PaidCustomers() {
               {/* ── Card header ── */}
               <div className="flex items-start justify-between gap-4 flex-col sm:flex-row">
                 <div>
-                  <h3 className="font-semibold text-lg text-gray-900">{customer.customerName}</h3>
+                  <h3 className="font-semibold text-lg text-gray-900">
+                    {customer.customerName}
+                  </h3>
                   <p className="text-sm text-gray-500 mt-1">
                     {categoryLabels[customer.category]}
-                    {'otherCategoryDescription' in customer && customer.otherCategoryDescription
+                    {'otherCategoryDescription' in customer &&
+                    customer.otherCategoryDescription
                       ? ` (${customer.otherCategoryDescription})`
                       : ''}
                   </p>
@@ -308,7 +311,8 @@ export function PaidCustomers() {
                 <div className="flex items-center gap-3 flex-wrap">
                   <div className="text-sm text-gray-500 flex items-center gap-2">
                     <Calendar className="w-4 h-4" />
-                    Transferred: {new Date(customer.transferredAt).toLocaleDateString()}
+                    Transferred:{' '}
+                    {new Date(customer.transferredAt).toLocaleDateString()}
                   </div>
                 </div>
               </div>

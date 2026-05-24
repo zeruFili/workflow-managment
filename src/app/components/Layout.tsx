@@ -30,48 +30,36 @@ type NavigationItem = {
   badge?: number;
 };
 
-// Shared key – PaidCustomers writes here, Layout reads it
 export const PAID_CUSTOMERS_NOTIFICATIONS_KEY = 'paid-customers-notifications-v2';
+export const DATA_COLLECTOR_NOTIFICATIONS_KEY = 'data-collector-notifications-v2';
 
 export function Layout({ children }: LayoutProps) {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [paidCustomerNotifications, setPaidCustomerNotifications] = useState(0);
+
+  // Initialize both badges to 3 (the mock “new” count) – they update via events
+  const [paidCustomerNotifications, setPaidCustomerNotifications] = useState(3);
+  const [dataCollectorNotifications, setDataCollectorNotifications] = useState(3);
 
   useEffect(() => {
-    const readCount = () => {
-      try {
-        const raw = localStorage.getItem(PAID_CUSTOMERS_NOTIFICATIONS_KEY);
-        // If the key has never been written, default to 3 (all three are new)
-        const value = raw !== null ? Number(raw) : 3;
-        if (raw === null) {
-          localStorage.setItem(PAID_CUSTOMERS_NOTIFICATIONS_KEY, '3');
-        }
-        setPaidCustomerNotifications(value);
-      } catch {
-        setPaidCustomerNotifications(0);
-      }
+    const onPaidCustomers = (e: Event) => {
+      const customEvent = e as CustomEvent<number>;
+      setPaidCustomerNotifications(customEvent.detail ?? 0);
     };
 
-    readCount();
-
-    // Cross-tab: another tab navigated away from PaidCustomers
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === PAID_CUSTOMERS_NOTIFICATIONS_KEY) {
-        setPaidCustomerNotifications(Number(e.newValue ?? 0));
-      }
+    const onDataCollector = (e: Event) => {
+      const customEvent = e as CustomEvent<number>;
+      setDataCollectorNotifications(customEvent.detail ?? 0);
     };
 
-    // Same-tab: PaidCustomers unmounted and published the updated count
-    const onCustom = () => readCount();
+    window.addEventListener('paid-customers-notifications-updated', onPaidCustomers);
+    window.addEventListener('data-collector-notifications-updated', onDataCollector);
 
-    window.addEventListener('storage', onStorage);
-    window.addEventListener('paid-customers-notifications-updated', onCustom);
     return () => {
-      window.removeEventListener('storage', onStorage);
-      window.removeEventListener('paid-customers-notifications-updated', onCustom);
+      window.removeEventListener('paid-customers-notifications-updated', onPaidCustomers);
+      window.removeEventListener('data-collector-notifications-updated', onDataCollector);
     };
   }, []);
 
@@ -103,6 +91,7 @@ export function Layout({ children }: LayoutProps) {
       });
     }
 
+    // ✅ Paid Customers
     if (
       user.role === 'general_manager' ||
       user.role === 'marketing_lead' ||
@@ -122,18 +111,47 @@ export function Layout({ children }: LayoutProps) {
       user.role === 'general_manager' ||
       user.role === 'system_administrator'
     ) {
-      addNavigationItem({ path: '/finance-verifications', label: 'Finance Verifications', icon: ClipboardCheck });
-      addNavigationItem({ path: '/data-collector-tasks', label: 'Data Collector Tasks', icon: Database });
+      addNavigationItem({
+        path: '/finance-verifications',
+        label: 'Finance Verifications',
+        icon: ClipboardCheck,
+      });
+      addNavigationItem({
+        path: '/data-collector-tasks',
+        label: 'Data Collector Tasks',
+        icon: Database,
+        badge: dataCollectorNotifications > 0 ? dataCollectorNotifications : undefined,
+      });
       addNavigationItem({ path: '/job-postings', label: 'Job Postings', icon: FolderKanban });
-      addNavigationItem({ path: '/designer-applications', label: 'Designer Applications', icon: ClipboardPenLine });
-      addNavigationItem({ path: '/designer-assignments', label: 'Designer Assignments', icon: LayoutGrid });
-      addNavigationItem({ path: '/quantity-surveyor-tasks', label: 'Quantity Surveyor Tasks', icon: CheckSquare });
-      addNavigationItem({ path: '/performance-ratings', label: 'Performance Ratings', icon: TrendingUp });
+      addNavigationItem({
+        path: '/designer-applications',
+        label: 'Designer Applications',
+        icon: ClipboardPenLine,
+      });
+      addNavigationItem({
+        path: '/designer-assignments',
+        label: 'Designer Assignments',
+        icon: LayoutGrid,
+      });
+      addNavigationItem({
+        path: '/quantity-surveyor-tasks',
+        label: 'Quantity Surveyor Tasks',
+        icon: CheckSquare,
+      });
+      addNavigationItem({
+        path: '/performance-ratings',
+        label: 'Performance Ratings',
+        icon: TrendingUp,
+      });
     }
 
     if (user.role === 'design_team_leader' || user.role === 'designer') {
       addNavigationItem({ path: '/designer-tasks', label: 'Designer Tasks', icon: LayoutGrid });
-      addNavigationItem({ path: '/open-job-postings', label: 'Open Job Postings', icon: FolderKanban });
+      addNavigationItem({
+        path: '/open-job-postings',
+        label: 'Open Job Postings',
+        icon: FolderKanban,
+      });
     }
 
     if (
@@ -143,7 +161,11 @@ export function Layout({ children }: LayoutProps) {
       user.role === 'general_manager' ||
       user.role === 'system_administrator'
     ) {
-      addNavigationItem({ path: '/performance-ratings', label: 'Performance Ratings', icon: TrendingUp });
+      addNavigationItem({
+        path: '/performance-ratings',
+        label: 'Performance Ratings',
+        icon: TrendingUp,
+      });
     }
 
     if (user.role !== 'system_administrator') {
@@ -162,7 +184,6 @@ export function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Top Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -197,7 +218,6 @@ export function Layout({ children }: LayoutProps) {
         <main className="p-4 md:p-6">{children}</main>
       ) : (
         <div className="flex">
-          {/* Sidebar */}
           <nav
             className={`
               fixed md:sticky top-[57px] left-0 h-[calc(100vh-57px)]
@@ -217,7 +237,11 @@ export function Layout({ children }: LayoutProps) {
                     onClick={() => setMobileMenuOpen(false)}
                     className={`
                       flex items-center gap-3 px-4 py-3 rounded-lg transition-colors
-                      ${isActive ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'}
+                      ${
+                        isActive
+                          ? 'bg-blue-50 text-blue-600'
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }
                     `}
                   >
                     <Icon className="w-5 h-5 flex-shrink-0" />
@@ -233,7 +257,6 @@ export function Layout({ children }: LayoutProps) {
             </div>
           </nav>
 
-          {/* Mobile overlay */}
           {mobileMenuOpen && (
             <div
               className="fixed inset-0 bg-black/20 z-30 md:hidden"
