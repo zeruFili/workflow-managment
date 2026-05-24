@@ -41,7 +41,6 @@ export function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Initialize badges to 3 (the mock “new” count) – they update via events
   const [paidCustomerNotifications, setPaidCustomerNotifications] = useState(3);
   const [dataCollectorNotifications, setDataCollectorNotifications] = useState(3);
   const [quantitySurveyorNotifications, setQuantitySurveyorNotifications] = useState(3);
@@ -124,9 +123,10 @@ export function Layout({ children }: LayoutProps) {
       });
     }
 
+    // Finance Verifications – now only for CEO and System Administrator
+    // (General Manager no longer has access)
     if (
       user.role === 'ceo' ||
-      user.role === 'general_manager' ||
       user.role === 'system_administrator'
     ) {
       addNavigationItem({
@@ -135,6 +135,14 @@ export function Layout({ children }: LayoutProps) {
         icon: ClipboardCheck,
         badge: financeVerificationsNotifications > 0 ? financeVerificationsNotifications : undefined,
       });
+    }
+
+    // Other admin-level pages still available to GM, CEO, and System Admin
+    if (
+      user.role === 'ceo' ||
+      user.role === 'general_manager' ||
+      user.role === 'system_administrator'
+    ) {
       addNavigationItem({
         path: '/data-collector-tasks',
         label: 'Data Collector Tasks',
