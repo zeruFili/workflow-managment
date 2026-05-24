@@ -13,7 +13,7 @@ import {
 
 const PAID_STORAGE_KEY = 'paid-customers-v2';
 
-// In‑memory “viewed” set – survives route changes but resets on page refresh
+// In-memory "viewed" set – resets on page refresh (perfect for demo)
 const viewedPaidCustomerCards = new Set<string>();
 
 const categoryLabels: Record<CustomerRequestCategory, string> = {
@@ -23,7 +23,7 @@ const categoryLabels: Record<CustomerRequestCategory, string> = {
   other: 'Other',
 };
 
-// These three IDs are always “new” until the user navigates away
+// These three IDs are "new" until the user scrolls them into view AND navigates away
 const HIGHLIGHTED_IDS = ['pc-1', 'pc-2', 'pc-3'];
 
 const initialPaidCustomers: PaidCustomer[] = [
@@ -150,29 +150,26 @@ const initialPaidCustomers: PaidCustomer[] = [
   },
 ];
 
-// ─── In‑memory notification helper ─────────────────────────────────────────
-
 function publishBadgeCount(count: number) {
   window.dispatchEvent(
     new CustomEvent('paid-customers-notifications-updated', { detail: count })
   );
 }
 
-// ─── Component ──────────────────────────────────────────────────────────────
-
 export function PaidCustomers() {
   const { user } = useAuth();
   const [paidCustomers, setPaidCustomers] = useState<PaidCustomer[]>([]);
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
+  
+  // Track which highlighted cards have been scrolled into view this session
+  const seenThisSession = useRef<Set<string>>(new Set());
+  
+  // Track which elements are currently being observed to avoid duplicates
+  const observedElements = useRef<Set<string>>(new Set());
+  
+  const observerRef = useRef<IntersectionObserver | null>(null);
 
-  // Ref always mirrors the latest highlightedIds so the unmount cleanup
-  // never reads a stale closure value.
-  const highlightedIdsRef = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    highlightedIdsRef.current = highlightedIds;
-  }, [highlightedIds]);
-
-  // ── 1. Seed customer data (versioned key ensures fresh mock data) ──────────
+  // Seed customer data from localStorage
   useEffect(() => {
     const saved = localStorage.getItem(PAID_STORAGE_KEY);
     if (saved) {
@@ -183,30 +180,87 @@ export function PaidCustomers() {
     }
   }, []);
 
-  // ── 2. On mount: work out which highlighted cards are still unseen ─────────
+  // Initialize highlighted IDs on mount (resets on refresh = demo behavior)
   useEffect(() => {
     const unseen = new Set(
       HIGHLIGHTED_IDS.filter((id) => !viewedPaidCustomerCards.has(id))
     );
-    setHighlightedIds(unseen);      // drives the card highlight UI
-    publishBadgeCount(unseen.size); // drives the sidebar badge
+    setHighlightedIds(unseen);
+    publishBadgeCount(unseen.size);
   }, []);
 
-  // ── 3. On unmount: mark every card that was highlighted as viewed ──────────
+  // IntersectionObserver: track which highlighted cards have been scrolled into view
+  useEffect(() => {
+    // Clean up previous observer
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+      observedElements.current.clear();
+    }
+
+    // Nothing to observe
+    if (highlightedIds.size === 0) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const id = (entry.target as HTMLElement).dataset.highlightedId;
+          if (!id || !highlightedIds.has(id)) return;
+
+          // Only process if >=70% visible and not already recorded
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.7) {
+            if (!observedElements.current.has(id)) {
+              observedElements.current.add(id);
+              seenThisSession.current.add(id);
+            }
+          }
+        });
+      },
+      { threshold: [0.7] }
+    );
+
+    observerRef.current = observer;
+
+    // Observe only currently highlighted elements
+    highlightedIds.forEach((id) => {
+      const el = document.querySelector(`[data-highlighted-id="${id}"]`);
+      if (el && !observedElements.current.has(id)) {
+        observer.observe(el);
+      }
+    });
+
+    return () => {
+      observer.disconnect();
+      observedElements.current.clear();
+    };
+  }, [highlightedIds]);
+
+  // Cleanup: runs when component unmounts (user navigates away)
+  // This is where we "mark as read" and update the badge
   useEffect(() => {
     return () => {
-      const current = highlightedIdsRef.current;
-      if (current.size === 0) return;
-
-      current.forEach((id) => viewedPaidCustomerCards.add(id));
-      const remaining = HIGHLIGHTED_IDS.filter(
-        (id) => !viewedPaidCustomerCards.has(id)
-      );
-      publishBadgeCount(remaining.length);
+      const idsSeen = Array.from(seenThisSession.current);
+      if (idsSeen.length > 0) {
+        // Persist to in-memory set (resets on refresh)
+        idsSeen.forEach((id) => viewedPaidCustomerCards.add(id));
+        
+        // Calculate remaining unseen highlighted IDs
+        const remaining = new Set(
+          HIGHLIGHTED_IDS.filter((id) => !viewedPaidCustomerCards.has(id))
+        );
+        
+        // Update badge count for next visit
+        publishBadgeCount(remaining.size);
+        
+        // Optional: update local state if component is still mounted
+        // (not strictly necessary since we're navigating away)
+        setHighlightedIds(remaining);
+      }
     };
-  }, []); // intentionally empty – runs only on unmount
+  }, []);
 
-  // ── 4. Persist any customer‑list changes ──────────────────────────────────
+  // Persist customer data changes to localStorage
   useEffect(() => {
     if (paidCustomers.length > 0) {
       localStorage.setItem(PAID_STORAGE_KEY, JSON.stringify(paidCustomers));
@@ -231,16 +285,16 @@ export function PaidCustomers() {
     );
   }
 
-  // Sort so that highlighted cards appear at the top
+  // Stable sort: highlighted first, then by createdAt descending
   const sortedCustomers = [...paidCustomers].sort((a, b) => {
     const aHL = highlightedIds.has(a.id) ? 1 : 0;
     const bHL = highlightedIds.has(b.id) ? 1 : 0;
-    return bHL - aHL; // highlighted (1) before normal (0)
+    if (bHL !== aHL) return bHL - aHL;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
 
   return (
     <div className="space-y-6">
-      {/* ── Header ── */}
       <div className="flex items-start justify-between gap-4 flex-col lg:flex-row">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Paid Customers</h2>
@@ -269,7 +323,6 @@ export function PaidCustomers() {
         </div>
       </div>
 
-      {/* ── Card list (sorted) ── */}
       <div className="grid grid-cols-1 gap-4">
         {sortedCustomers.map((customer) => {
           const isHighlighted = highlightedIds.has(customer.id);
@@ -277,6 +330,7 @@ export function PaidCustomers() {
           return (
             <div
               key={customer.id}
+              data-highlighted-id={isHighlighted ? customer.id : undefined}
               className={[
                 'bg-white rounded-xl p-5 shadow-sm transition-all duration-300',
                 isHighlighted
@@ -284,7 +338,6 @@ export function PaidCustomers() {
                   : 'border border-gray-200',
               ].join(' ')}
             >
-              {/* "New" pill — only on highlighted cards */}
               {isHighlighted && (
                 <div className="mb-3">
                   <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full">
@@ -294,7 +347,6 @@ export function PaidCustomers() {
                 </div>
               )}
 
-              {/* ── Card header ── */}
               <div className="flex items-start justify-between gap-4 flex-col sm:flex-row">
                 <div>
                   <h3 className="font-semibold text-lg text-gray-900">
@@ -317,7 +369,6 @@ export function PaidCustomers() {
                 </div>
               </div>
 
-              {/* ── Task description ── */}
               <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
                 <p className="text-xs font-medium text-blue-700 uppercase tracking-wide mb-1">
                   Task Description
@@ -325,7 +376,6 @@ export function PaidCustomers() {
                 <p className="text-gray-700">{customer.serviceDescription}</p>
               </div>
 
-              {/* ── Contact / budget grid ── */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5 text-sm text-gray-600">
                 <div className="flex items-center gap-2">
                   <Phone className="w-4 h-4 text-gray-400" />
@@ -360,7 +410,6 @@ export function PaidCustomers() {
                 )}
               </div>
 
-              {/* ── Footer ── */}
               <div className="mt-5 pt-4 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-gray-500">
                 <div className="flex items-center gap-2">
                   <User className="w-4 h-4" />

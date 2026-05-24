@@ -6,10 +6,10 @@ import { Calendar, Plus, Image, X, Send } from 'lucide-react';
 
 const STORAGE_KEY = 'data-collector-tasks-v2';
 
-// In‑memory “viewed” set – survives route changes but resets on page refresh
+// In-memory "viewed" set – survives route changes but resets on page refresh (demo behavior)
 const viewedDataCollectorCards = new Set<string>();
 
-// First 3 tasks are always “new” until the user navigates away
+// First 3 tasks are always "new" until the user scrolls them into view AND navigates away
 const HIGHLIGHTED_IDS = ['dc-task-1', 'dc-task-2', 'dc-task-3'];
 
 const seedTasks: Task[] = [
@@ -167,6 +167,14 @@ export function DataCollectorTasks() {
   });
 
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
+  
+  // Track which highlighted cards have been scrolled into view this session
+  const seenThisSession = useRef<Set<string>>(new Set());
+  
+  // Track which elements are currently being observed to avoid duplicates
+  const observedElements = useRef<Set<string>>(new Set());
+  
+  const observerRef = useRef<IntersectionObserver | null>(null);
 
   // Ref always mirrors highlightedIds so the unmount cleanup never reads stale state
   const highlightedIdsRef = useRef<Set<string>>(new Set());
@@ -183,17 +191,72 @@ export function DataCollectorTasks() {
     publishBadgeCount(unseen.size);
   }, []);
 
-  // ── On unmount: mark all currently-highlighted tasks as viewed ────────────
+  // ── IntersectionObserver: track which highlighted tasks have been scrolled into view ──
+  useEffect(() => {
+    // Clean up previous observer
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+      observedElements.current.clear();
+    }
+
+    // Nothing to observe
+    if (highlightedIds.size === 0) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const id = (entry.target as HTMLElement).dataset.highlightedId;
+          if (!id || !highlightedIds.has(id)) return;
+
+          // Only process if >=70% visible and not already recorded
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.7) {
+            if (!observedElements.current.has(id)) {
+              observedElements.current.add(id);
+              seenThisSession.current.add(id);
+            }
+          }
+        });
+      },
+      { threshold: [0.7] }
+    );
+
+    observerRef.current = observer;
+
+    // Observe only currently highlighted elements
+    highlightedIds.forEach((id) => {
+      const el = document.querySelector(`[data-highlighted-id="${id}"]`);
+      if (el && !observedElements.current.has(id)) {
+        observer.observe(el);
+      }
+    });
+
+    return () => {
+      observer.disconnect();
+      observedElements.current.clear();
+    };
+  }, [highlightedIds]);
+
+  // ── On unmount: mark all seen tasks as viewed and update badge ────────────
   useEffect(() => {
     return () => {
-      const current = highlightedIdsRef.current;
-      if (current.size === 0) return;
-
-      current.forEach((id) => viewedDataCollectorCards.add(id));
-      const remaining = HIGHLIGHTED_IDS.filter(
-        (id) => !viewedDataCollectorCards.has(id)
-      );
-      publishBadgeCount(remaining.length);
+      const idsSeen = Array.from(seenThisSession.current);
+      if (idsSeen.length > 0) {
+        // Persist to in-memory set (resets on refresh = demo behavior)
+        idsSeen.forEach((id) => viewedDataCollectorCards.add(id));
+        
+        // Calculate remaining unseen highlighted IDs
+        const remaining = new Set(
+          HIGHLIGHTED_IDS.filter((id) => !viewedDataCollectorCards.has(id))
+        );
+        
+        // Update badge count for next visit
+        publishBadgeCount(remaining.size);
+        
+        // Optional: update local state if component is still mounted
+        setHighlightedIds(remaining);
+      }
     };
   }, []); // empty deps — runs only on unmount
 
@@ -312,12 +375,14 @@ export function DataCollectorTasks() {
     closeDetail();
   };
 
-  // Sort tasks so highlighted ones always appear at the top
+  // Sort tasks so highlighted ones always appear at the top, with stable secondary sort
   const sortedTasks = useMemo(() => {
     return [...tasks].sort((a, b) => {
       const aHL = highlightedIds.has(a.id) ? 1 : 0;
       const bHL = highlightedIds.has(b.id) ? 1 : 0;
-      return bHL - aHL; // highlighted first
+      if (bHL !== aHL) return bHL - aHL; // highlighted first
+      // Stable secondary sort by createdAt descending
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
   }, [tasks, highlightedIds]);
 
@@ -376,6 +441,7 @@ export function DataCollectorTasks() {
             return (
               <div
                 key={task.id}
+                data-highlighted-id={isHighlighted ? task.id : undefined}
                 className={[
                   'rounded-xl p-4 transition-all duration-300',
                   isHighlighted
