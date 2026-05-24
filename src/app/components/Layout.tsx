@@ -5,7 +5,6 @@ import {
   Home,
   FolderKanban,
   CheckSquare,
-  FileText,
   ClipboardCheck,
   ClipboardList,
   Database,
@@ -16,9 +15,9 @@ import {
   Users,
   LogOut,
   Menu,
-  X
+  X,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -28,21 +27,61 @@ type NavigationItem = {
   path: string;
   label: string;
   icon: React.ElementType;
+  badge?: number;
 };
+
+// Shared key – PaidCustomers writes here, Layout reads it
+export const PAID_CUSTOMERS_NOTIFICATIONS_KEY = 'paid-customers-notifications-v2';
 
 export function Layout({ children }: LayoutProps) {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [paidCustomerNotifications, setPaidCustomerNotifications] = useState(0);
+
+  useEffect(() => {
+    const readCount = () => {
+      try {
+        const raw = localStorage.getItem(PAID_CUSTOMERS_NOTIFICATIONS_KEY);
+        // If the key has never been written, default to 3 (all three are new)
+        const value = raw !== null ? Number(raw) : 3;
+        if (raw === null) {
+          localStorage.setItem(PAID_CUSTOMERS_NOTIFICATIONS_KEY, '3');
+        }
+        setPaidCustomerNotifications(value);
+      } catch {
+        setPaidCustomerNotifications(0);
+      }
+    };
+
+    readCount();
+
+    // Cross-tab: another tab navigated away from PaidCustomers
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === PAID_CUSTOMERS_NOTIFICATIONS_KEY) {
+        setPaidCustomerNotifications(Number(e.newValue ?? 0));
+      }
+    };
+
+    // Same-tab: PaidCustomers unmounted and published the updated count
+    const onCustom = () => readCount();
+
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('paid-customers-notifications-updated', onCustom);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('paid-customers-notifications-updated', onCustom);
+    };
+  }, []);
 
   if (!user) return <>{children}</>;
 
-  // Quantity surveyors and finance officers get a simplified header only – no sidebar
-  const isSidebarlessRole = user.role === 'quantity_surveyor' || user.role === 'finance_officer';
+  const isSidebarlessRole =
+    user.role === 'quantity_surveyor' || user.role === 'finance_officer';
 
-  // Build navigation items for the sidebar (only used if NOT quantity_surveyor)
   const navigationItems: NavigationItem[] = [];
+
   if (!isSidebarlessRole) {
     navigationItems.push({ path: '/dashboard', label: 'Dashboard', icon: Home });
 
@@ -51,22 +90,38 @@ export function Layout({ children }: LayoutProps) {
     }
 
     const addNavigationItem = (item: NavigationItem) => {
-      if (!navigationItems.some((candidate) => candidate.path === item.path)) {
+      if (!navigationItems.some((c) => c.path === item.path)) {
         navigationItems.push(item);
       }
     };
 
-    
-
     if (user.role === 'marketing_lead' || user.role === 'system_administrator') {
-      navigationItems.push({ path: '/customer-data', label: 'Customer Requests', icon: ClipboardList });
+      navigationItems.push({
+        path: '/customer-data',
+        label: 'Customer Requests',
+        icon: ClipboardList,
+      });
     }
 
-    if (user.role === 'general_manager' || user.role === 'marketing_lead' || user.role === 'ceo' || user.role === 'system_administrator') {
-      navigationItems.push({ path: '/paid-customers', label: 'Paid Customers', icon: CircleDollarSign });
+    if (
+      user.role === 'general_manager' ||
+      user.role === 'marketing_lead' ||
+      user.role === 'ceo' ||
+      user.role === 'system_administrator'
+    ) {
+      navigationItems.push({
+        path: '/paid-customers',
+        label: 'Paid Customers',
+        icon: CircleDollarSign,
+        badge: paidCustomerNotifications > 0 ? paidCustomerNotifications : undefined,
+      });
     }
 
-    if (user.role === 'ceo' || user.role === 'general_manager' || user.role === 'system_administrator') {
+    if (
+      user.role === 'ceo' ||
+      user.role === 'general_manager' ||
+      user.role === 'system_administrator'
+    ) {
       addNavigationItem({ path: '/finance-verifications', label: 'Finance Verifications', icon: ClipboardCheck });
       addNavigationItem({ path: '/data-collector-tasks', label: 'Data Collector Tasks', icon: Database });
       addNavigationItem({ path: '/job-postings', label: 'Job Postings', icon: FolderKanban });
@@ -81,7 +136,13 @@ export function Layout({ children }: LayoutProps) {
       addNavigationItem({ path: '/open-job-postings', label: 'Open Job Postings', icon: FolderKanban });
     }
 
-    if (user.role === 'design_team_leader' || user.role === 'designer' || user.role === 'ceo' || user.role === 'general_manager' || user.role === 'system_administrator') {
+    if (
+      user.role === 'design_team_leader' ||
+      user.role === 'designer' ||
+      user.role === 'ceo' ||
+      user.role === 'general_manager' ||
+      user.role === 'system_administrator'
+    ) {
       addNavigationItem({ path: '/performance-ratings', label: 'Performance Ratings', icon: TrendingUp });
     }
 
@@ -101,11 +162,10 @@ export function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Top Header – always visible, but simplified for quantity_surveyor */}
+      {/* Top Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {/* Hamburger only for non‑quantity_surveyor roles (to toggle sidebar) */}
             {!isSidebarlessRole && (
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -124,10 +184,7 @@ export function Layout({ children }: LayoutProps) {
               <p className="text-xs text-gray-500">{getRoleName(user.role)}</p>
             </div>
             <div className="flex flex-col items-center">
-              <button
-                onClick={handleLogout}
-                className="p-2 hover:bg-gray-100 rounded-lg"
-              >
+              <button onClick={handleLogout} className="p-2 hover:bg-gray-100 rounded-lg">
                 <LogOut className="w-5 h-5 text-gray-600" />
               </button>
               <span className="text-xs text-gray-500 mt-0.5">Logout</span>
@@ -136,7 +193,6 @@ export function Layout({ children }: LayoutProps) {
         </div>
       </header>
 
-      {/* Main area: either full layout with sidebar, or just content for quantity_surveyor */}
       {isSidebarlessRole ? (
         <main className="p-4 md:p-6">{children}</main>
       ) : (
@@ -161,14 +217,16 @@ export function Layout({ children }: LayoutProps) {
                     onClick={() => setMobileMenuOpen(false)}
                     className={`
                       flex items-center gap-3 px-4 py-3 rounded-lg transition-colors
-                      ${isActive
-                        ? 'bg-blue-50 text-blue-600'
-                        : 'text-gray-700 hover:bg-gray-50'
-                      }
+                      ${isActive ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'}
                     `}
                   >
-                    <Icon className="w-5 h-5" />
-                    <span>{item.label}</span>
+                    <Icon className="w-5 h-5 flex-shrink-0" />
+                    <span className="flex-1">{item.label}</span>
+                    {item.badge !== undefined && item.badge > 0 && (
+                      <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-semibold rounded-full bg-blue-600 text-white leading-none">
+                        {item.badge}
+                      </span>
+                    )}
                   </Link>
                 );
               })}

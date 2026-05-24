@@ -1,20 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { PaidCustomer, CustomerRequestCategory } from '../types';
 import {
   Calendar,
-  CheckCircle2,
-  Clock,
   Mail,
   MapPin,
   Phone,
   User,
   Users,
   FileText,
-  AlertCircle,
 } from 'lucide-react';
+import { PAID_CUSTOMERS_NOTIFICATIONS_KEY } from '../components/Layout';
 
-const PAID_STORAGE_KEY = 'paid-customers';
+const PAID_STORAGE_KEY = 'paid-customers-v2';
+const VIEWED_CARDS_KEY = 'paid-customers-viewed-cards-v2';
 
 const categoryLabels: Record<CustomerRequestCategory, string> = {
   home_design: 'Home Design',
@@ -23,7 +22,9 @@ const categoryLabels: Record<CustomerRequestCategory, string> = {
   other: 'Other',
 };
 
-// Initial mock paid customers (used when localStorage is empty)
+// These three IDs are always "new" until the user visits the page
+const HIGHLIGHTED_IDS = ['pc-1', 'pc-2', 'pc-3'];
+
 const initialPaidCustomers: PaidCustomer[] = [
   {
     id: 'pc-1',
@@ -143,11 +144,42 @@ const initialPaidCustomers: PaidCustomer[] = [
   },
 ];
 
+// ─── localStorage helpers ────────────────────────────────────────────────────
+
+function getViewedCards(): Set<string> {
+  try {
+    const raw = localStorage.getItem(VIEWED_CARDS_KEY);
+    return raw ? new Set<string>(JSON.parse(raw)) : new Set<string>();
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function saveViewedCards(viewed: Set<string>) {
+  localStorage.setItem(VIEWED_CARDS_KEY, JSON.stringify([...viewed]));
+}
+
+function publishBadgeCount(count: number) {
+  localStorage.setItem(PAID_CUSTOMERS_NOTIFICATIONS_KEY, String(count));
+  // Notify the Layout sidebar in the same tab immediately
+  window.dispatchEvent(new Event('paid-customers-notifications-updated'));
+}
+
+// ─── component ───────────────────────────────────────────────────────────────
+
 export function PaidCustomers() {
   const { user } = useAuth();
   const [paidCustomers, setPaidCustomers] = useState<PaidCustomer[]>([]);
+  const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
 
-  // Load from localStorage or use mock data
+  // Ref always mirrors the latest highlightedIds so the unmount cleanup
+  // never reads a stale closure value.
+  const highlightedIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    highlightedIdsRef.current = highlightedIds;
+  }, [highlightedIds]);
+
+  // ── 1. Seed customer data (versioned key ensures fresh mock data) ──────────
   useEffect(() => {
     const saved = localStorage.getItem(PAID_STORAGE_KEY);
     if (saved) {
@@ -158,7 +190,31 @@ export function PaidCustomers() {
     }
   }, []);
 
-  // Persist changes
+  // ── 2. On mount: work out which highlighted cards are still unseen ─────────
+  useEffect(() => {
+    const viewed = getViewedCards();
+    const unseen = new Set(HIGHLIGHTED_IDS.filter((id) => !viewed.has(id)));
+    setHighlightedIds(unseen);      // drives the card highlight UI
+    publishBadgeCount(unseen.size); // drives the sidebar badge
+  }, []);
+
+  // ── 3. On unmount: mark every card that was highlighted as viewed ──────────
+  //    We use the ref so we always get the correct current value.
+  useEffect(() => {
+    return () => {
+      const current = highlightedIdsRef.current;
+      if (current.size === 0) return;
+
+      const viewed = getViewedCards();
+      current.forEach((id) => viewed.add(id));
+      saveViewedCards(viewed);
+
+      const remaining = HIGHLIGHTED_IDS.filter((id) => !viewed.has(id));
+      publishBadgeCount(remaining.length);
+    };
+  }, []); // intentionally empty – runs only on unmount
+
+  // ── 4. Persist any customer-list changes ──────────────────────────────────
   useEffect(() => {
     if (paidCustomers.length > 0) {
       localStorage.setItem(PAID_STORAGE_KEY, JSON.stringify(paidCustomers));
@@ -167,22 +223,38 @@ export function PaidCustomers() {
 
   if (!user) return null;
 
-  const canAccess = user.role === 'marketing_lead' || user.role === 'ceo' || user.role === 'system_administrator';
+  const canAccess =
+    user.role === 'marketing_lead' ||
+    user.role === 'ceo' ||
+    user.role === 'system_administrator';
+
   if (!canAccess) {
     return (
       <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
-        <p className="text-gray-500">Access denied. Marketing Lead or System Administrator access required.</p>
+        <p className="text-gray-500">
+          Access denied. Marketing Lead or System Administrator access required.
+        </p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* ── Header ── */}
       <div className="flex items-start justify-between gap-4 flex-col lg:flex-row">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Paid Customers</h2>
-          <p className="text-gray-600 mt-1">All customer records that have been transferred after payment confirmation.</p>
+          <p className="text-gray-600 mt-1">
+            All customer records that have been transferred after payment confirmation.
+          </p>
+          {highlightedIds.size > 0 && (
+            <p className="text-sm text-blue-600 mt-2 flex items-center gap-2">
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-semibold">
+                {highlightedIds.size}
+              </span>
+              new {highlightedIds.size === 1 ? 'record' : 'records'} since your last visit
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-4">
           <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 shadow-sm min-w-[220px]">
@@ -197,84 +269,111 @@ export function PaidCustomers() {
         </div>
       </div>
 
-      {/* Paid customer list */}
+      {/* ── Card list ── */}
       <div className="grid grid-cols-1 gap-4">
-        {paidCustomers.map((customer) => (
-          <div key={customer.id} className="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
-            <div className="flex items-start justify-between gap-4 flex-col sm:flex-row">
-              <div>
-                <h3 className="font-semibold text-lg text-gray-900">{customer.customerName}</h3>
-                <p className="text-sm text-gray-500 mt-1">
-                  {categoryLabels[customer.category]}
-                  {'otherCategoryDescription' in customer && customer.otherCategoryDescription
-                    ? ` (${customer.otherCategoryDescription})`
-                    : ''}
+        {paidCustomers.map((customer) => {
+          const isHighlighted = highlightedIds.has(customer.id);
+
+          return (
+            <div
+              key={customer.id}
+              className={[
+                'bg-white rounded-xl p-5 shadow-sm transition-all duration-300',
+                isHighlighted
+                  ? 'border-2 border-blue-400 ring-4 ring-blue-100 shadow-blue-100'
+                  : 'border border-gray-200',
+              ].join(' ')}
+            >
+              {/* "New" pill — only on highlighted cards */}
+              {isHighlighted && (
+                <div className="mb-3">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                    New
+                  </span>
+                </div>
+              )}
+
+              {/* ── Card header ── */}
+              <div className="flex items-start justify-between gap-4 flex-col sm:flex-row">
+                <div>
+                  <h3 className="font-semibold text-lg text-gray-900">{customer.customerName}</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {categoryLabels[customer.category]}
+                    {'otherCategoryDescription' in customer && customer.otherCategoryDescription
+                      ? ` (${customer.otherCategoryDescription})`
+                      : ''}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="text-sm text-gray-500 flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    Transferred: {new Date(customer.transferredAt).toLocaleDateString()}
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Task description ── */}
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                <p className="text-xs font-medium text-blue-700 uppercase tracking-wide mb-1">
+                  Task Description
                 </p>
+                <p className="text-gray-700">{customer.serviceDescription}</p>
               </div>
-              <div className="flex items-center gap-3 flex-wrap">
-               
-                <div className="text-sm text-gray-500 flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
-                  Transferred: {new Date(customer.transferredAt).toLocaleDateString()}
-                </div>
-              </div>
-            </div>
 
-            {/* Task Description Card (matching CustomerData style) */}
-            <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
-              <p className="text-xs font-medium text-blue-700 uppercase tracking-wide mb-1">Task Description</p>
-              <p className="text-gray-700">{customer.serviceDescription}</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5 text-sm text-gray-600">
-              <div className="flex items-center gap-2">
-                <Phone className="w-4 h-4 text-gray-400" />
-                <span>{customer.customerPhone}</span>
-              </div>
-              {customer.customerEmail && (
+              {/* ── Contact / budget grid ── */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5 text-sm text-gray-600">
                 <div className="flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-gray-400" />
-                  <span>{customer.customerEmail}</span>
+                  <Phone className="w-4 h-4 text-gray-400" />
+                  <span>{customer.customerPhone}</span>
                 </div>
-              )}
-              <div className="flex items-center gap-2 md:col-span-2">
-                <MapPin className="w-4 h-4 text-gray-400" />
-                <span>{customer.customerAddress}</span>
-              </div>
-              {customer.budget && (
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-gray-900">Budget:</span>
-                  <span>{customer.budget}</span>
-                </div>
-              )}
-              {customer.paymentNote && (
+                {customer.customerEmail && (
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-gray-400" />
+                    <span>{customer.customerEmail}</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-2 md:col-span-2">
-                  <FileText className="w-4 h-4 text-gray-400" />
-                  <span className="text-gray-700">{customer.paymentNote}</span>
+                  <MapPin className="w-4 h-4 text-gray-400" />
+                  <span>{customer.customerAddress}</span>
                 </div>
-              )}
-              {customer.notes && (
-                <div className="md:col-span-2 p-3 bg-gray-50 rounded-lg text-gray-700">
-                  {customer.notes}
-                </div>
-              )}
-            </div>
-
-            <div className="mt-5 pt-4 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-gray-500">
-              <div className="flex items-center gap-2">
-                <User className="w-4 h-4" />
-                <span>Transferred by {customer.transferredByName}</span>
-                <span className="text-gray-300">•</span>
-                <span>Owner ID: {customer.transferredBy}</span>
+                {customer.budget && (
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-gray-900">Budget:</span>
+                    <span>{customer.budget}</span>
+                  </div>
+                )}
+                {customer.paymentNote && (
+                  <div className="flex items-center gap-2 md:col-span-2">
+                    <FileText className="w-4 h-4 text-gray-400" />
+                    <span className="text-gray-700">{customer.paymentNote}</span>
+                  </div>
+                )}
+                {customer.notes && (
+                  <div className="md:col-span-2 p-3 bg-gray-50 rounded-lg text-gray-700">
+                    {customer.notes}
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-3 flex-wrap">
+
+              {/* ── Footer ── */}
+              <div className="mt-5 pt-4 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-gray-500">
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4" />
+                  <span>Transferred by {customer.transferredByName}</span>
+                  <span className="text-gray-300">•</span>
+                  <span>Owner ID: {customer.transferredBy}</span>
+                </div>
                 <span className="text-xs uppercase tracking-wide text-gray-400">
-                  Preferred start: {customer.preferredStartDate ? new Date(customer.preferredStartDate).toLocaleDateString() : 'N/A'}
+                  Preferred start:{' '}
+                  {customer.preferredStartDate
+                    ? new Date(customer.preferredStartDate).toLocaleDateString()
+                    : 'N/A'}
                 </span>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {paidCustomers.length === 0 && (
           <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
