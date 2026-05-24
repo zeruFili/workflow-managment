@@ -997,8 +997,14 @@ export function DesignerAssignments() {
 
       {/* Detail Modal */}
       {showDetail && selectedTaskDetail && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-6 overflow-y-auto">
-          <div className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl max-h-[92vh] overflow-y-auto">
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-6 overflow-y-auto"
+          onClick={closeDetail}
+        >
+          <div
+            className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl max-h-[92vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-6 py-5">
               <div>
                 <h3 className="text-2xl font-semibold text-gray-900">Submission Detail</h3>
