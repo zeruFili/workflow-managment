@@ -262,7 +262,7 @@ export const mockDesignerTasks: DesignerTask[] = [
     description: 'Check the ceiling detail drawings against the latest site conditions',
     instruction: 'Verify the exact ceiling levels and note any beam drops or lighting conflicts before finalizing.',
     storyPoints: 8,
-    assignedTo: '4',
+    assignedTo: '3',
     assignedBy: '2',
     status: 'completed',
     approvalStatus: 'approved',
@@ -976,5 +976,231 @@ export const designerRatings: DesignerRating[] = [
     clientUnderstanding: 3.4, revisionEfficiency: 3.3, revisionCount: 4, status: 'approved',
     completedAt: '2025-07-20T12:00:00Z', feedback: 'Plan was usable but circulation paths needed work.',
     ratedBy: '2', week: 29, month: 7, quarter: 3, year: 2025,
+  },
+];
+
+
+
+export const mockDesignerTasksUnassigned: DesignerTask[] = mockDesignerTasks.map(task => ({
+  ...task,
+  assignedTo: undefined,
+}));
+
+
+
+// designerApplicationsMockData.ts
+// ─────────────────────────────────────────────────────────────────────────────
+// Separate mock data for the Designer Applications page only.
+// All DesignerTask entries intentionally omit `assignedTo` so that
+// the reviewer (CEO / GM / Admin) makes the first assignment themselves.
+// The existing mockDesignerTasks in mockData.ts is left untouched.
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+
+export const mockDesignerTasksForApplications: DesignerTask[] = [
+  {
+    id: 'dtask-2',
+    projectId: 'proj-2',
+    title: 'Prepare material palette board',
+    description: 'Create a refined board for the project material selection',
+    instruction: 'Collect sample codes, finish names, and supplier references for each selected material.',
+    storyPoints: 5,
+    // assignedTo intentionally absent
+    assignedBy: '8',
+    status: 'pending',
+    deadline: '2026-04-23T23:59:59Z',
+    createdAt: '2026-04-21T09:00:00Z',
+  },
+  {
+    id: 'dtask-3',
+    projectId: 'proj-3',
+    title: 'Review ceiling detail drawings',
+    description: 'Check the ceiling detail drawings against the latest site conditions',
+    instruction: 'Verify the exact ceiling levels and note any beam drops or lighting conflicts before finalizing.',
+    storyPoints: 8,
+    // assignedTo intentionally absent
+    assignedBy: '2',
+    status: 'pending',
+    deadline: '2026-04-22T23:59:59Z',
+    createdAt: '2026-04-19T10:15:00Z',
+  },
+  {
+    id: 'dtask-4',
+    projectId: 'proj-5',
+    title: 'Update bedroom palette options',
+    description: 'Suggest revised bedroom palette options for client review',
+    instruction: 'Measure the room sunlight direction and floor finish to match the palette recommendations.',
+    storyPoints: 3,
+    // assignedTo intentionally absent
+    assignedBy: '8',
+    status: 'pending',
+    deadline: '2026-04-20T23:59:59Z',
+    createdAt: '2026-04-18T08:30:00Z',
+  },
+  {
+    id: 'dtask-5',
+    projectId: 'proj-4',
+    title: 'Measure reception desk area',
+    description: 'Collect measurements for reception desk and waiting area planning',
+    instruction: 'Measure desk width, circulation space, and the distance to nearby walls or columns.',
+    storyPoints: 8,
+    // assignedTo intentionally absent
+    assignedBy: '2',
+    status: 'pending',
+    deadline: '2026-04-25T23:59:59Z',
+    createdAt: '2026-04-21T11:00:00Z',
+  },
+  {
+    id: 'dtask-6',
+    projectId: 'proj-2',
+    title: 'Finalize kitchen cabinetry sketch',
+    description: 'Prepare the final sketch for the kitchen cabinetry layout',
+    instruction: 'Record cabinet heights, appliance sizes, and clearances before finalizing the sketch.',
+    storyPoints: 5,
+    // assignedTo intentionally absent
+    assignedBy: '2',
+    status: 'pending',
+    deadline: '2026-04-22T23:59:59Z',
+    createdAt: '2026-04-20T09:45:00Z',
+  },
+  {
+    id: 'dtask-7',
+    projectId: 'proj-3',
+    title: 'Prepare hallway lighting notes',
+    description: 'Document lighting notes for the main hallway design',
+    instruction: 'Measure hallway length and identify light fixture spacing requirements.',
+    storyPoints: 2,
+    // assignedTo intentionally absent
+    assignedBy: '8',
+    status: 'pending',
+    deadline: '2026-04-21T23:59:59Z',
+    createdAt: '2026-04-19T15:00:00Z',
+  },
+  {
+    id: 'dtask-8',
+    projectId: 'proj-1',
+    title: 'Compile finish sample references',
+    description: 'Prepare a reference sheet for all selected finishes',
+    instruction: 'Collect finish codes, color references, and any supplier notes into one summary document.',
+    storyPoints: 3,
+    // assignedTo intentionally absent
+    assignedBy: '8',
+    status: 'pending',
+    deadline: '2026-04-26T23:59:59Z',
+    createdAt: '2026-04-21T14:00:00Z',
+  },
+  {
+    id: 'dtask-9',
+    projectId: 'proj-4',
+    title: 'Design open lounge concept',
+    description: 'Create an open lounge concept that designers can apply for',
+    instruction: 'Use the latest site measurements and highlight any constraints that affect seating layout or circulation.',
+    storyPoints: 8,
+    // assignedTo intentionally absent
+    assignedBy: '2',
+    status: 'pending',
+    deadline: '2026-04-27T23:59:59Z',
+    createdAt: '2026-04-21T15:00:00Z',
+  },
+  {
+    id: 'dtask-10',
+    projectId: 'proj-5',
+    title: 'Develop bedroom mood board',
+    description: 'Build a mood board for a bedroom design package',
+    instruction: 'Collect material references, furniture style cues, and lighting direction notes for the bedroom concept.',
+    storyPoints: 5,
+    // assignedTo intentionally absent
+    assignedBy: '8',
+    status: 'pending',
+    deadline: '2026-04-28T23:59:59Z',
+    createdAt: '2026-04-21T15:20:00Z',
+  },
+];
+
+export const mockDesignerTaskApplicationsForApplications: DesignerTaskApplication[] = [
+  // ── dtask-9: Design open lounge concept ──────────────────────────────────
+  {
+    id: 'dapp-1',
+    taskId: 'dtask-9',
+    applicantId: '4',
+    applicantName: 'Michael Brown',
+    applicantRole: 'designer',
+    message: 'I can prepare the lounge concept quickly and I have recent residential layout experience.',
+    appliedAt: '2026-04-21T15:45:00Z',
+    status: 'pending',
+  },
+  {
+    id: 'dapp-3',
+    taskId: 'dtask-9',
+    applicantId: '9',
+    applicantName: 'Sophia Ahmed',
+    applicantRole: 'designer',
+    message: 'I can deliver the lounge concept with a clean modern style and complete measurements sheet.',
+    appliedAt: '2026-04-21T15:48:00Z',
+    status: 'pending',
+  },
+  {
+    id: 'dapp-4',
+    taskId: 'dtask-9',
+    applicantId: '10',
+    applicantName: 'Daniel Reed',
+    applicantRole: 'designer',
+    message: 'I can prepare two alternate layout options and include furniture circulation checks.',
+    appliedAt: '2026-04-21T15:52:00Z',
+    status: 'pending',
+  },
+  // ── dtask-10: Develop bedroom mood board ─────────────────────────────────
+  {
+    id: 'dapp-2',
+    taskId: 'dtask-10',
+    applicantId: '4',
+    applicantName: 'Michael Brown',
+    applicantRole: 'designer',
+    message: 'I can align the mood board with the hotel palette and keep the references consistent.',
+    appliedAt: '2026-04-21T15:50:00Z',
+    status: 'pending',
+  },
+  // ── dtask-5: Measure reception desk area ─────────────────────────────────
+  {
+    id: 'dapp-5',
+    taskId: 'dtask-5',
+    applicantId: '9',
+    applicantName: 'Sophia Ahmed',
+    applicantRole: 'designer',
+    message: 'I have experience with reception area measurements and can deliver accurate data quickly.',
+    appliedAt: '2026-04-21T12:00:00Z',
+    status: 'pending',
+  },
+  {
+    id: 'dapp-6',
+    taskId: 'dtask-5',
+    applicantId: '10',
+    applicantName: 'Daniel Reed',
+    applicantRole: 'designer',
+    message: 'I can measure and document all clearances with a detailed notes sheet.',
+    appliedAt: '2026-04-21T12:15:00Z',
+    status: 'pending',
+  },
+  // ── dtask-8: Compile finish sample references ─────────────────────────────
+  {
+    id: 'dapp-7',
+    taskId: 'dtask-8',
+    applicantId: '4',
+    applicantName: 'Michael Brown',
+    applicantRole: 'designer',
+    message: 'I have all supplier contacts ready and can compile the reference sheet quickly.',
+    appliedAt: '2026-04-21T16:00:00Z',
+    status: 'pending',
+  },
+  {
+    id: 'dapp-8',
+    taskId: 'dtask-8',
+    applicantId: '11',
+    applicantName: 'Liam Carter',
+    applicantRole: 'designer',
+    message: 'I can organize finish codes and supplier notes clearly for client review.',
+    appliedAt: '2026-04-21T16:10:00Z',
+    status: 'pending',
   },
 ];

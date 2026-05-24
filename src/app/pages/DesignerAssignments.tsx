@@ -8,13 +8,15 @@ import {
   loadDesignerTasks,
   roleNamesByUserId,
 } from './designerTaskShared';
-import { DesignerTask, DesignerTaskApplication } from '../types';
+import { DesignerTask, DesignerTaskApplication, TaskStatus } from '../types';
 import {
   AlertCircle,
   Calendar,
   CheckCircle2,
   Clock,
   Edit,
+  Image,
+  Plus,
   XCircle,
   Briefcase,
   ChevronDown,
@@ -25,6 +27,16 @@ import {
   Send,
   Star,
 } from 'lucide-react';
+
+const emptyNewTask = {
+  title: '',
+  description: '',
+  instruction: '',
+  storyPoints: '',
+  projectId: '',
+  deadline: '',
+  telegramScreenshot: '',
+};
 
 // ---------- Types ----------
 type PhaseKey = 'caseStudy' | 'designStage' | 'rendering' | 'finalStage';
@@ -279,6 +291,12 @@ function generateMockProgress(
   return progress as Record<PhaseKey, PhaseData>;
 }
 
+function getTaskMockPhaseIndex(task: DesignerTask): number {
+  if (task.id === 'dtask-1') return 0;
+  const charCode = task.id.charCodeAt(task.id.length - 1);
+  return 1 + (charCode % 3);
+}
+
 function getLastPopulatedPhaseIndex(progress: Record<PhaseKey, PhaseData> | null): number {
   if (!progress) return -1;
   for (let i = PHASES.length - 1; i >= 0; i--) {
@@ -296,14 +314,23 @@ function isFinalStageApprovedFromProgress(progress: Record<PhaseKey, PhaseData> 
   return getCurrentStatus(finalData) === 'approved';
 }
 
+function getTaskSuffixNumber(taskId: string): number {
+  const match = taskId.match(/dtask-(\d+)/);
+  return match ? parseInt(match[1]) : NaN;
+}
+
 // -----------------------------------------------
 
 export function DesignerAssignments() {
   const { user } = useAuth();
+  const [showCreateTask, setShowCreateTask] = useState(false);
+  const [editingTask, setEditingTask] = useState<string | null>(null);
   const [selectedTaskDetail, setSelectedTaskDetail] = useState<DesignerTask | null>(null);
   const [showDetail, setShowDetail] = useState(false);
-  const [tasks] = useState<DesignerTask[]>(loadDesignerTasks);
-  const [applications] = useState<DesignerTaskApplication[]>(loadDesignerApplications);
+  const [tasks, setTasks] = useState<DesignerTask[]>(loadDesignerTasks);
+  const [applications, setApplications] = useState<DesignerTaskApplication[]>(loadDesignerApplications);
+  const [newTask, setNewTask] = useState(emptyNewTask);
+  const [newTaskImagePreview, setNewTaskImagePreview] = useState<string | null>(null);
 
   const [submissionProgress, setSubmissionProgress] = useState<SubmissionProgress>(loadSubmissionProgress);
   const [expandedPhase, setExpandedPhase] = useState<PhaseKey | null>(null);
@@ -320,6 +347,7 @@ export function DesignerAssignments() {
     rendering: number;
   }>>({});
   const [reviewComments, setReviewComments] = useState<Record<string, string>>({});
+  const [ratingSubmitted, setRatingSubmitted] = useState<Record<string, boolean>>({});
 
   // Persist progress
   useEffect(() => {
@@ -331,7 +359,8 @@ export function DesignerAssignments() {
     localStorage.setItem(REVIEW_STORAGE_KEY, JSON.stringify(reviews));
   }, [reviews]);
 
-  // Seed mock progress: force Final Stage Approved for ALL tasks
+  // Seed mock progress: force Final Stage Approved for ALL tasks (dtask-1 through dtask-4)
+  // so every task shows the Review button — but do NOT auto-seed any reviews.
   useEffect(() => {
     setSubmissionProgress(prev => {
       let updated = { ...prev };
@@ -340,6 +369,7 @@ export function DesignerAssignments() {
         const existing = updated[task.id];
         const hasContent = existing && Object.values(existing).some(p => phaseHasDisplayableContent(p));
         if (!hasContent) {
+          // Force all tasks to Final Stage Approved so they are reviewable
           updated[task.id] = generateMockProgress(3, task.id, true);
           changed = true;
         }
@@ -348,16 +378,19 @@ export function DesignerAssignments() {
     });
   }, [tasks]);
 
-  // Seed reviews for dtask-1 and dtask-2 only
+  // Seed reviews for dtask-1 and dtask-2 only, leaving dtask-3 and dtask-4 unreviewed.
+  // These two tasks will show as already reviewed; the others are open for users to review.
   useEffect(() => {
     setReviews(prev => {
       let updated = { ...prev };
       let changed = false;
 
+      // Explicit list of tasks that should have pre-existing reviews
       const reviewedTaskIds = ['dtask-1', 'dtask-2'];
 
       tasks.forEach(task => {
         if (reviewedTaskIds.includes(task.id) && !updated[task.id]) {
+          // dtask-1 gets System Admin review
           if (task.id === 'dtask-1') {
             updated[task.id] = {
               reviewerName: 'System Admin',
@@ -370,7 +403,9 @@ export function DesignerAssignments() {
               },
               submittedAt: new Date().toISOString(),
             };
-          } else if (task.id === 'dtask-2') {
+          }
+          // dtask-2 gets General Manager review
+          else if (task.id === 'dtask-2') {
             updated[task.id] = {
               reviewerName: 'General Manager',
               reviewText: 'Solid execution overall. The rendering quality exceeded expectations and the client brief was well understood.',
@@ -400,6 +435,53 @@ export function DesignerAssignments() {
       </div>
     );
   }
+
+  const canCreateTask = true;
+  const isAdmin = true;
+
+  const persistTasks = (updatedTasks: DesignerTask[]) => {
+    setTasks(updatedTasks);
+    localStorage.setItem('designer-tasks', JSON.stringify(updatedTasks));
+  };
+
+  const handleNewTaskImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setNewTask({ ...newTask, telegramScreenshot: reader.result as string });
+      setNewTaskImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const createTask = (event: React.FormEvent) => {
+    event.preventDefault();
+
+    const nextTask: DesignerTask = {
+      id: `dtask-${Date.now()}`,
+      projectId: newTask.projectId,
+      title: newTask.title.trim(),
+      description: newTask.description.trim(),
+      instruction: newTask.instruction.trim(),
+      storyPoints: Number(newTask.storyPoints),
+      telegramScreenshot: newTask.telegramScreenshot || undefined,
+      assignedBy: user.id,
+      status: 'pending',
+      deadline: newTask.deadline,
+      createdAt: new Date().toISOString(),
+    };
+
+    persistTasks([nextTask, ...tasks]);
+    setNewTask(emptyNewTask);
+    setNewTaskImagePreview(null);
+    setShowCreateTask(false);
+  };
+
+  const handleStatusChange = (taskId: string, newStatus: TaskStatus) => {
+    persistTasks(tasks.map((task) => (task.id === taskId ? { ...task, status: newStatus } : task)));
+    setEditingTask(null);
+  };
 
   const openDetail = (task: DesignerTask) => {
     setSelectedTaskDetail(task);
@@ -564,7 +646,11 @@ export function DesignerAssignments() {
     ? getDisplayProgress(selectedTaskDetail.id)
     : null;
 
+  const lastPopulatedIdx = getLastPopulatedPhaseIndex(currentProgress);
+  // Always show all 4 phases so the reviewer can see every stage
   const visiblePhases = PHASES;
+
+  const stopIdx = findFirstNonApprovedPhaseIndex(PHASES, currentProgress);
 
   const assignedTasks = tasks.filter((task) => !!task.assignedTo);
 
@@ -639,11 +725,22 @@ export function DesignerAssignments() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Designer Assignments</h2>
-        <p className="text-gray-600 mt-1">
-          Manage created designer tasks, assignments, and progress updates.
-        </p>
+      <div className="flex items-center justify-between gap-4 flex-col md:flex-row">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Designer Assignments</h2>
+          <p className="text-gray-600 mt-1">
+            Manage created designer tasks, assignments, and progress updates.
+          </p>
+        </div>
+        {canCreateTask && (
+          <button
+            onClick={() => setShowCreateTask(true)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Create Designer Task</span>
+          </button>
+        )}
       </div>
 
       {/* Task Cards */}
@@ -653,9 +750,10 @@ export function DesignerAssignments() {
           <p className="text-gray-500">No assigned designer tasks yet.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {assignedTasks.map((task) => {
             const project = mockProjects.find((candidate) => candidate.id === task.projectId);
+            const isEditing = editingTask === task.id;
             const isOverdue =
               task.deadline && new Date(task.deadline) < new Date() && task.status !== 'completed';
 
@@ -907,8 +1005,8 @@ export function DesignerAssignments() {
                             const rating = reviewRatings[task.id]?.[key] ?? 0;
                             const fillPercent = (rating / 5) * 100;
                             return (
-                              <div key={key} className="flex flex-wrap items-center gap-2">
-                                <label className="text-sm text-gray-600 w-24 sm:w-28 flex-shrink-0">
+                              <div key={key} className="flex items-center gap-3">
+                                <label className="text-sm text-gray-600 w-28 flex-shrink-0">
                                   {label}
                                 </label>
                                 <input
@@ -923,7 +1021,7 @@ export function DesignerAssignments() {
                                   style={{
                                     background: `linear-gradient(to right, #1d4ed8 ${fillPercent}%, #e5e7eb ${fillPercent}%)`,
                                   }}
-                                  className="flex-1 min-w-0 h-2 rounded-lg appearance-none cursor-pointer"
+                                  className="flex-1 h-2 rounded-lg appearance-none cursor-pointer"
                                 />
                                 <input
                                   type="number"
@@ -950,7 +1048,7 @@ export function DesignerAssignments() {
                                       updateRating(task.id, key, 0);
                                     }
                                   }}
-                                  className="w-14 sm:w-16 px-2 py-1 border border-gray-300 rounded text-sm text-center flex-shrink-0"
+                                  className="w-16 px-2 py-1 border border-gray-300 rounded text-sm text-center"
                                 />
                               </div>
                             );
@@ -985,6 +1083,11 @@ export function DesignerAssignments() {
                             {existingReview ? 'Update Review' : 'Submit Review'}
                           </button>
                         </div>
+                        {ratingSubmitted[task.id] && (
+                          <p className="text-xs text-green-600 mt-2">
+                            Review submitted successfully!
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -997,14 +1100,8 @@ export function DesignerAssignments() {
 
       {/* Detail Modal */}
       {showDetail && selectedTaskDetail && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-6 overflow-y-auto"
-          onClick={closeDetail}
-        >
-          <div
-            className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl max-h-[92vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-6 overflow-y-auto">
+          <div className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl max-h-[92vh] overflow-y-auto">
             <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-6 py-5">
               <div>
                 <h3 className="text-2xl font-semibold text-gray-900">Submission Detail</h3>
@@ -1174,6 +1271,7 @@ export function DesignerAssignments() {
                   </h5>
 
                   {(() => {
+                    // Show the last phase that has any history as the summary banner
                     const summaryIdx = getLastPopulatedPhaseIndex(currentProgress);
                     if (summaryIdx === -1) return null;
                     const phaseKey = PHASES[summaryIdx].key;
@@ -1232,7 +1330,7 @@ export function DesignerAssignments() {
                     <p className="text-sm text-gray-500">No submission data yet.</p>
                   ) : (
                     <div className="space-y-3">
-                      {visiblePhases.map((phase) => {
+                      {visiblePhases.map((phase, idx) => {
                         const taskId = selectedTaskDetail.id;
                         const phaseData = currentProgress?.[phase.key] ?? defaultPhase();
                         const isExpanded = expandedPhase === phase.key;
@@ -1528,6 +1626,164 @@ export function DesignerAssignments() {
                 </section>
               </aside>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Task Modal */}
+      {showCreateTask && canCreateTask && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-semibold mb-4">Create Available Designer Task</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              This task will be visible to designers so they can apply for it.
+            </p>
+            <form className="space-y-4" onSubmit={createTask}>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Task Title
+                </label>
+                <input
+                  type="text"
+                  value={newTask.title}
+                  onChange={(event) => setNewTask({ ...newTask, title: event.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter task title"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Description
+                </label>
+                <textarea
+                  rows={4}
+                  value={newTask.description}
+                  onChange={(event) =>
+                    setNewTask({ ...newTask, description: event.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Describe the work to be done"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Story Points
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={newTask.storyPoints}
+                  onChange={(event) =>
+                    setNewTask({ ...newTask, storyPoints: event.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter story points"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Telegram Screenshot (optional)
+                </label>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-sm text-gray-700">
+                    <Image className="w-4 h-4" />
+                    Choose Image
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleNewTaskImageUpload}
+                      className="hidden"
+                    />
+                  </label>
+                  {newTaskImagePreview && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewTask({ ...newTask, telegramScreenshot: '' });
+                        setNewTaskImagePreview(null);
+                      }}
+                      className="text-sm text-red-600 hover:underline"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                {newTaskImagePreview && (
+                  <div className="mt-3">
+                    <p className="text-xs text-gray-500 mb-1">Preview:</p>
+                    <img
+                      src={newTaskImagePreview}
+                      alt="preview"
+                      className="max-w-full h-auto max-h-48 rounded-lg border object-contain"
+                    />
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Instruction
+                </label>
+                <textarea
+                  rows={4}
+                  value={newTask.instruction}
+                  onChange={(event) =>
+                    setNewTask({ ...newTask, instruction: event.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Describe what the designer must collect or measure"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Project</label>
+                <select
+                  value={newTask.projectId}
+                  onChange={(event) =>
+                    setNewTask({ ...newTask, projectId: event.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                >
+                  <option value="">Select project</option>
+                  {mockProjects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Deadline</label>
+                <input
+                  type="date"
+                  value={newTask.deadline}
+                  onChange={(event) =>
+                    setNewTask({ ...newTask, deadline: event.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateTask(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                >
+                  Create Task
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

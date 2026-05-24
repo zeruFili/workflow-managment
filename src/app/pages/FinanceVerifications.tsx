@@ -23,16 +23,17 @@ import {
   XCircle,
   ChevronDown,
   ChevronUp,
+  ArrowLeft,
 } from 'lucide-react';
 
 const PAID_STORAGE_KEY = 'paid-customers';
 
 type FinanceTab =
-  | 'verification-task'
+  | 'unapproved-request'
   | 'verified-records'
   | 'rejected-records'
   | 'ceo-approved-requests'
-  | 'unapproved-requests';
+  | 'request-clarification-task';
 
 type FinanceAction = 'verify' | 'reject' | 'clarify' | 'edit' | 'ceo-approve';
 
@@ -228,6 +229,132 @@ const initialFinanceRecords: FinanceRecord[] = [
     ],
     resubmissionHistory: [],
   },
+  {
+    id: 'pc-fin-6',
+    customerName: 'Khalid Al Muhairi',
+    customerPhone: '+971 50 987 6543',
+    customerEmail: 'khalid@business.ae',
+    customerAddress: 'Al Barsha, Dubai',
+    category: 'office_design',
+    serviceDescription: 'Open-plan office design for 30 workstations with meeting rooms and pantry.',
+    preferredStartDate: '2026-06-10',
+    budget: 'AED 280,000',
+    notes: 'Ergonomic furniture and soundproof pods required.',
+    status: 'scheduled',
+    createdAt: '2026-05-01T07:15:00Z',
+    createdBy: '1',
+    createdByName: 'Sarah Johnson',
+    sourceRequestId: 'cr-6',
+    transferredAt: '2026-05-10T09:00:00Z',
+    transferredBy: '8',
+    transferredByName: 'Admin User',
+    paymentNote: 'Invoice #INV-456 attached.',
+    proofOfPayment: [],
+    paymentVerificationStatus: 'pending',
+    financeHistory: [],
+    resubmissionHistory: [],
+  },
+  {
+    id: 'pc-fin-7',
+    customerName: 'Layla Noor',
+    customerPhone: '+971 55 123 9876',
+    customerEmail: 'layla.noor@example.com',
+    customerAddress: 'Khalifa City, Abu Dhabi',
+    category: 'finishing_work',
+    serviceDescription: 'High-end finishing for penthouse including smart lighting and custom wardrobes.',
+    preferredStartDate: '2026-05-25',
+    budget: 'AED 420,000',
+    notes: 'Client supplied premium materials for flooring.',
+    status: 'in_progress',
+    createdAt: '2026-04-22T13:00:00Z',
+    createdBy: '8',
+    createdByName: 'Admin User',
+    sourceRequestId: 'cr-7',
+    transferredAt: '2026-05-12T07:30:00Z',
+    transferredBy: '8',
+    transferredByName: 'Admin User',
+    paymentNote: 'Partial payment with balance on completion.',
+    proofOfPayment: [],
+    paymentVerificationStatus: 'pending',
+    financeHistory: [],
+    resubmissionHistory: [],
+  },
+  {
+    id: 'pc-fin-8',
+    customerName: 'Tariq Al Zaabi',
+    customerPhone: '+971 56 543 2109',
+    customerEmail: 'tariq@example.org',
+    customerAddress: 'Al Fujairah',
+    category: 'home_design',
+    serviceDescription: 'Coastal villa interior with natural stone accents and panoramic windows.',
+    preferredStartDate: '2026-07-01',
+    budget: 'AED 550,000',
+    notes: 'Approval from municipality pending for structural changes.',
+    status: 'scheduled',
+    createdAt: '2026-05-05T08:45:00Z',
+    createdBy: '1',
+    createdByName: 'Sarah Johnson',
+    sourceRequestId: 'cr-8',
+    transferredAt: '2026-05-15T14:10:00Z',
+    transferredBy: '0',
+    transferredByName: 'CEO',
+    paymentNote: 'CEO fast-track transfer.',
+    proofOfPayment: [],
+    paymentVerificationStatus: 'request_clarification',
+    paymentVerificationMessage: 'Clarify source of funds before we can approve.',
+    paymentVerifiedAt: '2026-05-16T09:20:00Z',
+    paymentVerifiedBy: '6',
+    paymentVerifiedByName: 'Lisa Martinez',
+    financeHistory: [
+      {
+        id: 'hist-3',
+        action: 'clarify',
+        note: 'Clarify source of funds before we can approve.',
+        actorId: '6',
+        actorName: 'Lisa Martinez',
+        timestamp: '2026-05-16T09:20:00Z',
+      },
+    ],
+    resubmissionHistory: [],
+  },
+  {
+    id: 'pc-fin-9',
+    customerName: 'Hind Al Mazrouei',
+    customerPhone: '+971 52 111 2233',
+    customerEmail: 'hind.m@example.com',
+    customerAddress: 'Sharjah, Al Nahda',
+    category: 'hair_salon_design',
+    serviceDescription: 'Luxury salon with separate VIP section and spa facilities.',
+    preferredStartDate: '2026-06-15',
+    budget: 'AED 320,000',
+    notes: 'Needs to comply with Sharjah municipality regulations.',
+    status: 'scheduled',
+    createdAt: '2026-05-08T10:30:00Z',
+    createdBy: '8',
+    createdByName: 'Admin User',
+    sourceRequestId: 'cr-9',
+    transferredAt: '2026-05-18T11:00:00Z',
+    transferredBy: '1',
+    transferredByName: 'Sarah Johnson',
+    paymentNote: 'First instalment receipt attached.',
+    proofOfPayment: [],
+    paymentVerificationStatus: 'request_clarification',
+    paymentVerificationMessage: 'Missing second receipt; please resubmit.',
+    paymentVerifiedAt: '2026-05-19T14:05:00Z',
+    paymentVerifiedBy: '6',
+    paymentVerifiedByName: 'Lisa Martinez',
+    financeHistory: [
+      {
+        id: 'hist-4',
+        action: 'clarify',
+        note: 'Missing second receipt; please resubmit.',
+        actorId: '6',
+        actorName: 'Lisa Martinez',
+        timestamp: '2026-05-19T14:05:00Z',
+      },
+    ],
+    resubmissionHistory: [],
+  },
 ];
 
 function normalizeRecord(record: FinanceRecord): FinanceRecord {
@@ -295,7 +422,7 @@ function createAttachmentPreview(file: File): Promise<PaymentProof> {
 export function FinanceVerifications() {
   const { user } = useAuth();
   const [records, setRecords] = useState<FinanceRecord[]>([]);
-  const [activeTab, setActiveTab] = useState<FinanceTab>('verification-task');
+  const [currentView, setCurrentView] = useState<FinanceTab | null>(null);
   const [reviewedEvidence, setReviewedEvidence] = useState<Record<string, boolean>>({});
   const [modalState, setModalState] = useState<ActionModalState>({ open: false });
 
@@ -323,7 +450,8 @@ export function FinanceVerifications() {
 
   const summary = useMemo(
     () => ({
-      verificationTasks: records.filter((r) => !isVerified(r.paymentVerificationStatus) && r.paymentVerificationStatus !== 'rejected').length,
+      unapprovedTasks: records.filter((r) => r.paymentVerificationStatus === 'pending').length,
+      clarificationTasks: records.filter((r) => r.paymentVerificationStatus === 'request_clarification').length,
       verifiedPayments: records.filter((r) => isVerified(r.paymentVerificationStatus)).length,
       rejectedPayments: records.filter((r) => r.paymentVerificationStatus === 'rejected').length,
       ceoApprovedRequests: records.filter((r) => r.transferredByName === 'CEO' && !isVerified(r.paymentVerificationStatus)).length,
@@ -331,29 +459,34 @@ export function FinanceVerifications() {
     [records]
   );
 
-  const tabs: Array<{ id: FinanceTab; label: string; count?: number }> = [
-    { id: 'verification-task', label: 'Verification Task', count: summary.verificationTasks },
-    { id: 'verified-records', label: 'Verified Records', count: summary.verifiedPayments },
-    { id: 'rejected-records', label: 'Rejected Records', count: summary.rejectedPayments },
-    { id: 'ceo-approved-requests', label: 'CEO Approved Requests', count: summary.ceoApprovedRequests },
-    { id: 'unapproved-requests', label: 'Unapproved Requests', count: records.filter((r) => r.paymentVerificationStatus === 'pending').length },
-  ];
-
-  const activeRecords = useMemo(() => {
-    switch (activeTab) {
+  const filteredRecords = useMemo(() => {
+    if (!currentView) return [];
+    switch (currentView) {
+      case 'unapproved-request':
+        return records.filter((r) => r.paymentVerificationStatus === 'pending');
+      case 'request-clarification-task':
+        return records.filter((r) => r.paymentVerificationStatus === 'request_clarification');
       case 'verified-records':
         return records.filter((r) => isVerified(r.paymentVerificationStatus));
       case 'rejected-records':
         return records.filter((r) => r.paymentVerificationStatus === 'rejected');
       case 'ceo-approved-requests':
         return records.filter((r) => r.transferredByName === 'CEO' && !isVerified(r.paymentVerificationStatus));
-      case 'unapproved-requests':
-        return records.filter((r) => r.paymentVerificationStatus === 'pending');
-      case 'verification-task':
       default:
-        return records.filter((r) => r.paymentVerificationStatus === 'pending' || r.paymentVerificationStatus === 'request_clarification');
+        return [];
     }
-  }, [activeTab, records]);
+  }, [currentView, records]);
+
+  const viewLabel = useMemo(() => {
+    switch (currentView) {
+      case 'unapproved-request': return 'Unapproved Requests';
+      case 'request-clarification-task': return 'Request Clarification Tasks';
+      case 'verified-records': return 'Verified Records';
+      case 'rejected-records': return 'Rejected Records';
+      case 'ceo-approved-requests': return 'CEO Approved Requests';
+      default: return '';
+    }
+  }, [currentView]);
 
   const persistRecords = (nextRecords: FinanceRecord[]) => {
     setRecords(nextRecords.map(normalizeRecord));
@@ -370,7 +503,6 @@ export function FinanceVerifications() {
     setSelectedRecord(null);
   };
 
-  // Sync selectedRecord when records change (so detail panel stays fresh)
   useEffect(() => {
     if (selectedRecord) {
       const updated = records.find((r) => r.id === selectedRecord.id);
@@ -535,6 +667,12 @@ export function FinanceVerifications() {
     setExpandedSection((prev) => (prev === section ? null : section));
   };
 
+  const isProcessed = selectedRecord
+    ? isVerified(selectedRecord.paymentVerificationStatus) ||
+      selectedRecord.paymentVerificationStatus === 'rejected' ||
+      selectedRecord.paymentVerificationStatus === 'request_clarification'
+    : false;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -558,136 +696,131 @@ export function FinanceVerifications() {
         </div>
       </div>
 
-      {/* Summary Tiles */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          { label: 'Verification Task', value: summary.verificationTasks, icon: ClipboardList, tone: 'bg-blue-50 text-blue-700', tab: 'verification-task' as FinanceTab },
-          { label: 'Verified Payments', value: summary.verifiedPayments, icon: CheckCircle2, tone: 'bg-green-50 text-green-700', tab: 'verified-records' as FinanceTab },
-          { label: 'Rejected Payments', value: summary.rejectedPayments, icon: Ban, tone: 'bg-red-50 text-red-700', tab: 'rejected-records' as FinanceTab },
-          { label: 'Approve CEO-transferred requests', value: summary.ceoApprovedRequests, icon: Bell, tone: 'bg-amber-50 text-amber-700', tab: 'ceo-approved-requests' as FinanceTab },
-        ].map((tile) => {
-          const Icon = tile.icon;
-          return (
-            <button
-              key={tile.label}
-              type="button"
-              onClick={() => setActiveTab(tile.tab)}
-              className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-            >
-              <div className={`inline-flex rounded-xl p-2 ${tile.tone}`}>
-                <Icon className="h-5 w-5" />
-              </div>
-              <p className="mt-4 text-sm text-slate-500">{tile.label}</p>
-              <p className="mt-1 text-3xl font-bold text-slate-900">{tile.value}</p>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Tabs */}
-      <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id)}
-            className={`rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
-              activeTab === tab.id ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            {tab.label}
-            {typeof tab.count === 'number' ? <span className="ml-2 text-xs opacity-80">{tab.count}</span> : null}
-          </button>
-        ))}
-      </div>
-
-      {/* Records Grid — equal spacing, 2-column */}
-      {activeRecords.length > 0 ? (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {activeRecords.map((record) => {
-            const isOverdue = record.preferredStartDate && new Date(record.preferredStartDate) < new Date();
+      {currentView === null ? (
+        /* DASHBOARD VIEW – Summary Tiles only */
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          {[
+            { label: 'Unapproved Request', value: summary.unapprovedTasks, icon: ClipboardList, tone: 'bg-blue-50 text-blue-700', tab: 'unapproved-request' as FinanceTab },
+            { label: 'Request Clarification', value: summary.clarificationTasks, icon: CircleAlert, tone: 'bg-amber-50 text-amber-700', tab: 'request-clarification-task' as FinanceTab },
+            { label: 'Verified Payments', value: summary.verifiedPayments, icon: CheckCircle2, tone: 'bg-green-50 text-green-700', tab: 'verified-records' as FinanceTab },
+            { label: 'Rejected Payments', value: summary.rejectedPayments, icon: Ban, tone: 'bg-red-50 text-red-700', tab: 'rejected-records' as FinanceTab },
+            { label: 'Approve CEO-transferred', value: summary.ceoApprovedRequests, icon: Bell, tone: 'bg-amber-50 text-amber-700', tab: 'ceo-approved-requests' as FinanceTab },
+          ].map((tile) => {
+            const Icon = tile.icon;
             return (
-              <div
-                key={record.id}
-                className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow"
+              <button
+                key={tile.label}
+                type="button"
+                onClick={() => setCurrentView(tile.tab)}
+                className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
               >
-                <div className="flex items-start justify-between mb-3 gap-3">
-                  <div>
-                    <p className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
-                      <ClipboardList className="h-3.5 w-3.5" />
-                      {record.id}
-                    </p>
-                    <h3 className="mt-3 text-lg font-semibold text-gray-900">{record.customerName}</h3>
-                    <p className="mt-1 text-sm text-gray-500">Submitted by {record.transferredByName}</p>
-                  </div>
-                  <span className={`rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap ${statusTone(record.paymentVerificationStatus)}`}>
-                    {statusLabel(record.paymentVerificationStatus)}
-                  </span>
+                <div className={`inline-flex rounded-xl p-2 ${tile.tone}`}>
+                  <Icon className="h-5 w-5" />
                 </div>
-
-                <p className="text-sm text-gray-600 mb-4 line-clamp-2">{record.serviceDescription}</p>
-
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <span className="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium">
-                    {record.budget}
-                  </span>
-                  <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-medium capitalize">
-                    {record.category?.replace(/_/g, ' ')}
-                  </span>
-                  {record.transferredByName === 'CEO' && (
-                    <span className="px-2 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-medium">
-                      CEO Transfer
-                    </span>
-                  )}
-                </div>
-
-                <div className="space-y-2 text-sm mb-4">
-                  <div className="flex items-center gap-2 text-gray-500">
-                    <Calendar className="h-3.5 w-3.5" />
-                    <span>Submission: {new Date(record.transferredAt).toLocaleDateString()}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-gray-500">
-                    <User className="h-3.5 w-3.5" />
-                    <span>Status: {statusLabel(record.paymentVerificationStatus)}</span>
-                  </div>
-                </div>
-
-                {/* Latest history note if any */}
-                {(record.financeHistory ?? []).length > 0 && (() => {
-                  const latest = record.financeHistory![record.financeHistory!.length - 1];
-                  const isRej = latest.action === 'reject';
-                  const isVerif = latest.action === 'verify' || latest.action === 'ceo-approve';
-                  return (
-                    <div className={`mb-4 p-3 rounded-lg border text-sm ${isRej ? 'bg-red-50 border-red-200' : isVerif ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
-                      <p className={`font-medium ${isRej ? 'text-red-700' : isVerif ? 'text-green-700' : 'text-yellow-700'}`}>
-                        {latest.action.replace('_', ' ')}
-                      </p>
-                      <p className={`italic mt-0.5 ${isRej ? 'text-red-600' : isVerif ? 'text-green-600' : 'text-yellow-600'}`}>
-                        "{latest.note}"
-                      </p>
-                    </div>
-                  );
-                })()}
-
-                <button
-                  type="button"
-                  onClick={() => openDetail(record)}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
-                >
-                  Open Verification Detail
-                </button>
-              </div>
+                <p className="mt-4 text-sm text-slate-500">{tile.label}</p>
+                <p className="mt-1 text-3xl font-bold text-slate-900">{tile.value}</p>
+              </button>
             );
           })}
         </div>
       ) : (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center shadow-sm">
-          <ClipboardList className="mx-auto h-12 w-12 text-slate-300 mb-4" />
-          <p className="text-slate-500">No records match this section yet.</p>
+        /* SUB‑PAGE VIEW – Filtered list with back button */
+        <div className="space-y-6">
+          <button
+            type="button"
+            onClick={() => setCurrentView(null)}
+            className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Navigate to Dashboard
+          </button>
+
+          <h3 className="text-xl font-semibold text-slate-900">{viewLabel}</h3>
+
+          {filteredRecords.length > 0 ? (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {filteredRecords.map((record) => (
+                <div
+                  key={record.id}
+                  className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-start justify-between mb-3 gap-3">
+                    <div>
+                      <p className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+                        <ClipboardList className="h-3.5 w-3.5" />
+                        {record.id}
+                      </p>
+                      <h3 className="mt-3 text-lg font-semibold text-gray-900">{record.customerName}</h3>
+                      <p className="mt-1 text-sm text-gray-500">Submitted by {record.transferredByName}</p>
+                    </div>
+                    <span className={`rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap ${statusTone(record.paymentVerificationStatus)}`}>
+                      {statusLabel(record.paymentVerificationStatus)}
+                    </span>
+                  </div>
+
+                  <p className="text-sm text-gray-600 mb-4 line-clamp-2">{record.serviceDescription}</p>
+
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    <span className="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium">
+                      {record.budget}
+                    </span>
+                    <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-medium capitalize">
+                      {record.category?.replace(/_/g, ' ')}
+                    </span>
+                    {record.transferredByName === 'CEO' && (
+                      <span className="px-2 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-medium">
+                        CEO Transfer
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-2 text-sm mb-4">
+                    <div className="flex items-center gap-2 text-gray-500">
+                      <Calendar className="h-3.5 w-3.5" />
+                      <span>Submission: {new Date(record.transferredAt).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-500">
+                      <User className="h-3.5 w-3.5" />
+                      <span>Status: {statusLabel(record.paymentVerificationStatus)}</span>
+                    </div>
+                  </div>
+
+                  {(record.financeHistory ?? []).length > 0 && (() => {
+                    const latest = record.financeHistory![record.financeHistory!.length - 1];
+                    const isRej = latest.action === 'reject';
+                    const isVerif = latest.action === 'verify' || latest.action === 'ceo-approve';
+                    return (
+                      <div className={`mb-4 p-3 rounded-lg border text-sm ${isRej ? 'bg-red-50 border-red-200' : isVerif ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
+                        <p className={`font-medium ${isRej ? 'text-red-700' : isVerif ? 'text-green-700' : 'text-yellow-700'}`}>
+                          {latest.action.replace('_', ' ')}
+                        </p>
+                        <p className={`italic mt-0.5 ${isRej ? 'text-red-600' : isVerif ? 'text-green-600' : 'text-yellow-600'}`}>
+                          "{latest.note}"
+                        </p>
+                      </div>
+                    );
+                  })()}
+
+                  <button
+                    type="button"
+                    onClick={() => openDetail(record)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
+                  >
+                    Open Verification Detail
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center shadow-sm">
+              <ClipboardList className="mx-auto h-12 w-12 text-slate-300 mb-4" />
+              <p className="text-slate-500">No records in this category.</p>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Audit Summary */}
+      {/* Audit Summary – always visible (can be adjusted if needed) */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
           <MessageSquare className="h-4 w-4 text-slate-500" />
@@ -704,7 +837,6 @@ export function FinanceVerifications() {
       {showDetail && selectedRecord && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-6 overflow-y-auto">
           <div className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl max-h-[92vh] overflow-y-auto">
-            {/* Modal Header */}
             <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-6 py-5">
               <div>
                 <h3 className="text-2xl font-semibold text-gray-900">Verification Detail</h3>
@@ -716,7 +848,6 @@ export function FinanceVerifications() {
             </div>
 
             <div className="grid grid-cols-1 gap-6 px-6 py-5 lg:grid-cols-3">
-              {/* Main content */}
               <div className="lg:col-span-2 space-y-5">
                 {/* Record Info */}
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
@@ -747,19 +878,16 @@ export function FinanceVerifications() {
                   </div>
                 </section>
 
-                {/* Service Description */}
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Service Description</h5>
                   <p className="mt-2 text-sm text-gray-700">{selectedRecord.serviceDescription}</p>
                 </section>
 
-                {/* Marketing / Payment Note */}
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Payment Note</h5>
                   <p className="mt-2 text-sm text-gray-700">{selectedRecord.paymentNote ?? 'No payment note attached.'}</p>
                 </section>
 
-                {/* Payment Evidence — collapsible */}
                 <section className="rounded-xl border border-gray-200 bg-white overflow-hidden">
                   <button
                     type="button"
@@ -791,7 +919,6 @@ export function FinanceVerifications() {
                   )}
                 </section>
 
-                {/* Finance Attachments — collapsible */}
                 <section className="rounded-xl border border-gray-200 bg-white overflow-hidden">
                   <button
                     type="button"
@@ -818,7 +945,6 @@ export function FinanceVerifications() {
                   )}
                 </section>
 
-                {/* Finance History — collapsible */}
                 <section className="rounded-xl border border-gray-200 bg-white overflow-hidden">
                   <button
                     type="button"
@@ -849,7 +975,6 @@ export function FinanceVerifications() {
                   )}
                 </section>
 
-                {/* Resubmission History — collapsible */}
                 <section className="rounded-xl border border-gray-200 bg-white overflow-hidden">
                   <button
                     type="button"
@@ -880,7 +1005,6 @@ export function FinanceVerifications() {
                   )}
                 </section>
 
-                {/* CEO Transfer Banner */}
                 {selectedRecord.transferredByName === 'CEO' && !isVerified(selectedRecord.paymentVerificationStatus) && (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
                     <div className="flex items-center gap-2 text-sm font-medium text-amber-800">
@@ -904,9 +1028,7 @@ export function FinanceVerifications() {
                 )}
               </div>
 
-              {/* Sidebar */}
               <aside className="space-y-4">
-                {/* Mark evidence reviewed */}
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-3">Evidence Review</h5>
                   {reviewedEvidence[selectedRecord.id] ? (
@@ -928,7 +1050,6 @@ export function FinanceVerifications() {
                   )}
                 </section>
 
-                {/* Timeline */}
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-3">Timeline</h5>
                   <div className="space-y-2 text-sm text-gray-700">
@@ -953,46 +1074,48 @@ export function FinanceVerifications() {
                   </div>
                 </section>
 
-                {/* Action Buttons */}
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-3">Actions</h5>
                   <div className="space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => { closeDetail(); openModal(selectedRecord.id, 'verify', 'verified'); }}
-                      disabled={!reviewedEvidence[selectedRecord.id]}
-                      className="w-full rounded-xl bg-green-600 px-4 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-green-300 hover:bg-green-700 transition-colors"
-                    >
-                      Verify Payment
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { closeDetail(); openModal(selectedRecord.id, 'reject', 'rejected'); }}
-                      disabled={!reviewedEvidence[selectedRecord.id]}
-                      className="w-full rounded-xl bg-red-600 px-4 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-red-300 hover:bg-red-700 transition-colors"
-                    >
-                      Reject Payment
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { closeDetail(); openModal(selectedRecord.id, 'clarify', 'request_clarification'); }}
-                      disabled={!reviewedEvidence[selectedRecord.id]}
-                      className="w-full rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-amber-300 hover:bg-amber-700 transition-colors"
-                    >
-                      Request Clarification
-                    </button>
+                    {!isProcessed ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => { closeDetail(); openModal(selectedRecord.id, 'verify', 'verified'); }}
+                          disabled={!reviewedEvidence[selectedRecord.id]}
+                          className="w-full rounded-xl bg-green-600 px-4 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-green-300 hover:bg-green-700 transition-colors"
+                        >
+                          Verify Payment
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { closeDetail(); openModal(selectedRecord.id, 'reject', 'rejected'); }}
+                          disabled={!reviewedEvidence[selectedRecord.id]}
+                          className="w-full rounded-xl bg-red-600 px-4 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-red-300 hover:bg-red-700 transition-colors"
+                        >
+                          Reject Payment
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { closeDetail(); openModal(selectedRecord.id, 'clarify', 'request_clarification'); }}
+                          disabled={!reviewedEvidence[selectedRecord.id]}
+                          className="w-full rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-amber-300 hover:bg-amber-700 transition-colors"
+                        >
+                          Request Clarification
+                        </button>
+                      </>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => { closeDetail(); openModal(selectedRecord.id, 'edit', selectedRecord.paymentVerificationStatus ?? 'pending'); }}
                       disabled={!reviewedEvidence[selectedRecord.id]}
                       className="w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-400 hover:bg-slate-700 transition-colors"
                     >
-                      Edit Verification Decision
+                      Edit Verification
                     </button>
                   </div>
                 </section>
 
-                {/* Audit */}
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-2">Audit</h5>
                   <p className="text-sm text-slate-600">
