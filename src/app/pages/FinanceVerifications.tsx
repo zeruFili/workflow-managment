@@ -79,7 +79,6 @@ type ActionModalState =
 const categoryLabel = 'Paid customer verification';
 
 const initialFinanceRecords: FinanceRecord[] = [
-  // … (seed data unchanged) …
   {
     id: 'pc-fin-1',
     customerName: 'Nadia Hassan',
@@ -177,7 +176,6 @@ const initialFinanceRecords: FinanceRecord[] = [
     ],
     resubmissionHistory: [],
   },
-  
   {
     id: 'pc-fin-5',
     customerName: 'Rashid Al Fahim',
@@ -536,6 +534,7 @@ export function FinanceVerifications() {
   const observedElements = useRef<Set<string>>(new Set());
   const observerRef = useRef<IntersectionObserver | null>(null);
   const recordsRef = useRef(records);
+  const isMounted = useRef(true);
 
   useEffect(() => {
     recordsRef.current = records;
@@ -545,10 +544,10 @@ export function FinanceVerifications() {
   const ensureViewedSetInitialized = (recs: FinanceRecord[]) => {
     if (viewedFinanceRecordCards.size === 0) {
       const pendingRecords = recs
-        .filter(r => r.paymentVerificationStatus === 'pending')
+        .filter((r) => r.paymentVerificationStatus === 'pending')
         .sort((a, b) => new Date(b.transferredAt).getTime() - new Date(a.transferredAt).getTime());
       // Mark all except the first 2 as already viewed
-      pendingRecords.slice(2).forEach(r => viewedFinanceRecordCards.add(r.id));
+      pendingRecords.slice(2).forEach((r) => viewedFinanceRecordCards.add(r.id));
     }
   };
 
@@ -570,20 +569,62 @@ export function FinanceVerifications() {
     publishFinanceBadgeCount(unseen.length);
   }, [records]);
 
-  // ── IntersectionObserver (improved) ──
+  // Commit seen session – processes pending intersection records before committing
+  const commitSeenSession = () => {
+    if (observerRef.current) {
+      const pending = observerRef.current.takeRecords();
+      pending.forEach((entry) => {
+        const id = (entry.target as HTMLElement).dataset.highlightedId;
+        // Rely purely on the dataset attribute presence, preventing stale closure issues
+        if (id && entry.intersectionRatio > 0) {
+          if (!observedElements.current.has(id)) {
+            observedElements.current.add(id);
+            seenThisSession.current.add(id);
+          }
+        }
+      });
+    }
+
+    if (seenThisSession.current.size === 0) return;
+    
+    seenThisSession.current.forEach((id) => viewedFinanceRecordCards.add(id));
+    seenThisSession.current.clear();
+    observedElements.current.clear();
+
+    // Recalculate highlights and update badge
+    const currentRecords = recordsRef.current;
+    const pendingIds = currentRecords
+      .filter((r) => r.paymentVerificationStatus === 'pending')
+      .map((r) => r.id);
+    const remainingUnseen = pendingIds.filter((id) => !viewedFinanceRecordCards.has(id));
+    
+    // Prevent state updates if component has unmounted
+    if (isMounted.current) {
+      setHighlightedIds(new Set(remainingUnseen));
+    }
+    publishFinanceBadgeCount(remainingUnseen.length);
+  };
+
+  // Wrapper for view changing to guarantee immediate processing before unmounts
+  const handleViewChange = (newView: FinanceTab | null) => {
+    commitSeenSession();
+    setCurrentView(newView);
+  };
+
+  // ── IntersectionObserver ──
   useEffect(() => {
     if (observerRef.current) {
       observerRef.current.disconnect();
       observedElements.current.clear();
     }
+    
     if (highlightedIds.size === 0) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           const id = (entry.target as HTMLElement).dataset.highlightedId;
-          if (!id || !highlightedIds.has(id)) return;
-          // Mark as seen as soon as any part of the card enters the viewport (intersectionRatio > 0)
+          if (!id) return;
           if (entry.isIntersecting && entry.intersectionRatio > 0) {
             if (!observedElements.current.has(id)) {
               observedElements.current.add(id);
@@ -592,7 +633,7 @@ export function FinanceVerifications() {
           }
         });
       },
-      { threshold: [0, 0.1, 0.5, 1] } // use multiple thresholds to catch any entry
+      { threshold: [0, 0.1, 0.5, 1] }
     );
 
     observerRef.current = observer;
@@ -608,47 +649,13 @@ export function FinanceVerifications() {
       observer.disconnect();
       observedElements.current.clear();
     };
-  }, [highlightedIds]);
+  }, [highlightedIds, currentView]); // currentView added to reconnect observers properly upon view mount
 
-  // Commit seen session – processes pending intersection records before committing
-  const commitSeenSession = () => {
-    // Process any pending intersection records that haven't been delivered yet
-    if (observerRef.current) {
-      const pending = observerRef.current.takeRecords();
-      pending.forEach((entry) => {
-        const id = (entry.target as HTMLElement).dataset.highlightedId;
-        if (id && highlightedIds.has(id) && entry.intersectionRatio > 0) {
-          if (!observedElements.current.has(id)) {
-            observedElements.current.add(id);
-            seenThisSession.current.add(id);
-          }
-        }
-      });
-    }
-
-    if (seenThisSession.current.size === 0) return;
-    seenThisSession.current.forEach((id) => viewedFinanceRecordCards.add(id));
-    seenThisSession.current.clear();
-    observedElements.current.clear();
-
-    // Recalculate highlights and update badge
-    const currentRecords = recordsRef.current;
-    const pendingIds = currentRecords
-      .filter((r) => r.paymentVerificationStatus === 'pending')
-      .map((r) => r.id);
-    const remainingUnseen = pendingIds.filter((id) => !viewedFinanceRecordCards.has(id));
-    setHighlightedIds(new Set(remainingUnseen));
-    publishFinanceBadgeCount(remainingUnseen.length);
-  };
-
-  // Trigger commit whenever the user switches tabs
+  // Safety net: track unmount & clean up session
   useEffect(() => {
-    commitSeenSession();
-  }, [currentView]);
-
-  // Safety net: commit on unmount
-  useEffect(() => {
+    isMounted.current = true;
     return () => {
+      isMounted.current = false;
       commitSeenSession();
     };
   }, []);
@@ -690,7 +697,9 @@ export function FinanceVerifications() {
         case 'rejected-records':
           return records.filter((r) => r.paymentVerificationStatus === 'rejected');
         case 'ceo-approved-requests':
-          return records.filter((r) => r.transferredByName === 'CEO' && !isVerified(r.paymentVerificationStatus));
+          return records.filter((r) => r.transferredByName === 'CEO' && !isVerified(r.paymentVerificationStatus)).length > 0
+            ? records.filter((r) => r.transferredByName === 'CEO' && !isVerified(r.paymentVerificationStatus))
+            : [];
         default:
           return [];
       }
@@ -964,7 +973,7 @@ export function FinanceVerifications() {
                 <button
                   key={tile.label}
                   type="button"
-                  onClick={() => setCurrentView(tile.tab)}
+                  onClick={() => handleViewChange(tile.tab)}
                   className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm transition active:bg-slate-50"
                 >
                   <div className="flex items-center gap-3">
@@ -972,11 +981,13 @@ export function FinanceVerifications() {
                       <Icon className="h-5 w-5" />
                     </div>
                     <span className="text-sm font-medium text-slate-700">{tile.label}</span>
+                    {tile.tab === 'unapproved-request' && highlightedIds.size > 0 && (
+                      <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-blue-600 px-2 py-0.5 text-xs font-semibold text-white">
+                        {highlightedIds.size}
+                      </span>
+                    )}
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xl font-bold text-slate-900">{tile.value}</span>
-                    <ChevronDown className="h-4 w-4 -rotate-90 text-slate-400" />
-                  </div>
+                  <ChevronDown className="h-4 w-4 -rotate-90 text-slate-400" />
                 </button>
               );
             })}
@@ -985,7 +996,7 @@ export function FinanceVerifications() {
           <div className="space-y-6">
             <button
               type="button"
-              onClick={() => setCurrentView(null)}
+              onClick={() => handleViewChange(null)}
               className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 transition-colors"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -1007,7 +1018,7 @@ export function FinanceVerifications() {
               <button
                 key={tile.label}
                 type="button"
-                onClick={() => setCurrentView(tile.tab)}
+                onClick={() => handleViewChange(tile.tab)}
                 className={`rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
                   isActive ? `border-slate-400 ${tile.activeTone}` : 'border-slate-200'
                 }`}
@@ -1016,7 +1027,11 @@ export function FinanceVerifications() {
                   <Icon className="h-5 w-5" />
                 </div>
                 <p className="mt-4 text-sm text-slate-500">{tile.label}</p>
-                <p className="mt-1 text-3xl font-bold text-slate-900">{tile.value}</p>
+                {tile.tab === 'unapproved-request' && highlightedIds.size > 0 && (
+                  <span className="mt-3 inline-flex min-w-7 items-center justify-center rounded-full bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white">
+                    {highlightedIds.size}
+                  </span>
+                )}
               </button>
             );
           })}
