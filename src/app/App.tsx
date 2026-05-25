@@ -81,6 +81,28 @@ function AppContent() {
         />
 
         <Route
+          path="/quantity-surveyor-live"
+          element={
+            <ProtectedRoute allowedRoles={['quantity_surveyor']}>
+              <Layout>
+                <QuantitySurveyorDashboard />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/quantity-surveyor-review"
+          element={
+            <ProtectedRoute allowedRoles={['quantity_surveyor']}>
+              <Layout>
+                <QuantitySurveyorDashboard />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/projects"
           element={
             <ProtectedRoute>
