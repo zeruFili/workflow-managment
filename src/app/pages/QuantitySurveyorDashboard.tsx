@@ -178,9 +178,9 @@ export function QuantitySurveyorDashboard() {
           </div>
           <div className="flex flex-wrap gap-3">
             {[
-              { label: 'Tasks', value: tasks.length, badge: notificationCount, color: 'bg-blue-50 text-blue-700' },
-              { label: 'Active', value: activeTasks.length, badge: pendingTasks.length, color: 'bg-amber-50 text-amber-700' },
-              { label: 'Approval', value: approvalCount + feedbackCount, badge: pendingDecisionEvaluations.length, color: 'bg-green-50 text-green-700' },
+              { label: 'Tasks', value: 'Queue', badge: 'New', color: 'bg-blue-50 text-blue-700' },
+              { label: 'Active', value: 'Live', badge: 'Open', color: 'bg-amber-50 text-amber-700' },
+              { label: 'Approval', value: 'Review', badge: 'Ready', color: 'bg-green-50 text-green-700' },
             ].map((s) => (
               <div key={s.label} className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 min-w-[110px]">
                 <p className="text-xs text-gray-500 font-medium">{s.label}</p>
@@ -199,9 +199,9 @@ export function QuantitySurveyorDashboard() {
       {/* Panel switcher */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
         {[
-          { key: 'tasks' as const, label: 'Tasks', count: tasks.length, badge: 0, helper: 'View all assigned quantity review tasks.' },
-          { key: 'active' as const, label: 'Active Task', count: activeTasks.length, badge: unreadAssignmentCount, helper: 'Review active submissions and create cost records.' },
-          { key: 'approval' as const, label: 'Approval', count: approvalCount + feedbackCount, badge: newApprovalItemIds.size, helper: 'Track approved and feedback items from GM/CEO.' },
+          { key: 'tasks' as const, label: 'Tasks', count: 'Queue', badge: 'View', helper: 'View all assigned quantity review tasks.' },
+          { key: 'active' as const, label: 'Active Task', count: 'Live', badge: 'Open', helper: 'Review active submissions and create cost records.' },
+          { key: 'approval' as const, label: 'Approval', count: 'Review', badge: 'Track', helper: 'Track approved and feedback items from GM/CEO.' },
         ].map((panel) => {
           const isActive = activePanel === panel.key;
           return (
@@ -225,7 +225,7 @@ export function QuantitySurveyorDashboard() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
           <div className="flex items-center justify-between gap-3 mb-5">
             <div><h3 className="text-xl font-bold text-gray-900">Tasks</h3><p className="text-sm text-gray-500">All forwarded submissions ready for quantity review.</p></div>
-            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">{pendingTasks.length} new</span>
+            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">New</span>
           </div>
           <div className="overflow-hidden rounded-xl border border-gray-200">
             <div className="grid grid-cols-[110px_140px_1.6fr_140px_140px_130px] gap-4 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -259,7 +259,7 @@ export function QuantitySurveyorDashboard() {
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             <div className="flex items-center justify-between gap-3 mb-5">
               <div><h3 className="text-xl font-bold text-gray-900">Active Task</h3><p className="text-sm text-gray-500">Currently active quantity review submissions.</p></div>
-              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">{activeTasks.length}</span>
+              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">Open</span>
             </div>
             <div className="space-y-3">
               {activeTasks.map((task) => {
@@ -366,9 +366,9 @@ export function QuantitySurveyorDashboard() {
             <div className="flex items-center justify-between gap-3 mb-5">
               <div><h3 className="text-xl font-bold text-gray-900">Approval</h3><p className="text-sm text-gray-500">Approved and feedback items returned from GM or CEO.</p></div>
               <div className="flex flex-wrap gap-2">
-                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">{approvalCount} approvals</span>
-                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">{feedbackCount} feedback</span>
-                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">{newApprovalItemIds.size} new</span>
+                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">Approvals</span>
+                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">Feedback</span>
+                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">Recent</span>
               </div>
             </div>
 
