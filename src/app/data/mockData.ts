@@ -241,7 +241,6 @@ export const mockTasks: Task[] = [
 ];
 
 export const mockDesignerTasks: DesignerTask[] = [
-  
   {
     id: 'dtask-2',
     projectId: 'proj-2',
@@ -373,7 +372,7 @@ export const mockDesignerTasks: DesignerTask[] = [
     deadline: '2026-04-28T23:59:59Z',
     createdAt: '2026-04-21T15:20:00Z',
   },
-   {
+  {
     id: 'dtask-18',
     projectId: 'proj-1',
     title: 'Final living room 3D perspective',
@@ -458,6 +457,264 @@ export const mockDesignerTasks: DesignerTask[] = [
     approvalFeedback: 'Cohesive and elegant mood board.',
     approvedBy: '8',
     approvedAt: '2026-05-25T17:00:00Z',
+  },
+  {
+    id: 'dtask-11',
+    projectId: 'proj-1',
+    title: 'Draft window schedule',
+    description: 'Prepare a comprehensive window schedule with dimensions, types, and opening directions.',
+    instruction: 'Collect on-site window measurements and note any special framing requirements.',
+    storyPoints: 3,
+    assignedTo: '4',
+    assignedBy: '2',
+    status: 'pending',
+    deadline: '2026-05-26T23:59:59Z',
+    createdAt: '2026-05-24T09:00:00Z',
+  },
+  {
+    id: 'dtask-12',
+    projectId: 'proj-2',
+    title: 'Compile door hardware schedule',
+    description: 'List all door hardware with specifications and finishes.',
+    instruction: 'Verify each door location, measure the door thickness, and record the exact hardware model.',
+    storyPoints: 2,
+    assignedTo: '9',
+    assignedBy: '2',
+    status: 'pending',
+    deadline: '2026-05-27T23:59:59Z',
+    createdAt: '2026-05-24T10:30:00Z',
+  },
+  {
+    id: 'dtask-13',
+    projectId: 'proj-3',
+    title: 'Update reflected ceiling plan',
+    description: 'Adjust the reflected ceiling plan to match as-built conditions.',
+    instruction: 'Take new ceiling height measurements and mark any added bulkheads or lighting changes.',
+    storyPoints: 5,
+    assignedTo: '10',
+    assignedBy: '8',
+    status: 'pending',
+    deadline: '2026-05-28T23:59:59Z',
+    createdAt: '2026-05-24T11:00:00Z',
+  },
+  {
+    id: 'dtask-70',
+    projectId: 'proj-1',
+    title: 'Update Reflected Ceiling Plan',
+    description: 'Revise the RCP for project Alpha after structural changes.',
+    instruction: 'Check site measurements, update fixture positions, and coordinate with HVAC layout.',
+    storyPoints: 5,
+    assignedTo: '3',
+    assignedBy: '2',
+    status: 'pending',
+    deadline: '2026-06-10T23:59:59Z',
+    createdAt: '2026-05-25T09:00:00Z',
+  },
+  {
+    id: 'dtask-71',
+    projectId: 'proj-2',
+    title: 'Update Reflected Ceiling Plan',
+    description: 'Adjust ceiling layout for the retail unit after coordination meeting.',
+    instruction: 'Incorporate new lighting zones and verify headroom clearances.',
+    storyPoints: 5,
+    assignedTo: '4',
+    assignedBy: '2',
+    status: 'pending',
+    deadline: '2026-06-12T23:59:59Z',
+    createdAt: '2026-05-25T10:15:00Z',
+  },
+  {
+    id: 'dtask-72',
+    projectId: 'proj-3',
+    title: 'Update Reflected Ceiling Plan',
+    description: 'Update the RCP for the office tower lobby following revised MEP drawings.',
+    instruction: 'Cross-reference the latest mechanical schedules and confirm all ceiling heights.',
+    storyPoints: 8,
+    assignedTo: '9',
+    assignedBy: '2',
+    status: 'pending',
+    deadline: '2026-06-15T23:59:59Z',
+    createdAt: '2026-05-25T11:00:00Z',
+  },
+  {
+    id: 'dtask-73',
+    projectId: 'proj-4',
+    title: 'Update Reflected Ceiling Plan',
+    description: 'Rework the RCP for the co-working space after client feedback.',
+    instruction: 'Add feature ceiling elements and update sprinkler head locations.',
+    storyPoints: 5,
+    assignedTo: '10',
+    assignedBy: '8',
+    status: 'pending',
+    deadline: '2026-06-18T23:59:59Z',
+    createdAt: '2026-05-25T12:30:00Z',
+  },
+  {
+    id: 'dtask-14',
+    projectId: 'proj-5',
+    title: 'Finalise bathroom tile layout',
+    description: 'Produce the tile layout drawing with exact cut sizes.',
+    instruction: 'Use the site-measured bathroom dimensions and note any niche or border tile requirements.',
+    storyPoints: 3,
+    assignedTo: '4',
+    assignedBy: '8',
+    status: 'in_progress',
+    deadline: '2026-05-26T23:59:59Z',
+    createdAt: '2026-05-24T12:00:00Z',
+  },
+  {
+    id: 'dtask-15',
+    projectId: 'proj-1',
+    title: 'Prepare lighting fixture schedule',
+    description: 'Create a detailed fixture schedule with type, wattage, and placement notes.',
+    instruction: 'Reference the latest ceiling plan and mark all fixture locations with circuit references.',
+    storyPoints: 5,
+    assignedTo: '9',
+    assignedBy: '2',
+    status: 'in_progress',
+    deadline: '2026-05-27T23:59:59Z',
+    createdAt: '2026-05-24T12:30:00Z',
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // DESIGNER TASK PAGE — 8 tasks covering every UI state.
+  // assignedTo uses the literal user IDs '4' (Michael Brown) and '9' / '10'
+  // so the page filter (task.assignedTo === user.id) works when logged in as
+  // designer with ID '4'. To test all 8 states, log in as that user.
+  //
+  // State map:
+  //   mdt-1  No submission at all               → "Case Study – Pending Review"
+  //   mdt-2  CS ✓  DS ✓  → Rendering open       → "Rendering – Pending Review"
+  //   mdt-3  CS ✓  DS feedback (blocked)         → "Design Stage – Feedback Given"
+  //   mdt-4  CS ✓  DS rejected (locked)          → "Design Stage – Rejected"
+  //   mdt-5  CS ✓  DS ✓  Rendering feedback      → "Rendering – Feedback Given"
+  //   mdt-6  All 4 phases approved               → "Final Stage – Approved"
+  //   mdt-7  CS ✓  DS ✓  R ✓  Final feedback     → "Final Stage – Feedback Given"
+  //   mdt-8  CS feedback only (stuck phase 1)    → "Case Study – Feedback Given"
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // mdt-1: Nothing submitted yet
+  {
+    id: 'mdt-1',
+    projectId: 'proj-1',
+    title: 'Draft window schedule',
+    description: 'Prepare a comprehensive window schedule with dimensions, types, and opening directions.',
+    instruction: 'Collect on-site window measurements and note any special framing requirements.',
+    storyPoints: 3,
+    assignedTo: '4',
+    assignedBy: '2',
+    status: 'pending',
+    deadline: '2026-06-10T23:59:59Z',
+    createdAt: '2026-05-25T09:00:00Z',
+  },
+
+  // mdt-2: CS + DS approved → Rendering open
+  {
+    id: 'mdt-2',
+    projectId: 'proj-2',
+    title: 'Prepare material palette board (Phase 2)',
+    description: 'Create a refined board for the project material selection.',
+    instruction: 'Collect sample codes, finish names, and supplier references for each selected material.',
+    storyPoints: 5,
+    assignedTo: '4',
+    assignedBy: '2',
+    status: 'in_progress',
+    deadline: '2026-06-12T23:59:59Z',
+    createdAt: '2026-05-25T09:30:00Z',
+  },
+
+  // mdt-3: CS approved + DS feedback (cannot advance)
+  {
+    id: 'mdt-3',
+    projectId: 'proj-3',
+    title: 'Review ceiling detail drawings (Phase 2)',
+    description: 'Check the ceiling detail drawings against the latest site conditions.',
+    instruction: 'Verify exact ceiling levels and note any beam drops or lighting conflicts before finalizing.',
+    storyPoints: 8,
+    assignedTo: '4',
+    assignedBy: '2',
+    status: 'in_progress',
+    deadline: '2026-06-08T23:59:59Z',
+    createdAt: '2026-05-25T10:00:00Z',
+  },
+
+  // mdt-4: CS approved + DS rejected (task fully locked)
+  {
+    id: 'mdt-4',
+    projectId: 'proj-4',
+    title: 'Update bedroom palette options (Phase 2)',
+    description: 'Suggest revised bedroom palette options for client review.',
+    instruction: 'Measure the room sunlight direction and floor finish to match the palette recommendations.',
+    storyPoints: 3,
+    assignedTo: '4',
+    assignedBy: '8',
+    status: 'rejected',
+    deadline: '2026-05-30T23:59:59Z',
+    createdAt: '2026-05-25T10:30:00Z',
+  },
+
+  // mdt-5: CS + DS approved + Rendering feedback
+  {
+    id: 'mdt-5',
+    projectId: 'proj-5',
+    title: 'Finalize kitchen cabinetry sketch (Phase 2)',
+    description: 'Prepare the final sketch for the kitchen cabinetry layout.',
+    instruction: 'Record cabinet heights, appliance sizes, and clearances before finalizing the sketch.',
+    storyPoints: 5,
+    assignedTo: '4',
+    assignedBy: '2',
+    status: 'in_progress',
+    deadline: '2026-06-15T23:59:59Z',
+    createdAt: '2026-05-25T11:00:00Z',
+  },
+
+  // mdt-6: All 4 phases approved (fully complete)
+  {
+    id: 'mdt-6',
+    projectId: 'proj-1',
+    title: 'Compile finish sample references (Phase 2)',
+    description: 'Prepare a reference sheet for all selected finishes.',
+    instruction: 'Collect finish codes, color references, and any supplier notes into one summary document.',
+    storyPoints: 3,
+    assignedTo: '4',
+    assignedBy: '8',
+    status: 'completed',
+    approvalStatus: 'approved',
+    approvalFeedback: 'Outstanding finish reference sheet. No changes needed.',
+    approvedBy: '2',
+    approvedAt: '2026-05-23T13:00:00Z',
+    deadline: '2026-05-28T23:59:59Z',
+    createdAt: '2026-05-25T11:30:00Z',
+  },
+
+  // mdt-7: First 3 phases approved + Final Stage feedback
+  {
+    id: 'mdt-7',
+    projectId: 'proj-2',
+    title: 'Prepare hallway lighting notes (Phase 2)',
+    description: 'Document lighting notes for the main hallway design.',
+    instruction: 'Measure hallway length and identify light fixture spacing requirements.',
+    storyPoints: 2,
+    assignedTo: '4',
+    assignedBy: '8',
+    status: 'in_progress',
+    deadline: '2026-06-18T23:59:59Z',
+    createdAt: '2026-05-25T12:00:00Z',
+  },
+
+  // mdt-8: Case Study feedback only (stuck at phase 1)
+  {
+    id: 'mdt-8',
+    projectId: 'proj-3',
+    title: 'Develop bedroom mood board (Phase 2)',
+    description: 'Build a mood board for a bedroom design package.',
+    instruction: 'Collect material references, furniture style cues, and lighting direction notes for the bedroom concept.',
+    storyPoints: 5,
+    assignedTo: '4',
+    assignedBy: '8',
+    status: 'in_progress',
+    deadline: '2026-06-20T23:59:59Z',
+    createdAt: '2026-05-25T12:30:00Z',
   },
 ];
 
@@ -604,16 +861,6 @@ export const mockApprovals: Approval[] = [
   },
 ];
 
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// DESIGNER PERFORMANCE DATA — add this to your existing mockData.ts
-// References user IDs from your existing mockUsers:
-//   '3' = Emily Chen  (design_team_leader)
-//   '4' = Michael Brown (designer)
-// Two additional mock designers added below for richer analytics.
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface DesignerRating {
   id: string;
   designerId: string;
@@ -623,33 +870,31 @@ export interface DesignerRating {
   projectName: string;
   storyPoints: number;
   status?: 'approved' | 'rejected' | 'in_review';
-  overallRating: number; // 1–5
+  overallRating: number;
   renderingQuality: number;
   timeliness: number;
   creativity: number;
   clientUnderstanding: number;
   revisionEfficiency: number;
   revisionCount: number;
-  completedAt: string; // ISO date string
+  completedAt: string;
   feedback: string;
-  ratedBy: string; // userId
-  week: number;   // 1–52
-  month: number;  // 1–12
-  quarter: number; // 1–4
+  ratedBy: string;
+  week: number;
+  month: number;
+  quarter: number;
   year: number;
 }
 
 export interface DesignerProfile {
   designerId: string;
-  displayName: string; // editable by CEO
+  displayName: string;
   username: string;
   email: string;
   avatarInitials: string;
   role: 'designer' | 'design_team_leader';
   joinedAt: string;
 }
-
-// ─── Designer Profiles ────────────────────────────────────────────────────────
 
 export const designerProfiles: DesignerProfile[] = [
   {
@@ -690,11 +935,7 @@ export const designerProfiles: DesignerProfile[] = [
   },
 ];
 
-// ─── Designer Ratings / Task History ─────────────────────────────────────────
-// Covers Jan 2025 – May 2026 across all 4 designers
-
 export const designerRatings: DesignerRating[] = [
-  // ── Emily Chen (id: '3') ──────────────────────────────────────────────────
   {
     id: 'r-ec-001', designerId: '3', taskId: 'dtask-2', taskTitle: 'Prepare material palette board',
     projectId: 'proj-2', projectName: 'Residential Complex - Phase 2',
@@ -727,7 +968,6 @@ export const designerRatings: DesignerRating[] = [
     completedAt: '2026-04-26T16:00:00Z', feedback: 'Well organized reference sheet, easy for client review.',
     ratedBy: '2', week: 17, month: 4, quarter: 2, year: 2026,
   },
-  // Emily Q1 2026
   {
     id: 'r-ec-005', designerId: '3', taskId: 'prev-ec-1', taskTitle: 'Office Lighting Concept',
     projectId: 'proj-3', projectName: 'Commercial Tower Interior',
@@ -752,7 +992,6 @@ export const designerRatings: DesignerRating[] = [
     completedAt: '2026-01-18T12:00:00Z', feedback: 'Needed extra revisions due to site constraint issues.',
     ratedBy: '2', week: 3, month: 1, quarter: 1, year: 2026,
   },
-  // Emily 2025
   {
     id: 'r-ec-008', designerId: '3', taskId: 'prev-ec-4', taskTitle: 'Annual Design Report',
     projectId: 'proj-5', projectName: 'Hotel Lobby Redesign',
@@ -777,8 +1016,6 @@ export const designerRatings: DesignerRating[] = [
     completedAt: '2025-06-22T10:00:00Z', feedback: 'Solid concept, needed one extra revision for plant specs.',
     ratedBy: '2', week: 25, month: 6, quarter: 2, year: 2025,
   },
-
-  // ── Michael Brown (id: '4') ───────────────────────────────────────────────
   {
     id: 'r-mb-001', designerId: '4', taskId: 'dtask-1', taskTitle: 'Draft living room elevation',
     projectId: 'proj-1', projectName: 'City Plaza Renovation',
@@ -811,7 +1048,6 @@ export const designerRatings: DesignerRating[] = [
     completedAt: '2026-04-25T10:00:00Z', feedback: 'Measurements are complete, under review for accuracy.',
     ratedBy: '2', week: 17, month: 4, quarter: 2, year: 2026,
   },
-  // Michael Q1 2026
   {
     id: 'r-mb-005', designerId: '4', taskId: 'prev-mb-1', taskTitle: 'Villa Interior Rendering',
     projectId: 'proj-1', projectName: 'City Plaza Renovation',
@@ -836,7 +1072,6 @@ export const designerRatings: DesignerRating[] = [
     completedAt: '2026-01-13T10:00:00Z', feedback: 'Good render but timeliness was an issue.',
     ratedBy: '2', week: 2, month: 1, quarter: 1, year: 2026,
   },
-  // Michael 2025
   {
     id: 'r-mb-008', designerId: '4', taskId: 'prev-mb-4', taskTitle: 'Showroom 3D Model',
     projectId: 'proj-3', projectName: 'Commercial Tower Interior',
@@ -861,8 +1096,6 @@ export const designerRatings: DesignerRating[] = [
     completedAt: '2025-05-08T15:00:00Z', feedback: 'Clean concept, well received by client.',
     ratedBy: '2', week: 19, month: 5, quarter: 2, year: 2025,
   },
-
-  // ── Sophia Ahmed (id: '9') ────────────────────────────────────────────────
   {
     id: 'r-sa-001', designerId: '9', taskId: 'sa-task-1', taskTitle: 'Lounge Concept Layout',
     projectId: 'proj-4', projectName: 'Park & Recreation Center',
@@ -919,8 +1152,6 @@ export const designerRatings: DesignerRating[] = [
     completedAt: '2025-09-22T10:00:00Z', feedback: 'Stunning roof garden concept, highly creative.',
     ratedBy: '2', week: 38, month: 9, quarter: 3, year: 2025,
   },
-
-  // ── Daniel Reed (id: '10') ────────────────────────────────────────────────
   {
     id: 'r-dr-001', designerId: '10', taskId: 'dr-task-1', taskTitle: 'Master Plan Diagram',
     projectId: 'proj-4', projectName: 'Park & Recreation Center',
@@ -979,24 +1210,10 @@ export const designerRatings: DesignerRating[] = [
   },
 ];
 
-
-
 export const mockDesignerTasksUnassigned: DesignerTask[] = mockDesignerTasks.map(task => ({
   ...task,
   assignedTo: undefined,
 }));
-
-
-
-// designerApplicationsMockData.ts
-// ─────────────────────────────────────────────────────────────────────────────
-// Separate mock data for the Designer Applications page only.
-// All DesignerTask entries intentionally omit `assignedTo` so that
-// the reviewer (CEO / GM / Admin) makes the first assignment themselves.
-// The existing mockDesignerTasks in mockData.ts is left untouched.
-// ─────────────────────────────────────────────────────────────────────────────
-
-
 
 export const mockDesignerTasksForApplications: DesignerTask[] = [
   {
@@ -1006,7 +1223,6 @@ export const mockDesignerTasksForApplications: DesignerTask[] = [
     description: 'Create a refined board for the project material selection',
     instruction: 'Collect sample codes, finish names, and supplier references for each selected material.',
     storyPoints: 5,
-    // assignedTo intentionally absent
     assignedBy: '8',
     status: 'pending',
     deadline: '2026-04-23T23:59:59Z',
@@ -1019,7 +1235,6 @@ export const mockDesignerTasksForApplications: DesignerTask[] = [
     description: 'Check the ceiling detail drawings against the latest site conditions',
     instruction: 'Verify the exact ceiling levels and note any beam drops or lighting conflicts before finalizing.',
     storyPoints: 8,
-    // assignedTo intentionally absent
     assignedBy: '2',
     status: 'pending',
     deadline: '2026-04-22T23:59:59Z',
@@ -1032,7 +1247,6 @@ export const mockDesignerTasksForApplications: DesignerTask[] = [
     description: 'Suggest revised bedroom palette options for client review',
     instruction: 'Measure the room sunlight direction and floor finish to match the palette recommendations.',
     storyPoints: 3,
-    // assignedTo intentionally absent
     assignedBy: '8',
     status: 'pending',
     deadline: '2026-04-20T23:59:59Z',
@@ -1045,7 +1259,6 @@ export const mockDesignerTasksForApplications: DesignerTask[] = [
     description: 'Collect measurements for reception desk and waiting area planning',
     instruction: 'Measure desk width, circulation space, and the distance to nearby walls or columns.',
     storyPoints: 8,
-    // assignedTo intentionally absent
     assignedBy: '2',
     status: 'pending',
     deadline: '2026-04-25T23:59:59Z',
@@ -1058,7 +1271,6 @@ export const mockDesignerTasksForApplications: DesignerTask[] = [
     description: 'Prepare the final sketch for the kitchen cabinetry layout',
     instruction: 'Record cabinet heights, appliance sizes, and clearances before finalizing the sketch.',
     storyPoints: 5,
-    // assignedTo intentionally absent
     assignedBy: '2',
     status: 'pending',
     deadline: '2026-04-22T23:59:59Z',
@@ -1071,7 +1283,6 @@ export const mockDesignerTasksForApplications: DesignerTask[] = [
     description: 'Document lighting notes for the main hallway design',
     instruction: 'Measure hallway length and identify light fixture spacing requirements.',
     storyPoints: 2,
-    // assignedTo intentionally absent
     assignedBy: '8',
     status: 'pending',
     deadline: '2026-04-21T23:59:59Z',
@@ -1084,7 +1295,6 @@ export const mockDesignerTasksForApplications: DesignerTask[] = [
     description: 'Prepare a reference sheet for all selected finishes',
     instruction: 'Collect finish codes, color references, and any supplier notes into one summary document.',
     storyPoints: 3,
-    // assignedTo intentionally absent
     assignedBy: '8',
     status: 'pending',
     deadline: '2026-04-26T23:59:59Z',
@@ -1097,7 +1307,6 @@ export const mockDesignerTasksForApplications: DesignerTask[] = [
     description: 'Create an open lounge concept that designers can apply for',
     instruction: 'Use the latest site measurements and highlight any constraints that affect seating layout or circulation.',
     storyPoints: 8,
-    // assignedTo intentionally absent
     assignedBy: '2',
     status: 'pending',
     deadline: '2026-04-27T23:59:59Z',
@@ -1110,7 +1319,6 @@ export const mockDesignerTasksForApplications: DesignerTask[] = [
     description: 'Build a mood board for a bedroom design package',
     instruction: 'Collect material references, furniture style cues, and lighting direction notes for the bedroom concept.',
     storyPoints: 5,
-    // assignedTo intentionally absent
     assignedBy: '8',
     status: 'pending',
     deadline: '2026-04-28T23:59:59Z',
@@ -1119,7 +1327,6 @@ export const mockDesignerTasksForApplications: DesignerTask[] = [
 ];
 
 export const mockDesignerTaskApplicationsForApplications: DesignerTaskApplication[] = [
-  // ── dtask-9: Design open lounge concept ──────────────────────────────────
   {
     id: 'dapp-1',
     taskId: 'dtask-9',
@@ -1150,7 +1357,6 @@ export const mockDesignerTaskApplicationsForApplications: DesignerTaskApplicatio
     appliedAt: '2026-04-21T15:52:00Z',
     status: 'pending',
   },
-  // ── dtask-10: Develop bedroom mood board ─────────────────────────────────
   {
     id: 'dapp-2',
     taskId: 'dtask-10',
@@ -1161,7 +1367,6 @@ export const mockDesignerTaskApplicationsForApplications: DesignerTaskApplicatio
     appliedAt: '2026-04-21T15:50:00Z',
     status: 'pending',
   },
-  // ── dtask-5: Measure reception desk area ─────────────────────────────────
   {
     id: 'dapp-5',
     taskId: 'dtask-5',
@@ -1182,7 +1387,6 @@ export const mockDesignerTaskApplicationsForApplications: DesignerTaskApplicatio
     appliedAt: '2026-04-21T12:15:00Z',
     status: 'pending',
   },
-  // ── dtask-8: Compile finish sample references ─────────────────────────────
   {
     id: 'dapp-7',
     taskId: 'dtask-8',
@@ -1204,3 +1408,118 @@ export const mockDesignerTaskApplicationsForApplications: DesignerTaskApplicatio
     status: 'pending',
   },
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DESIGNER TASK PAGE — pre-seeded submission progress for the 8 mdt-* tasks.
+// Import and write to localStorage key 'designer-submission-progress' on mount
+// so the DesignerTasks page shows every possible UI state without relying on
+// the dynamic seeding useEffect.
+//
+// Key: task ID  →  Value: Record<PhaseKey, PhaseData>
+// PhaseKey = 'caseStudy' | 'designStage' | 'rendering' | 'finalStage'
+// ─────────────────────────────────────────────────────────────────────────────
+
+function makePlaceholderScreenshot(phaseLabel: string): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="480" viewBox="0 0 800 480"><rect width="800" height="480" fill="#0f172a" rx="28"/><rect x="56" y="56" width="688" height="368" rx="24" fill="#ffffff" fill-opacity="0.06" stroke="#cbd5e1" stroke-opacity="0.18"/><text x="400" y="205" fill="#f8fafc" font-size="30" font-family="Arial,Helvetica,sans-serif" text-anchor="middle" font-weight="700">Designer Submission</text><text x="400" y="255" fill="#cbd5e1" font-size="20" font-family="Arial,Helvetica,sans-serif" text-anchor="middle">${phaseLabel}</text><text x="400" y="308" fill="#94a3b8" font-size="15" font-family="Arial,Helvetica,sans-serif" text-anchor="middle">Placeholder screenshot</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg.trim())}`;
+}
+
+function makeHistoryEntry(
+  status: 'approved' | 'feedback' | 'rejected',
+  message: string,
+  phaseLabel: string,
+  note: string,
+) {
+  return {
+    status,
+    message,
+    timestamp: '2026-05-22T14:00:00Z',
+    designerSubmission: {
+      note,
+      screenshot: makePlaceholderScreenshot(phaseLabel),
+      submittedAt: '2026-05-20T10:00:00Z',
+    },
+  };
+}
+
+function emptyPhase() {
+  return { note: '', screenshot: null, history: [] };
+}
+
+function approvedPhase(phaseLabel: string, note: string, msg: string) {
+  return { note, screenshot: null, history: [makeHistoryEntry('approved', msg, phaseLabel, note)] };
+}
+
+function feedbackPhase(phaseLabel: string, note: string, msg: string) {
+  return { note, screenshot: null, history: [makeHistoryEntry('feedback', msg, phaseLabel, note)] };
+}
+
+function rejectedPhase(phaseLabel: string, note: string, msg: string) {
+  return { note, screenshot: null, history: [makeHistoryEntry('rejected', msg, phaseLabel, note)] };
+}
+
+export const mockDesignerTaskPageProgress: Record<string, Record<string, ReturnType<typeof emptyPhase>>> = {
+  // mdt-1: all empty — no submission at all
+  'mdt-1': {
+    caseStudy: emptyPhase(),
+    designStage: emptyPhase(),
+    rendering: emptyPhase(),
+    finalStage: emptyPhase(),
+  },
+
+  // mdt-2: CS approved + DS approved → Rendering open
+  'mdt-2': {
+    caseStudy: approvedPhase('Case Study', 'Gathered all site references and material codes.', 'Great start, case study is solid.'),
+    designStage: approvedPhase('Design Stage', 'Finalized palette board with 8 materials.', 'Palette is cohesive. Approved.'),
+    rendering: emptyPhase(),
+    finalStage: emptyPhase(),
+  },
+
+  // mdt-3: CS approved + DS feedback (blocked)
+  'mdt-3': {
+    caseStudy: approvedPhase('Case Study', 'Documented existing ceiling heights across all zones.', 'Thorough case study.'),
+    designStage: feedbackPhase('Design Stage', 'Initial ceiling drawing submitted for review.', 'Beam drop at grid C3 is missing. Please revisit the drawing and re-confirm headroom clearances.'),
+    rendering: emptyPhase(),
+    finalStage: emptyPhase(),
+  },
+
+  // mdt-4: CS approved + DS rejected (task locked)
+  'mdt-4': {
+    caseStudy: approvedPhase('Case Study', 'Surveyed room orientations and existing finishes.', 'Good site survey.'),
+    designStage: rejectedPhase('Design Stage', 'Palette board submitted with 5 options.', 'Palette options are too similar and lack material references. This submission does not meet project standards.'),
+    rendering: emptyPhase(),
+    finalStage: emptyPhase(),
+  },
+
+  // mdt-5: CS + DS approved + Rendering feedback
+  'mdt-5': {
+    caseStudy: approvedPhase('Case Study', 'Measured all cabinet bays and recorded appliance specs.', 'Precise measurements.'),
+    designStage: approvedPhase('Design Stage', 'Layout sketch with dimensions and clearance notes.', 'Clean sketch, dimensions all check out.'),
+    rendering: feedbackPhase('Rendering', 'First 3D render of the kitchen submitted.', 'Handle finish looks too dark on screen. Please adjust the cabinet hardware material and resubmit.'),
+    finalStage: emptyPhase(),
+  },
+
+  // mdt-6: all 4 phases approved
+  'mdt-6': {
+    caseStudy: approvedPhase('Case Study', 'Catalogued all finish codes with supplier info.', 'Excellent catalog.'),
+    designStage: approvedPhase('Design Stage', 'Reference sheet drafted with 12 finishes.', 'Well organized.'),
+    rendering: approvedPhase('Rendering', 'Visual board exported as high-res PDF.', 'Looks professional.'),
+    finalStage: approvedPhase('Final Stage', 'Final compiled document delivered to client.', 'Perfect. All approved — outstanding work.'),
+  },
+
+  // mdt-7: CS + DS + Rendering approved, Final Stage feedback
+  'mdt-7': {
+    caseStudy: approvedPhase('Case Study', 'Measured hallway length and fixture positions.', 'Solid site data.'),
+    designStage: approvedPhase('Design Stage', 'Lighting zone diagram completed.', 'Clear and accurate.'),
+    rendering: approvedPhase('Rendering', '3D hallway render submitted with fixture placement.', 'Great visualisation.'),
+    finalStage: feedbackPhase('Final Stage', 'Final notes compiled and submitted.', 'The lumen calculations for zones 2 and 3 are still missing. Please add them before final sign-off.'),
+  },
+
+  // mdt-8: Case Study feedback only (stuck at phase 1)
+  'mdt-8': {
+    caseStudy: feedbackPhase('Case Study', 'Initial material references collected.', 'The mood board reference list is too generic. Please add specific product links and swatch codes for each material.'),
+    designStage: emptyPhase(),
+    rendering: emptyPhase(),
+    finalStage: emptyPhase(),
+  },
+};

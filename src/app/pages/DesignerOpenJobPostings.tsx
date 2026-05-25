@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Calendar, CheckCircle2, Clock, Landmark, Megaphone, ShieldCheck, Send } from 'lucide-react';
 import { JOB_POSTINGS_STORAGE_KEY, jobPostingSeedTasks } from './JobPostings';
 import { roleNamesByUserId, APPLICATION_STORAGE_KEY } from './designerTaskShared';
@@ -9,6 +9,15 @@ type JobPostingTask = Task & {
   storyPoints?: number;
   telegramScreenshot?: string;
 };
+
+// ---------- Highlight / Notification system ----------
+const viewedOpenJobPostingCards = new Set<string>(); // in‑memory, resets on page refresh
+
+function publishOpenJobPostingsBadgeCount(count: number) {
+  window.dispatchEvent(
+    new CustomEvent('open-job-postings-notifications-updated', { detail: count })
+  );
+}
 
 function loadJobPostings(): JobPostingTask[] {
   const savedTasks = localStorage.getItem(JOB_POSTINGS_STORAGE_KEY);
@@ -51,6 +60,100 @@ export function DesignerOpenJobPostings() {
   const [applyingForTaskId, setApplyingForTaskId] = useState<string | null>(null);
   const [applyMessage, setApplyMessage] = useState('');
 
+  // ── Highlight / Notification state ──
+  const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
+  const seenThisSession = useRef<Set<string>>(new Set());
+  const observedElements = useRef<Set<string>>(new Set());
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const postingsRef = useRef(postings);
+  useEffect(() => { postingsRef.current = postings; }, [postings]);
+
+  // Pre‑mark all but the 3 newest postings as "viewed"
+  const ensureViewedSetInitialized = (items: JobPostingTask[]) => {
+    if (viewedOpenJobPostingCards.size === 0) {
+      const sorted = [...items].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      // Mark all except the first 3 as already viewed
+      sorted.slice(3).forEach((item) => viewedOpenJobPostingCards.add(item.id));
+    }
+  };
+
+  // Initialise the viewed set after postings are loaded
+  useEffect(() => {
+    ensureViewedSetInitialized(postings);
+  }, [postings]);
+
+  // Compute highlighted IDs (items not in the viewed set)
+  useEffect(() => {
+    if (postings.length === 0) return;
+    const unseen = postings
+      .filter((p) => !viewedOpenJobPostingCards.has(p.id))
+      .map((p) => p.id);
+    setHighlightedIds(new Set(unseen));
+    publishOpenJobPostingsBadgeCount(unseen.length);
+  }, [postings]);
+
+  // IntersectionObserver for highlighted cards (mark as "seen this session")
+  useEffect(() => {
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+      observedElements.current.clear();
+    }
+    if (highlightedIds.size === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const id = (entry.target as HTMLElement).dataset.highlightedId;
+          if (!id || !highlightedIds.has(id)) return;
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.7) {
+            if (!observedElements.current.has(id)) {
+              observedElements.current.add(id);
+              seenThisSession.current.add(id);
+            }
+          }
+        });
+      },
+      { threshold: [0.7] }
+    );
+
+    observerRef.current = observer;
+
+    highlightedIds.forEach((id) => {
+      const el = document.querySelector(`[data-highlighted-id="${id}"]`);
+      if (el && !observedElements.current.has(id)) {
+        observer.observe(el);
+      }
+    });
+
+    return () => {
+      observer.disconnect();
+      observedElements.current.clear();
+    };
+  }, [highlightedIds]);
+
+  // Commit seen session on unmount (navigating away)
+  const commitSeenSession = () => {
+    if (seenThisSession.current.size === 0) return;
+    seenThisSession.current.forEach((id) => viewedOpenJobPostingCards.add(id));
+    seenThisSession.current.clear();
+    observedElements.current.clear();
+
+    const current = postingsRef.current;
+    const remainingUnseen = current
+      .filter((p) => !viewedOpenJobPostingCards.has(p.id))
+      .map((p) => p.id);
+    setHighlightedIds(new Set(remainingUnseen));
+    publishOpenJobPostingsBadgeCount(remainingUnseen.length);
+  };
+
+  useEffect(() => {
+    return () => {
+      commitSeenSession();
+    };
+  }, []);
+
   const summary = useMemo(
     () => ({
       total: postings.length,
@@ -91,6 +194,14 @@ export function DesignerOpenJobPostings() {
     setApplyMessage('');
   };
 
+  // ── Sort: highlighted first, then by createdAt descending ──
+  const sortedPostings = [...postings].sort((a, b) => {
+    const aHL = highlightedIds.has(a.id) ? 1 : 0;
+    const bHL = highlightedIds.has(b.id) ? 1 : 0;
+    if (bHL !== aHL) return bHL - aHL;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -104,6 +215,14 @@ export function DesignerOpenJobPostings() {
             <p className="mt-2 max-w-2xl text-sm text-slate-600">
               This view reads the posting data directly from the CEO, General Manager, and System Administrator workflow so designers can review the source details without leaving the page.
             </p>
+            {highlightedIds.size > 0 && (
+              <p className="text-sm text-blue-600 mt-2 flex items-center gap-2">
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-semibold">
+                  {highlightedIds.size}
+                </span>
+                new {highlightedIds.size === 1 ? 'posting' : 'postings'} since your last visit
+              </p>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4 lg:min-w-[420px]">
             <div className="rounded-xl bg-slate-50 px-3 py-3 text-center">
@@ -133,7 +252,7 @@ export function DesignerOpenJobPostings() {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-4 auto-rows-auto">
-          {postings.map((posting) => {
+          {sortedPostings.map((posting) => {
             const createdByLabel = roleNamesByUserId[posting.assignedBy] ?? `User ${posting.assignedBy}`;
             const hasApplied = user
               ? applications.some(
@@ -141,12 +260,29 @@ export function DesignerOpenJobPostings() {
                 )
               : false;
             const isApplying = applyingForTaskId === posting.id;
+            const isHighlighted = highlightedIds.has(posting.id);
 
             return (
               <div
                 key={posting.id}
-                className="w-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col"
+                data-highlighted-id={isHighlighted ? posting.id : undefined}
+                className={[
+                  'w-full rounded-2xl border bg-white p-5 shadow-sm flex flex-col transition-all duration-300',
+                  isHighlighted
+                    ? 'border-2 border-blue-400 ring-4 ring-blue-100 shadow-blue-100'
+                    : 'border-slate-200',
+                ].join(' ')}
               >
+                {/* "New" badge for highlighted cards */}
+                {isHighlighted && (
+                  <div className="mb-3">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                      New
+                    </span>
+                  </div>
+                )}
+
                 {/* Row 1: role badge + status pill */}
                 <div className="flex items-center justify-between gap-2 shrink-0">
                   <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600 truncate max-w-[60%]">
@@ -161,7 +297,7 @@ export function DesignerOpenJobPostings() {
                 {/* Row 2: title */}
                 <h4 className="mt-3 text-base font-semibold text-slate-900 line-clamp-2 shrink-0">{posting.title}</h4>
 
-                {/* Row 3: description – no height restriction, grows naturally */}
+                {/* Row 3: description */}
                 <p className="mt-1.5 text-sm text-slate-600 whitespace-pre-wrap">{posting.description}</p>
 
                 {/* Row 4: badges */}

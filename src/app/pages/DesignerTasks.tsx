@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { mockProjects } from '../data/mockData';
+import { mockProjects, mockDesignerTasks, mockDesignerTaskPageProgress } from '../data/mockData';
 import {
   designerRoles,
   getTaskAssigneeLabel,
-  loadDesignerTasks,
   roleNamesByUserId,
 } from './designerTaskShared';
 import { DesignerTask } from '../types';
@@ -23,7 +22,7 @@ import {
   ThumbsDown,
 } from 'lucide-react';
 
-// ---------- Types (mirror DesignerAssignments) ----------
+// ---------- Types ----------
 type PhaseKey = 'caseStudy' | 'designStage' | 'rendering' | 'finalStage';
 
 export interface DesignerSubmissionSnapshot {
@@ -56,7 +55,22 @@ const PHASES: { key: PhaseKey; label: string }[] = [
 
 const STORAGE_KEY = 'designer-submission-progress';
 
-// ---------- Helpers (identical to DesignerAssignments) ----------
+// ──────────── HIGHLIGHT LOGIC ────────────
+export const DESIGNER_TASKS_NOTIFICATIONS_KEY = 'designer-tasks-notifications-updated';
+
+const HIGHLIGHTED_IDS = ['mdt-1', 'mdt-6', 'mdt-3'];
+
+// In‑memory "viewed" set – resets on page refresh (demo behaviour)
+const viewedDesignerTaskCards = new Set<string>();
+
+function publishDesignerTasksBadgeCount(count: number) {
+  window.dispatchEvent(
+    new CustomEvent(DESIGNER_TASKS_NOTIFICATIONS_KEY, { detail: count })
+  );
+}
+// ─────────────────────────────────────────
+
+// ---------- Helpers ----------
 function loadSubmissionProgress(): SubmissionProgress {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -85,14 +99,13 @@ function createSubmissionScreenshot(phaseLabel: string): string {
       <text x="400" y="255" fill="#cbd5e1" font-size="20" font-family="Arial,Helvetica,sans-serif" text-anchor="middle">${phaseLabel}</text>
       <text x="400" y="308" fill="#94a3b8" font-size="15" font-family="Arial,Helvetica,sans-serif" text-anchor="middle">No uploaded screenshot was available, so a placeholder was created.</text>
     </svg>`;
-
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg.trim())}`;
 }
 
 function buildDesignerSubmissionSnapshot(
   phaseLabel: string,
   phaseData?: PhaseData,
-  submittedAt?: string
+  submittedAt?: string,
 ): DesignerSubmissionSnapshot {
   const note = phaseData?.note?.trim() || `Designer submission for ${phaseLabel}`;
   return {
@@ -159,7 +172,7 @@ function getCurrentStatus(phase: PhaseData): PhaseHistoryEntry['status'] | 'pend
 
 function findFirstNonApprovedPhaseIndex(
   phases: typeof PHASES,
-  progress: Record<PhaseKey, PhaseData> | null
+  progress: Record<PhaseKey, PhaseData> | null,
 ): number {
   if (!progress) return -1;
   for (let i = 0; i < phases.length; i++) {
@@ -199,7 +212,24 @@ function isTaskRejected(progress: Record<PhaseKey, PhaseData> | null): boolean {
   return false;
 }
 
-// -----------------------------------------------
+// ─────────────────────────────────────────────────────────────────────────────
+// Merge mock progress from mockData into localStorage on first load.
+// ─────────────────────────────────────────────────────────────────────────────
+function seedMockProgressIfNeeded(): SubmissionProgress {
+  const stored = loadSubmissionProgress();
+  let changed = false;
+  const merged = { ...stored };
+  for (const [taskId, progress] of Object.entries(mockDesignerTaskPageProgress)) {
+    if (!merged[taskId]) {
+      merged[taskId] = progress as Record<PhaseKey, PhaseData>;
+      changed = true;
+    }
+  }
+  if (changed) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+  }
+  return merged;
+}
 
 export function DesignerTasks() {
   const { user } = useAuth();
@@ -214,124 +244,112 @@ export function DesignerTasks() {
   const [expandedPhase, setExpandedPhase] = useState<PhaseKey | null>(null);
   const [expandedHistoryIdx, setExpandedHistoryIdx] = useState<Record<string, Record<PhaseKey, number | null>>>({});
 
-  // Draft state for Open Submission
   const [draftNotes, setDraftNotes] = useState<Record<string, Record<PhaseKey, string>>>({});
   const [draftScreenshots, setDraftScreenshots] = useState<Record<string, Record<PhaseKey, string | null>>>({});
 
-  // Seed demo tasks and varied submission progress for 8 cards
+  // ──────────── HIGHLIGHT STATE ────────────
+  const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
+  const seenThisSession = useRef<Set<string>>(new Set());
+  const observedElements = useRef<Set<string>>(new Set());
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  // ──────────────────────────────────────────
+
+  // ── On mount: load tasks from mockData + seed progress ───────────────────
   useEffect(() => {
     if (!user || seededRef.current) return;
     seededRef.current = true;
 
-    // Load existing tasks
-    let existingTasks = loadDesignerTasks();
-    const userAssigned = existingTasks.filter((t) => t.assignedTo === user.id);
-    if (userAssigned.length < 8) {
-      const demosNeeded = 8 - userAssigned.length;
-      const newDemos: DesignerTask[] = [];
-      for (let i = 1; i <= demosNeeded; i++) {
-        const taskId = `demo-task-${Date.now()}-${i}`;
-        if (existingTasks.some((t) => t.id === taskId)) continue;
-        newDemos.push({
-          id: taskId,
-          projectId: mockProjects[0]?.id || 'proj-1',
-          title: `Demo Task ${i}`,
-          description: `Description for demo task ${i}.`,
-          instruction: `Please collect data for demo task ${i}.`,
-          storyPoints: i * 2,
-          assignedBy: 'gm-1',
-          assignedTo: user.id,
-          status: i % 2 === 0 ? 'in_progress' : 'pending',
-          deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-          createdAt: new Date().toISOString(),
-        });
-      }
-      existingTasks = [...existingTasks, ...newDemos];
-      localStorage.setItem('designer-tasks', JSON.stringify(existingTasks));
-    }
-    setTasks(existingTasks);
+    const storedTasksRaw = localStorage.getItem('designer-tasks');
+    const storedTasks: DesignerTask[] = storedTasksRaw ? JSON.parse(storedTasksRaw) : [];
+    const storedIds = new Set(storedTasks.map((t) => t.id));
+    const merged = [
+      ...storedTasks,
+      ...mockDesignerTasks.filter((t) => !storedIds.has(t.id)),
+    ];
+    localStorage.setItem('designer-tasks', JSON.stringify(merged));
+    setTasks(merged);
 
-    // Seed varied submission progress with specific patterns to cover required scenarios
-    const storedProgress = loadSubmissionProgress();
-    const updatedProgress = { ...storedProgress };
-    let progressChanged = false;
+    // Seed submission progress
+    const progress = seedMockProgressIfNeeded();
+    setSubmissionProgress(progress);
 
-    const createHistoryEntry = (status: PhaseHistoryEntry['status'], message: string, label: string): PhaseHistoryEntry => ({
-      status,
-      message,
-      timestamp: new Date().toISOString(),
-      designerSubmission: buildDesignerSubmissionSnapshot(label),
-    });
+    // Initialise highlighted IDs – only those not yet viewed
+    const unseen = new Set(
+      HIGHLIGHTED_IDS.filter((id) => !viewedDesignerTaskCards.has(id))
+    );
+    setHighlightedIds(unseen);
+    publishDesignerTasksBadgeCount(unseen.size);
 
-    existingTasks.forEach((task, idx) => {
-      if (!updatedProgress[task.id]) {
-        const configs: Partial<Record<PhaseKey, PhaseData>>[] = [
-          // 0: All pending
-          {},
-          // 1: Case Study approved, Design Stage approved → next stage (Rendering) open
-          {
-            caseStudy: { note: 'Case study done.', screenshot: null, history: [createHistoryEntry('approved', 'Approved.', 'Case Study')] },
-            designStage: { note: 'Design final.', screenshot: null, history: [createHistoryEntry('approved', 'Looks great.', 'Design Stage')] },
-          },
-          // 2: Case Study approved, Design Stage feedback (cannot advance)
-          {
-            caseStudy: { note: 'Case study completed.', screenshot: null, history: [createHistoryEntry('approved', 'Good.', 'Case Study')] },
-            designStage: { note: 'Design draft.', screenshot: null, history: [createHistoryEntry('feedback', 'Please revise layout.', 'Design Stage')] },
-          },
-          // 3: Case Study approved, Design Stage rejected → task locked
-          {
-            caseStudy: { note: 'Case study done.', screenshot: null, history: [createHistoryEntry('approved', 'Perfect.', 'Case Study')] },
-            designStage: { note: 'Design final.', screenshot: null, history: [createHistoryEntry('rejected', 'Does not meet standards.', 'Design Stage')] },
-          },
-          // 4: Case Study approved, Design Stage approved, Rendering feedback
-          {
-            caseStudy: { note: 'Case study done.', screenshot: null, history: [createHistoryEntry('approved', 'Approved.', 'Case Study')] },
-            designStage: { note: 'Design draft.', screenshot: null, history: [createHistoryEntry('approved', 'Looks great.', 'Design Stage')] },
-            rendering: { note: 'Rendering preview.', screenshot: null, history: [createHistoryEntry('feedback', 'Adjust colors.', 'Rendering')] },
-          },
-          // 5: All phases approved → final stage locked, no further submission
-          {
-            caseStudy: { note: 'Case study completed.', screenshot: null, history: [createHistoryEntry('approved', 'Good.', 'Case Study')] },
-            designStage: { note: 'Design finalized.', screenshot: null, history: [createHistoryEntry('approved', 'Nice work.', 'Design Stage')] },
-            rendering: { note: 'Rendering done.', screenshot: null, history: [createHistoryEntry('approved', 'Looks perfect.', 'Rendering')] },
-            finalStage: { note: 'Final stage submitted.', screenshot: null, history: [createHistoryEntry('approved', 'All approved.', 'Final Stage')] },
-          },
-          // 6: All but final stage approved, final stage feedback
-          {
-            caseStudy: { note: 'Case study done.', screenshot: null, history: [createHistoryEntry('approved', 'Good.', 'Case Study')] },
-            designStage: { note: 'Design done.', screenshot: null, history: [createHistoryEntry('approved', 'Looks great.', 'Design Stage')] },
-            rendering: { note: 'Rendering done.', screenshot: null, history: [createHistoryEntry('approved', 'Perfect.', 'Rendering')] },
-            finalStage: { note: 'Final stage draft.', screenshot: null, history: [createHistoryEntry('feedback', 'Adjust final details.', 'Final Stage')] },
-          },
-          // 7: Case Study feedback only (stuck at first phase)
-          {
-            caseStudy: { note: 'Initial case study.', screenshot: null, history: [createHistoryEntry('feedback', 'Add more details.', 'Case Study')] },
-          },
-        ];
-
-        const phaseProgress: Partial<Record<PhaseKey, PhaseData>> = configs[idx % configs.length] || {};
-
-        PHASES.forEach((phase) => {
-          if (!phaseProgress[phase.key]) phaseProgress[phase.key] = defaultPhase();
-        });
-        updatedProgress[task.id] = phaseProgress as Record<PhaseKey, PhaseData>;
-        progressChanged = true;
-      }
-    });
-
-    if (progressChanged) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedProgress));
-    }
-    setSubmissionProgress(updatedProgress);
     setIsLoading(false);
   }, [user]);
 
-  // Persist progress on any change (e.g., after designer submission)
+  // Persist progress on every change
   useEffect(() => {
     if (Object.keys(submissionProgress).length > 0) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(submissionProgress));
     }
   }, [submissionProgress]);
+
+  // ──────────── INTERSECTION OBSERVER ────────────
+  useEffect(() => {
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+      observedElements.current.clear();
+    }
+
+    if (highlightedIds.size === 0) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const id = (entry.target as HTMLElement).dataset.highlightedId;
+          if (!id || !highlightedIds.has(id)) return;
+
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.7) {
+            if (!observedElements.current.has(id)) {
+              observedElements.current.add(id);
+              seenThisSession.current.add(id);
+            }
+          }
+        });
+      },
+      { threshold: [0.7] }
+    );
+
+    observerRef.current = observer;
+
+    highlightedIds.forEach((id) => {
+      const el = document.querySelector(`[data-highlighted-id="${id}"]`);
+      if (el && !observedElements.current.has(id)) {
+        observer.observe(el);
+      }
+    });
+
+    return () => {
+      observer.disconnect();
+      observedElements.current.clear();
+    };
+  }, [highlightedIds]);
+
+  // Cleanup: runs when component unmounts (user navigates away)
+  useEffect(() => {
+    return () => {
+      const idsSeen = Array.from(seenThisSession.current);
+      if (idsSeen.length > 0) {
+        idsSeen.forEach((id) => viewedDesignerTaskCards.add(id));
+
+        const remaining = new Set(
+          HIGHLIGHTED_IDS.filter((id) => !viewedDesignerTaskCards.has(id))
+        );
+
+        publishDesignerTasksBadgeCount(remaining.size);
+        setHighlightedIds(remaining);
+      }
+    };
+  }, []);
+  // ──────────────────────────────────────────────
 
   if (!user) return null;
   if (!designerRoles.has(user.role)) {
@@ -360,8 +378,8 @@ export function DesignerTasks() {
       notesDraft[p.key] = progress[p.key]?.note || '';
       screenshotsDraft[p.key] = null;
     });
-    setDraftNotes({ ...draftNotes, [task.id]: notesDraft });
-    setDraftScreenshots({ ...draftScreenshots, [task.id]: screenshotsDraft });
+    setDraftNotes((prev) => ({ ...prev, [task.id]: notesDraft }));
+    setDraftScreenshots((prev) => ({ ...prev, [task.id]: screenshotsDraft }));
     setExpandedPhase('caseStudy');
     setExpandedHistoryIdx((prev) => ({
       ...prev,
@@ -454,10 +472,19 @@ export function DesignerTasks() {
     return { currentPhaseKey, currentPhaseLabel, currentPhaseStatus };
   };
 
+  // Show tasks assigned to the logged-in user (designer) or all assigned tasks (leader)
   const assignedTasks = tasks.filter((task) => !!task.assignedTo);
   const visibleAssignedTasks = user.role === 'designer'
     ? assignedTasks.filter((task) => task.assignedTo === user.id)
     : assignedTasks;
+
+  // Sort: highlighted first, then by createdAt descending
+  const sortedTasks = [...visibleAssignedTasks].sort((a, b) => {
+    const aHL = highlightedIds.has(a.id) ? 1 : 0;
+    const bHL = highlightedIds.has(b.id) ? 1 : 0;
+    if (bHL !== aHL) return bHL - aHL;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
 
   if (isLoading) {
     return (
@@ -474,26 +501,49 @@ export function DesignerTasks() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Designer Tasks</h2>
           <p className="text-gray-600 mt-1">Submit your work and view feedback on assigned tasks.</p>
+          {highlightedIds.size > 0 && (
+            <p className="text-sm text-blue-600 mt-2 flex items-center gap-2">
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-semibold">
+                {highlightedIds.size}
+              </span>
+              new {highlightedIds.size === 1 ? 'record' : 'records'} since your last visit
+            </p>
+          )}
         </div>
       </div>
 
-      {visibleAssignedTasks.length === 0 ? (
+      {sortedTasks.length === 0 ? (
         <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
           <Briefcase className="w-12 h-12 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500">No assigned designer tasks yet.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {visibleAssignedTasks.map((task) => {
+          {sortedTasks.map((task) => {
             const project = mockProjects.find((c) => c.id === task.projectId);
             const isOverdue = task.deadline && new Date(task.deadline) < new Date() && task.status !== 'completed';
             const { currentPhaseKey, currentPhaseLabel, currentPhaseStatus } = getCurrentPhaseInfo(task.id);
+            const isHighlighted = highlightedIds.has(task.id);
 
             return (
               <div
                 key={task.id}
-                className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
+                data-highlighted-id={isHighlighted ? task.id : undefined}
+                className={`bg-white rounded-xl p-6 shadow-sm border transition-all duration-300 hover:shadow-md ${
+                  isHighlighted
+                    ? 'border-2 border-blue-400 ring-4 ring-blue-100 shadow-blue-100'
+                    : 'border-gray-200'
+                }`}
               >
+                {isHighlighted && (
+                  <div className="mb-3">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                      New
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex items-start justify-between mb-3 gap-3">
                   <div>
                     <h3 className="font-semibold text-lg text-gray-900">{task.title}</h3>
@@ -501,7 +551,6 @@ export function DesignerTasks() {
                       Assigned to: {getTaskAssigneeLabel(task.assignedTo)}
                     </p>
                   </div>
-                  {/* Phase status badge */}
                   {currentPhaseKey ? (
                     <span
                       className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
@@ -646,7 +695,7 @@ export function DesignerTasks() {
         </div>
       )}
 
-      {/* Detail Modal (Designer's editable view – identical layout to Assignments page) */}
+      {/* Detail Modal – unchanged from original */}
       {showDetail && selectedTaskDetail && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-6 overflow-y-auto">
           <div className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl max-h-[92vh] overflow-y-auto">
@@ -662,7 +711,6 @@ export function DesignerTasks() {
 
             <div className="grid grid-cols-1 gap-6 px-6 py-5 lg:grid-cols-3">
               <div className="lg:col-span-2 space-y-5">
-                {/* Task Info */}
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -709,7 +757,6 @@ export function DesignerTasks() {
                   )}
                 </section>
 
-                {/* Submission Progress & Review (Designer's editable view) */}
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-4">
                     Submission Progress &amp; Review Feedback
@@ -738,7 +785,9 @@ export function DesignerTasks() {
                         {taskRejected && (
                           <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
                             <XCircle className="w-4 h-4 text-red-600" />
-                            <span className="text-sm font-medium text-red-700">This task has been rejected. No further submissions can be made.</span>
+                            <span className="text-sm font-medium text-red-700">
+                              This task has been rejected. No further submissions can be made.
+                            </span>
                           </div>
                         )}
                         {visiblePhases.map((phase) => {
@@ -784,7 +833,6 @@ export function DesignerTasks() {
 
                               {isExpanded && (
                                 <div className="p-4 space-y-4 bg-white">
-                                  {/* Open Submission (only when allowed) */}
                                   {canSubmit && (
                                     <div className="border border-dashed border-gray-300 rounded-lg p-4 bg-blue-50/50">
                                       <h6 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
@@ -892,7 +940,6 @@ export function DesignerTasks() {
                                     </div>
                                   )}
 
-                                  {/* Designer's Progress Note (read-only when approved or task rejected) */}
                                   {(isApproved || !canSubmit) && (
                                     <div>
                                       <h6 className="text-sm font-medium text-gray-700 mb-1">Designer's Progress Note</h6>
@@ -906,7 +953,6 @@ export function DesignerTasks() {
                                     </div>
                                   )}
 
-                                  {/* Telegram Screenshot (read-only when approved or task rejected) */}
                                   {(isApproved || !canSubmit) && (
                                     <div>
                                       <h6 className="text-sm font-medium text-gray-700 mb-1">Telegram Screenshot</h6>
@@ -922,7 +968,6 @@ export function DesignerTasks() {
                                     </div>
                                   )}
 
-                                  {/* Prior Feedback Messages */}
                                   {history.length > 0 && (
                                     <div className="border-t border-gray-100 pt-4">
                                       <h6 className="text-sm font-medium text-gray-700 mb-2">
@@ -1013,7 +1058,6 @@ export function DesignerTasks() {
                 </section>
               </div>
 
-              {/* Sidebar */}
               <aside className="space-y-4">
                 {selectedTaskDetail.approvalStatus && (
                   <section className="rounded-xl border border-gray-200 bg-white p-4">

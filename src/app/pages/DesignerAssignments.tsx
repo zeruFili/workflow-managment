@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { mockProjects } from '../data/mockData';
 import {
@@ -38,7 +38,6 @@ const emptyNewTask = {
   telegramScreenshot: '',
 };
 
-// ---------- Types ----------
 type PhaseKey = 'caseStudy' | 'designStage' | 'rendering' | 'finalStage';
 
 export interface DesignerSubmissionSnapshot {
@@ -219,7 +218,11 @@ function findFirstNonApprovedPhaseIndex(
 
 function phaseHasDisplayableContent(p: PhaseData | undefined): boolean {
   if (!p) return false;
-  return (p.history && p.history.length > 0) || !!p.screenshot;
+  return (
+    (p.history && p.history.length > 0) ||
+    !!p.screenshot ||
+    (!!p.note && p.note.trim().length > 0)
+  );
 }
 
 function getTaskEndStatus(taskId: string): 'approved' | 'feedback' | 'rejected' | 'pending' {
@@ -291,12 +294,6 @@ function generateMockProgress(
   return progress as Record<PhaseKey, PhaseData>;
 }
 
-function getTaskMockPhaseIndex(task: DesignerTask): number {
-  if (task.id === 'dtask-1') return 0;
-  const charCode = task.id.charCodeAt(task.id.length - 1);
-  return 1 + (charCode % 3);
-}
-
 function getLastPopulatedPhaseIndex(progress: Record<PhaseKey, PhaseData> | null): number {
   if (!progress) return -1;
   for (let i = PHASES.length - 1; i >= 0; i--) {
@@ -314,12 +311,22 @@ function isFinalStageApprovedFromProgress(progress: Record<PhaseKey, PhaseData> 
   return getCurrentStatus(finalData) === 'approved';
 }
 
-function getTaskSuffixNumber(taskId: string): number {
-  const match = taskId.match(/dtask-(\d+)/);
-  return match ? parseInt(match[1]) : NaN;
-}
+const DEMO_TASK_IDS = new Set([
+  'dtask-1', 'dtask-2', 'dtask-3', 'dtask-4',
+  'dtask-18', 'dtask-28', 'dtask-38', 'dtask-48', 'dtask-58',
+]);
 
-// -----------------------------------------------
+// ───────────────── NEW: highlight / badge logic ─────────────────
+const viewedPendingReviewCards = new Set<string>();
+const PENDING_REVIEW_HIGHLIGHTED_IDS = ['dtask-14', 'dtask-15'];
+export const DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY = 'designer-assignments-notifications-updated';
+
+function publishBadgeCount(count: number) {
+  window.dispatchEvent(
+    new CustomEvent(DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY, { detail: count })
+  );
+}
+// ─────────────────────────────────────────────────────────────────
 
 export function DesignerAssignments() {
   const { user } = useAuth();
@@ -337,7 +344,6 @@ export function DesignerAssignments() {
   const [feedbackDrafts, setFeedbackDrafts] = useState<Record<string, Record<PhaseKey, string>>>({});
   const [expandedHistoryIdx, setExpandedHistoryIdx] = useState<Record<string, Record<PhaseKey, number | null>>>({});
 
-  // ---- Review & Rating state ----
   const [reviews, setReviews] = useState<Record<string, ReviewData>>(loadReviews);
   const [reviewTaskId, setReviewTaskId] = useState<string | null>(null);
   const [reviewRatings, setReviewRatings] = useState<Record<string, {
@@ -349,6 +355,86 @@ export function DesignerAssignments() {
   const [reviewComments, setReviewComments] = useState<Record<string, string>>({});
   const [ratingSubmitted, setRatingSubmitted] = useState<Record<string, boolean>>({});
 
+  // NEW: highlighted cards state
+  const [highlightedIds, setHighlightedIds] = useState<Set<string>>(
+    new Set(
+      PENDING_REVIEW_HIGHLIGHTED_IDS.filter(
+        (id) => !viewedPendingReviewCards.has(id)
+      )
+    )
+  );
+
+  const seenThisSession = useRef<Set<string>>(new Set());
+  const observedElements = useRef<Set<string>>(new Set());
+  const observerRef = useRef<IntersectionObserver | null>(null);
+
+  // Publish initial badge count
+  useEffect(() => {
+    publishBadgeCount(
+      PENDING_REVIEW_HIGHLIGHTED_IDS.filter(
+        (id) => !viewedPendingReviewCards.has(id)
+      ).length
+    );
+  }, []);
+
+  // IntersectionObserver: track which highlighted cards have been scrolled into view
+  useEffect(() => {
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+      observedElements.current.clear();
+    }
+
+    if (highlightedIds.size === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const id = (entry.target as HTMLElement).dataset.highlightedId;
+          if (!id || !highlightedIds.has(id)) return;
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.7) {
+            if (!observedElements.current.has(id)) {
+              observedElements.current.add(id);
+              seenThisSession.current.add(id);
+            }
+          }
+        });
+      },
+      { threshold: [0.7] }
+    );
+
+    observerRef.current = observer;
+
+    highlightedIds.forEach((id) => {
+      const el = document.querySelector(`[data-highlighted-id="${id}"]`);
+      if (el && !observedElements.current.has(id)) {
+        observer.observe(el);
+      }
+    });
+
+    return () => {
+      observer.disconnect();
+      observedElements.current.clear();
+    };
+  }, [highlightedIds]);
+
+  // Cleanup on unmount: mark seen IDs as “viewed” and update badge
+  useEffect(() => {
+    return () => {
+      const idsSeen = Array.from(seenThisSession.current);
+      if (idsSeen.length > 0) {
+        idsSeen.forEach((id) => viewedPendingReviewCards.add(id));
+
+        const remaining = new Set(
+          PENDING_REVIEW_HIGHLIGHTED_IDS.filter(
+            (id) => !viewedPendingReviewCards.has(id)
+          )
+        );
+        publishBadgeCount(remaining.size);
+        setHighlightedIds(remaining);
+      }
+    };
+  }, []);
+
   // Persist progress
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(submissionProgress));
@@ -359,17 +445,16 @@ export function DesignerAssignments() {
     localStorage.setItem(REVIEW_STORAGE_KEY, JSON.stringify(reviews));
   }, [reviews]);
 
-  // Seed mock progress: force Final Stage Approved for ALL tasks (dtask-1 through dtask-4)
-  // so every task shows the Review button — but do NOT auto-seed any reviews.
+  // Seed mock progress ONLY for the existing demo tasks
   useEffect(() => {
     setSubmissionProgress(prev => {
       let updated = { ...prev };
       let changed = false;
       tasks.forEach(task => {
+        if (!DEMO_TASK_IDS.has(task.id)) return;
         const existing = updated[task.id];
         const hasContent = existing && Object.values(existing).some(p => phaseHasDisplayableContent(p));
         if (!hasContent) {
-          // Force all tasks to Final Stage Approved so they are reviewable
           updated[task.id] = generateMockProgress(3, task.id, true);
           changed = true;
         }
@@ -378,19 +463,56 @@ export function DesignerAssignments() {
     });
   }, [tasks]);
 
-  // Seed reviews for dtask-1 and dtask-2 only, leaving dtask-3 and dtask-4 unreviewed.
-  // These two tasks will show as already reviewed; the others are open for users to review.
+  // Pre-seed submission data for tasks that are submitted but not yet reviewed
+  useEffect(() => {
+    setSubmissionProgress(prev => {
+      const next = { ...prev };
+      let changed = false;
+
+      const pendingReviewTasks: Record<string, Record<PhaseKey, PhaseData>> = {
+        'dtask-14': {
+          caseStudy: {
+            note: 'Measured bathroom dimensions. Tile layout drawn according to client preferences.',
+            screenshot: createSubmissionScreenshot('Case Study'),
+            history: [],
+          },
+          designStage: defaultPhase(),
+          rendering: defaultPhase(),
+          finalStage: defaultPhase(),
+        },
+        'dtask-15': {
+          caseStudy: defaultPhase(),
+          designStage: {
+            note: 'Fixture schedule draft completed. Pending client approval on decorative fixtures.',
+            screenshot: createSubmissionScreenshot('Design Stage'),
+            history: [],
+          },
+          rendering: defaultPhase(),
+          finalStage: defaultPhase(),
+        },
+      };
+
+      for (const [taskId, progress] of Object.entries(pendingReviewTasks)) {
+        if (!next[taskId]) {
+          next[taskId] = progress as Record<PhaseKey, PhaseData>;
+          changed = true;
+        }
+      }
+
+      return changed ? next : prev;
+    });
+  }, [tasks]);
+
+  // Seed reviews for dtask-1 and dtask-2 only
   useEffect(() => {
     setReviews(prev => {
       let updated = { ...prev };
       let changed = false;
 
-      // Explicit list of tasks that should have pre-existing reviews
       const reviewedTaskIds = ['dtask-1', 'dtask-2'];
 
       tasks.forEach(task => {
         if (reviewedTaskIds.includes(task.id) && !updated[task.id]) {
-          // dtask-1 gets System Admin review
           if (task.id === 'dtask-1') {
             updated[task.id] = {
               reviewerName: 'System Admin',
@@ -403,9 +525,7 @@ export function DesignerAssignments() {
               },
               submittedAt: new Date().toISOString(),
             };
-          }
-          // dtask-2 gets General Manager review
-          else if (task.id === 'dtask-2') {
+          } else if (task.id === 'dtask-2') {
             updated[task.id] = {
               reviewerName: 'General Manager',
               reviewText: 'Solid execution overall. The rendering quality exceeded expectations and the client brief was well understood.',
@@ -494,7 +614,7 @@ export function DesignerAssignments() {
         existing &&
         Object.values(existing).some((p) => phaseHasDisplayableContent(p));
 
-      if (!hasContent) {
+      if (!hasContent && DEMO_TASK_IDS.has(task.id)) {
         const mockProgress = generateMockProgress(3, task.id, true);
         return { ...prev, [task.id]: mockProgress };
       }
@@ -576,7 +696,6 @@ export function DesignerAssignments() {
     return isFinalStageApprovedFromProgress(progress);
   };
 
-  // ---------- Review actions ----------
   const handleSubmitFeedback = (taskId: string, phase: PhaseKey) => {
     const draft = feedbackDrafts[taskId]?.[phase]?.trim();
     if (!draft) {
@@ -647,12 +766,18 @@ export function DesignerAssignments() {
     : null;
 
   const lastPopulatedIdx = getLastPopulatedPhaseIndex(currentProgress);
-  // Always show all 4 phases so the reviewer can see every stage
-  const visiblePhases = PHASES;
-
+  const visiblePhases = lastPopulatedIdx >= 0 ? PHASES.slice(0, lastPopulatedIdx + 1) : [];
   const stopIdx = findFirstNonApprovedPhaseIndex(PHASES, currentProgress);
 
   const assignedTasks = tasks.filter((task) => !!task.assignedTo);
+
+  // NEW: sort tasks with highlighted first, then by createdAt descending
+  const sortedTasks = [...assignedTasks].sort((a, b) => {
+    const aHL = highlightedIds.has(a.id) ? 1 : 0;
+    const bHL = highlightedIds.has(b.id) ? 1 : 0;
+    if (bHL !== aHL) return bHL - aHL;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
 
   // ---- Rating panel helpers ----
   const initializeRatingsForTask = (taskId: string) => {
@@ -731,6 +856,14 @@ export function DesignerAssignments() {
           <p className="text-gray-600 mt-1">
             Manage created designer tasks, assignments, and progress updates.
           </p>
+          {highlightedIds.size > 0 && (
+            <p className="text-sm text-blue-600 mt-2 flex items-center gap-2">
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-semibold">
+                {highlightedIds.size}
+              </span>
+              new pending review{highlightedIds.size > 1 ? 's' : ''}
+            </p>
+          )}
         </div>
         {canCreateTask && (
           <button
@@ -744,14 +877,15 @@ export function DesignerAssignments() {
       </div>
 
       {/* Task Cards */}
-      {assignedTasks.length === 0 ? (
+      {sortedTasks.length === 0 ? (
         <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
           <Briefcase className="w-12 h-12 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500">No assigned designer tasks yet.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {assignedTasks.map((task) => {
+          {sortedTasks.map((task) => {
+            const isHighlighted = highlightedIds.has(task.id);
             const project = mockProjects.find((candidate) => candidate.id === task.projectId);
             const isEditing = editingTask === task.id;
             const isOverdue =
@@ -783,8 +917,24 @@ export function DesignerAssignments() {
             return (
               <div
                 key={task.id}
-                className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow relative"
+                data-highlighted-id={isHighlighted ? task.id : undefined}
+                className={[
+                  'bg-white rounded-xl p-6 shadow-sm border transition-all duration-300',
+                  isHighlighted
+                    ? 'border-2 border-blue-400 ring-4 ring-blue-100 shadow-blue-100'
+                    : 'border-gray-200 hover:shadow-md',
+                ].join(' ')}
               >
+                {/* "New" badge for highlighted cards */}
+                {isHighlighted && (
+                  <div className="mb-3">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                      New
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex items-start justify-between mb-3 gap-3">
                   <div>
                     <h3 className="font-semibold text-lg text-gray-900">{task.title}</h3>
@@ -944,7 +1094,6 @@ export function DesignerAssignments() {
                 {showReview && (
                   <div className="mt-4 border-t pt-4">
                     {existingReview ? (
-                      /* Already reviewed: show details and edit button */
                       <div>
                         <div className="flex items-center gap-2 text-sm text-green-700 mb-2">
                           <CheckCircle2 className="w-4 h-4" />
@@ -977,7 +1126,6 @@ export function DesignerAssignments() {
                         </button>
                       </div>
                     ) : (
-                      /* Not yet reviewed: show Review button */
                       <button
                         onClick={() => toggleReviewPanel(task.id)}
                         className="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-800"
@@ -987,7 +1135,6 @@ export function DesignerAssignments() {
                       </button>
                     )}
 
-                    {/* Rating/Review Panel */}
                     {reviewTaskId === task.id && (
                       <div className="mt-3 bg-gray-50 rounded-lg border border-gray-200 p-4">
                         <h6 className="text-sm font-semibold text-gray-700 mb-3">
@@ -1271,7 +1418,6 @@ export function DesignerAssignments() {
                   </h5>
 
                   {(() => {
-                    // Show the last phase that has any history as the summary banner
                     const summaryIdx = getLastPopulatedPhaseIndex(currentProgress);
                     if (summaryIdx === -1) return null;
                     const phaseKey = PHASES[summaryIdx].key;

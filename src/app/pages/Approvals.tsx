@@ -25,6 +25,15 @@ import {
 
 const PAID_STORAGE_KEY = 'paid-customers';
 
+// ---------- Notification system ----------
+const viewedPaidCustomerCards = new Set<string>();
+
+function publishApprovalsBadgeCount(count: number) {
+  window.dispatchEvent(
+    new CustomEvent('approvals-notifications-updated', { detail: count })
+  );
+}
+
 const categoryLabels: Record<CustomerRequestCategory, string> = {
   home_design: 'Home Design',
   finishing_work: 'Finishing Work',
@@ -85,7 +94,6 @@ const verificationMeta: Record<
   },
 };
 
-// Fallback for any unexpected status (e.g., corrupted localStorage data)
 const FALLBACK_META = {
   label: 'Unknown Status',
   badgeClass: 'bg-gray-100 text-gray-700',
@@ -95,7 +103,6 @@ const FALLBACK_META = {
   iconClass: 'text-gray-600',
 };
 
-// ---------- Mock Data Generation ----------
 function generateMockPaidCustomers(): PaidCustomer[] {
   const baseCustomer: Omit<PaidCustomer, 'id' | 'paymentVerificationStatus' | 'paymentVerificationMessage' | 'marketingClarificationResponse'> = {
     customerName: '',
@@ -235,42 +242,121 @@ export function Approvals() {
   const { user } = useAuth();
   const [paidCustomers, setPaidCustomers] = useState<PaidCustomer[]>([]);
 
-  // Finance inline review state (per customer)
   const [financeForms, setFinanceForms] = useState<
     Record<string, { expanded: boolean; decision: Exclude<PaymentVerificationStatus, 'pending'>; message: string }>
   >({});
 
-  // Clarification inline form state (per customer)
   const [clarificationForms, setClarificationForms] = useState<
     Record<string, { expanded: boolean; description: string; files: File[]; error: string }>
   >({});
   const clarificationObjectUrlsRef = useRef<string[]>([]);
 
-  // Load paid customers from localStorage or seed with mock data
+  // ── Highlight / Notification system ──
+  const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
+  const seenThisSession = useRef<Set<string>>(new Set());
+  const observedElements = useRef<Set<string>>(new Set());
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const customersRef = useRef(paidCustomers);
+  useEffect(() => { customersRef.current = paidCustomers; }, [paidCustomers]);
+
+  const ensureViewedSetInitialized = (customers: PaidCustomer[]) => {
+    if (viewedPaidCustomerCards.size === 0) {
+      const pending = customers
+        .filter(c => c.paymentVerificationStatus === 'pending')
+        .sort((a, b) => new Date(b.transferredAt).getTime() - new Date(a.transferredAt).getTime());
+      // Mark all except the first 3 as already viewed
+      pending.slice(3).forEach(c => viewedPaidCustomerCards.add(c.id));
+    }
+  };
+
   useEffect(() => {
     const saved = localStorage.getItem(PAID_STORAGE_KEY);
+    let initial: PaidCustomer[];
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        setPaidCustomers(parsed);
-      } else {
-        const mock = generateMockPaidCustomers();
-        setPaidCustomers(mock);
-      }
+      initial = Array.isArray(parsed) && parsed.length > 0 ? parsed : generateMockPaidCustomers();
     } else {
-      const mock = generateMockPaidCustomers();
-      setPaidCustomers(mock);
+      initial = generateMockPaidCustomers();
     }
+    setPaidCustomers(initial);
+    ensureViewedSetInitialized(initial);
   }, []);
 
-  // Persist paid customers
+  useEffect(() => {
+    if (paidCustomers.length === 0) return;
+    const pendingIds = paidCustomers
+      .filter(c => c.paymentVerificationStatus === 'pending')
+      .map(c => c.id);
+    const unseen = pendingIds.filter(id => !viewedPaidCustomerCards.has(id));
+    setHighlightedIds(new Set(unseen));
+    publishApprovalsBadgeCount(unseen.length);
+  }, [paidCustomers]);
+
+  useEffect(() => {
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+      observedElements.current.clear();
+    }
+    if (highlightedIds.size === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const id = (entry.target as HTMLElement).dataset.highlightedId;
+          if (!id || !highlightedIds.has(id)) return;
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.7) {
+            if (!observedElements.current.has(id)) {
+              observedElements.current.add(id);
+              seenThisSession.current.add(id);
+            }
+          }
+        });
+      },
+      { threshold: [0.7] }
+    );
+
+    observerRef.current = observer;
+
+    highlightedIds.forEach((id) => {
+      const el = document.querySelector(`[data-highlighted-id="${id}"]`);
+      if (el && !observedElements.current.has(id)) {
+        observer.observe(el);
+      }
+    });
+
+    return () => {
+      observer.disconnect();
+      observedElements.current.clear();
+    };
+  }, [highlightedIds]);
+
+  const commitSeenSession = () => {
+    if (seenThisSession.current.size === 0) return;
+    seenThisSession.current.forEach((id) => viewedPaidCustomerCards.add(id));
+    seenThisSession.current.clear();
+    observedElements.current.clear();
+
+    const currentCustomers = customersRef.current;
+    const pendingIds = currentCustomers
+      .filter(c => c.paymentVerificationStatus === 'pending')
+      .map(c => c.id);
+    const remainingUnseen = pendingIds.filter(id => !viewedPaidCustomerCards.has(id));
+    setHighlightedIds(new Set(remainingUnseen));
+    publishApprovalsBadgeCount(remainingUnseen.length);
+  };
+
+  useEffect(() => {
+    return () => {
+      commitSeenSession();
+    };
+  }, []);
+
   useEffect(() => {
     if (paidCustomers.length > 0) {
       localStorage.setItem(PAID_STORAGE_KEY, JSON.stringify(paidCustomers));
     }
   }, [paidCustomers]);
 
-  // Cleanup object URLs on unmount
   useEffect(() => {
     return () => {
       clarificationObjectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
@@ -303,11 +389,7 @@ export function Approvals() {
     });
   };
 
-  const updateFinanceForm = (
-    customerId: string,
-    field: 'decision' | 'message',
-    value: string
-  ) => {
+  const updateFinanceForm = (customerId: string, field: 'decision' | 'message', value: string) => {
     setFinanceForms((prev) => ({
       ...prev,
       [customerId]: { ...prev[customerId], [field]: value },
@@ -453,6 +535,14 @@ export function Approvals() {
     );
   }
 
+  // ✅ Sort: highlighted first, then by transferredAt descending (newest first)
+  const sortedCustomers = [...paidCustomers].sort((a, b) => {
+    const aHL = highlightedIds.has(a.id) ? 1 : 0;
+    const bHL = highlightedIds.has(b.id) ? 1 : 0;
+    if (bHL !== aHL) return bHL - aHL; // highlighted on top
+    return new Date(b.transferredAt).getTime() - new Date(a.transferredAt).getTime();
+  });
+
   return (
     <div className="space-y-6">
       <div>
@@ -460,6 +550,14 @@ export function Approvals() {
         <p className="text-gray-600 mt-1">
           Finance provides the final decision as Approved, Rejected, or Request Clarification. Marketing can respond to clarification requests directly on this page.
         </p>
+        {highlightedIds.size > 0 && (
+          <p className="text-sm text-blue-600 mt-2 flex items-center gap-2">
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-semibold">
+              {highlightedIds.size}
+            </span>
+            new {highlightedIds.size === 1 ? 'record' : 'records'} since your last visit
+          </p>
+        )}
       </div>
 
       {paidCustomers.length === 0 ? (
@@ -468,28 +566,37 @@ export function Approvals() {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {paidCustomers.map((customer) => {
+          {sortedCustomers.map((customer) => {
             const status = customer.paymentVerificationStatus ?? 'pending';
-            // --- SAFETY FIX: use FALLBACK_META if status is unknown ---
             const meta = verificationMeta[status] || FALLBACK_META;
             const StatusIcon = meta.icon;
             const financeMessage = customer.paymentVerificationMessage?.trim();
             const clarificationResponse = customer.marketingClarificationResponse;
+            const isHighlighted = highlightedIds.has(customer.id);
 
             const financeForm = financeForms[customer.id] ?? { expanded: false, decision: 'approved', message: '' };
-            const clarificationForm = clarificationForms[customer.id] ?? {
-              expanded: false,
-              description: '',
-              files: [],
-              error: '',
-            };
+            const clarificationForm = clarificationForms[customer.id] ?? { expanded: false, description: '', files: [], error: '' };
 
             return (
               <div
                 key={customer.id}
-                className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
+                data-highlighted-id={isHighlighted ? customer.id : undefined}
+                className={[
+                  'bg-white rounded-xl p-6 shadow-sm border transition-all duration-300',
+                  isHighlighted
+                    ? 'border-2 border-blue-400 ring-4 ring-blue-100 shadow-blue-100'
+                    : 'border-gray-200 hover:shadow-md',
+                ].join(' ')}
               >
-                {/* Header & Status Badge */}
+                {isHighlighted && (
+                  <div className="mb-3">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                      New
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex items-start justify-between mb-3 gap-3">
                   <div>
                     <h4 className="font-semibold text-lg text-gray-900">{customer.customerName}</h4>
@@ -503,7 +610,6 @@ export function Approvals() {
                   </span>
                 </div>
 
-                {/* Meta Tags */}
                 <div className="flex flex-wrap gap-2 mb-4">
                   <span className="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium">
                     Budget: {customer.budget ?? 'N/A'}
@@ -513,7 +619,6 @@ export function Approvals() {
                   </span>
                 </div>
 
-                {/* Service Description – styled like Designer Assignment's "Work Instruction" */}
                 <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
                   <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">
                     Service Description
@@ -521,7 +626,6 @@ export function Approvals() {
                   <p className="text-sm text-gray-700 mt-1">{customer.serviceDescription}</p>
                 </div>
 
-                {/* Finance Decision Panel */}
                 <div className={`mb-4 p-4 rounded-lg border ${meta.panelClass}`}>
                   <div className="flex items-center gap-2 mb-2">
                     <StatusIcon className={`w-4 h-4 ${meta.iconClass}`} />
@@ -538,7 +642,7 @@ export function Approvals() {
                   )}
                 </div>
 
-                {/* Finance Inline Review Form (only for finance role) */}
+                {/* Finance Inline Review Form (unchanged) */}
                 {canFinanceReview && (
                   <div className="mb-4">
                     {!financeForm.expanded ? (
@@ -553,21 +657,15 @@ export function Approvals() {
                       <div className="p-4 border border-gray-200 rounded-lg bg-gray-50 space-y-3">
                         <div className="flex items-center justify-between">
                           <h5 className="text-sm font-medium text-gray-700">Finance Review Form</h5>
-                          <button
-                            onClick={() => toggleFinanceForm(customer.id)}
-                            className="text-gray-400 hover:text-gray-600"
-                          >
+                          <button onClick={() => toggleFinanceForm(customer.id)} className="text-gray-400 hover:text-gray-600">
                             <ChevronUp className="w-4 h-4" />
                           </button>
                         </div>
-
                         <div>
                           <label className="block text-xs font-medium text-gray-600 mb-1">Decision</label>
                           <select
                             value={financeForm.decision}
-                            onChange={(e) =>
-                              updateFinanceForm(customer.id, 'decision', e.target.value)
-                            }
+                            onChange={(e) => updateFinanceForm(customer.id, 'decision', e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                           >
                             <option value="approved">Approved</option>
@@ -575,19 +673,15 @@ export function Approvals() {
                             <option value="request_clarification">Request Clarification</option>
                           </select>
                         </div>
-
                         <div>
                           <label className="block text-xs font-medium text-gray-600 mb-1">Message</label>
                           <textarea
                             value={financeForm.message}
-                            onChange={(e) =>
-                              updateFinanceForm(customer.id, 'message', e.target.value)
-                            }
+                            onChange={(e) => updateFinanceForm(customer.id, 'message', e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm min-h-[80px]"
                             placeholder="Provide reason or instruction..."
                           />
                         </div>
-
                         <div className="flex justify-end gap-2">
                           <button
                             onClick={() => submitFinanceDecision(customer.id)}
@@ -602,7 +696,7 @@ export function Approvals() {
                   </div>
                 )}
 
-                {/* Clarification Request Actions (for Marketing) */}
+                {/* Clarification Request Actions (unchanged) */}
                 {status === 'request_clarification' && canMarketingClarify && (
                   <div className="mb-4">
                     {!clarificationForm.expanded ? (
@@ -617,26 +711,19 @@ export function Approvals() {
                       <div className="p-4 border border-amber-200 rounded-lg bg-amber-50 space-y-3">
                         <div className="flex items-center justify-between">
                           <h5 className="text-sm font-medium text-amber-800">Marketing Clarification</h5>
-                          <button
-                            onClick={() => toggleClarificationForm(customer.id)}
-                            className="text-amber-600 hover:text-amber-800"
-                          >
+                          <button onClick={() => toggleClarificationForm(customer.id)} className="text-amber-600 hover:text-amber-800">
                             <ChevronUp className="w-4 h-4" />
                           </button>
                         </div>
-
                         <div>
                           <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
                           <textarea
                             value={clarificationForm.description}
-                            onChange={(e) =>
-                              updateClarificationDescription(customer.id, e.target.value)
-                            }
+                            onChange={(e) => updateClarificationDescription(customer.id, e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm min-h-[90px]"
                             placeholder="Explain the clarification..."
                           />
                         </div>
-
                         <div>
                           <label className="block text-xs font-medium text-gray-700 mb-1">Attach Image</label>
                           <input
@@ -654,7 +741,6 @@ export function Approvals() {
                             <Plus className="w-4 h-4" />
                             Choose Images
                           </label>
-
                           {clarificationForm.files.length > 0 && (
                             <div className="mt-3 grid grid-cols-2 gap-2">
                               {clarificationForm.files.map((file, idx) => {
@@ -679,11 +765,9 @@ export function Approvals() {
                             </div>
                           )}
                         </div>
-
                         {clarificationForm.error && (
                           <p className="text-sm text-red-600">{clarificationForm.error}</p>
                         )}
-
                         <div className="flex justify-end gap-2">
                           <button
                             onClick={() => submitClarification(customer.id)}
@@ -698,7 +782,7 @@ export function Approvals() {
                   </div>
                 )}
 
-                {/* Marketing Clarification Response (if submitted) */}
+                {/* Marketing Clarification Response (unchanged) */}
                 {clarificationResponse && (
                   <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3">
                     <p className="text-xs font-medium uppercase tracking-wide text-blue-700">

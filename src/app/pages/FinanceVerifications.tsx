@@ -79,7 +79,7 @@ type ActionModalState =
 const categoryLabel = 'Paid customer verification';
 
 const initialFinanceRecords: FinanceRecord[] = [
-  // (all the seed data you provided – unchanged)
+  // … (seed data unchanged) …
   {
     id: 'pc-fin-1',
     customerName: 'Nadia Hassan',
@@ -177,31 +177,7 @@ const initialFinanceRecords: FinanceRecord[] = [
     ],
     resubmissionHistory: [],
   },
-  {
-    id: 'pc-fin-4',
-    customerName: 'Aisha Mahmoud',
-    customerPhone: '+971 56 789 0123',
-    customerEmail: 'aisha.mahmoud@example.com',
-    customerAddress: 'Al Reem Island, Abu Dhabi',
-    category: 'home_design',
-    serviceDescription: 'Full home design for a 4-bedroom villa with a modern Arabian theme, including landscaping.',
-    preferredStartDate: '2026-06-01',
-    budget: 'AED 350,000',
-    notes: 'Client wants integrated smart home features and a home office setup.',
-    status: 'scheduled',
-    createdAt: '2026-04-25T09:00:00Z',
-    createdBy: '8',
-    createdByName: 'Admin User',
-    sourceRequestId: 'cr-4',
-    transferredAt: '2026-05-06T08:45:00Z',
-    transferredBy: '0',
-    transferredByName: 'CEO',
-    paymentNote: 'Transferred by CEO without finance verification.',
-    proofOfPayment: [],
-    paymentVerificationStatus: 'pending',
-    financeHistory: [],
-    resubmissionHistory: [],
-  },
+  
   {
     id: 'pc-fin-5',
     customerName: 'Rashid Al Fahim',
@@ -565,14 +541,14 @@ export function FinanceVerifications() {
     recordsRef.current = records;
   }, [records]);
 
-  // ── Pre‑load the global “viewed” set so that only the 3 newest pending records are highlighted ──
+  // Pre‑load the global “viewed” set so that only the 2 newest pending records are highlighted
   const ensureViewedSetInitialized = (recs: FinanceRecord[]) => {
     if (viewedFinanceRecordCards.size === 0) {
       const pendingRecords = recs
         .filter(r => r.paymentVerificationStatus === 'pending')
         .sort((a, b) => new Date(b.transferredAt).getTime() - new Date(a.transferredAt).getTime());
-      // Mark all except the first 3 as already viewed
-      pendingRecords.slice(3).forEach(r => viewedFinanceRecordCards.add(r.id));
+      // Mark all except the first 2 as already viewed
+      pendingRecords.slice(2).forEach(r => viewedFinanceRecordCards.add(r.id));
     }
   };
 
@@ -580,7 +556,7 @@ export function FinanceVerifications() {
   useEffect(() => {
     const loaded = loadFinanceRecords();
     setRecords(loaded);
-    ensureViewedSetInitialized(loaded); // first call
+    ensureViewedSetInitialized(loaded);
   }, []);
 
   // Compute highlighted IDs (pending & not yet globally viewed)
@@ -594,7 +570,7 @@ export function FinanceVerifications() {
     publishFinanceBadgeCount(unseen.length);
   }, [records]);
 
-  // IntersectionObserver for highlighted cards (marks as “seen this session”)
+  // ── IntersectionObserver (improved) ──
   useEffect(() => {
     if (observerRef.current) {
       observerRef.current.disconnect();
@@ -607,7 +583,8 @@ export function FinanceVerifications() {
         entries.forEach((entry) => {
           const id = (entry.target as HTMLElement).dataset.highlightedId;
           if (!id || !highlightedIds.has(id)) return;
-          if (entry.isIntersecting && entry.intersectionRatio >= 0.7) {
+          // Mark as seen as soon as any part of the card enters the viewport (intersectionRatio > 0)
+          if (entry.isIntersecting && entry.intersectionRatio > 0) {
             if (!observedElements.current.has(id)) {
               observedElements.current.add(id);
               seenThisSession.current.add(id);
@@ -615,7 +592,7 @@ export function FinanceVerifications() {
           }
         });
       },
-      { threshold: [0.7] }
+      { threshold: [0, 0.1, 0.5, 1] } // use multiple thresholds to catch any entry
     );
 
     observerRef.current = observer;
@@ -633,8 +610,22 @@ export function FinanceVerifications() {
     };
   }, [highlightedIds]);
 
-  // Commit seen session when navigating between tabs (or leaving the page)
+  // Commit seen session – processes pending intersection records before committing
   const commitSeenSession = () => {
+    // Process any pending intersection records that haven't been delivered yet
+    if (observerRef.current) {
+      const pending = observerRef.current.takeRecords();
+      pending.forEach((entry) => {
+        const id = (entry.target as HTMLElement).dataset.highlightedId;
+        if (id && highlightedIds.has(id) && entry.intersectionRatio > 0) {
+          if (!observedElements.current.has(id)) {
+            observedElements.current.add(id);
+            seenThisSession.current.add(id);
+          }
+        }
+      });
+    }
+
     if (seenThisSession.current.size === 0) return;
     seenThisSession.current.forEach((id) => viewedFinanceRecordCards.add(id));
     seenThisSession.current.clear();
@@ -655,7 +646,7 @@ export function FinanceVerifications() {
     commitSeenSession();
   }, [currentView]);
 
-  // Safety net: commit on unmount (when navigating to a completely different route)
+  // Safety net: commit on unmount
   useEffect(() => {
     return () => {
       commitSeenSession();
@@ -729,7 +720,24 @@ export function FinanceVerifications() {
     setRecords(nextRecords.map(normalizeRecord));
   };
 
+  const markRecordAsViewed = (recordId: string) => {
+    if (!highlightedIds.has(recordId)) return;
+
+    viewedFinanceRecordCards.add(recordId);
+    seenThisSession.current.delete(recordId);
+    observedElements.current.add(recordId);
+
+    setHighlightedIds((previous) => {
+      if (!previous.has(recordId)) return previous;
+      const next = new Set(previous);
+      next.delete(recordId);
+      publishFinanceBadgeCount(next.size);
+      return next;
+    });
+  };
+
   const openDetail = (record: FinanceRecord) => {
+    markRecordAsViewed(record.id);
     setSelectedRecord(record);
     setExpandedSection('evidence');
     setShowDetail(true);
@@ -903,6 +911,10 @@ export function FinanceVerifications() {
       selectedRecord.paymentVerificationStatus === 'request_clarification'
     : false;
 
+  const toggleSection = (section: string) => {
+    setExpandedSection((prev) => (prev === section ? null : section));
+  };
+
   const tiles = [
     { label: 'Unapproved Request', value: summary.unapprovedTasks, icon: ClipboardList, tone: 'bg-blue-50 text-blue-700', activeTone: 'ring-2 ring-blue-400', tab: 'unapproved-request' as FinanceTab },
     { label: 'Request Clarification', value: summary.clarificationTasks, icon: CircleAlert, tone: 'bg-amber-50 text-amber-700', activeTone: 'ring-2 ring-amber-400', tab: 'request-clarification-task' as FinanceTab },
@@ -1016,7 +1028,7 @@ export function FinanceVerifications() {
         </div>
       </div>
 
-      {/* ── DETAIL MODAL (unchanged) ── */}
+      {/* ── FULL-PAGE DETAIL MODAL ── */}
       {showDetail && selectedRecord && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-6 overflow-y-auto">
           <div className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl max-h-[92vh] overflow-y-auto">
@@ -1029,12 +1041,296 @@ export function FinanceVerifications() {
                 <XCircle className="h-5 w-5 text-gray-500" />
               </button>
             </div>
-            {/* ... detail modal content (identical to original) ... */}
+
+            <div className="grid grid-cols-1 gap-6 px-6 py-5 lg:grid-cols-3">
+              <div className="lg:col-span-2 space-y-5">
+                {/* Record Info */}
+                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h4 className="text-xl font-semibold text-gray-900">{selectedRecord.customerName}</h4>
+                      <p className="mt-1 text-sm text-gray-500">ID: {selectedRecord.id}</p>
+                    </div>
+                    <span className={`rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap ${statusTone(selectedRecord.paymentVerificationStatus)}`}>
+                      {statusLabel(selectedRecord.paymentVerificationStatus)}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className="rounded-full bg-indigo-100 px-2 py-1 text-xs font-medium text-indigo-700">
+                      {selectedRecord.budget}
+                    </span>
+                    <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 capitalize">
+                      {selectedRecord.category?.replace(/_/g, ' ')}
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                      Submitted by {selectedRecord.transferredByName}
+                    </span>
+                    {selectedRecord.transferredByName === 'CEO' && (
+                      <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">
+                        CEO Transfer
+                      </span>
+                    )}
+                  </div>
+                </section>
+
+                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Service Description</h5>
+                  <p className="mt-2 text-sm text-gray-700">{selectedRecord.serviceDescription}</p>
+                </section>
+
+                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Payment Note</h5>
+                  <p className="mt-2 text-sm text-gray-700">{selectedRecord.paymentNote ?? 'No payment note attached.'}</p>
+                </section>
+
+                {/* Collapsible Evidence */}
+                <section className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => toggleSection('evidence')}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-2 text-sm font-medium text-gray-800">
+                      <Image className="h-4 w-4 text-slate-500" />
+                      Uploaded Payment Evidence
+                      <span className="ml-1 text-xs text-gray-500">({selectedRecord.proofOfPayment?.length ?? 0} files)</span>
+                    </div>
+                    {expandedSection === 'evidence' ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+                  </button>
+                  {expandedSection === 'evidence' && (
+                    <div className="p-4">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {(selectedRecord.proofOfPayment ?? []).length > 0 ? (
+                          selectedRecord.proofOfPayment!.map((proof) => (
+                            <div key={proof.name} className="rounded-2xl border border-slate-200 p-3">
+                              <img src={proof.dataUrl} alt={proof.name} className="h-32 w-full rounded-xl object-cover" />
+                              <p className="mt-2 text-xs text-slate-500">{proof.name}</p>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-slate-500 col-span-2">No uploaded evidence attached to this record.</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </section>
+
+                {/* Finance Attachments */}
+                <section className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => toggleSection('attachments')}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-2 text-sm font-medium text-gray-800">
+                      <FileText className="h-4 w-4 text-slate-500" />
+                      Finance Attachments
+                    </div>
+                    {expandedSection === 'attachments' ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+                  </button>
+                  {expandedSection === 'attachments' && (
+                    <div className="p-4 space-y-2">
+                      <p className="text-sm text-slate-600">
+                        {selectedRecord.financeAttachments?.length
+                          ? `${selectedRecord.financeAttachments.length} finance attachment(s) added.`
+                          : 'No finance attachments added yet.'}
+                      </p>
+                      <p className="text-sm text-slate-600">
+                        {selectedRecord.financeAttachmentDescription ?? 'No finance description added yet.'}
+                      </p>
+                    </div>
+                  )}
+                </section>
+
+                {/* Payment History */}
+                <section className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => toggleSection('history')}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-2 text-sm font-medium text-gray-800">
+                      <MessageSquare className="h-4 w-4 text-slate-500" />
+                      Full Payment History
+                      <span className="ml-1 text-xs text-gray-500">({selectedRecord.financeHistory?.length ?? 0} entries)</span>
+                    </div>
+                    {expandedSection === 'history' ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+                  </button>
+                  {expandedSection === 'history' && (
+                    <div className="p-4 space-y-2">
+                      {(selectedRecord.financeHistory ?? []).length > 0 ? (
+                        selectedRecord.financeHistory!.map((entry) => (
+                          <div key={entry.id} className="rounded-xl bg-slate-50 p-3 text-sm">
+                            <p className="font-medium text-slate-800 capitalize">{entry.action.replace('_', ' ')}</p>
+                            <p className="text-slate-600">{entry.note}</p>
+                            <p className="mt-1 text-xs text-slate-500">{entry.actorName} · {new Date(entry.timestamp).toLocaleString()}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-slate-500">No payment history yet.</p>
+                      )}
+                    </div>
+                  )}
+                </section>
+
+                {/* Resubmission History */}
+                <section className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => toggleSection('resubmission')}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-2 text-sm font-medium text-gray-800">
+                      <RefreshCcw className="h-4 w-4 text-slate-500" />
+                      Resubmission History
+                      <span className="ml-1 text-xs text-gray-500">({selectedRecord.resubmissionHistory?.length ?? 0} entries)</span>
+                    </div>
+                    {expandedSection === 'resubmission' ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+                  </button>
+                  {expandedSection === 'resubmission' && (
+                    <div className="p-4 space-y-2">
+                      {(selectedRecord.resubmissionHistory ?? []).length > 0 ? (
+                        selectedRecord.resubmissionHistory!.map((entry) => (
+                          <div key={entry.id} className="rounded-xl bg-amber-50 p-3 text-sm">
+                            <p className="font-medium text-amber-800 capitalize">{entry.action.replace('_', ' ')}</p>
+                            <p className="text-amber-700">{entry.note}</p>
+                            <p className="mt-1 text-xs text-amber-600">{entry.actorName} · {new Date(entry.timestamp).toLocaleString()}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-slate-500">No resubmission history yet.</p>
+                      )}
+                    </div>
+                  )}
+                </section>
+
+                {selectedRecord.transferredByName === 'CEO' && !isVerified(selectedRecord.paymentVerificationStatus) && (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                    <div className="flex items-center gap-2 text-sm font-medium text-amber-800">
+                      <CircleAlert className="h-4 w-4" />
+                      CEO-transferred request
+                    </div>
+                    <p className="mt-2 text-sm text-amber-700">
+                      Add a note or attach evidence, then approve this transfer to move it into approved tasks with the finance member name.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeDetail();
+                        openModal(selectedRecord.id, 'ceo-approve', 'verified');
+                      }}
+                      className="mt-3 rounded-xl bg-amber-700 px-4 py-2 text-sm font-medium text-white hover:bg-amber-800 transition-colors"
+                    >
+                      Approve CEO-transferred request
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <aside className="space-y-4">
+                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-3">Evidence Review</h5>
+                  {reviewedEvidence[selectedRecord.id] ? (
+                    <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2 border border-green-200">
+                      <CheckCircle2 className="h-4 w-4" />
+                      Evidence marked as reviewed
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setReviewedEvidence((current) => ({ ...current, [selectedRecord.id]: true }))}
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                    >
+                      Mark Evidence Reviewed
+                    </button>
+                  )}
+                  {!reviewedEvidence[selectedRecord.id] && (
+                    <p className="mt-2 text-xs text-slate-500">Review evidence before actions become available.</p>
+                  )}
+                </section>
+
+                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-3">Timeline</h5>
+                  <div className="space-y-2 text-sm text-gray-700">
+                    <div className="flex items-center gap-2 text-gray-500">
+                      <Calendar className="h-3.5 w-3.5 shrink-0" />
+                      <span>Submitted: {new Date(selectedRecord.transferredAt).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-500">
+                      <Clock className="h-3.5 w-3.5 shrink-0" />
+                      <span>Preferred start: {selectedRecord.preferredStartDate ?? 'N/A'}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-500">
+                      <User className="h-3.5 w-3.5 shrink-0" />
+                      <span>By: {selectedRecord.transferredByName}</span>
+                    </div>
+                    {selectedRecord.paymentVerifiedByName && (
+                      <div className="flex items-center gap-2 text-gray-500">
+                        <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
+                        <span>Verified by: {selectedRecord.paymentVerifiedByName}</span>
+                      </div>
+                    )}
+                  </div>
+                </section>
+
+                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-3">Actions</h5>
+                  <div className="space-y-2">
+                    {!isProcessed ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => { closeDetail(); openModal(selectedRecord.id, 'verify', 'verified'); }}
+                          disabled={!reviewedEvidence[selectedRecord.id]}
+                          className="w-full rounded-xl bg-green-600 px-4 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-green-300 hover:bg-green-700 transition-colors"
+                        >
+                          Verify Payment
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { closeDetail(); openModal(selectedRecord.id, 'reject', 'rejected'); }}
+                          disabled={!reviewedEvidence[selectedRecord.id]}
+                          className="w-full rounded-xl bg-red-600 px-4 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-red-300 hover:bg-red-700 transition-colors"
+                        >
+                          Reject Payment
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { closeDetail(); openModal(selectedRecord.id, 'clarify', 'request_clarification'); }}
+                          disabled={!reviewedEvidence[selectedRecord.id]}
+                          className="w-full rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-amber-300 hover:bg-amber-700 transition-colors"
+                        >
+                          Request Clarification
+                        </button>
+                      </>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => { closeDetail(); openModal(selectedRecord.id, 'edit', selectedRecord.paymentVerificationStatus ?? 'pending'); }}
+                      disabled={!reviewedEvidence[selectedRecord.id]}
+                      className="w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-400 hover:bg-slate-700 transition-colors"
+                    >
+                      Edit Verification
+                    </button>
+                  </div>
+                </section>
+
+                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-2">Audit</h5>
+                  <p className="text-sm text-slate-600">
+                    {selectedRecord.proofOfPayment?.length ?? 0} proof attachment(s)
+                  </p>
+                  <p className="text-sm text-slate-600">
+                    {(selectedRecord.financeHistory?.length ?? 0) + (selectedRecord.resubmissionHistory?.length ?? 0)} history entries
+                  </p>
+                </section>
+              </aside>
+            </div>
           </div>
         </div>
       )}
 
-      {/* ── ACTION MODAL (unchanged) ── */}
+      {/* ── ACTION MODAL ── */}
       {modalState.open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-6">
           <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -1047,7 +1343,86 @@ export function FinanceVerifications() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            {/* ... action modal content (identical to original) ... */}
+
+            <div className="mt-5 space-y-4">
+              {modalState.action === 'edit' && (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">New decision</label>
+                  <select
+                    value={modalState.decision}
+                    onChange={(e) => updateModalField('decision', e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm"
+                  >
+                    <option value="verified">Verified</option>
+                    <option value="rejected">Rejected</option>
+                    <option value="request_clarification">Request Clarification</option>
+                  </select>
+                </div>
+              )}
+
+              {(modalState.action === 'verify' || modalState.action === 'ceo-approve' || modalState.action === 'edit') && (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">
+                    Verification comment {modalState.action === 'verify' ? '(optional)' : '(required for edits)'}
+                  </label>
+                  <textarea
+                    value={modalState.comment}
+                    onChange={(e) => updateModalField('comment', e.target.value)}
+                    className="min-h-[100px] w-full rounded-xl border border-slate-300 px-4 py-3 text-sm"
+                    placeholder="Add a comment for the audit log"
+                  />
+                </div>
+              )}
+
+              {(modalState.action === 'reject' || modalState.action === 'clarify') && (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">
+                    {modalState.action === 'reject' ? 'Rejection reason' : 'Clarification notes'}
+                  </label>
+                  <textarea
+                    value={modalState.comment}
+                    onChange={(e) => updateModalField('comment', e.target.value)}
+                    className="min-h-[120px] w-full rounded-xl border border-slate-300 px-4 py-3 text-sm"
+                    placeholder="Enter the decision note"
+                  />
+                </div>
+              )}
+
+              {modalState.action === 'ceo-approve' && (
+                <>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">Description</label>
+                    <textarea
+                      value={modalState.description}
+                      onChange={(e) => updateModalField('description', e.target.value)}
+                      className="min-h-[100px] w-full rounded-xl border border-slate-300 px-4 py-3 text-sm"
+                      placeholder="Add description for the CEO-transferred approval"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">Attach image</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={(e) => updateModalFiles(Array.from(e.target.files ?? []))}
+                      className="block w-full rounded-xl border border-slate-300 px-4 py-3 text-sm"
+                    />
+                  </div>
+                </>
+              )}
+
+              {modalState.error && <p className="text-sm text-red-600">{modalState.error}</p>}
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={closeModal} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700">
+                  Cancel
+                </button>
+                <button type="button" onClick={saveModalAction} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white">
+                  Confirm
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

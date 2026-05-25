@@ -18,6 +18,8 @@ import {
   X,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY } from '../pages/DesignerAssignments';
+import { DESIGNER_TASKS_NOTIFICATIONS_KEY } from '../pages/DesignerTasks';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -41,42 +43,68 @@ export function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Badge states – initialised to 2 (mock “new” count) and updated via events
   const [paidCustomerNotifications, setPaidCustomerNotifications] = useState(3);
   const [dataCollectorNotifications, setDataCollectorNotifications] = useState(3);
   const [quantitySurveyorNotifications, setQuantitySurveyorNotifications] = useState(3);
-  const [financeVerificationsNotifications, setFinanceVerificationsNotifications] = useState(3);
+  const [financeVerificationsNotifications, setFinanceVerificationsNotifications] = useState(2);
+  const [approvalsNotifications, setApprovalsNotifications] = useState(3);
+  const [openJobPostingsNotifications, setOpenJobPostingsNotifications] = useState(3);
+  const [designerAssignmentsNotifications, setDesignerAssignmentsNotifications] = useState(3);
+  const [designerTasksNotifications, setDesignerTasksNotifications] = useState(3);
 
   useEffect(() => {
     const onPaidCustomers = (e: Event) => {
       const customEvent = e as CustomEvent<number>;
       setPaidCustomerNotifications(customEvent.detail ?? 0);
     };
-
     const onDataCollector = (e: Event) => {
       const customEvent = e as CustomEvent<number>;
       setDataCollectorNotifications(customEvent.detail ?? 0);
     };
-
     const onQuantitySurveyor = (e: Event) => {
       const customEvent = e as CustomEvent<number>;
       setQuantitySurveyorNotifications(customEvent.detail ?? 0);
     };
-
     const onFinanceVerifications = (e: Event) => {
       const customEvent = e as CustomEvent<number>;
       setFinanceVerificationsNotifications(customEvent.detail ?? 0);
+    };
+    const onApprovalsNotifications = (e: Event) => {
+      const customEvent = e as CustomEvent<number>;
+      setApprovalsNotifications(customEvent.detail ?? 0);
+    };
+    const onOpenJobPostingsNotifications = (e: Event) => {
+      const customEvent = e as CustomEvent<number>;
+      setOpenJobPostingsNotifications(customEvent.detail ?? 0);
+    };
+    const onDesignerAssignments = (e: Event) => {
+      const customEvent = e as CustomEvent<number>;
+      setDesignerAssignmentsNotifications(customEvent.detail ?? 0);
+    };
+    const onDesignerTasks = (e: Event) => {
+      const customEvent = e as CustomEvent<number>;
+      setDesignerTasksNotifications(customEvent.detail ?? 0);
     };
 
     window.addEventListener('paid-customers-notifications-updated', onPaidCustomers);
     window.addEventListener('data-collector-notifications-updated', onDataCollector);
     window.addEventListener('quantity-surveyor-notifications-updated', onQuantitySurveyor);
     window.addEventListener('finance-verifications-notifications-updated', onFinanceVerifications);
+    window.addEventListener('approvals-notifications-updated', onApprovalsNotifications);
+    window.addEventListener('open-job-postings-notifications-updated', onOpenJobPostingsNotifications);
+    window.addEventListener(DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY, onDesignerAssignments);
+    window.addEventListener(DESIGNER_TASKS_NOTIFICATIONS_KEY, onDesignerTasks);
 
     return () => {
       window.removeEventListener('paid-customers-notifications-updated', onPaidCustomers);
       window.removeEventListener('data-collector-notifications-updated', onDataCollector);
       window.removeEventListener('quantity-surveyor-notifications-updated', onQuantitySurveyor);
       window.removeEventListener('finance-verifications-notifications-updated', onFinanceVerifications);
+      window.removeEventListener('approvals-notifications-updated', onApprovalsNotifications);
+      window.removeEventListener('open-job-postings-notifications-updated', onOpenJobPostingsNotifications);
+      window.removeEventListener(DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY, onDesignerAssignments);
+      window.removeEventListener(DESIGNER_TASKS_NOTIFICATIONS_KEY, onDesignerTasks);
     };
   }, []);
 
@@ -108,7 +136,7 @@ export function Layout({ children }: LayoutProps) {
       });
     }
 
-    // ✅ Paid Customers
+    // Paid Customers
     if (
       user.role === 'general_manager' ||
       user.role === 'marketing_lead' ||
@@ -123,8 +151,7 @@ export function Layout({ children }: LayoutProps) {
       });
     }
 
-    // Finance Verifications – now only for CEO and System Administrator
-    // (General Manager no longer has access)
+    // Finance Verifications
     if (
       user.role === 'ceo' ||
       user.role === 'system_administrator'
@@ -137,7 +164,7 @@ export function Layout({ children }: LayoutProps) {
       });
     }
 
-    // Other admin-level pages still available to GM, CEO, and System Admin
+    // Other admin-level pages
     if (
       user.role === 'ceo' ||
       user.role === 'general_manager' ||
@@ -159,6 +186,7 @@ export function Layout({ children }: LayoutProps) {
         path: '/designer-assignments',
         label: 'Designer Assignments',
         icon: LayoutGrid,
+        badge: designerAssignmentsNotifications > 0 ? designerAssignmentsNotifications : undefined,
       });
       addNavigationItem({
         path: '/quantity-surveyor-tasks',
@@ -174,11 +202,17 @@ export function Layout({ children }: LayoutProps) {
     }
 
     if (user.role === 'design_team_leader' || user.role === 'designer') {
-      addNavigationItem({ path: '/designer-tasks', label: 'Designer Tasks', icon: LayoutGrid });
+      addNavigationItem({
+        path: '/designer-tasks',
+        label: 'Designer Tasks',
+        icon: LayoutGrid,
+        badge: designerTasksNotifications > 0 ? designerTasksNotifications : undefined,
+      });
       addNavigationItem({
         path: '/open-job-postings',
         label: 'Open Job Postings',
         icon: FolderKanban,
+        badge: openJobPostingsNotifications > 0 ? openJobPostingsNotifications : undefined,
       });
     }
 
@@ -196,8 +230,14 @@ export function Layout({ children }: LayoutProps) {
       });
     }
 
+    // Approvals with badge
     if (user.role !== 'system_administrator') {
-      navigationItems.push({ path: '/approvals', label: 'Approvals', icon: ClipboardCheck });
+      navigationItems.push({
+        path: '/approvals',
+        label: 'Approvals',
+        icon: ClipboardCheck,
+        badge: approvalsNotifications > 0 ? approvalsNotifications : undefined,
+      });
     }
 
     if (user.role === 'system_administrator' || user.role === 'ceo') {
