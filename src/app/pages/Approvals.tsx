@@ -28,6 +28,36 @@ const PAID_STORAGE_KEY = 'paid-customers';
 // ---------- Notification system ----------
 const viewedPaidCustomerCards = new Set<string>();
 
+function ensureViewedSetInitialized(customers: PaidCustomer[]) {
+  if (viewedPaidCustomerCards.size === 0) {
+    const pending = customers
+      .filter((customer) => customer.paymentVerificationStatus === 'pending')
+      .sort((a, b) => new Date(b.transferredAt).getTime() - new Date(a.transferredAt).getTime());
+
+    pending.slice(3).forEach((customer) => viewedPaidCustomerCards.add(customer.id));
+  }
+}
+
+export function getUnseenApprovalsHighlightedIds() {
+  try {
+    const saved = localStorage.getItem(PAID_STORAGE_KEY);
+    const paidCustomers = saved ? (JSON.parse(saved) as PaidCustomer[]) : generateMockPaidCustomers();
+    ensureViewedSetInitialized(paidCustomers);
+
+    const pendingIds = paidCustomers
+      .filter((customer) => customer.paymentVerificationStatus === 'pending')
+      .map((customer) => customer.id);
+
+    return new Set(pendingIds.filter((id) => !viewedPaidCustomerCards.has(id)));
+  } catch {
+    return new Set<string>();
+  }
+}
+
+export function getUnseenApprovalsCount() {
+  return getUnseenApprovalsHighlightedIds().size;
+}
+
 function publishApprovalsBadgeCount(count: number) {
   window.dispatchEvent(
     new CustomEvent('approvals-notifications-updated', { detail: count })
@@ -259,16 +289,6 @@ export function Approvals() {
   const customersRef = useRef(paidCustomers);
   useEffect(() => { customersRef.current = paidCustomers; }, [paidCustomers]);
 
-  const ensureViewedSetInitialized = (customers: PaidCustomer[]) => {
-    if (viewedPaidCustomerCards.size === 0) {
-      const pending = customers
-        .filter(c => c.paymentVerificationStatus === 'pending')
-        .sort((a, b) => new Date(b.transferredAt).getTime() - new Date(a.transferredAt).getTime());
-      // Mark all except the first 3 as already viewed
-      pending.slice(3).forEach(c => viewedPaidCustomerCards.add(c.id));
-    }
-  };
-
   useEffect(() => {
     const saved = localStorage.getItem(PAID_STORAGE_KEY);
     let initial: PaidCustomer[];
@@ -284,12 +304,9 @@ export function Approvals() {
 
   useEffect(() => {
     if (paidCustomers.length === 0) return;
-    const pendingIds = paidCustomers
-      .filter(c => c.paymentVerificationStatus === 'pending')
-      .map(c => c.id);
-    const unseen = pendingIds.filter(id => !viewedPaidCustomerCards.has(id));
+    const unseen = getUnseenApprovalsHighlightedIds();
     setHighlightedIds(new Set(unseen));
-    publishApprovalsBadgeCount(unseen.length);
+    publishApprovalsBadgeCount(unseen.size);
   }, [paidCustomers]);
 
   useEffect(() => {
@@ -337,12 +354,9 @@ export function Approvals() {
     observedElements.current.clear();
 
     const currentCustomers = customersRef.current;
-    const pendingIds = currentCustomers
-      .filter(c => c.paymentVerificationStatus === 'pending')
-      .map(c => c.id);
-    const remainingUnseen = pendingIds.filter(id => !viewedPaidCustomerCards.has(id));
+    const remainingUnseen = getUnseenApprovalsHighlightedIds();
     setHighlightedIds(new Set(remainingUnseen));
-    publishApprovalsBadgeCount(remainingUnseen.length);
+    publishApprovalsBadgeCount(remainingUnseen.size);
   };
 
   useEffect(() => {

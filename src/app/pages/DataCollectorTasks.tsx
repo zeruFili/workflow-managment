@@ -143,6 +143,16 @@ function publishBadgeCount(count: number) {
   );
 }
 
+export function getUnseenDataCollectorHighlightedIds() {
+  return new Set(
+    HIGHLIGHTED_IDS.filter((id) => !viewedDataCollectorCards.has(id))
+  );
+}
+
+export function getUnseenDataCollectorCount() {
+  return getUnseenDataCollectorHighlightedIds().size;
+}
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export function DataCollectorTasks() {

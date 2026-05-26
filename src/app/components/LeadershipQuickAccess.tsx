@@ -2,11 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { mockProjects } from '../data/mockData';
 import { getTaskAssigneeLabel, loadDesignerTasks } from '../pages/designerTaskShared';
+import { getUnseenDataCollectorCount } from '../pages/DataCollectorTasks';
 import {
   DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY,
   getPendingReviewCount,
   getPendingReviewHighlightedIds,
 } from '../pages/designerAssignmentHighlights';
+import { getUnseenPaidCustomerCount } from '../pages/PaidCustomers';
 import { ArrowRight, Briefcase, CircleDollarSign, Database, LayoutGrid } from 'lucide-react';
 
 type QuickAccessButtonProps = {
@@ -50,8 +52,8 @@ function QuickAccessButton({
 }
 
 export function LeadershipQuickAccess() {
-  const [paidCustomersCount, setPaidCustomersCount] = useState(3);
-  const [dataCollectorCount, setDataCollectorCount] = useState(3);
+  const [paidCustomersCount, setPaidCustomersCount] = useState(() => getUnseenPaidCustomerCount());
+  const [dataCollectorCount, setDataCollectorCount] = useState(() => getUnseenDataCollectorCount());
   const [designerAssignmentsCount, setDesignerAssignmentsCount] = useState(getPendingReviewCount());
   const [designerTasks] = useState(() =>
     loadDesignerTasks()

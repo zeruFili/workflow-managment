@@ -156,6 +156,16 @@ function publishBadgeCount(count: number) {
   );
 }
 
+export function getUnseenPaidCustomerHighlightedIds() {
+  return new Set(
+    HIGHLIGHTED_IDS.filter((id) => !viewedPaidCustomerCards.has(id))
+  );
+}
+
+export function getUnseenPaidCustomerCount() {
+  return getUnseenPaidCustomerHighlightedIds().size;
+}
+
 export function PaidCustomers() {
   const { user } = useAuth();
   const [paidCustomers, setPaidCustomers] = useState<PaidCustomer[]>([]);

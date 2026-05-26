@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth, getRoleName } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
 import { mockProjects, mockTasks, mockApprovals } from '../data/mockData';
@@ -18,9 +18,156 @@ import {
   CheckCircle,
   Plus,
   Upload,
-  Bell
+  ClipboardCheck,
+  ClipboardList,
+  CircleDollarSign,
 } from 'lucide-react';
 import { LeadershipQuickAccess } from '../components/LeadershipQuickAccess';
+import { getUnseenApprovalsCount } from '../pages/Approvals';
+import { getUnseenPaidCustomerCount } from '../pages/PaidCustomers';
+
+type DashboardButtonProps = {
+  to: string;
+  label: string;
+  icon: React.ElementType;
+  badgeCount?: number;
+  iconBgClass?: string;
+  iconTextClass?: string;
+};
+
+function DashboardButton({
+  to,
+  label,
+  icon: Icon,
+  badgeCount,
+  iconBgClass = 'bg-gray-900',
+  iconTextClass = 'text-white',
+}: DashboardButtonProps) {
+  return (
+    <Link
+      to={to}
+      className="relative flex w-full items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md"
+    >
+      <span className="flex min-w-0 items-center gap-3">
+        <span className={`flex h-10 w-10 items-center justify-center rounded-lg ${iconBgClass} ${iconTextClass}`}>
+          <Icon className="h-5 w-5" />
+        </span>
+        <span className="min-w-0 break-words font-medium leading-snug text-gray-900">{label}</span>
+      </span>
+      <span className="flex shrink-0 items-center gap-2">
+        {badgeCount && badgeCount > 0 ? (
+          <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-700">
+            {badgeCount}
+          </span>
+        ) : null}
+      </span>
+    </Link>
+  );
+}
+
+function MarketingQuickAccess() {
+  const [paidCustomerCount, setPaidCustomerCount] = useState(() => getUnseenPaidCustomerCount());
+  const [approvalCount, setApprovalCount] = useState(() => getUnseenApprovalsCount());
+  const pendingMarketingApprovals = mockApprovals.filter((approval) => approval.status === 'pending');
+
+  useEffect(() => {
+    const onPaidCustomersUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<number>;
+      setPaidCustomerCount(customEvent.detail ?? 0);
+    };
+
+    const onApprovalsUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<number>;
+      setApprovalCount(customEvent.detail ?? 0);
+    };
+
+    window.addEventListener('paid-customers-notifications-updated', onPaidCustomersUpdated);
+    window.addEventListener('approvals-notifications-updated', onApprovalsUpdated);
+
+    return () => {
+      window.removeEventListener('paid-customers-notifications-updated', onPaidCustomersUpdated);
+      window.removeEventListener('approvals-notifications-updated', onApprovalsUpdated);
+    };
+  }, []);
+
+  return (
+    <div className="space-y-5 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+      <div>
+        <h3 className="text-base font-semibold text-gray-900 sm:text-lg">Marketing</h3>
+        <p className="mt-1 text-sm text-gray-600">
+          Jump to the marketing workflow pages and review approval items currently waiting for action.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <DashboardButton
+          to="/customer-data"
+          label="Customer Requests"
+          icon={ClipboardList}
+          iconBgClass="bg-blue-100"
+          iconTextClass="text-blue-600"
+        />
+        <DashboardButton
+          to="/paid-customers"
+          label="Paid Customers"
+          icon={CircleDollarSign}
+          badgeCount={paidCustomerCount}
+          iconBgClass="bg-orange-100"
+          iconTextClass="text-orange-600"
+        />
+        <DashboardButton
+          to="/approvals"
+          label="Approvals"
+          icon={ClipboardCheck}
+          badgeCount={approvalCount}
+          iconBgClass="bg-emerald-100"
+          iconTextClass="text-emerald-600"
+        />
+      </div>
+
+      <div className="rounded-xl border border-gray-200 bg-white">
+        <div className="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h4 className="text-sm font-semibold text-gray-900 sm:text-base">Marketing Approvals</h4>
+            <p className="text-sm text-gray-500">Pending approval items that need marketing attention.</p>
+          </div>
+          <Link to="/approvals" className="text-sm font-medium text-blue-600 hover:text-blue-700 sm:shrink-0">
+            Open full page
+          </Link>
+        </div>
+
+        <div className="divide-y divide-gray-100">
+          {pendingMarketingApprovals.length === 0 ? (
+            <div className="px-4 py-8 text-center text-sm text-gray-500">No pending marketing approvals.</div>
+          ) : (
+            pendingMarketingApprovals.map((approval) => {
+              const project = mockProjects.find((candidate) => candidate.id === approval.projectId);
+
+              return (
+                <Link
+                  key={approval.id}
+                  to="/approvals"
+                  className="block px-4 py-4 transition-colors hover:bg-gray-50"
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                    <div className="min-w-0 flex-1">
+                      <h5 className="truncate font-medium text-gray-900">{project?.name ?? 'Unlinked project'}</h5>
+                      <p className="mt-1 text-sm text-gray-600">Stage: {approval.stage}</p>
+                      <p className="text-sm text-gray-500">Requested: {new Date(approval.requestedAt).toLocaleDateString()}</p>
+                    </div>
+                    <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                      Pending
+                    </span>
+                  </div>
+                </Link>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function Dashboard() {
   const { user } = useAuth();
@@ -77,6 +224,8 @@ export function Dashboard() {
     saveQuantityReviewNotifications(nextNotifications);
   };
 
+  const isMarketingDashboard = user.role === 'marketing_lead';
+
   const activeProjects = userProjects.filter(p => p.status === 'active').length;
   const pendingTasks = userTasks.filter(t => t.status === 'pending' || t.status === 'in_progress').length;
   const completedTasks = userTasks.filter(t => t.status === 'completed').length;
@@ -123,9 +272,9 @@ export function Dashboard() {
         <p className="text-sm text-gray-500">{getRoleName(user.role)}</p>
       </div>
 
-      {leadershipRoles && <LeadershipQuickAccess />}
+      {isMarketingDashboard ? <MarketingQuickAccess /> : leadershipRoles && <LeadershipQuickAccess />}
 
-      {!leadershipRoles && (
+      {!leadershipRoles && !isMarketingDashboard && (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {stats.map((stat) => {
