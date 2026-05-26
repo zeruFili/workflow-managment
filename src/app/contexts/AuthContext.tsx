@@ -11,14 +11,15 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const mockUsers: Array<User & { password: string }> = [
+  { id: '0', username: 'ceo', password: 'demo123', name: 'Ava Reynolds', role: 'ceo' },
   { id: '1', username: 'marketing', password: 'demo123', name: 'Sarah Johnson', role: 'marketing_lead' },
   { id: '2', username: 'gm', password: 'demo123', name: 'John Smith', role: 'general_manager' },
-  { id: '3', username: 'design_lead', password: 'demo123', name: 'Emily Chen', role: 'design_team_leader' },
+  { id: '11', username: 'quantity', password: 'demo123', name: 'Oliver Grant', role: 'quantity_surveyor' },
+  { id: '3', username: 'emily', password: 'demo123', name: 'Emily Chen', role: 'designer' },
   { id: '4', username: 'designer', password: 'demo123', name: 'Michael Brown', role: 'designer' },
   { id: '5', username: 'engineer', password: 'demo123', name: 'David Wilson', role: 'site_engineer' },
   { id: '6', username: 'finance', password: 'demo123', name: 'Lisa Martinez', role: 'finance_officer' },
-  { id: '7', username: 'purchasing', password: 'demo123', name: 'Robert Taylor', role: 'purchasing_team' },
-  { id: '8', username: 'admin', password: 'demo123', name: 'Admin User', role: 'system_administrator' },
+  
 ];
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -70,12 +71,12 @@ export function getRoleName(role: UserRole): string {
   const roleNames: Record<UserRole, string> = {
     marketing_lead: 'Marketing Lead',
     general_manager: 'General Manager',
-    design_team_leader: 'Design Team Leader',
+    ceo: 'CEO',
+    data_collector: 'Data Collector',
+    quantity_surveyor: 'Quantity Surveyor',
     designer: 'Designer',
     site_engineer: 'Site Engineer',
     finance_officer: 'Finance Officer',
-    purchasing_team: 'Purchasing Team',
-    system_administrator: 'System Administrator',
   };
   return roleNames[role];
 }

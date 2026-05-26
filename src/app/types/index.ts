@@ -1,12 +1,13 @@
 export type UserRole =
   | 'marketing_lead'
   | 'general_manager'
-  | 'design_team_leader'
+  | 'ceo'
+  | 'data_collector'
+  | 'quantity_surveyor'
+  
   | 'designer'
   | 'site_engineer'
-  | 'finance_officer'
-  | 'purchasing_team'
-  | 'system_administrator';
+  | 'finance_officer';
 
 export interface User {
   id: string;
@@ -78,13 +79,34 @@ export interface PaymentProof {
   dataUrl: string;
 }
 
+export type PaymentVerificationStatus =
+  | 'pending'
+  | 'verified'
+  | 'approved'
+  | 'rejected'
+  | 'request_clarification';
+
+export interface MarketingClarificationResponse {
+  description: string;
+  attachments?: PaymentProof[];
+  respondedAt: string;
+  respondedBy: string;
+  respondedByName: string;
+}
+
 export interface PaidCustomer extends CustomerRequest {
   sourceRequestId: string;
   transferredAt: string;
   transferredBy: string;
   transferredByName: string;
   paymentNote?: string;
-  proofOfPayment?: PaymentProof;
+  proofOfPayment?: PaymentProof[];
+  paymentVerificationStatus?: PaymentVerificationStatus;
+  paymentVerificationMessage?: string;
+  paymentVerifiedAt?: string;
+  paymentVerifiedBy?: string;
+  paymentVerifiedByName?: string;
+  marketingClarificationResponse?: MarketingClarificationResponse;
 }
 
 export interface Task {
@@ -103,6 +125,28 @@ export interface Task {
   approvedBy?: string;
   approvedAt?: string;
   attachments?: string[];
+  telegramScreenshot?: string;
+  submissions?: Submission[];
+  feedbacks?: Feedback[];
+}
+
+export interface Submission {
+  id: string;
+  submittedBy: string;
+  submittedByName?: string;
+  submittedAt: string;
+  notes?: string;
+  attachments?: string[]; // data URLs or paths
+  metadata?: Record<string, any>;
+}
+
+export interface Feedback {
+  id: string;
+  senderId: string;
+  senderName?: string;
+  sentAt: string;
+  body: string; // rich text (HTML)
+  version: number;
 }
 
 export interface DesignerTask extends Task {

@@ -22,14 +22,13 @@ export function Login() {
   };
 
   const demoUsers = [
+    { username: 'ceo', role: 'CEO' },
     { username: 'marketing', role: 'Marketing Lead' },
     { username: 'gm', role: 'General Manager' },
-    { username: 'design_lead', role: 'Design Team Leader' },
+    { username: 'quantity', role: 'Quantity Surveyor' },
     { username: 'designer', role: 'Designer' },
     { username: 'engineer', role: 'Site Engineer' },
     { username: 'finance', role: 'Finance Officer' },
-    { username: 'purchasing', role: 'Purchasing Team' },
-    { username: 'admin', role: 'System Administrator' },
   ];
 
   return (

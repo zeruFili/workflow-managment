@@ -1,33 +1,26 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { mockTasks, mockProjects } from '../data/mockData';
+import { mockProjects, mockTasks } from '../data/mockData';
 import { Task, TaskStatus } from '../types';
 import {
   Calendar,
-  User,
-  Filter,
-  CheckCircle,
   Clock,
+  CheckCircle,
+  CheckCircle2,
   XCircle,
-  Plus,
   Edit,
   Upload,
   FileText,
-  CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
+import {
+  SITE_ENGINEER_NOTIFICATIONS_KEY,
+  SITE_ENGINEER_HIGHLIGHTED_IDS,
+} from './siteEngineerTaskShared';
 
 const TASK_STORAGE_KEY = 'workflow-tasks';
 
-// ─── Highlight system (same pattern as DataCollectorTasks) ──────────────────
-// In‑memory set – survives route changes but resets on page refresh
 const viewedSiteEngineerCards = new Set<string>();
-
-// The task IDs that are always considered "new" until scrolled into view AND navigated away
-const HIGHLIGHTED_IDS = ['task-1', 'task-2', 'task-3'];
-
-// Import the custom event key from Layout
-export const SITE_ENGINEER_NOTIFICATIONS_KEY = 'site-engineer-notifications-v2';
 
 function publishBadgeCount(count: number) {
   window.dispatchEvent(
@@ -35,32 +28,55 @@ function publishBadgeCount(count: number) {
   );
 }
 
-// ─── Component ──────────────────────────────────────────────────────────────
+const statusGroups = [
+  {
+    status: 'pending',
+    label: 'Pending',
+    icon: Clock,
+    color: 'text-gray-600',
+    bgColor: 'bg-gray-100',
+  },
+  {
+    status: 'in_progress',
+    label: 'In Progress',
+    icon: CheckCircle,
+    color: 'text-blue-600',
+    bgColor: 'bg-blue-100',
+  },
+  {
+    status: 'completed',
+    label: 'Completed',
+    icon: CheckCircle,
+    color: 'text-green-600',
+    bgColor: 'bg-green-100',
+  },
+  {
+    status: 'incomplete',
+    label: 'Incomplete',
+    icon: AlertCircle,
+    color: 'text-orange-600',
+    bgColor: 'bg-orange-100',
+  },
+  {
+    status: 'rejected',
+    label: 'Rejected',
+    icon: XCircle,
+    color: 'text-red-600',
+    bgColor: 'bg-red-100',
+  },
+] as const;
 
-const emptyNewTask = {
-  title: '',
-  description: '',
-  instruction: '',
-  projectId: '',
-  deadline: '',
-};
-
-export function Tasks() {
+export function SiteEngineerTasks() {
   const { user } = useAuth();
   const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [showCreateTask, setShowCreateTask] = useState(false);
   const [editingTask, setEditingTask] = useState<string | null>(null);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [approvalFeedback, setApprovalFeedback] = useState('');
   const [tasks, setTasks] = useState<Task[]>(() => {
     const savedTasks = localStorage.getItem(TASK_STORAGE_KEY);
     if (savedTasks) {
       const parsedTasks = JSON.parse(savedTasks) as Task[];
       const mergedTasks = [
         ...parsedTasks.map((task) => {
-          const seedTask = mockTasks.find(
-            (candidate) => candidate.id === task.id
-          );
+          const seedTask = mockTasks.find((candidate) => candidate.id === task.id);
           return seedTask
             ? {
                 ...seedTask,
@@ -76,33 +92,29 @@ export function Tasks() {
       localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(mergedTasks));
       return mergedTasks;
     }
+
     localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(mockTasks));
     return mockTasks;
   });
-  const [newTask, setNewTask] = useState(emptyNewTask);
 
-  // ── Highlight state & observer ─────────────────────────────────────────
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
   const seenThisSession = useRef<Set<string>>(new Set());
   const observedElements = useRef<Set<string>>(new Set());
   const observerRef = useRef<IntersectionObserver | null>(null);
 
-  // Keep a ref in sync so cleanup never reads stale state
   const highlightedIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     highlightedIdsRef.current = highlightedIds;
   }, [highlightedIds]);
 
-  // On mount: determine which HIGHLIGHTED_IDS are still unseen
   useEffect(() => {
     const unseen = new Set(
-      HIGHLIGHTED_IDS.filter((id) => !viewedSiteEngineerCards.has(id))
+      SITE_ENGINEER_HIGHLIGHTED_IDS.filter((id) => !viewedSiteEngineerCards.has(id))
     );
     setHighlightedIds(unseen);
     publishBadgeCount(unseen.size);
   }, []);
 
-  // IntersectionObserver – mark cards as “seen” when ≥70% visible
   useEffect(() => {
     if (observerRef.current) {
       observerRef.current.disconnect();
@@ -130,7 +142,6 @@ export function Tasks() {
 
     observerRef.current = observer;
 
-    // Observe current highlighted elements
     highlightedIds.forEach((id) => {
       const el = document.querySelector(`[data-highlighted-id="${id}"]`);
       if (el && !observedElements.current.has(id)) {
@@ -144,7 +155,6 @@ export function Tasks() {
     };
   }, [highlightedIds]);
 
-  // On unmount: persist seen cards & update badge count
   useEffect(() => {
     return () => {
       const idsSeen = Array.from(seenThisSession.current);
@@ -152,7 +162,7 @@ export function Tasks() {
         idsSeen.forEach((id) => viewedSiteEngineerCards.add(id));
 
         const remaining = new Set(
-          HIGHLIGHTED_IDS.filter((id) => !viewedSiteEngineerCards.has(id))
+          SITE_ENGINEER_HIGHLIGHTED_IDS.filter((id) => !viewedSiteEngineerCards.has(id))
         );
         publishBadgeCount(remaining.size);
         setHighlightedIds(remaining);
@@ -160,88 +170,26 @@ export function Tasks() {
     };
   }, []);
 
-  // ── End highlight logic ─────────────────────────────────────────────────
+  if (!user || user.role !== 'site_engineer') return null;
 
-  if (!user) return null;
-
-  // Filter tasks for the current role
-  let userTasks = tasks.filter((t) => {
-    if (
-      user.role === 'general_manager' ||
-      user.role === 'ceo'
-    ) {
-      return true;
-    }
-    if (user.role === 'site_engineer') {
-      return t.assignedTo === user.id;
-    }
-    if (user.role === 'designer') {
-      return t.assignedTo === user.id;
-    }
-    
-    if (user.role === 'marketing_lead') {
-      return t.assignedTo === user.id;
-    }
-    return false;
-  });
+  let userTasks = tasks.filter((task) => task.assignedTo === user.id);
 
   if (filterStatus !== 'all') {
-    userTasks = userTasks.filter((t) => t.status === filterStatus);
+    userTasks = userTasks.filter((task) => task.status === filterStatus);
   }
 
-  // Sort: highlighted first, then by createdAt descending
   const sortedUserTasks = useMemo(() => {
     return [...userTasks].sort((a, b) => {
       const aHL = highlightedIds.has(a.id) ? 1 : 0;
       const bHL = highlightedIds.has(b.id) ? 1 : 0;
       if (bHL !== aHL) return bHL - aHL;
-      return (
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
   }, [userTasks, highlightedIds]);
 
   const getProject = (projectId: string) => {
-    return mockProjects.find((p) => p.id === projectId);
+    return mockProjects.find((project) => project.id === projectId);
   };
-
-  const statusGroups = [
-    {
-      status: 'pending',
-      label: 'Pending',
-      icon: Clock,
-      color: 'text-gray-600',
-      bgColor: 'bg-gray-100',
-    },
-    {
-      status: 'in_progress',
-      label: 'In Progress',
-      icon: CheckCircle,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-100',
-    },
-    {
-      status: 'completed',
-      label: 'Completed',
-      icon: CheckCircle,
-      color: 'text-green-600',
-      bgColor: 'bg-green-100',
-    },
-    {
-      status: 'incomplete',
-      label: 'Incomplete',
-      icon: AlertCircle,
-      color: 'text-orange-600',
-      bgColor: 'bg-orange-100',
-    },
-    {
-      status: 'rejected',
-      label: 'Rejected',
-      icon: XCircle,
-      color: 'text-red-600',
-      bgColor: 'bg-red-100',
-    },
-  ];
 
   const handleStatusChange = (taskId: string, newStatus: TaskStatus) => {
     setTasks((currentTasks) => {
@@ -264,90 +212,18 @@ export function Tasks() {
     });
   };
 
-  const handleApproval = (
-    taskId: string,
-    newApprovalStatus: 'approved' | 'rejected'
-  ) => {
-    if (user.role !== 'general_manager') return;
-
-    setTasks((currentTasks) => {
-      const updatedTasks = currentTasks.map((task) =>
-        task.id === taskId
-          ? {
-              ...task,
-              approvalStatus: newApprovalStatus,
-              approvalFeedback:
-                approvalFeedback.trim() || task.approvalFeedback,
-              approvedBy: user.id,
-              approvedAt: new Date().toISOString(),
-              status:
-                newApprovalStatus === 'approved' ? 'completed' : 'rejected',
-            }
-          : task
-      );
-      localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(updatedTasks));
-      return updatedTasks;
-    });
-    setApprovalFeedback('');
-  };
-
   const handleAttachFile = (taskId: string) => {
     console.log(`Attaching file to task ${taskId}`);
   };
 
-  const canEditTask = (task: Task) => {
-    if (user.role === 'marketing_lead' && task.assignedTo === user.id)
-      return true;
-    if (user.role === 'designer' && task.assignedTo === user.id) return true;
-    
-    if (user.role === 'site_engineer') return task.assignedTo === user.id;
-    return false;
-  };
-
-  const canApproveTask = (task: Task) => {
-    return (
-      user.role === 'general_manager' &&
-      task.assignedBy === user.id &&
-      task.assignedTo === '5' &&
-      task.approvalStatus !== 'approved'
-    );
-  };
-
-  const canCreateTask =
-    user.role === 'general_manager' || user.role === 'ceo';
-
-  const createTask = (event: React.FormEvent) => {
-    event.preventDefault();
-
-    const taskToAdd: Task = {
-      id: `task-${Date.now()}`,
-      projectId: newTask.projectId,
-      title: newTask.title.trim(),
-      description: newTask.description.trim(),
-      instruction: newTask.instruction.trim(),
-      assignedTo: '5',
-      assignedBy: user.id,
-      status: 'pending',
-      deadline: newTask.deadline || undefined,
-      createdAt: new Date().toISOString(),
-    };
-
-    setTasks((currentTasks) => {
-      const updatedTasks = [taskToAdd, ...currentTasks];
-      localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(updatedTasks));
-      return updatedTasks;
-    });
-    setNewTask(emptyNewTask);
-    setShowCreateTask(false);
-  };
+  const canEditTask = (task: Task) => task.assignedTo === user.id;
 
   return (
     <div className="space-y-6">
-      {/* ── Header with new‑task count ── */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Tasks</h2>
-          <p className="text-gray-600 mt-1">Manage and track your tasks</p>
+          <h2 className="text-2xl font-bold text-gray-900">Site Engineer Tasks</h2>
+          <p className="text-gray-600 mt-1">Manage and track your assigned site checks</p>
           {highlightedIds.size > 0 && (
             <p className="mt-2 text-sm text-blue-600 flex items-center gap-2">
               <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-semibold">
@@ -357,18 +233,8 @@ export function Tasks() {
             </p>
           )}
         </div>
-        {canCreateTask && (
-          <button
-            onClick={() => setShowCreateTask(true)}
-            className="hidden md:flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Create Task</span>
-          </button>
-        )}
       </div>
 
-      {/* ── Status filters ── */}
       <div className="flex flex-wrap gap-2">
         <button
           onClick={() => setFilterStatus('all')}
@@ -381,9 +247,7 @@ export function Tasks() {
           All Tasks ({userTasks.length})
         </button>
         {statusGroups.map((group) => {
-          const count = userTasks.filter(
-            (t) => t.status === group.status
-          ).length;
+          const count = userTasks.filter((task) => task.status === group.status).length;
           return (
             <button
               key={group.status}
@@ -400,14 +264,11 @@ export function Tasks() {
         })}
       </div>
 
-      {/* ── Task grid (sorted, highlighted) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {sortedUserTasks.map((task) => {
           const project = getProject(task.projectId);
           const isOverdue =
-            task.deadline &&
-            new Date(task.deadline) < new Date() &&
-            task.status !== 'completed';
+            task.deadline && new Date(task.deadline) < new Date() && task.status !== 'completed';
           const isEditing = editingTask === task.id;
           const isHighlighted = highlightedIds.has(task.id);
 
@@ -422,7 +283,6 @@ export function Tasks() {
                   : 'bg-white border border-gray-200 hover:shadow-md',
               ].join(' ')}
             >
-              {/* "New" pill */}
               {isHighlighted && (
                 <div className="mb-3">
                   <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full">
@@ -432,11 +292,8 @@ export function Tasks() {
                 </div>
               )}
 
-              {/* Title & status badge */}
               <div className="flex items-start justify-between mb-3">
-                <h3 className="font-semibold text-lg text-gray-900 flex-1 pr-4">
-                  {task.title}
-                </h3>
+                <h3 className="font-semibold text-lg text-gray-900 flex-1 pr-4">{task.title}</h3>
                 <span
                   className={`
                     px-2 py-1 rounded text-xs font-medium whitespace-nowrap
@@ -457,17 +314,13 @@ export function Tasks() {
                 <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">
                   Instruction
                 </p>
-                <p className="text-sm text-gray-700 mt-1">
-                  {task.instruction}
-                </p>
+                <p className="text-sm text-gray-700 mt-1">{task.instruction}</p>
               </div>
 
               {project && (
                 <div className="mb-4 p-3 bg-gray-50 rounded-lg">
                   <p className="text-xs text-gray-500">Project</p>
-                  <p className="font-medium text-gray-900 mt-1">
-                    {project.name}
-                  </p>
+                  <p className="font-medium text-gray-900 mt-1">{project.name}</p>
                 </div>
               )}
 
@@ -504,53 +357,13 @@ export function Tasks() {
                     </p>
                   </div>
                   {task.approvalFeedback && (
-                    <p className="text-sm text-gray-700 italic">
-                      "{task.approvalFeedback}"
-                    </p>
+                    <p className="text-sm text-gray-700 italic">"{task.approvalFeedback}"</p>
                   )}
                   {task.approvedBy && task.approvedAt && (
                     <p className="text-xs text-gray-500 mt-2">
-                      By GM on{' '}
-                      {new Date(task.approvedAt).toLocaleDateString()}
+                      By GM on {new Date(task.approvedAt).toLocaleDateString()}
                     </p>
                   )}
-                </div>
-              )}
-
-              {canApproveTask(task) && (
-                <div className="mb-4 p-3 rounded-lg bg-indigo-50 border border-indigo-200 space-y-3">
-                  <div>
-                    <p className="text-xs font-medium text-indigo-700 uppercase tracking-wide">
-                      General Manager Approval
-                    </p>
-                    <p className="text-sm text-gray-700 mt-1">
-                      Review the instruction and mark the task as approved or
-                      rejected.
-                    </p>
-                  </div>
-                  <textarea
-                    value={approvalFeedback}
-                    onChange={(e) => setApprovalFeedback(e.target.value)}
-                    className="w-full px-3 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
-                    rows={3}
-                    placeholder="Optional approval feedback"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleApproval(task.id, 'approved')}
-                      className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm"
-                    >
-                      Approve Task
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleApproval(task.id, 'rejected')}
-                      className="flex-1 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm"
-                    >
-                      Reject Task
-                    </button>
-                  </div>
                 </div>
               )}
 
@@ -573,11 +386,7 @@ export function Tasks() {
 
               <div className="space-y-2 text-sm">
                 {task.deadline && (
-                  <div
-                    className={`flex items-center gap-2 ${
-                      isOverdue ? 'text-red-600' : 'text-gray-500'
-                    }`}
-                  >
+                  <div className={`flex items-center gap-2 ${isOverdue ? 'text-red-600' : 'text-gray-500'}`}>
                     <Calendar className="w-4 h-4" />
                     <span>
                       Due: {new Date(task.deadline).toLocaleDateString()}
@@ -587,9 +396,7 @@ export function Tasks() {
                 )}
                 <div className="flex items-center gap-2 text-gray-500">
                   <Clock className="w-4 h-4" />
-                  <span>
-                    Created: {new Date(task.createdAt).toLocaleDateString()}
-                  </span>
+                  <span>Created: {new Date(task.createdAt).toLocaleDateString()}</span>
                 </div>
               </div>
 
@@ -603,12 +410,7 @@ export function Tasks() {
                         </label>
                         <select
                           defaultValue={task.status}
-                          onChange={(e) =>
-                            handleStatusChange(
-                              task.id,
-                              e.target.value as TaskStatus
-                            )
-                          }
+                          onChange={(e) => handleStatusChange(task.id, e.target.value as TaskStatus)}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                         >
                           <option value="pending">Pending</option>
@@ -623,9 +425,7 @@ export function Tasks() {
                         </label>
                         <textarea
                           defaultValue={task.description}
-                          onChange={(e) =>
-                            handleUpdateDescription(task.id, e.target.value)
-                          }
+                          onChange={(e) => handleUpdateDescription(task.id, e.target.value)}
                           rows={3}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                           placeholder="Add description..."
@@ -677,123 +477,6 @@ export function Tasks() {
       {userTasks.length === 0 && (
         <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
           <p className="text-gray-500">No tasks found</p>
-        </div>
-      )}
-
-      {showCreateTask && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-semibold mb-4">Create New Task</h3>
-            <form className="space-y-4" onSubmit={createTask}>
-              {/* … (create task form remains exactly as before) … */}
-              {/* (I've kept the form identical to your original) */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Task Title
-                </label>
-                <input
-                  type="text"
-                  value={newTask.title}
-                  onChange={(e) =>
-                    setNewTask({ ...newTask, title: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter task title"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Description
-                </label>
-                <textarea
-                  rows={4}
-                  value={newTask.description}
-                  onChange={(e) =>
-                    setNewTask({ ...newTask, description: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter task description"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Instruction for Site Engineer
-                </label>
-                <textarea
-                  rows={4}
-                  value={newTask.instruction}
-                  onChange={(e) =>
-                    setNewTask({ ...newTask, instruction: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="State what data needs to be collected or measured"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Project
-                </label>
-                <select
-                  value={newTask.projectId}
-                  onChange={(e) =>
-                    setNewTask({ ...newTask, projectId: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                >
-                  <option value="">Select project</option>
-                  {mockProjects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Deadline
-                </label>
-                <input
-                  type="date"
-                  value={newTask.deadline}
-                  onChange={(e) =>
-                    setNewTask({ ...newTask, deadline: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Attach File (Optional)
-                </label>
-                <button
-                  type="button"
-                  className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  <Upload className="w-4 h-4" />
-                  <span>Choose File</span>
-                </button>
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateTask(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-                >
-                  Create Task
-                </button>
-              </div>
-            </form>
-          </div>
         </div>
       )}
     </div>

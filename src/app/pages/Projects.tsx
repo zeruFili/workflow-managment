@@ -18,16 +18,16 @@ export function Projects() {
 
   if (!user) return null;
 
-  const canCreateProject = user.role === 'marketing_lead' || user.role === 'system_administrator';
+  const canCreateProject = user.role === 'marketing_lead' || user.role === 'ceo';
 
   let filteredProjects = mockProjects.filter(p => {
-    if (user.role === 'general_manager' || user.role === 'system_administrator') {
+    if (user.role === 'general_manager' || user.role === 'ceo') {
       return true;
     }
     if (user.role === 'marketing_lead') {
       return p.createdBy === user.id;
     }
-    if (user.role === 'design_team_leader' || user.role === 'designer') {
+    if (user.role === 'designer') {
       return p.assignedTo === user.id || p.stage === 'design';
     }
     return p.stage !== 'lead';
