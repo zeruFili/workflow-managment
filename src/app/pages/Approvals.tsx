@@ -538,8 +538,8 @@ export function Approvals() {
 
   if (!user) return null;
 
-  const canFinanceReview = user.role === 'finance_officer' || user.role === 'system_administrator';
-  const canMarketingClarify = user.role === 'marketing_lead' || user.role === 'system_administrator';
+  const canFinanceReview = user.role === 'finance_officer' || user.role === 'ceo';
+  const canMarketingClarify = user.role === 'marketing_lead' || user.role === 'ceo';
 
   if (!canFinanceReview && !canMarketingClarify) {
     return (

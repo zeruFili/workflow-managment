@@ -5,7 +5,7 @@ export const TASK_STORAGE_KEY = 'designer-tasks';
 export const APPLICATION_STORAGE_KEY = 'designer-task-applications';
 
 export const designerRoles = new Set(['designer']);
-export const assignmentRoles = new Set(['ceo', 'general_manager', 'system_administrator']);
+export const assignmentRoles = new Set(['ceo', 'general_manager']);
 
 export const roleNamesByUserId: Record<string, string> = {
   '0': 'CEO',
@@ -16,7 +16,6 @@ export const roleNamesByUserId: Record<string, string> = {
   '5': 'Site Engineer',
   '6': 'Finance Officer',
   
-  '8': 'System Administrator',
   '9': 'Sophia Ahmed',
   '10': 'Daniel Reed',
   '11': 'Liam Carter',

@@ -293,8 +293,7 @@ export function DataCollectorTasks() {
 
   const canManage =
     user.role === 'ceo' ||
-    user.role === 'general_manager' ||
-    user.role === 'system_administrator';
+    user.role === 'general_manager';
 
   const summary = {
     total: tasks.length,

@@ -133,7 +133,6 @@ function AppContent() {
                 'finance_officer',
                 'data_collector',
                 'quantity_surveyor',
-                'system_administrator',
               ]}
             >
               <Layout>
@@ -194,7 +193,7 @@ function AppContent() {
         <Route
           path="/paid-customers"
           element={
-            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'marketing_lead', 'system_administrator']}>
+            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'marketing_lead']}>
               <Layout>
                 <PaidCustomers />
               </Layout>
@@ -205,7 +204,7 @@ function AppContent() {
         <Route
           path="/finance-verifications"
           element={
-            <ProtectedRoute allowedRoles={['finance_officer', 'ceo', 'general_manager', 'system_administrator']}>
+            <ProtectedRoute allowedRoles={['finance_officer', 'ceo', 'general_manager']}>
               <Layout>
                 <FinanceVerifications />
               </Layout>
@@ -216,7 +215,7 @@ function AppContent() {
         <Route
           path="/data-collector-tasks"
           element={
-            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'system_administrator']}>
+            <ProtectedRoute allowedRoles={['ceo', 'general_manager']}>
               <Layout>
                 <DataCollectorTasks />
               </Layout>
@@ -227,7 +226,7 @@ function AppContent() {
         <Route
           path="/job-postings"
           element={
-            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'system_administrator']}>
+            <ProtectedRoute allowedRoles={['ceo', 'general_manager']}>
               <Layout>
                 <JobPostings />
               </Layout>
@@ -238,7 +237,7 @@ function AppContent() {
         <Route
           path="/designer-applications"
           element={
-            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'system_administrator']}>
+            <ProtectedRoute allowedRoles={['ceo', 'general_manager']}>
               <Layout>
                 <DesignerApplications />
               </Layout>
@@ -249,7 +248,7 @@ function AppContent() {
         <Route
           path="/designer-assignments"
           element={
-            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'system_administrator']}>
+            <ProtectedRoute allowedRoles={['ceo', 'general_manager']}>
               <Layout>
                 <DesignerAssignments />
               </Layout>
@@ -282,7 +281,7 @@ function AppContent() {
         <Route
           path="/open-job-postings"
           element={
-            <ProtectedRoute allowedRoles={['designer', 'ceo', 'general_manager', 'system_administrator']}>
+            <ProtectedRoute allowedRoles={['designer', 'ceo', 'general_manager']}>
               <Layout>
                 <DesignerOpenJobPostings />
               </Layout>
@@ -293,7 +292,7 @@ function AppContent() {
         <Route
           path="/task-applications"
           element={
-            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'system_administrator']}>
+            <ProtectedRoute allowedRoles={['ceo', 'general_manager']}>
               <Navigate to="/designer-applications" replace />
             </ProtectedRoute>
           }
@@ -302,7 +301,7 @@ function AppContent() {
         <Route
           path="/performance-ratings"
           element={
-            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'designer', 'system_administrator']}>
+            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'designer']}>
               <Layout>
                 <DesignerPerformanceDashboard />
               </Layout>
@@ -313,7 +312,7 @@ function AppContent() {
         <Route
           path="/designer-performance"
           element={
-            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'designer', 'system_administrator']}>
+            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'designer']}>
               <Layout>
                 <DesignerPerformanceDashboard />
               </Layout>

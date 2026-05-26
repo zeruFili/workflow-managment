@@ -301,7 +301,7 @@ export function QuantitySurveyorTasks() {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
 
-  const canManage = user.role === 'ceo' || user.role === 'general_manager' || user.role === 'system_administrator';
+  const canManage = user.role === 'ceo' || user.role === 'general_manager';
 
   const openDetail = (task: QuantityReviewTask) => {
     setSelectedTask(task);

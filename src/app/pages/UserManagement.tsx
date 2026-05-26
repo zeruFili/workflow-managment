@@ -105,15 +105,7 @@ const mockUsers: UserData[] = [
     phone: '+1 555 1007',
     status: 'active',
   },
-  {
-    id: '8',
-    username: 'admin',
-    name: 'Admin User',
-    role: 'ceo',
-    email: 'admin@company.com',
-    phone: '+1 555 1000',
-    status: 'active',
-  },
+  
 ];
 
 // Simple hash simulation (in real app this would be done server-side)
@@ -238,10 +230,10 @@ export function UserManagement() {
     );
   };
 
-  if (!user || (user.role !== 'system_administrator' && user.role !== 'ceo')) {
+  if (!user || user.role !== 'ceo') {
     return (
       <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
-        <p className="text-gray-500">Access denied. CEO or Administrator privileges required.</p>
+        <p className="text-gray-500">Access denied. CEO privileges required.</p>
       </div>
     );
   }

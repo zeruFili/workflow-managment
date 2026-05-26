@@ -7,8 +7,7 @@ export type UserRole =
   
   | 'designer'
   | 'site_engineer'
-  | 'finance_officer'
-  | 'system_administrator';
+  | 'finance_officer';
 
 export interface User {
   id: string;

@@ -59,8 +59,8 @@ const initialRequests: CustomerRequest[] = [
     notes: 'Needs privacy zoning and premium finishes.',
     status: 'new',
     createdAt: '2026-04-14T13:45:00Z',
-    createdBy: '8',
-    createdByName: 'Admin User',
+    createdBy: '1',
+    createdByName: 'Sarah Johnson',
   },
   {
     id: 'cr-3',
@@ -91,8 +91,8 @@ const initialRequests: CustomerRequest[] = [
     notes: 'Client wants integrated smart home features and a home office setup.',
     status: 'scheduled',
     createdAt: '2026-04-25T09:00:00Z',
-    createdBy: '8',
-    createdByName: 'Admin User',
+    createdBy: '1',
+    createdByName: 'Sarah Johnson',
   },
   {
     id: 'cr-5',

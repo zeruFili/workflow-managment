@@ -157,8 +157,7 @@ export function DesignerPerformanceDashboard() {
     return null;
   }
 
-  // This project's CEO account maps to the existing system administrator role.
-  const isCEO = user.role === 'ceo' || user.role === 'system_administrator';
+  const isCEO = user.role === 'ceo';
   const isDesigner = user.role === 'designer';
   const viewerDesignerId = user.id;
 

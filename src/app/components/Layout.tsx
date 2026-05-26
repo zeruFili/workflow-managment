@@ -167,7 +167,7 @@ export function Layout({ children }: LayoutProps) {
       }
     };
 
-    if (user.role === 'marketing_lead' || user.role === 'system_administrator') {
+    if (user.role === 'marketing_lead' || user.role === 'ceo') {
       navigationItems.push({
         path: '/customer-data',
         label: 'Customer Requests',
@@ -179,8 +179,7 @@ export function Layout({ children }: LayoutProps) {
     if (
       user.role === 'general_manager' ||
       user.role === 'marketing_lead' ||
-      user.role === 'ceo' ||
-      user.role === 'system_administrator'
+      user.role === 'ceo'
     ) {
       navigationItems.push({
         path: '/paid-customers',
@@ -191,10 +190,7 @@ export function Layout({ children }: LayoutProps) {
     }
 
     // Finance Verifications
-    if (
-      user.role === 'ceo' ||
-      user.role === 'system_administrator'
-    ) {
+    if (user.role === 'ceo') {
       addNavigationItem({
         path: '/finance-verifications',
         label: 'Finance Verifications',
@@ -206,8 +202,7 @@ export function Layout({ children }: LayoutProps) {
     // Other admin-level pages
     if (
       user.role === 'ceo' ||
-      user.role === 'general_manager' ||
-      user.role === 'system_administrator'
+      user.role === 'general_manager'
     ) {
       addNavigationItem({
         path: '/data-collector-tasks',
@@ -258,8 +253,7 @@ export function Layout({ children }: LayoutProps) {
     if (
       user.role === 'designer' ||
       user.role === 'ceo' ||
-      user.role === 'general_manager' ||
-      user.role === 'system_administrator'
+      user.role === 'general_manager'
     ) {
       addNavigationItem({
         path: '/performance-ratings',
@@ -270,7 +264,6 @@ export function Layout({ children }: LayoutProps) {
 
     // ── Approvals: hidden for system_administrator, designer, site_engineer, general_manager, and ceo ──
     if (
-      user.role !== 'system_administrator' &&
       user.role !== 'designer' &&
       user.role !== 'site_engineer' &&
       user.role !== 'general_manager' &&
@@ -284,7 +277,7 @@ export function Layout({ children }: LayoutProps) {
       });
     }
 
-    if (user.role === 'system_administrator' || user.role === 'ceo') {
+    if (user.role === 'ceo') {
       navigationItems.push({ path: '/users', label: 'User Management', icon: Users });
     }
   }

@@ -498,9 +498,9 @@ export function DesignerAssignments() {
 
       tasks.forEach(task => {
         if (reviewedTaskIds.includes(task.id) && !updated[task.id]) {
-          if (task.id === 'dtask-1') {
+            if (task.id === 'dtask-1') {
             updated[task.id] = {
-              reviewerName: 'System Admin',
+              reviewerName: 'CEO',
               reviewText: 'Great work, all requirements met. Task completed successfully.',
               ratings: {
                 creativity: 4.5,
@@ -536,7 +536,7 @@ export function DesignerAssignments() {
   if (!assignmentRoles.has(user.role)) {
     return (
       <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
-        <p className="text-gray-500">Access denied. CEO, General Manager, and System Administrator only.</p>
+        <p className="text-gray-500">Access denied. CEO or General Manager only.</p>
       </div>
     );
   }
@@ -796,7 +796,7 @@ export function DesignerAssignments() {
     const comment = reviewComments[taskId]?.trim() || '';
     if (!ratings) return;
 
-    const reviewerName = user?.name || user?.email || 'Admin';
+    const reviewerName = user?.name || user?.email || 'CEO';
     const newReview: ReviewData = {
       reviewerName,
       reviewText: comment,

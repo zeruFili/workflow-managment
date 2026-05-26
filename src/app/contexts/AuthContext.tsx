@@ -20,7 +20,6 @@ const mockUsers: Array<User & { password: string }> = [
   { id: '5', username: 'engineer', password: 'demo123', name: 'David Wilson', role: 'site_engineer' },
   { id: '6', username: 'finance', password: 'demo123', name: 'Lisa Martinez', role: 'finance_officer' },
   
-  { id: '8', username: 'admin', password: 'demo123', name: 'Admin User', role: 'system_administrator' },
 ];
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -78,7 +77,6 @@ export function getRoleName(role: UserRole): string {
     designer: 'Designer',
     site_engineer: 'Site Engineer',
     finance_officer: 'Finance Officer',
-    system_administrator: 'System Administrator',
   };
   return roleNames[role];
 }

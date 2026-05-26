@@ -13,7 +13,7 @@ import {
 const APPLICATIONS_PAGE_TASK_STORAGE_KEY = 'designer_applications_page_tasks';
 const APPLICATIONS_PAGE_APP_STORAGE_KEY = 'designer_applications_page_applications';
 
-const reviewRoles = new Set(['ceo', 'general_manager', 'system_administrator']);
+const reviewRoles = new Set(['ceo', 'general_manager']);
 
 const designerRoster = [
   { id: '3', name: 'Emily Chen', role: 'Design Team Leader' },
@@ -88,7 +88,7 @@ export function DesignerApplications() {
   if (!reviewRoles.has(user.role)) {
     return (
       <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
-        <p className="text-gray-500">Access denied. CEO, General Manager, and System Administrator only.</p>
+        <p className="text-gray-500">Access denied. CEO or General Manager only.</p>
       </div>
     );
   }

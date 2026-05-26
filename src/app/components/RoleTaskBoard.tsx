@@ -79,7 +79,7 @@ export function RoleTaskBoard({
     return null;
   }
 
-  const canManage = user.role === 'ceo' || user.role === 'general_manager' || user.role === 'system_administrator';
+  const canManage = user.role === 'ceo' || user.role === 'general_manager';
 
   const summary = useMemo(() => {
     return {

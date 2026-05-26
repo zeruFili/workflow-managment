@@ -305,7 +305,7 @@ export function Dashboard() {
   if (!user) return null;
 
   const userProjects = mockProjects.filter(p => {
-    if (user.role === 'general_manager' || user.role === 'system_administrator') {
+    if (user.role === 'general_manager' || user.role === 'ceo') {
       return true;
     }
     if (user.role === 'marketing_lead') {
@@ -318,7 +318,7 @@ export function Dashboard() {
   });
 
   const userTasks = mockTasks.filter(t => {
-    if (user.role === 'general_manager' || user.role === 'system_administrator') {
+    if (user.role === 'general_manager' || user.role === 'ceo') {
       return true;
     }
     if (user.role === 'designer') {

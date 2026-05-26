@@ -29,7 +29,6 @@ export function Login() {
     { username: 'designer', role: 'Designer' },
     { username: 'engineer', role: 'Site Engineer' },
     { username: 'finance', role: 'Finance Officer' },
-    { username: 'admin', role: 'System Administrator' },
   ];
 
   return (

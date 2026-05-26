@@ -168,7 +168,7 @@ export function Tasks() {
   let userTasks = tasks.filter((t) => {
     if (
       user.role === 'general_manager' ||
-      user.role === 'system_administrator'
+      user.role === 'ceo'
     ) {
       return true;
     }
@@ -314,7 +314,7 @@ export function Tasks() {
   };
 
   const canCreateTask =
-    user.role === 'general_manager' || user.role === 'system_administrator';
+    user.role === 'general_manager' || user.role === 'ceo';
 
   const createTask = (event: React.FormEvent) => {
     event.preventDefault();
