@@ -131,8 +131,11 @@ export function Layout({ children }: LayoutProps) {
 
   if (!user) return <>{children}</>;
 
+  // ── Updated: site_engineer also gets a sidebar‑less layout ────────────
   const isSidebarlessRole =
-    user.role === 'quantity_surveyor' || user.role === 'finance_officer';
+    user.role === 'quantity_surveyor' ||
+    user.role === 'finance_officer' ||
+    user.role === 'site_engineer';
 
   const navigationItems: NavigationItem[] = [];
 
@@ -146,6 +149,7 @@ export function Layout({ children }: LayoutProps) {
       user.role !== 'designer' &&
       user.role !== 'marketing_lead'
     ) {
+      // Site engineer is now sidebar‑less, so this block won't execute for them
       navigationItems.push({
         path: user.role === 'site_engineer' ? '/site-engineer-tasks' : '/tasks',
         label: user.role === 'site_engineer' ? 'Site Engineer Tasks' : 'Tasks',

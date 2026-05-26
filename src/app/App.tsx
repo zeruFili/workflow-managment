@@ -62,7 +62,7 @@ function AppContent() {
         {/* Always start from the login page */}
         <Route path="/" element={<Login />} />
 
-        {/* Dashboard route – special handling for quantity_surveyor */}
+        {/* Dashboard route – role-specific landing pages */}
         <Route
           path="/dashboard"
           element={
@@ -71,7 +71,10 @@ function AppContent() {
                 <Layout>
                   {user?.role === 'finance_officer' ? <FinanceVerifications /> : <QuantitySurveyorDashboard />}
                 </Layout>
-                
+              ) : user?.role === 'site_engineer' ? (
+                <Layout>
+                  <SiteEngineerTasks />
+                </Layout>
               ) : (
                 <Layout>
                   <Dashboard />
