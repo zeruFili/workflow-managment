@@ -21,10 +21,20 @@ import {
   ClipboardCheck,
   ClipboardList,
   CircleDollarSign,
+  Briefcase,
+  Megaphone,
 } from 'lucide-react';
 import { LeadershipQuickAccess } from '../components/LeadershipQuickAccess';
 import { getUnseenApprovalsCount } from '../pages/Approvals';
 import { getUnseenPaidCustomerCount } from '../pages/PaidCustomers';
+import {
+  getUnseenDesignerTaskCount,
+  getUnseenDesignerTaskHighlightedIds,
+} from '../pages/DesignerTasks';
+import {
+  getUnseenOpenJobPostingsCount,
+} from '../pages/DesignerOpenJobPostings';
+import { loadDesignerTasks, getTaskAssigneeLabel } from '../pages/designerTaskShared';
 
 type DashboardButtonProps = {
   to: string;
@@ -169,6 +179,122 @@ function MarketingQuickAccess() {
   );
 }
 
+function DesignerQuickAccess() {
+  const [designerTaskCount, setDesignerTaskCount] = useState(() => getUnseenDesignerTaskCount());
+  const [openJobPostingsCount, setOpenJobPostingsCount] = useState(() => getUnseenOpenJobPostingsCount());
+  const highlightedTaskIds = getUnseenDesignerTaskHighlightedIds();
+
+  const designerTasks = loadDesignerTasks()
+    .filter((task) => !!task.assignedTo)
+    .sort((a, b) => {
+      const aHighlighted = highlightedTaskIds.has(a.id) ? 1 : 0;
+      const bHighlighted = highlightedTaskIds.has(b.id) ? 1 : 0;
+
+      if (bHighlighted !== aHighlighted) return bHighlighted - aHighlighted;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+  useEffect(() => {
+    const onDesignerTasksUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<number>;
+      setDesignerTaskCount(customEvent.detail ?? 0);
+    };
+
+    const onOpenJobPostingsUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<number>;
+      setOpenJobPostingsCount(customEvent.detail ?? 0);
+    };
+
+    window.addEventListener('designer-tasks-notifications-updated', onDesignerTasksUpdated);
+    window.addEventListener('open-job-postings-notifications-updated', onOpenJobPostingsUpdated);
+
+    return () => {
+      window.removeEventListener('designer-tasks-notifications-updated', onDesignerTasksUpdated);
+      window.removeEventListener('open-job-postings-notifications-updated', onOpenJobPostingsUpdated);
+    };
+  }, []);
+
+  return (
+    <div className="space-y-5 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+      <div>
+        <h3 className="text-base font-semibold text-gray-900 sm:text-lg">Designer</h3>
+        <p className="mt-1 text-sm text-gray-600">
+          Jump to the designer workflow pages and review the latest task queue.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-2">
+        <DashboardButton
+          to="/designer-tasks"
+          label="Designer Tasks"
+          icon={Briefcase}
+          badgeCount={designerTaskCount}
+          iconBgClass="bg-blue-100"
+          iconTextClass="text-blue-600"
+        />
+        <DashboardButton
+          to="/open-job-postings"
+          label="Open Job Postings"
+          icon={Megaphone}
+          badgeCount={openJobPostingsCount}
+          iconBgClass="bg-emerald-100"
+          iconTextClass="text-emerald-600"
+        />
+      </div>
+
+      <div className="rounded-xl border border-gray-200 bg-white">
+        <div className="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h4 className="text-sm font-semibold text-gray-900 sm:text-base">Designer Task List</h4>
+            <p className="text-sm text-gray-500">Highlighted tasks stay at the top so they are easy to review.</p>
+          </div>
+          <Link to="/designer-tasks" className="text-sm font-medium text-blue-600 hover:text-blue-700 sm:shrink-0">
+            Open full page
+          </Link>
+        </div>
+
+        <div className="divide-y divide-gray-100">
+          {designerTasks.length === 0 ? (
+            <div className="px-4 py-8 text-center text-sm text-gray-500">No assigned designer tasks yet.</div>
+          ) : (
+            designerTasks.slice(0, 6).map((task) => {
+              const isHighlighted = highlightedTaskIds.has(task.id);
+              const project = mockProjects.find((candidate) => candidate.id === task.projectId);
+
+              return (
+                <Link
+                  key={task.id}
+                  to="/designer-tasks"
+                  className={`block px-4 py-4 transition-colors hover:bg-gray-50 ${isHighlighted ? 'bg-blue-50/70' : ''}`}
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h5 className="truncate font-medium text-gray-900">{task.title}</h5>
+                        {isHighlighted && (
+                          <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                            New
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-sm text-gray-600">Assignee: {getTaskAssigneeLabel(task.assignedTo)}</p>
+                      <p className="text-sm text-gray-500">Project: {project?.name ?? 'Unlinked project'}</p>
+                      {task.deadline && (
+                        <p className="text-sm text-gray-500">Due: {new Date(task.deadline).toLocaleDateString()}</p>
+                      )}
+                    </div>
+                    <Briefcase className="h-5 w-5 shrink-0 text-gray-400 sm:mt-0.5" />
+                  </div>
+                </Link>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Dashboard() {
   const { user } = useAuth();
   const [showCreateTask, setShowCreateTask] = useState(false);
@@ -225,6 +351,7 @@ export function Dashboard() {
   };
 
   const isMarketingDashboard = user.role === 'marketing_lead';
+  const isDesignerDashboard = user.role === 'designer';
 
   const activeProjects = userProjects.filter(p => p.status === 'active').length;
   const pendingTasks = userTasks.filter(t => t.status === 'pending' || t.status === 'in_progress').length;
@@ -272,9 +399,9 @@ export function Dashboard() {
         <p className="text-sm text-gray-500">{getRoleName(user.role)}</p>
       </div>
 
-      {isMarketingDashboard ? <MarketingQuickAccess /> : leadershipRoles && <LeadershipQuickAccess />}
+      {isMarketingDashboard ? <MarketingQuickAccess /> : isDesignerDashboard ? <DesignerQuickAccess /> : leadershipRoles && <LeadershipQuickAccess />}
 
-      {!leadershipRoles && !isMarketingDashboard && (
+      {!leadershipRoles && !isMarketingDashboard && !isDesignerDashboard && (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {stats.map((stat) => {

@@ -19,6 +19,31 @@ function publishOpenJobPostingsBadgeCount(count: number) {
   );
 }
 
+function ensureViewedSetInitialized(items: JobPostingTask[]) {
+  if (viewedOpenJobPostingCards.size === 0) {
+    const sorted = [...items].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    sorted.slice(3).forEach((item) => viewedOpenJobPostingCards.add(item.id));
+  }
+}
+
+export function getUnseenOpenJobPostingHighlightedIds() {
+  const postings = loadJobPostings();
+  ensureViewedSetInitialized(postings);
+
+  return new Set(
+    postings
+      .filter((task) => !viewedOpenJobPostingCards.has(task.id))
+      .map((task) => task.id)
+  );
+}
+
+export function getUnseenOpenJobPostingsCount() {
+  return getUnseenOpenJobPostingHighlightedIds().size;
+}
+
 function loadJobPostings(): JobPostingTask[] {
   const savedTasks = localStorage.getItem(JOB_POSTINGS_STORAGE_KEY);
   if (!savedTasks) {
@@ -67,17 +92,6 @@ export function DesignerOpenJobPostings() {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const postingsRef = useRef(postings);
   useEffect(() => { postingsRef.current = postings; }, [postings]);
-
-  // Pre‑mark all but the 3 newest postings as "viewed"
-  const ensureViewedSetInitialized = (items: JobPostingTask[]) => {
-    if (viewedOpenJobPostingCards.size === 0) {
-      const sorted = [...items].sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-      // Mark all except the first 3 as already viewed
-      sorted.slice(3).forEach((item) => viewedOpenJobPostingCards.add(item.id));
-    }
-  };
 
   // Initialise the viewed set after postings are loaded
   useEffect(() => {
@@ -182,6 +196,7 @@ export function DesignerOpenJobPostings() {
       taskId: posting.id,
       applicantId: user.id,
       applicantName: user.name ?? 'Unknown Designer',
+      applicantRole: 'designer',
       status: 'pending',
       message: applyMessage.trim(),
       appliedAt: new Date().toISOString(),

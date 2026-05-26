@@ -68,6 +68,16 @@ function publishDesignerTasksBadgeCount(count: number) {
     new CustomEvent(DESIGNER_TASKS_NOTIFICATIONS_KEY, { detail: count })
   );
 }
+
+export function getUnseenDesignerTaskHighlightedIds() {
+  return new Set(
+    HIGHLIGHTED_IDS.filter((id) => !viewedDesignerTaskCards.has(id))
+  );
+}
+
+export function getUnseenDesignerTaskCount() {
+  return getUnseenDesignerTaskHighlightedIds().size;
+}
 // ─────────────────────────────────────────
 
 // ---------- Helpers ----------
@@ -118,13 +128,15 @@ function buildDesignerSubmissionSnapshot(
 function normalizeSubmissionProgress(progress: SubmissionProgress): SubmissionProgress {
   const normalized: SubmissionProgress = {};
   for (const [taskId, taskProgress] of Object.entries(progress)) {
-    const mergedProgress = {
-      caseStudy: defaultPhase(),
-      designStage: defaultPhase(),
-      rendering: defaultPhase(),
-      finalStage: defaultPhase(),
-      ...(taskProgress as Record<PhaseKey, PhaseData>),
-    };
+    const mergedProgress = Object.assign(
+      {
+        caseStudy: defaultPhase(),
+        designStage: defaultPhase(),
+        rendering: defaultPhase(),
+        finalStage: defaultPhase(),
+      },
+      taskProgress as Record<PhaseKey, PhaseData>
+    );
 
     normalized[taskId] = {
       caseStudy: {
