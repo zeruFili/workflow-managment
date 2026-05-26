@@ -139,11 +139,16 @@ export function Layout({ children }: LayoutProps) {
   if (!isSidebarlessRole) {
     navigationItems.push({ path: '/dashboard', label: 'Dashboard', icon: Home });
 
-    if (user.role !== 'ceo' && user.role !== 'general_manager') {
-      // ── Tasks nav item with badge for Site Engineer ──────────────────────
+    // ── Tasks nav item: hidden for CEO, GM, Designer, and Marketing Lead ──
+    if (
+      user.role !== 'ceo' &&
+      user.role !== 'general_manager' &&
+      user.role !== 'designer' &&
+      user.role !== 'marketing_lead'
+    ) {
       navigationItems.push({
-        path: '/tasks',
-        label: 'Tasks',
+        path: user.role === 'site_engineer' ? '/site-engineer-tasks' : '/tasks',
+        label: user.role === 'site_engineer' ? 'Site Engineer Tasks' : 'Tasks',
         icon: CheckSquare,
         badge:
           user.role === 'site_engineer' && siteEngineerNotifications > 0
@@ -260,8 +265,13 @@ export function Layout({ children }: LayoutProps) {
       });
     }
 
-    // Approvals — shown to every role EXCEPT system_administrator.
-    if (user.role !== 'system_administrator') {
+    // ── Approvals: hidden for system_administrator, designer, site_engineer, and general_manager ──
+    if (
+      user.role !== 'system_administrator' &&
+      user.role !== 'designer' &&
+      user.role !== 'site_engineer' &&
+      user.role !== 'general_manager'
+    ) {
       navigationItems.push({
         path: '/approvals',
         label: 'Approvals',

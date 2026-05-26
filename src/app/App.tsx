@@ -128,7 +128,6 @@ function AppContent() {
                 'marketing_lead',
                 'design_team_leader',
                 'designer',
-                'site_engineer',
                 'finance_officer',
                 'purchasing_team',
                 'data_collector',
@@ -137,7 +136,18 @@ function AppContent() {
               ]}
             >
               <Layout>
-                {user?.role === 'site_engineer' ? <SiteEngineerTasks /> : <Tasks />}
+                <Tasks />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/site-engineer-tasks"
+          element={
+            <ProtectedRoute allowedRoles={['site_engineer']}>
+              <Layout>
+                <SiteEngineerTasks />
               </Layout>
             </ProtectedRoute>
           }
