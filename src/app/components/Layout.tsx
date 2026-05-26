@@ -240,7 +240,7 @@ export function Layout({ children }: LayoutProps) {
       });
     }
 
-    if (user.role === 'design_team_leader' || user.role === 'designer') {
+    if (user.role === 'designer') {
       addNavigationItem({
         path: '/designer-tasks',
         label: 'Designer Tasks',
@@ -256,7 +256,6 @@ export function Layout({ children }: LayoutProps) {
     }
 
     if (
-      user.role === 'design_team_leader' ||
       user.role === 'designer' ||
       user.role === 'ceo' ||
       user.role === 'general_manager' ||

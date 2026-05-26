@@ -311,7 +311,7 @@ export function Dashboard() {
     if (user.role === 'marketing_lead') {
       return p.createdBy === user.id;
     }
-    if (user.role === 'design_team_leader' || user.role === 'designer') {
+    if (user.role === 'designer') {
       return p.assignedTo === user.id || p.stage === 'design';
     }
     return p.stage !== 'lead';
@@ -323,9 +323,6 @@ export function Dashboard() {
     }
     if (user.role === 'designer') {
       return t.assignedTo === user.id;
-    }
-    if (user.role === 'design_team_leader') {
-      return t.assignedBy === user.id;
     }
     if (user.role === 'marketing_lead') {
       return t.assignedTo === user.id;

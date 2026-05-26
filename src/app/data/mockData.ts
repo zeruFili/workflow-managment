@@ -892,7 +892,7 @@ export interface DesignerProfile {
   username: string;
   email: string;
   avatarInitials: string;
-  role: 'designer' | 'design_team_leader';
+  role: 'designer';
   joinedAt: string;
 }
 
@@ -903,7 +903,7 @@ export const designerProfiles: DesignerProfile[] = [
     username: 'design_lead',
     email: 'emily@company.com',
     avatarInitials: 'EC',
-    role: 'design_team_leader',
+    role: 'designer',
     joinedAt: '2024-01-15T00:00:00Z',
   },
   {

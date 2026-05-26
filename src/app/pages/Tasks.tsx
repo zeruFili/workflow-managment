@@ -178,9 +178,7 @@ export function Tasks() {
     if (user.role === 'designer') {
       return t.assignedTo === user.id;
     }
-    if (user.role === 'design_team_leader') {
-      return t.assignedBy === user.id || t.assignedTo === user.id;
-    }
+    
     if (user.role === 'marketing_lead') {
       return t.assignedTo === user.id;
     }
@@ -301,7 +299,7 @@ export function Tasks() {
     if (user.role === 'marketing_lead' && task.assignedTo === user.id)
       return true;
     if (user.role === 'designer' && task.assignedTo === user.id) return true;
-    if (user.role === 'design_team_leader') return true;
+    
     if (user.role === 'site_engineer') return task.assignedTo === user.id;
     return false;
   };

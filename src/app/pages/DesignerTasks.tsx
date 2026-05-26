@@ -367,7 +367,7 @@ export function DesignerTasks() {
   if (!designerRoles.has(user.role)) {
     return (
       <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
-        <p className="text-gray-500">Access denied. Designer and Design Team Leader only.</p>
+        <p className="text-gray-500">Access denied. Designers only.</p>
       </div>
     );
   }

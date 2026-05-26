@@ -129,10 +129,8 @@ function AppContent() {
             <ProtectedRoute
               allowedRoles={[
                 'marketing_lead',
-                'design_team_leader',
                 'designer',
                 'finance_officer',
-                'purchasing_team',
                 'data_collector',
                 'quantity_surveyor',
                 'system_administrator',
@@ -273,7 +271,7 @@ function AppContent() {
         <Route
           path="/designer-tasks"
           element={
-            <ProtectedRoute allowedRoles={['design_team_leader', 'designer']}>
+            <ProtectedRoute allowedRoles={['designer']}>
               <Layout>
                 <DesignerTasks />
               </Layout>
@@ -284,7 +282,7 @@ function AppContent() {
         <Route
           path="/open-job-postings"
           element={
-            <ProtectedRoute allowedRoles={['design_team_leader', 'designer', 'ceo', 'general_manager', 'system_administrator']}>
+            <ProtectedRoute allowedRoles={['designer', 'ceo', 'general_manager', 'system_administrator']}>
               <Layout>
                 <DesignerOpenJobPostings />
               </Layout>

@@ -27,7 +27,7 @@ export function Projects() {
     if (user.role === 'marketing_lead') {
       return p.createdBy === user.id;
     }
-    if (user.role === 'design_team_leader' || user.role === 'designer') {
+    if (user.role === 'designer') {
       return p.assignedTo === user.id || p.stage === 'design';
     }
     return p.stage !== 'lead';

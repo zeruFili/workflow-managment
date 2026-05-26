@@ -4,18 +4,18 @@ import { DesignerTask, DesignerTaskApplication } from '../types';
 export const TASK_STORAGE_KEY = 'designer-tasks';
 export const APPLICATION_STORAGE_KEY = 'designer-task-applications';
 
-export const designerRoles = new Set(['design_team_leader', 'designer']);
+export const designerRoles = new Set(['designer']);
 export const assignmentRoles = new Set(['ceo', 'general_manager', 'system_administrator']);
 
 export const roleNamesByUserId: Record<string, string> = {
   '0': 'CEO',
   '1': 'Marketing Lead',
   '2': 'General Manager',
-  '3': 'Design Team Leader',
+  '3': 'Designer',
   '4': 'Designer',
   '5': 'Site Engineer',
   '6': 'Finance Officer',
-  '7': 'Purchasing Team',
+  
   '8': 'System Administrator',
   '9': 'Sophia Ahmed',
   '10': 'Daniel Reed',

@@ -4,11 +4,10 @@ export type UserRole =
   | 'ceo'
   | 'data_collector'
   | 'quantity_surveyor'
-  | 'design_team_leader'
+  
   | 'designer'
   | 'site_engineer'
   | 'finance_officer'
-  | 'purchasing_team'
   | 'system_administrator';
 
 export interface User {
