@@ -8,6 +8,11 @@ import {
   loadDesignerTasks,
   roleNamesByUserId,
 } from './designerTaskShared';
+import {
+  getPendingReviewHighlightedIds,
+  markPendingReviewCardsViewed,
+  publishDesignerAssignmentsBadgeCount,
+} from './designerAssignmentHighlights';
 import { DesignerTask, DesignerTaskApplication, TaskStatus } from '../types';
 import {
   AlertCircle,
@@ -316,18 +321,6 @@ const DEMO_TASK_IDS = new Set([
   'dtask-18', 'dtask-28', 'dtask-38', 'dtask-48', 'dtask-58',
 ]);
 
-// ───────────────── NEW: highlight / badge logic ─────────────────
-const viewedPendingReviewCards = new Set<string>();
-const PENDING_REVIEW_HIGHLIGHTED_IDS = ['dtask-14', 'dtask-15'];
-export const DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY = 'designer-assignments-notifications-updated';
-
-function publishBadgeCount(count: number) {
-  window.dispatchEvent(
-    new CustomEvent(DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY, { detail: count })
-  );
-}
-// ─────────────────────────────────────────────────────────────────
-
 export function DesignerAssignments() {
   const { user } = useAuth();
   const [showCreateTask, setShowCreateTask] = useState(false);
@@ -358,9 +351,7 @@ export function DesignerAssignments() {
   // NEW: highlighted cards state
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(
     new Set(
-      PENDING_REVIEW_HIGHLIGHTED_IDS.filter(
-        (id) => !viewedPendingReviewCards.has(id)
-      )
+      Array.from(getPendingReviewHighlightedIds())
     )
   );
 
@@ -370,11 +361,7 @@ export function DesignerAssignments() {
 
   // Publish initial badge count
   useEffect(() => {
-    publishBadgeCount(
-      PENDING_REVIEW_HIGHLIGHTED_IDS.filter(
-        (id) => !viewedPendingReviewCards.has(id)
-      ).length
-    );
+    publishDesignerAssignmentsBadgeCount(getPendingReviewHighlightedIds().size);
   }, []);
 
   // IntersectionObserver: track which highlighted cards have been scrolled into view
@@ -422,14 +409,12 @@ export function DesignerAssignments() {
     return () => {
       const idsSeen = Array.from(seenThisSession.current);
       if (idsSeen.length > 0) {
-        idsSeen.forEach((id) => viewedPendingReviewCards.add(id));
+        markPendingReviewCardsViewed(idsSeen);
 
         const remaining = new Set(
-          PENDING_REVIEW_HIGHLIGHTED_IDS.filter(
-            (id) => !viewedPendingReviewCards.has(id)
-          )
+          Array.from(getPendingReviewHighlightedIds())
         );
-        publishBadgeCount(remaining.size);
+        publishDesignerAssignmentsBadgeCount(remaining.size);
         setHighlightedIds(remaining);
       }
     };

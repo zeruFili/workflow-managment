@@ -20,6 +20,7 @@ import {
   Upload,
   Bell
 } from 'lucide-react';
+import { LeadershipQuickAccess } from '../components/LeadershipQuickAccess';
 
 export function Dashboard() {
   const { user } = useAuth();
@@ -122,207 +123,154 @@ export function Dashboard() {
         <p className="text-sm text-gray-500">{getRoleName(user.role)}</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <div key={stat.label} className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">{stat.label}</p>
-                  <p className="text-3xl font-bold mt-2">{stat.value}</p>
-                </div>
-                <div className={`p-3 rounded-lg ${stat.bgColor}`}>
-                  <Icon className={`w-6 h-6 ${stat.color}`} />
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {leadershipRoles && <LeadershipQuickAccess />}
 
-      {leadershipRoles && (
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <Bell className="w-5 h-5 text-slate-700" />
-                <h3 className="font-semibold text-lg text-gray-900">Quantity Review Notifications</h3>
-              </div>
-              <p className="text-sm text-gray-600 mt-1">
-                Evaluation submissions from Quantity Surveyor are delivered here for GM and CEO.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
-                {unreadQuantityReviewCount} unread
-              </span>
-              <button
-                type="button"
-                onClick={markQuantityNotificationsRead}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-300 text-gray-700 hover:bg-gray-50"
-              >
-                Mark as read
-              </button>
-              <Link
-                to="/quantity-surveyor-tasks"
-                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-white hover:bg-slate-800"
-              >
-                Open Desk
-              </Link>
-            </div>
-          </div>
-
-          <div className="mt-4 space-y-3">
-            {quantityReviewItems.slice(0, 3).map((item) => {
-              const unread = !item.readByRoles.includes(user.role);
-
+      {!leadershipRoles && (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {stats.map((stat) => {
+              const Icon = stat.icon;
               return (
-                <div
-                  key={item.id}
-                  className={`rounded-lg border p-3 ${unread ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-gray-50'}`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="text-sm font-medium text-gray-900">{item.message}</p>
-                    {unread && <span className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">new</span>}
-                  </div>
-                  <p className="text-sm text-gray-600 mt-1">Job Reference: {item.jobId}</p>
-                  <p className="text-sm text-gray-600">{item.description}</p>
-                </div>
-              );
-            })}
-            {quantityReviewItems.length === 0 && (
-              <div className="rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-500 text-center">
-                No quantity review notifications yet.
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="hidden lg:block bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-lg">Recent Projects</h3>
-            <Link to="/projects" className="text-sm text-blue-600 hover:text-blue-700">
-              View all
-            </Link>
-          </div>
-          <div className="space-y-3">
-            {userProjects.slice(0, 5).map((project) => (
-              <Link
-                key={project.id}
-                to={`/projects/${project.id}`}
-                className="block p-3 hover:bg-gray-50 rounded-lg transition-colors"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900">{project.name}</p>
-                    <p className="text-sm text-gray-500 mt-1">{project.clientName}</p>
-                  </div>
-                  <span className={`
-                    px-2 py-1 rounded text-xs font-medium
-                    ${project.stage === 'completed' ? 'bg-green-100 text-green-700' :
-                      project.stage === 'approval' ? 'bg-yellow-100 text-yellow-700' :
-                      project.stage === 'execution' ? 'bg-blue-100 text-blue-700' :
-                      'bg-gray-100 text-gray-700'}
-                  `}>
-                    {project.stage}
-                  </span>
-                </div>
-              </Link>
-            ))}
-            {userProjects.length === 0 && (
-              <p className="text-center text-gray-500 py-8">No projects found</p>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-lg">My Tasks</h3>
-            <div className="flex items-center gap-3">
-              {user.role === 'marketing_lead' && (
-                <button
-                  onClick={() => setShowCreateTask(true)}
-                  className="hidden md:flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg transition-colors text-sm"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Create Task</span>
-                </button>
-              )}
-              <Link to="/tasks" className="text-sm text-blue-600 hover:text-blue-700">
-                View all
-              </Link>
-            </div>
-          </div>
-          <div className="space-y-3">
-            {userTasks.slice(0, 5).map((task) => (
-              <div
-                key={task.id}
-                className="p-3 hover:bg-gray-50 rounded-lg transition-colors"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900">{task.title}</p>
-                    {task.deadline && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        Due: {new Date(task.deadline).toLocaleDateString()}
-                      </p>
-                    )}
-                  </div>
-                  <span className={`
-                    px-2 py-1 rounded text-xs font-medium
-                    ${task.status === 'completed' ? 'bg-green-100 text-green-700' :
-                      task.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
-                      task.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                      'bg-gray-100 text-gray-700'}
-                  `}>
-                    {task.status.replace('_', ' ')}
-                  </span>
-                </div>
-              </div>
-            ))}
-            {userTasks.length === 0 && (
-              <p className="text-center text-gray-500 py-8">No tasks assigned</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {user.role === 'general_manager' && pendingApprovals.length > 0 && (
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-lg">Pending Approvals</h3>
-            <Link to="/approvals" className="text-sm text-blue-600 hover:text-blue-700">
-              View all
-            </Link>
-          </div>
-          <div className="space-y-3">
-            {pendingApprovals.map((approval) => {
-              const project = mockProjects.find(p => p.id === approval.projectId);
-              return (
-                <Link
-                  key={approval.id}
-                  to="/approvals"
-                  className="block p-3 hover:bg-gray-50 rounded-lg transition-colors"
-                >
+                <div key={stat.label} className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium text-gray-900">{project?.name}</p>
-                      <p className="text-sm text-gray-500 mt-1">
-                        Stage: {approval.stage} | Requested: {new Date(approval.requestedAt).toLocaleDateString()}
-                      </p>
+                      <p className="text-sm text-gray-600">{stat.label}</p>
+                      <p className="text-3xl font-bold mt-2">{stat.value}</p>
                     </div>
-                    <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">
-                      Pending
-                    </span>
+                    <div className={`p-3 rounded-lg ${stat.bgColor}`}>
+                      <Icon className={`w-6 h-6 ${stat.color}`} />
+                    </div>
                   </div>
-                </Link>
+                </div>
               );
             })}
           </div>
-        </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="hidden lg:block bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-lg">Recent Projects</h3>
+                <Link to="/projects" className="text-sm text-blue-600 hover:text-blue-700">
+                  View all
+                </Link>
+              </div>
+              <div className="space-y-3">
+                {userProjects.slice(0, 5).map((project) => (
+                  <Link
+                    key={project.id}
+                    to={`/projects/${project.id}`}
+                    className="block p-3 hover:bg-gray-50 rounded-lg transition-colors"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">{project.name}</p>
+                        <p className="text-sm text-gray-500 mt-1">{project.clientName}</p>
+                      </div>
+                      <span className={`
+                        px-2 py-1 rounded text-xs font-medium
+                        ${project.stage === 'completed' ? 'bg-green-100 text-green-700' :
+                          project.stage === 'approval' ? 'bg-yellow-100 text-yellow-700' :
+                          project.stage === 'execution' ? 'bg-blue-100 text-blue-700' :
+                          'bg-gray-100 text-gray-700'}
+                      `}>
+                        {project.stage}
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+                {userProjects.length === 0 && (
+                  <p className="text-center text-gray-500 py-8">No projects found</p>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-lg">My Tasks</h3>
+                <div className="flex items-center gap-3">
+                  {user.role === 'marketing_lead' && (
+                    <button
+                      onClick={() => setShowCreateTask(true)}
+                      className="hidden md:flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg transition-colors text-sm"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Create Task</span>
+                    </button>
+                  )}
+                  <Link to="/tasks" className="text-sm text-blue-600 hover:text-blue-700">
+                    View all
+                  </Link>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {userTasks.slice(0, 5).map((task) => (
+                  <div
+                    key={task.id}
+                    className="p-3 hover:bg-gray-50 rounded-lg transition-colors"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">{task.title}</p>
+                        {task.deadline && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Due: {new Date(task.deadline).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+                      <span className={`
+                        px-2 py-1 rounded text-xs font-medium
+                        ${task.status === 'completed' ? 'bg-green-100 text-green-700' :
+                          task.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
+                          task.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                          'bg-gray-100 text-gray-700'}
+                      `}>
+                        {task.status.replace('_', ' ')}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {userTasks.length === 0 && (
+                  <p className="text-center text-gray-500 py-8">No tasks assigned</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {user.role === 'general_manager' && pendingApprovals.length > 0 && (
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-lg">Pending Approvals</h3>
+                <Link to="/approvals" className="text-sm text-blue-600 hover:text-blue-700">
+                  View all
+                </Link>
+              </div>
+              <div className="space-y-3">
+                {pendingApprovals.map((approval) => {
+                  const project = mockProjects.find(p => p.id === approval.projectId);
+                  return (
+                    <Link
+                      key={approval.id}
+                      to="/approvals"
+                      className="block p-3 hover:bg-gray-50 rounded-lg transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-gray-900">{project?.name}</p>
+                          <p className="text-sm text-gray-500 mt-1">
+                            Stage: {approval.stage} | Requested: {new Date(approval.requestedAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">
+                          Pending
+                        </span>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {showCreateTask && (

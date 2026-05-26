@@ -18,7 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY } from '../pages/DesignerAssignments';
+import { DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY } from '../pages/designerAssignmentHighlights';
 import { DESIGNER_TASKS_NOTIFICATIONS_KEY } from '../pages/DesignerTasks';
 import {
   SITE_ENGINEER_NOTIFICATIONS_KEY,
@@ -269,12 +269,13 @@ export function Layout({ children }: LayoutProps) {
       });
     }
 
-    // ── Approvals: hidden for system_administrator, designer, site_engineer, and general_manager ──
+    // ── Approvals: hidden for system_administrator, designer, site_engineer, general_manager, and ceo ──
     if (
       user.role !== 'system_administrator' &&
       user.role !== 'designer' &&
       user.role !== 'site_engineer' &&
-      user.role !== 'general_manager'
+      user.role !== 'general_manager' &&
+      user.role !== 'ceo'
     ) {
       navigationItems.push({
         path: '/approvals',
@@ -334,7 +335,7 @@ export function Layout({ children }: LayoutProps) {
             className={`
               fixed md:sticky top-[57px] left-0 h-[calc(100vh-57px)]
               bg-white border-r border-gray-200 w-64 z-40
-              transition-transform duration-300
+              overflow-y-auto overflow-x-hidden transition-transform duration-300
               ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
             `}
           >
@@ -348,7 +349,7 @@ export function Layout({ children }: LayoutProps) {
                     to={item.path}
                     onClick={() => setMobileMenuOpen(false)}
                     className={`
-                      flex items-center gap-3 px-4 py-3 rounded-lg transition-colors
+                        flex min-w-0 items-center gap-3 px-4 py-3 rounded-lg transition-colors
                       ${
                         isActive
                           ? 'bg-blue-50 text-blue-600'
@@ -357,9 +358,9 @@ export function Layout({ children }: LayoutProps) {
                     `}
                   >
                     <Icon className="w-5 h-5 flex-shrink-0" />
-                    <span className="flex-1">{item.label}</span>
+                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
                     {item.badge !== undefined && item.badge > 0 && (
-                      <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-semibold rounded-full bg-blue-600 text-white leading-none">
+                        <span className="inline-flex shrink-0 items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-semibold rounded-full bg-blue-600 text-white leading-none">
                         {item.badge}
                       </span>
                     )}
