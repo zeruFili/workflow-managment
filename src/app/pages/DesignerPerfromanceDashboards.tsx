@@ -15,7 +15,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 // ─── Inline mock data (mirrors the separate data file) ────────────────────────
 const designerProfiles = [
-  { designerId: '3',  displayName: 'Emily Chen',    username: 'design_lead',      email: 'emily@company.com',   avatarInitials: 'EC', role: 'designer', joinedAt: '2024-01-15T00:00:00Z' },
+  { designerId: '3',  displayName: 'Emily Chen',    username: 'emily_designer',   email: 'emily@company.com',   avatarInitials: 'EC', role: 'designer', joinedAt: '2024-01-15T00:00:00Z' },
   { designerId: '4',  displayName: 'Michael Brown', username: 'designer',         email: 'michael@company.com', avatarInitials: 'MB', role: 'designer',            joinedAt: '2024-03-01T00:00:00Z' },
   { designerId: '9',  displayName: 'Sophia Ahmed',  username: 'sophia_designer',  email: 'sophia@company.com',  avatarInitials: 'SA', role: 'designer',            joinedAt: '2024-06-10T00:00:00Z' },
   { designerId: '10', displayName: 'Daniel Reed',   username: 'daniel_designer',  email: 'daniel@company.com',  avatarInitials: 'DR', role: 'designer',            joinedAt: '2025-01-20T00:00:00Z' },

@@ -14,7 +14,7 @@ const TASK_STORAGE_KEY = 'designer-tasks';
 const reviewRoles = new Set(['ceo', 'general_manager']);
 
 const designerRoster = [
-  { id: '3', name: 'Emily Chen', role: 'Design Team Leader' },
+  { id: '3', name: 'Emily Chen', role: 'Designer' },
   { id: '4', name: 'Michael Brown', role: 'Designer' },
   { id: '9', name: 'Sophia Ahmed', role: 'Designer' },
   { id: '10', name: 'Daniel Reed', role: 'Designer' },

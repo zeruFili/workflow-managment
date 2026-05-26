@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useTelegram } from './hooks/useTelegram';
@@ -9,7 +10,6 @@ import { Approvals } from './pages/Approvals';
 import { UserManagement } from './pages/UserManagement';
 import { CustomerData } from './pages/CustomerData';
 import { PaidCustomers } from './pages/PaidCustomers';
-import { DesignerTasks } from './pages/DesignerTasks';
 import { DesignerOpenJobPostings } from './pages/DesignerOpenJobPostings';
 import { DesignerApplications } from './pages/DesignerApplications';
 import { DesignerAssignments } from './pages/DesignerAssignments';
@@ -21,7 +21,7 @@ import { QuantitySurveyorTasks } from './pages/QuantitySurveyorTasks';
 import { QuantitySurveyorDashboard } from './pages/QuantitySurveyorDashboard';
 import { SiteEngineerTasks } from './pages/SiteEngineerTasks';
 import { UserRole } from './types';
-import { useEffect } from 'react';
+import { DesignerTasks } from './pages/DesignerTasks';
 
 function ProtectedRoute({
   children,
@@ -259,7 +259,7 @@ function AppContent() {
         <Route
           path="/quantity-surveyor-tasks"
           element={
-            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'system_administrator']}>
+            <ProtectedRoute allowedRoles={['ceo', 'general_manager']}>
               <Layout>
                 <QuantitySurveyorTasks />
               </Layout>

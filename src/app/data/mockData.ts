@@ -900,7 +900,7 @@ export const designerProfiles: DesignerProfile[] = [
   {
     designerId: '3',
     displayName: 'Emily Chen',
-    username: 'design_lead',
+    username: 'emily_designer',
     email: 'emily@company.com',
     avatarInitials: 'EC',
     role: 'designer',
