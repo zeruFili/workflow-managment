@@ -19,6 +19,7 @@ import { DataCollectorTasks } from './pages/DataCollectorTasks';
 import { JobPostings } from './pages/JobPostings';
 import { QuantitySurveyorTasks } from './pages/QuantitySurveyorTasks';
 import { QuantitySurveyorDashboard } from './pages/QuantitySurveyorDashboard';
+import { SiteEngineerTasks } from './pages/SiteEngineerTasks';
 import { UserRole } from './types';
 import { useEffect } from 'react';
 
@@ -136,7 +137,7 @@ function AppContent() {
               ]}
             >
               <Layout>
-                <Tasks />
+                {user?.role === 'site_engineer' ? <SiteEngineerTasks /> : <Tasks />}
               </Layout>
             </ProtectedRoute>
           }

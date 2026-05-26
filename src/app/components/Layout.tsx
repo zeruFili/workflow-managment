@@ -20,6 +20,10 @@ import {
 import { useState, useEffect } from 'react';
 import { DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY } from '../pages/DesignerAssignments';
 import { DESIGNER_TASKS_NOTIFICATIONS_KEY } from '../pages/DesignerTasks';
+import {
+  SITE_ENGINEER_NOTIFICATIONS_KEY,
+  getInitialSiteEngineerNotificationCount,
+} from '../pages/siteEngineerTaskShared';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -36,9 +40,6 @@ export const PAID_CUSTOMERS_NOTIFICATIONS_KEY = 'paid-customers-notifications-v2
 export const DATA_COLLECTOR_NOTIFICATIONS_KEY = 'data-collector-notifications-v2';
 export const QUANTITY_SURVEYOR_NOTIFICATIONS_KEY = 'quantity-surveyor-notifications-v2';
 export const FINANCE_VERIFICATIONS_NOTIFICATIONS_KEY = 'finance-verifications-notifications-v2';
-
-// ── New key for Site Engineer notifications ─────────────────────────────────
-export const SITE_ENGINEER_NOTIFICATIONS_KEY = 'site-engineer-notifications-v2';
 
 export function Layout({ children }: LayoutProps) {
   const { user, logout } = useAuth();
@@ -57,7 +58,9 @@ export function Layout({ children }: LayoutProps) {
   const [designerTasksNotifications, setDesignerTasksNotifications] = useState(3);
 
   // ── New state for Site Engineer notifications ──────────────────────────────
-  const [siteEngineerNotifications, setSiteEngineerNotifications] = useState(0);
+  const [siteEngineerNotifications, setSiteEngineerNotifications] = useState(
+    getInitialSiteEngineerNotificationCount()
+  );
 
   useEffect(() => {
     const onPaidCustomers = (e: Event) => {
