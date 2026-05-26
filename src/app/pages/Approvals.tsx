@@ -138,13 +138,19 @@ function generateMockPaidCustomers(): PaidCustomer[] {
     customerName: '',
     customerPhone: '+251 900 000 000',
     customerEmail: 'customer@example.com',
+    customerAddress: 'Addis Ababa',
     category: 'home_design',
     budget: '50,000 ETB',
     serviceDescription: 'Full home interior design package',
+    status: 'in_review',
+    createdAt: new Date(Date.now() - 86400000 * (Math.floor(Math.random() * 30) + 1)).toISOString(),
+    createdBy: 'user-1',
+    createdByName: 'Abebe Kebede',
+    sourceRequestId: 'request-1',
     transferredBy: 'user-1',
     transferredByName: 'Abebe Kebede',
     transferredAt: new Date(Date.now() - 86400000 * (Math.floor(Math.random() * 30) + 1)).toISOString(),
-    paymentProofs: [],
+    proofOfPayment: [],
   };
 
   const mockData: PaidCustomer[] = [
@@ -180,7 +186,7 @@ function generateMockPaidCustomers(): PaidCustomer[] {
       customerName: 'Selamawit Gebre',
       category: 'hair_salon_design',
       budget: '200,000 ETB',
-      serviceDescription: 'Luxury women’s salon setup in Bole – 6 styling stations, wash area, nail bar, and reception. Premium finishes and branded equipment.',
+      serviceDescription: 'Luxury women\u2019s salon setup in Bole – 6 styling stations, wash area, nail bar, and reception. Premium finishes and branded equipment.',
       paymentVerificationStatus: 'request_clarification',
       paymentVerificationMessage: 'Please provide additional bank statement for the last three months to verify funding source.',
       paymentVerifiedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
@@ -220,7 +226,7 @@ function generateMockPaidCustomers(): PaidCustomer[] {
       customerName: 'Rediet Worku',
       category: 'home_design',
       budget: '95,000 ETB',
-      serviceDescription: 'Apartment painting and decor – 3‑bedroom unit with accent walls, new curtains, and lighting upgrade.',
+      serviceDescription: 'Apartment painting and decor – 3\u2011bedroom unit with accent walls, new curtains, and lighting upgrade.',
       paymentVerificationStatus: 'approved',
       paymentVerificationMessage: 'Receipt matched, payment confirmed.',
       paymentVerifiedAt: new Date(Date.now() - 86400000 * 10).toISOString(),
@@ -235,7 +241,7 @@ function generateMockPaidCustomers(): PaidCustomer[] {
       budget: '45,000 ETB',
       serviceDescription: 'Bathroom tiling and plumbing – two bathrooms, waterproofing, new fixtures.',
       paymentVerificationStatus: 'rejected',
-      paymentVerificationMessage: 'Duplicate payment entry detected. Cross‑check with invoice #INV-204.',
+      paymentVerificationMessage: 'Duplicate payment entry detected. Cross\u2011check with invoice #INV-204.',
       paymentVerifiedAt: new Date(Date.now() - 86400000 * 12).toISOString(),
       paymentVerifiedBy: 'user-2',
       paymentVerifiedByName: 'Finance Lead',
@@ -353,7 +359,6 @@ export function Approvals() {
     seenThisSession.current.clear();
     observedElements.current.clear();
 
-    const currentCustomers = customersRef.current;
     const remainingUnseen = getUnseenApprovalsHighlightedIds();
     setHighlightedIds(new Set(remainingUnseen));
     publishApprovalsBadgeCount(remainingUnseen.size);
@@ -376,6 +381,10 @@ export function Approvals() {
       clarificationObjectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     };
   }, []);
+
+  if (!user) return null;
+
+  const currentUser = user;
 
   const readProofAsDataUrl = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
@@ -421,8 +430,8 @@ export function Approvals() {
         paymentVerificationStatus: form.decision,
         paymentVerificationMessage: form.message.trim(),
         paymentVerifiedAt: new Date().toISOString(),
-        paymentVerifiedBy: user.id,
-        paymentVerifiedByName: user.name,
+        paymentVerifiedBy: currentUser.id,
+        paymentVerifiedByName: currentUser.name,
       };
     });
 
@@ -521,8 +530,8 @@ export function Approvals() {
           description,
           attachments,
           respondedAt: new Date().toISOString(),
-          respondedBy: user.id,
-          respondedByName: user.name,
+          respondedBy: currentUser.id,
+          respondedByName: currentUser.name,
         },
       };
     });
@@ -536,10 +545,8 @@ export function Approvals() {
     }));
   };
 
-  if (!user) return null;
-
-  const canFinanceReview = user.role === 'finance_officer' || user.role === 'ceo';
-  const canMarketingClarify = user.role === 'marketing_lead' || user.role === 'ceo';
+  const canFinanceReview = currentUser.role === 'finance_officer' || currentUser.role === 'ceo';
+  const canMarketingClarify = currentUser.role === 'marketing_lead' || currentUser.role === 'ceo';
 
   if (!canFinanceReview && !canMarketingClarify) {
     return (
@@ -553,7 +560,7 @@ export function Approvals() {
   const sortedCustomers = [...paidCustomers].sort((a, b) => {
     const aHL = highlightedIds.has(a.id) ? 1 : 0;
     const bHL = highlightedIds.has(b.id) ? 1 : 0;
-    if (bHL !== aHL) return bHL - aHL; // highlighted on top
+    if (bHL !== aHL) return bHL - aHL;
     return new Date(b.transferredAt).getTime() - new Date(a.transferredAt).getTime();
   });
 
@@ -650,13 +657,13 @@ export function Approvals() {
                     </p>
                   </div>
                   {financeMessage ? (
-                    <p className="text-sm text-gray-700 italic">“{financeMessage}”</p>
+                    <p className="text-sm text-gray-700 italic">"{financeMessage}"</p>
                   ) : (
                     <p className="text-sm text-gray-500">No message provided.</p>
                   )}
                 </div>
 
-                {/* Finance Inline Review Form (unchanged) */}
+                {/* Finance Inline Review Form */}
                 {canFinanceReview && (
                   <div className="mb-4">
                     {!financeForm.expanded ? (
@@ -710,7 +717,7 @@ export function Approvals() {
                   </div>
                 )}
 
-                {/* Clarification Request Actions (unchanged) */}
+                {/* Clarification Request Actions */}
                 {status === 'request_clarification' && canMarketingClarify && (
                   <div className="mb-4">
                     {!clarificationForm.expanded ? (
@@ -796,16 +803,17 @@ export function Approvals() {
                   </div>
                 )}
 
-                {/* Marketing Clarification Response (unchanged) */}
+                {/* Marketing Clarification Response */}
                 {clarificationResponse && (
                   <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3">
                     <p className="text-xs font-medium uppercase tracking-wide text-blue-700">
                       Marketing Clarification Submitted
                     </p>
                     <p className="text-sm text-gray-700 mt-1">{clarificationResponse.description}</p>
-                    {clarificationResponse.attachments?.length > 0 && (
+                    {/* ✅ FIX: use ?? 0 to safely compare against possibly-undefined length */}
+                    {(clarificationResponse.attachments?.length ?? 0) > 0 && (
                       <div className="mt-2 grid grid-cols-2 gap-2">
-                        {clarificationResponse.attachments.map((att, idx) => (
+                        {clarificationResponse.attachments!.map((att, idx) => (
                           <img
                             key={idx}
                             src={att.dataUrl}

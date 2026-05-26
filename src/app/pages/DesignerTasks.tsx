@@ -60,7 +60,7 @@ export const DESIGNER_TASKS_NOTIFICATIONS_KEY = 'designer-tasks-notifications-up
 
 const HIGHLIGHTED_IDS = ['mdt-1', 'mdt-6', 'mdt-3'];
 
-// In‑memory "viewed" set – resets on page refresh (demo behaviour)
+// In‑memory "viewed" set – persists across page visits within the same session
 const viewedDesignerTaskCards = new Set<string>();
 
 function publishDesignerTasksBadgeCount(count: number) {
@@ -264,6 +264,8 @@ export function DesignerTasks() {
   const seenThisSession = useRef<Set<string>>(new Set());
   const observedElements = useRef<Set<string>>(new Set());
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const tasksRef = useRef<DesignerTask[]>([]);
+  useEffect(() => { tasksRef.current = tasks; }, [tasks]);
   // ──────────────────────────────────────────
 
   // ── On mount: load tasks from mockData + seed progress ───────────────────
@@ -303,6 +305,7 @@ export function DesignerTasks() {
   }, [submissionProgress]);
 
   // ──────────── INTERSECTION OBSERVER ────────────
+  // Track visibility but DO NOT update highlights immediately
   useEffect(() => {
     if (observerRef.current) {
       observerRef.current.disconnect();
@@ -319,10 +322,13 @@ export function DesignerTasks() {
           const id = (entry.target as HTMLElement).dataset.highlightedId;
           if (!id || !highlightedIds.has(id)) return;
 
+          // Only mark as "seen this session" when ≥70% visible
           if (entry.isIntersecting && entry.intersectionRatio >= 0.7) {
             if (!observedElements.current.has(id)) {
               observedElements.current.add(id);
               seenThisSession.current.add(id);
+              // ❌ DO NOT update viewedDesignerTaskCards or highlightedIds here
+              // ✅ Changes are committed on unmount only
             }
           }
         });
@@ -345,20 +351,30 @@ export function DesignerTasks() {
     };
   }, [highlightedIds]);
 
-  // Cleanup: runs when component unmounts (user navigates away)
+  // Commit seen session on unmount (when navigating away)
+  const commitSeenSession = () => {
+    if (seenThisSession.current.size === 0) return;
+    
+    // Add all seen IDs to the persistent viewed set
+    seenThisSession.current.forEach((id) => viewedDesignerTaskCards.add(id));
+    
+    // Clear session tracking
+    seenThisSession.current.clear();
+    observedElements.current.clear();
+
+    // Recalculate remaining unseen highlighted IDs from current tasks
+    const currentTasks = tasksRef.current;
+    const remainingUnseen = currentTasks
+      .filter((t) => HIGHLIGHTED_IDS.includes(t.id) && !viewedDesignerTaskCards.has(t.id))
+      .map((t) => t.id);
+    
+    setHighlightedIds(new Set(remainingUnseen));
+    publishDesignerTasksBadgeCount(remainingUnseen.length);
+  };
+
   useEffect(() => {
     return () => {
-      const idsSeen = Array.from(seenThisSession.current);
-      if (idsSeen.length > 0) {
-        idsSeen.forEach((id) => viewedDesignerTaskCards.add(id));
-
-        const remaining = new Set(
-          HIGHLIGHTED_IDS.filter((id) => !viewedDesignerTaskCards.has(id))
-        );
-
-        publishDesignerTasksBadgeCount(remaining.size);
-        setHighlightedIds(remaining);
-      }
+      commitSeenSession();
     };
   }, []);
   // ──────────────────────────────────────────────
@@ -707,7 +723,7 @@ export function DesignerTasks() {
         </div>
       )}
 
-      {/* Detail Modal – unchanged from original */}
+      {/* Detail Modal – unchanged */}
       {showDetail && selectedTaskDetail && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-6 overflow-y-auto">
           <div className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl max-h-[92vh] overflow-y-auto">

@@ -109,7 +109,6 @@ const initialRequests: CustomerRequest[] = [
     createdAt: '2026-04-18T14:30:00Z',
     createdBy: '1',
     createdByName: 'Sarah Johnson',
-    otherCategoryDescription: 'Custom Furniture & Joinery',
   },
 ];
 
@@ -301,7 +300,7 @@ export function CustomerData() {
     return null;
   }
 
-  const canTransferToPaid = user.role === 'marketing_lead' || user.role === 'system_administrator';
+  const canTransferToPaid = user.role === 'marketing_lead' ;
 
   // Only marketing lead / sys admin may access this page
   if (!canTransferToPaid) {
