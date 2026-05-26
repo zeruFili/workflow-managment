@@ -179,6 +179,12 @@ export function CustomerData() {
     };
   }, []);
 
+  if (!user) {
+    return null;
+  }
+
+  const currentUser = user;
+
   const readProofAsDataUrl = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -250,8 +256,8 @@ export function CustomerData() {
       ...selectedRequest,
       sourceRequestId: selectedRequest.id,
       transferredAt: new Date().toISOString(),
-      transferredBy: user.id,
-      transferredByName: user.name,
+      transferredBy: currentUser.id,
+      transferredByName: currentUser.name,
       paymentNote: paymentNote.trim() || undefined,
       proofOfPayment: proofOfPaymentArray.length > 0 ? proofOfPaymentArray : undefined,
       paymentVerificationStatus: 'pending',
@@ -284,8 +290,8 @@ export function CustomerData() {
       notes: formData.notes.trim() || undefined,
       status: 'new' as CustomerRequestStatus,
       createdAt: new Date().toISOString(),
-      createdBy: user.id,
-      createdByName: user.name,
+      createdBy: currentUser.id,
+      createdByName: currentUser.name,
       otherCategoryDescription:
         formData.category === 'other' ? formData.otherCategoryDescription.trim() : undefined,
     } as CustomerRequest & { otherCategoryDescription?: string };
@@ -296,11 +302,7 @@ export function CustomerData() {
     setIsSubmitting(false);
   };
 
-  if (!user) {
-    return null;
-  }
-
-  const canTransferToPaid = user.role === 'marketing_lead' ;
+  const canTransferToPaid = currentUser.role === 'marketing_lead' ;
 
   // Only marketing lead / sys admin may access this page
   if (!canTransferToPaid) {
@@ -332,7 +334,7 @@ export function CustomerData() {
               <Users className="w-5 h-5 text-blue-600" />
               <div>
                 <p className="text-sm text-gray-500">Viewing as</p>
-                <p className="font-medium text-gray-900">{user.name}</p>
+                <p className="font-medium text-gray-900">{currentUser.name}</p>
               </div>
             </div>
           </div>
@@ -457,7 +459,7 @@ export function CustomerData() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Proof of Payment {user.role === 'marketing_lead' ? '(required)' : '(optional)'}
+                  Proof of Payment {currentUser.role === 'marketing_lead' ? '(required)' : '(optional)'}
                 </label>
 
                 <input
