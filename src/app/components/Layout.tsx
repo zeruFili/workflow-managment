@@ -37,13 +37,16 @@ export const DATA_COLLECTOR_NOTIFICATIONS_KEY = 'data-collector-notifications-v2
 export const QUANTITY_SURVEYOR_NOTIFICATIONS_KEY = 'quantity-surveyor-notifications-v2';
 export const FINANCE_VERIFICATIONS_NOTIFICATIONS_KEY = 'finance-verifications-notifications-v2';
 
+// ── New key for Site Engineer notifications ─────────────────────────────────
+export const SITE_ENGINEER_NOTIFICATIONS_KEY = 'site-engineer-notifications-v2';
+
 export function Layout({ children }: LayoutProps) {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Badge states – initialised to 2 (mock “new” count) and updated via events
+  // Badge states – initialised to mock counts and updated via events
   const [paidCustomerNotifications, setPaidCustomerNotifications] = useState(3);
   const [dataCollectorNotifications, setDataCollectorNotifications] = useState(3);
   const [quantitySurveyorNotifications, setQuantitySurveyorNotifications] = useState(3);
@@ -52,6 +55,9 @@ export function Layout({ children }: LayoutProps) {
   const [openJobPostingsNotifications, setOpenJobPostingsNotifications] = useState(3);
   const [designerAssignmentsNotifications, setDesignerAssignmentsNotifications] = useState(3);
   const [designerTasksNotifications, setDesignerTasksNotifications] = useState(3);
+
+  // ── New state for Site Engineer notifications ──────────────────────────────
+  const [siteEngineerNotifications, setSiteEngineerNotifications] = useState(0);
 
   useEffect(() => {
     const onPaidCustomers = (e: Event) => {
@@ -87,6 +93,12 @@ export function Layout({ children }: LayoutProps) {
       setDesignerTasksNotifications(customEvent.detail ?? 0);
     };
 
+    // ── Listener for Site Engineer notifications ──────────────────────────
+    const onSiteEngineer = (e: Event) => {
+      const customEvent = e as CustomEvent<number>;
+      setSiteEngineerNotifications(customEvent.detail ?? 0);
+    };
+
     window.addEventListener('paid-customers-notifications-updated', onPaidCustomers);
     window.addEventListener('data-collector-notifications-updated', onDataCollector);
     window.addEventListener('quantity-surveyor-notifications-updated', onQuantitySurveyor);
@@ -95,6 +107,9 @@ export function Layout({ children }: LayoutProps) {
     window.addEventListener('open-job-postings-notifications-updated', onOpenJobPostingsNotifications);
     window.addEventListener(DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY, onDesignerAssignments);
     window.addEventListener(DESIGNER_TASKS_NOTIFICATIONS_KEY, onDesignerTasks);
+
+    // ── Register the Site Engineer event ─────────────────────────────────
+    window.addEventListener(SITE_ENGINEER_NOTIFICATIONS_KEY, onSiteEngineer);
 
     return () => {
       window.removeEventListener('paid-customers-notifications-updated', onPaidCustomers);
@@ -105,6 +120,9 @@ export function Layout({ children }: LayoutProps) {
       window.removeEventListener('open-job-postings-notifications-updated', onOpenJobPostingsNotifications);
       window.removeEventListener(DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY, onDesignerAssignments);
       window.removeEventListener(DESIGNER_TASKS_NOTIFICATIONS_KEY, onDesignerTasks);
+
+      // ── Clean up the Site Engineer event ───────────────────────────────
+      window.removeEventListener(SITE_ENGINEER_NOTIFICATIONS_KEY, onSiteEngineer);
     };
   }, []);
 
@@ -119,7 +137,16 @@ export function Layout({ children }: LayoutProps) {
     navigationItems.push({ path: '/dashboard', label: 'Dashboard', icon: Home });
 
     if (user.role !== 'ceo' && user.role !== 'general_manager') {
-      navigationItems.push({ path: '/tasks', label: 'Tasks', icon: CheckSquare });
+      // ── Tasks nav item with badge for Site Engineer ──────────────────────
+      navigationItems.push({
+        path: '/tasks',
+        label: 'Tasks',
+        icon: CheckSquare,
+        badge:
+          user.role === 'site_engineer' && siteEngineerNotifications > 0
+            ? siteEngineerNotifications
+            : undefined,
+      });
     }
 
     const addNavigationItem = (item: NavigationItem) => {
@@ -230,7 +257,7 @@ export function Layout({ children }: LayoutProps) {
       });
     }
 
-    // Approvals with badge
+    // Approvals — shown to every role EXCEPT system_administrator.
     if (user.role !== 'system_administrator') {
       navigationItems.push({
         path: '/approvals',

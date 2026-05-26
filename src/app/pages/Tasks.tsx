@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { mockTasks, mockProjects } from '../data/mockData';
 import { Task, TaskStatus } from '../types';
@@ -14,10 +14,28 @@ import {
   Upload,
   FileText,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
 } from 'lucide-react';
 
 const TASK_STORAGE_KEY = 'workflow-tasks';
+
+// ─── Highlight system (same pattern as DataCollectorTasks) ──────────────────
+// In‑memory set – survives route changes but resets on page refresh
+const viewedSiteEngineerCards = new Set<string>();
+
+// The task IDs that are always considered "new" until scrolled into view AND navigated away
+const HIGHLIGHTED_IDS = ['task-1', 'task-2', 'task-3'];
+
+// Import the custom event key from Layout
+export const SITE_ENGINEER_NOTIFICATIONS_KEY = 'site-engineer-notifications-v2';
+
+function publishBadgeCount(count: number) {
+  window.dispatchEvent(
+    new CustomEvent(SITE_ENGINEER_NOTIFICATIONS_KEY, { detail: count })
+  );
+}
+
+// ─── Component ──────────────────────────────────────────────────────────────
 
 const emptyNewTask = {
   title: '',
@@ -40,7 +58,9 @@ export function Tasks() {
       const parsedTasks = JSON.parse(savedTasks) as Task[];
       const mergedTasks = [
         ...parsedTasks.map((task) => {
-          const seedTask = mockTasks.find((candidate) => candidate.id === task.id);
+          const seedTask = mockTasks.find(
+            (candidate) => candidate.id === task.id
+          );
           return seedTask
             ? {
                 ...seedTask,
@@ -49,22 +69,107 @@ export function Tasks() {
               }
             : task;
         }),
-        ...mockTasks.filter((seedTask) => !parsedTasks.some((task) => task.id === seedTask.id)),
+        ...mockTasks.filter(
+          (seedTask) => !parsedTasks.some((task) => task.id === seedTask.id)
+        ),
       ];
-
       localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(mergedTasks));
       return mergedTasks;
     }
-
     localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(mockTasks));
     return mockTasks;
   });
   const [newTask, setNewTask] = useState(emptyNewTask);
 
+  // ── Highlight state & observer ─────────────────────────────────────────
+  const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
+  const seenThisSession = useRef<Set<string>>(new Set());
+  const observedElements = useRef<Set<string>>(new Set());
+  const observerRef = useRef<IntersectionObserver | null>(null);
+
+  // Keep a ref in sync so cleanup never reads stale state
+  const highlightedIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    highlightedIdsRef.current = highlightedIds;
+  }, [highlightedIds]);
+
+  // On mount: determine which HIGHLIGHTED_IDS are still unseen
+  useEffect(() => {
+    const unseen = new Set(
+      HIGHLIGHTED_IDS.filter((id) => !viewedSiteEngineerCards.has(id))
+    );
+    setHighlightedIds(unseen);
+    publishBadgeCount(unseen.size);
+  }, []);
+
+  // IntersectionObserver – mark cards as “seen” when ≥70% visible
+  useEffect(() => {
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+      observedElements.current.clear();
+    }
+
+    if (highlightedIds.size === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const id = (entry.target as HTMLElement).dataset.highlightedId;
+          if (!id || !highlightedIds.has(id)) return;
+
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.7) {
+            if (!observedElements.current.has(id)) {
+              observedElements.current.add(id);
+              seenThisSession.current.add(id);
+            }
+          }
+        });
+      },
+      { threshold: [0.7] }
+    );
+
+    observerRef.current = observer;
+
+    // Observe current highlighted elements
+    highlightedIds.forEach((id) => {
+      const el = document.querySelector(`[data-highlighted-id="${id}"]`);
+      if (el && !observedElements.current.has(id)) {
+        observer.observe(el);
+      }
+    });
+
+    return () => {
+      observer.disconnect();
+      observedElements.current.clear();
+    };
+  }, [highlightedIds]);
+
+  // On unmount: persist seen cards & update badge count
+  useEffect(() => {
+    return () => {
+      const idsSeen = Array.from(seenThisSession.current);
+      if (idsSeen.length > 0) {
+        idsSeen.forEach((id) => viewedSiteEngineerCards.add(id));
+
+        const remaining = new Set(
+          HIGHLIGHTED_IDS.filter((id) => !viewedSiteEngineerCards.has(id))
+        );
+        publishBadgeCount(remaining.size);
+        setHighlightedIds(remaining);
+      }
+    };
+  }, []);
+
+  // ── End highlight logic ─────────────────────────────────────────────────
+
   if (!user) return null;
 
-  let userTasks = tasks.filter(t => {
-    if (user.role === 'general_manager' || user.role === 'system_administrator') {
+  // Filter tasks for the current role
+  let userTasks = tasks.filter((t) => {
+    if (
+      user.role === 'general_manager' ||
+      user.role === 'system_administrator'
+    ) {
       return true;
     }
     if (user.role === 'site_engineer') {
@@ -83,19 +188,61 @@ export function Tasks() {
   });
 
   if (filterStatus !== 'all') {
-    userTasks = userTasks.filter(t => t.status === filterStatus);
+    userTasks = userTasks.filter((t) => t.status === filterStatus);
   }
 
+  // Sort: highlighted first, then by createdAt descending
+  const sortedUserTasks = useMemo(() => {
+    return [...userTasks].sort((a, b) => {
+      const aHL = highlightedIds.has(a.id) ? 1 : 0;
+      const bHL = highlightedIds.has(b.id) ? 1 : 0;
+      if (bHL !== aHL) return bHL - aHL;
+      return (
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+    });
+  }, [userTasks, highlightedIds]);
+
   const getProject = (projectId: string) => {
-    return mockProjects.find(p => p.id === projectId);
+    return mockProjects.find((p) => p.id === projectId);
   };
 
   const statusGroups = [
-    { status: 'pending', label: 'Pending', icon: Clock, color: 'text-gray-600', bgColor: 'bg-gray-100' },
-    { status: 'in_progress', label: 'In Progress', icon: CheckCircle, color: 'text-blue-600', bgColor: 'bg-blue-100' },
-    { status: 'completed', label: 'Completed', icon: CheckCircle, color: 'text-green-600', bgColor: 'bg-green-100' },
-    { status: 'incomplete', label: 'Incomplete', icon: AlertCircle, color: 'text-orange-600', bgColor: 'bg-orange-100' },
-    { status: 'rejected', label: 'Rejected', icon: XCircle, color: 'text-red-600', bgColor: 'bg-red-100' },
+    {
+      status: 'pending',
+      label: 'Pending',
+      icon: Clock,
+      color: 'text-gray-600',
+      bgColor: 'bg-gray-100',
+    },
+    {
+      status: 'in_progress',
+      label: 'In Progress',
+      icon: CheckCircle,
+      color: 'text-blue-600',
+      bgColor: 'bg-blue-100',
+    },
+    {
+      status: 'completed',
+      label: 'Completed',
+      icon: CheckCircle,
+      color: 'text-green-600',
+      bgColor: 'bg-green-100',
+    },
+    {
+      status: 'incomplete',
+      label: 'Incomplete',
+      icon: AlertCircle,
+      color: 'text-orange-600',
+      bgColor: 'bg-orange-100',
+    },
+    {
+      status: 'rejected',
+      label: 'Rejected',
+      icon: XCircle,
+      color: 'text-red-600',
+      bgColor: 'bg-red-100',
+    },
   ];
 
   const handleStatusChange = (taskId: string, newStatus: TaskStatus) => {
@@ -119,10 +266,11 @@ export function Tasks() {
     });
   };
 
-  const handleApproval = (taskId: string, newApprovalStatus: 'approved' | 'rejected') => {
-    if (user.role !== 'general_manager') {
-      return;
-    }
+  const handleApproval = (
+    taskId: string,
+    newApprovalStatus: 'approved' | 'rejected'
+  ) => {
+    if (user.role !== 'general_manager') return;
 
     setTasks((currentTasks) => {
       const updatedTasks = currentTasks.map((task) =>
@@ -130,10 +278,12 @@ export function Tasks() {
           ? {
               ...task,
               approvalStatus: newApprovalStatus,
-              approvalFeedback: approvalFeedback.trim() || task.approvalFeedback,
+              approvalFeedback:
+                approvalFeedback.trim() || task.approvalFeedback,
               approvedBy: user.id,
               approvedAt: new Date().toISOString(),
-              status: newApprovalStatus === 'approved' ? 'completed' : 'rejected',
+              status:
+                newApprovalStatus === 'approved' ? 'completed' : 'rejected',
             }
           : task
       );
@@ -148,26 +298,25 @@ export function Tasks() {
   };
 
   const canEditTask = (task: Task) => {
-    if (user.role === 'marketing_lead' && task.assignedTo === user.id) {
+    if (user.role === 'marketing_lead' && task.assignedTo === user.id)
       return true;
-    }
-    if (user.role === 'designer' && task.assignedTo === user.id) {
-      return true;
-    }
-    if (user.role === 'design_team_leader') {
-      return true;
-    }
-    if (user.role === 'site_engineer') {
-      return task.assignedTo === user.id;
-    }
+    if (user.role === 'designer' && task.assignedTo === user.id) return true;
+    if (user.role === 'design_team_leader') return true;
+    if (user.role === 'site_engineer') return task.assignedTo === user.id;
     return false;
   };
 
   const canApproveTask = (task: Task) => {
-    return user.role === 'general_manager' && task.assignedBy === user.id && task.assignedTo === '5' && task.approvalStatus !== 'approved';
+    return (
+      user.role === 'general_manager' &&
+      task.assignedBy === user.id &&
+      task.assignedTo === '5' &&
+      task.approvalStatus !== 'approved'
+    );
   };
 
-  const canCreateTask = user.role === 'general_manager' || user.role === 'system_administrator';
+  const canCreateTask =
+    user.role === 'general_manager' || user.role === 'system_administrator';
 
   const createTask = (event: React.FormEvent) => {
     event.preventDefault();
@@ -196,10 +345,19 @@ export function Tasks() {
 
   return (
     <div className="space-y-6">
+      {/* ── Header with new‑task count ── */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Tasks</h2>
           <p className="text-gray-600 mt-1">Manage and track your tasks</p>
+          {highlightedIds.size > 0 && (
+            <p className="mt-2 text-sm text-blue-600 flex items-center gap-2">
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-semibold">
+                {highlightedIds.size}
+              </span>
+              new {highlightedIds.size === 1 ? 'task' : 'tasks'} since your last visit
+            </p>
+          )}
         </div>
         {canCreateTask && (
           <button
@@ -212,6 +370,7 @@ export function Tasks() {
         )}
       </div>
 
+      {/* ── Status filters ── */}
       <div className="flex flex-wrap gap-2">
         <button
           onClick={() => setFilterStatus('all')}
@@ -224,7 +383,9 @@ export function Tasks() {
           All Tasks ({userTasks.length})
         </button>
         {statusGroups.map((group) => {
-          const count = userTasks.filter(t => t.status === group.status).length;
+          const count = userTasks.filter(
+            (t) => t.status === group.status
+          ).length;
           return (
             <button
               key={group.status}
@@ -241,29 +402,53 @@ export function Tasks() {
         })}
       </div>
 
+      {/* ── Task grid (sorted, highlighted) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {userTasks.map((task) => {
+        {sortedUserTasks.map((task) => {
           const project = getProject(task.projectId);
-          const isOverdue = task.deadline && new Date(task.deadline) < new Date() && task.status !== 'completed';
+          const isOverdue =
+            task.deadline &&
+            new Date(task.deadline) < new Date() &&
+            task.status !== 'completed';
           const isEditing = editingTask === task.id;
+          const isHighlighted = highlightedIds.has(task.id);
 
           return (
             <div
               key={task.id}
-              className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
+              data-highlighted-id={isHighlighted ? task.id : undefined}
+              className={[
+                'rounded-xl p-6 shadow-sm transition-all duration-300',
+                isHighlighted
+                  ? 'border-2 border-blue-400 ring-4 ring-blue-100 bg-white shadow-blue-100 shadow-sm'
+                  : 'bg-white border border-gray-200 hover:shadow-md',
+              ].join(' ')}
             >
+              {/* "New" pill */}
+              {isHighlighted && (
+                <div className="mb-3">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                    New
+                  </span>
+                </div>
+              )}
+
+              {/* Title & status badge */}
               <div className="flex items-start justify-between mb-3">
                 <h3 className="font-semibold text-lg text-gray-900 flex-1 pr-4">
                   {task.title}
                 </h3>
-                <span className={`
-                  px-2 py-1 rounded text-xs font-medium whitespace-nowrap
-                  ${task.status === 'completed' ? 'bg-green-100 text-green-700' :
-                    task.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
-                    task.status === 'incomplete' ? 'bg-orange-100 text-orange-700' :
-                    task.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                    'bg-gray-100 text-gray-700'}
-                `}>
+                <span
+                  className={`
+                    px-2 py-1 rounded text-xs font-medium whitespace-nowrap
+                    ${task.status === 'completed' ? 'bg-green-100 text-green-700' :
+                      task.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
+                      task.status === 'incomplete' ? 'bg-orange-100 text-orange-700' :
+                      task.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                      'bg-gray-100 text-gray-700'}
+                  `}
+                >
                   {task.status.replace('_', ' ')}
                 </span>
               </div>
@@ -271,45 +456,64 @@ export function Tasks() {
               <p className="text-sm text-gray-600 mb-4">{task.description}</p>
 
               <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">Instruction</p>
-                <p className="text-sm text-gray-700 mt-1">{task.instruction}</p>
+                <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">
+                  Instruction
+                </p>
+                <p className="text-sm text-gray-700 mt-1">
+                  {task.instruction}
+                </p>
               </div>
 
               {project && (
                 <div className="mb-4 p-3 bg-gray-50 rounded-lg">
                   <p className="text-xs text-gray-500">Project</p>
-                  <p className="font-medium text-gray-900 mt-1">{project.name}</p>
+                  <p className="font-medium text-gray-900 mt-1">
+                    {project.name}
+                  </p>
                 </div>
               )}
 
               {task.approvalStatus && (
-                <div className={`mb-4 p-3 rounded-lg ${
-                  task.approvalStatus === 'approved' ? 'bg-green-50 border border-green-200' :
-                  task.approvalStatus === 'rejected' ? 'bg-red-50 border border-red-200' :
-                  'bg-yellow-50 border border-yellow-200'
-                }`}>
+                <div
+                  className={`mb-4 p-3 rounded-lg ${
+                    task.approvalStatus === 'approved'
+                      ? 'bg-green-50 border border-green-200'
+                      : task.approvalStatus === 'rejected'
+                      ? 'bg-red-50 border border-red-200'
+                      : 'bg-yellow-50 border border-yellow-200'
+                  }`}
+                >
                   <div className="flex items-center gap-2 mb-2">
                     {task.approvalStatus === 'approved' ? (
                       <CheckCircle2 className="w-4 h-4 text-green-600" />
                     ) : (
                       <AlertCircle className="w-4 h-4 text-yellow-600" />
                     )}
-                    <p className={`text-sm font-medium ${
-                      task.approvalStatus === 'approved' ? 'text-green-700' :
-                      task.approvalStatus === 'rejected' ? 'text-red-700' :
-                      'text-yellow-700'
-                    }`}>
-                      {task.approvalStatus === 'approved' ? 'Approved' :
-                       task.approvalStatus === 'rejected' ? 'Rejected' :
-                       'Pending Approval'}
+                    <p
+                      className={`text-sm font-medium ${
+                        task.approvalStatus === 'approved'
+                          ? 'text-green-700'
+                          : task.approvalStatus === 'rejected'
+                          ? 'text-red-700'
+                          : 'text-yellow-700'
+                      }`}
+                    >
+                      {task.approvalStatus === 'approved'
+                        ? 'Approved'
+                        : task.approvalStatus === 'rejected'
+                        ? 'Rejected'
+                        : 'Pending Approval'}
                     </p>
                   </div>
                   {task.approvalFeedback && (
-                    <p className="text-sm text-gray-700 italic">"{task.approvalFeedback}"</p>
+                    <p className="text-sm text-gray-700 italic">
+                      "{task.approvalFeedback}"
+                    </p>
                   )}
                   {task.approvedBy && task.approvedAt && (
                     <p className="text-xs text-gray-500 mt-2">
-                      By GM on {new Date(task.approvedAt).toLocaleDateString()}
+                      By GM on{' '}
+                      {new Date(task.approvedAt).toLocaleDateString()}
                     </p>
                   )}
                 </div>
@@ -318,8 +522,13 @@ export function Tasks() {
               {canApproveTask(task) && (
                 <div className="mb-4 p-3 rounded-lg bg-indigo-50 border border-indigo-200 space-y-3">
                   <div>
-                    <p className="text-xs font-medium text-indigo-700 uppercase tracking-wide">General Manager Approval</p>
-                    <p className="text-sm text-gray-700 mt-1">Review the instruction and mark the task as approved or rejected.</p>
+                    <p className="text-xs font-medium text-indigo-700 uppercase tracking-wide">
+                      General Manager Approval
+                    </p>
+                    <p className="text-sm text-gray-700 mt-1">
+                      Review the instruction and mark the task as approved or
+                      rejected.
+                    </p>
                   </div>
                   <textarea
                     value={approvalFeedback}
@@ -352,7 +561,10 @@ export function Tasks() {
                   <p className="text-xs text-gray-500 mb-2">Attachments</p>
                   <div className="space-y-2">
                     {task.attachments.map((attachment, idx) => (
-                      <div key={idx} className="flex items-center gap-2 text-sm text-gray-700 bg-gray-50 p-2 rounded">
+                      <div
+                        key={idx}
+                        className="flex items-center gap-2 text-sm text-gray-700 bg-gray-50 p-2 rounded"
+                      >
                         <FileText className="w-4 h-4 text-gray-400" />
                         <span>{attachment}</span>
                       </div>
@@ -363,7 +575,11 @@ export function Tasks() {
 
               <div className="space-y-2 text-sm">
                 {task.deadline && (
-                  <div className={`flex items-center gap-2 ${isOverdue ? 'text-red-600' : 'text-gray-500'}`}>
+                  <div
+                    className={`flex items-center gap-2 ${
+                      isOverdue ? 'text-red-600' : 'text-gray-500'
+                    }`}
+                  >
                     <Calendar className="w-4 h-4" />
                     <span>
                       Due: {new Date(task.deadline).toLocaleDateString()}
@@ -373,7 +589,9 @@ export function Tasks() {
                 )}
                 <div className="flex items-center gap-2 text-gray-500">
                   <Clock className="w-4 h-4" />
-                  <span>Created: {new Date(task.createdAt).toLocaleDateString()}</span>
+                  <span>
+                    Created: {new Date(task.createdAt).toLocaleDateString()}
+                  </span>
                 </div>
               </div>
 
@@ -387,7 +605,12 @@ export function Tasks() {
                         </label>
                         <select
                           defaultValue={task.status}
-                          onChange={(e) => handleStatusChange(task.id, e.target.value as TaskStatus)}
+                          onChange={(e) =>
+                            handleStatusChange(
+                              task.id,
+                              e.target.value as TaskStatus
+                            )
+                          }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                         >
                           <option value="pending">Pending</option>
@@ -402,7 +625,9 @@ export function Tasks() {
                         </label>
                         <textarea
                           defaultValue={task.description}
-                          onChange={(e) => handleUpdateDescription(task.id, e.target.value)}
+                          onChange={(e) =>
+                            handleUpdateDescription(task.id, e.target.value)
+                          }
                           rows={3}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                           placeholder="Add description..."
@@ -462,6 +687,8 @@ export function Tasks() {
           <div className="bg-white rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-semibold mb-4">Create New Task</h3>
             <form className="space-y-4" onSubmit={createTask}>
+              {/* … (create task form remains exactly as before) … */}
+              {/* (I've kept the form identical to your original) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Task Title
@@ -469,7 +696,9 @@ export function Tasks() {
                 <input
                   type="text"
                   value={newTask.title}
-                  onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                  onChange={(e) =>
+                    setNewTask({ ...newTask, title: e.target.value })
+                  }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Enter task title"
                   required
@@ -482,7 +711,9 @@ export function Tasks() {
                 <textarea
                   rows={4}
                   value={newTask.description}
-                  onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+                  onChange={(e) =>
+                    setNewTask({ ...newTask, description: e.target.value })
+                  }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Enter task description"
                   required
@@ -495,7 +726,9 @@ export function Tasks() {
                 <textarea
                   rows={4}
                   value={newTask.instruction}
-                  onChange={(e) => setNewTask({ ...newTask, instruction: e.target.value })}
+                  onChange={(e) =>
+                    setNewTask({ ...newTask, instruction: e.target.value })
+                  }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="State what data needs to be collected or measured"
                   required
@@ -507,13 +740,17 @@ export function Tasks() {
                 </label>
                 <select
                   value={newTask.projectId}
-                  onChange={(e) => setNewTask({ ...newTask, projectId: e.target.value })}
+                  onChange={(e) =>
+                    setNewTask({ ...newTask, projectId: e.target.value })
+                  }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 >
                   <option value="">Select project</option>
-                  {mockProjects.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
+                  {mockProjects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -524,7 +761,9 @@ export function Tasks() {
                 <input
                   type="date"
                   value={newTask.deadline}
-                  onChange={(e) => setNewTask({ ...newTask, deadline: e.target.value })}
+                  onChange={(e) =>
+                    setNewTask({ ...newTask, deadline: e.target.value })
+                  }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
