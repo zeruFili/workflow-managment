@@ -1,0 +1,2621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workflow Management System — Backend Architecture</title>
+    <style>
+        :root {
+            --primary: #0d7c3b;
+            --primary-dark: #065f2c;
+            --primary-light: #e6f4ec;
+            --primary-50: #f0faf4;
+            --primary-100: #daf5e4;
+            --primary-200: #b5ebcc;
+            --primary-300: #7ddba8;
+            --primary-400: #3dc67d;
+            --primary-500: #10b981;
+            --primary-600: #0d8c5e;
+            --primary-700: #0d7c3b;
+            --primary-800: #065f2c;
+            --primary-900: #054720;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+            --white: #ffffff;
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+            --shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+            --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05);
+            --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.1), 0 10px 10px rgba(0, 0, 0, 0.04);
+            --radius-sm: 6px;
+            --radius: 8px;
+            --radius-lg: 12px;
+            --radius-xl: 16px;
+            --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Consolas', monospace;
+            --sidebar-width: 280px;
+            --header-height: 64px;
+            --max-content-width: 1100px;
+            --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            scroll-behavior: smooth;
+            scroll-padding-top: calc(var(--header-height) + 24px);
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--gray-50);
+            color: var(--gray-800);
+            line-height: 1.7;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            min-height: 100vh;
+        }
+
+        /* ─── HEADER ─────────────────────────── */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--white);
+            border-bottom: 1px solid var(--gray-200);
+            height: var(--header-height);
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            gap: 16px;
+            box-shadow: var(--shadow-sm);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            background: rgba(255, 255, 255, 0.95);
+        }
+        .header-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--primary-700);
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        .header-logo .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--primary-700);
+            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+        .header-badge {
+            font-size: 0.7rem;
+            background: var(--primary-100);
+            color: var(--primary-700);
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-weight: 600;
+            letter-spacing: 0.4px;
+            white-space: nowrap;
+        }
+        .mobile-menu-btn {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--gray-700);
+            padding: 6px;
+            border-radius: var(--radius-sm);
+            margin-left: auto;
+        }
+        .mobile-menu-btn:hover {
+            background: var(--gray-100);
+        }
+
+        /* ─── LAYOUT ─────────────────────────── */
+        .app-layout {
+            display: flex;
+            min-height: calc(100vh - var(--header-height));
+        }
+        .sidebar {
+            width: var(--sidebar-width);
+            flex-shrink: 0;
+            position: sticky;
+            top: var(--header-height);
+            height: calc(100vh - var(--header-height));
+            overflow-y: auto;
+            background: var(--white);
+            border-right: 1px solid var(--gray-200);
+            padding: 20px 12px 40px 16px;
+            z-index: 50;
+            transition: transform var(--transition);
+        }
+        .sidebar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .sidebar::-webkit-scrollbar-thumb {
+            background: var(--gray-300);
+            border-radius: 4px;
+        }
+        .sidebar-nav {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .sidebar-nav li a {
+            display: block;
+            padding: 7px 12px;
+            border-radius: var(--radius-sm);
+            text-decoration: none;
+            color: var(--gray-600);
+            font-size: 0.875rem;
+            transition: all var(--transition);
+            border-left: 3px solid transparent;
+            line-height: 1.4;
+        }
+        .sidebar-nav li a:hover {
+            background: var(--primary-50);
+            color: var(--primary-700);
+            border-left-color: var(--primary-300);
+        }
+        .sidebar-nav li a.active {
+            background: var(--primary-50);
+            color: var(--primary-700);
+            font-weight: 600;
+            border-left-color: var(--primary-600);
+        }
+        .sidebar-nav .nav-section {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: var(--gray-400);
+            padding: 16px 12px 6px;
+            font-weight: 700;
+        }
+        .sidebar-nav .nav-section:first-child {
+            padding-top: 4px;
+        }
+
+        .main-content {
+            flex: 1;
+            min-width: 0;
+            padding: 32px 40px 80px;
+            max-width: var(--max-content-width);
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* ─── HERO ──────────────────────────── */
+        .hero {
+            background: linear-gradient(135deg, #f0faf4 0%, #e6f4ec 30%, #daf5e4 60%, #f0faf4 100%);
+            border-radius: var(--radius-xl);
+            padding: 48px 40px;
+            margin-bottom: 32px;
+            border: 1px solid var(--primary-200);
+            position: relative;
+            overflow: hidden;
+        }
+        .hero::after {
+            content: '';
+            position: absolute;
+            top: -60px;
+            right: -40px;
+            width: 200px;
+            height: 200px;
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+        .hero h1 {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: var(--primary-900);
+            letter-spacing: -0.5px;
+            margin-bottom: 8px;
+            position: relative;
+            z-index: 1;
+        }
+        .hero .hero-subtitle {
+            font-size: 1rem;
+            color: var(--gray-600);
+            margin-bottom: 16px;
+            position: relative;
+            z-index: 1;
+            max-width: 600px;
+        }
+        .hero-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            position: relative;
+            z-index: 1;
+        }
+        .hero-meta span {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            color: var(--gray-700);
+            font-weight: 500;
+        }
+        .hero-meta .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--primary-500);
+            flex-shrink: 0;
+        }
+
+        /* ─── STATS DASHBOARD ───────────────── */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 36px;
+        }
+        .stat-card {
+            background: var(--white);
+            border-radius: var(--radius-lg);
+            padding: 20px 18px;
+            border: 1px solid var(--gray-200);
+            box-shadow: var(--shadow-sm);
+            transition: all var(--transition);
+            text-align: center;
+        }
+        .stat-card:hover {
+            box-shadow: var(--shadow-md);
+            border-color: var(--primary-200);
+            transform: translateY(-2px);
+        }
+        .stat-card .stat-icon {
+            font-size: 1.6rem;
+            margin-bottom: 6px;
+        }
+        .stat-card .stat-value {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--primary-700);
+            letter-spacing: -0.5px;
+            line-height: 1;
+        }
+        .stat-card .stat-label {
+            font-size: 0.78rem;
+            color: var(--gray-500);
+            margin-top: 4px;
+            font-weight: 500;
+        }
+
+        /* ─── SECTION STYLES ────────────────── */
+        .content-section {
+            margin-bottom: 40px;
+            scroll-margin-top: calc(var(--header-height) + 20px);
+        }
+        .content-section h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin-bottom: 8px;
+            letter-spacing: -0.3px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .content-section h2 .section-icon {
+            width: 32px;
+            height: 32px;
+            background: var(--primary-100);
+            border-radius: var(--radius-sm);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+        .content-section h3 {
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: var(--gray-800);
+            margin: 24px 0 10px;
+        }
+        .content-section p {
+            color: var(--gray-600);
+            margin-bottom: 12px;
+            font-size: 0.95rem;
+        }
+        .section-divider {
+            border: none;
+            border-top: 1px solid var(--gray-200);
+            margin: 28px 0;
+        }
+
+        /* ─── CARDS ─────────────────────────── */
+        .card {
+            background: var(--white);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--gray-200);
+            padding: 20px 24px;
+            margin-bottom: 16px;
+            box-shadow: var(--shadow-sm);
+            transition: all var(--transition);
+        }
+        .card:hover {
+            box-shadow: var(--shadow-md);
+        }
+        .card-header {
+            font-weight: 600;
+            font-size: 1rem;
+            color: var(--gray-900);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* ─── ROLE CARDS ────────────────────── */
+        .role-cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 16px;
+            margin: 16px 0;
+        }
+        .role-card {
+            background: var(--white);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--gray-200);
+            padding: 20px;
+            box-shadow: var(--shadow-sm);
+            transition: all var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+        .role-card:hover {
+            box-shadow: var(--shadow-lg);
+            border-color: var(--primary-300);
+            transform: translateY(-3px);
+        }
+        .role-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--primary-500);
+            border-radius: 0 3px 3px 0;
+        }
+        .role-card .role-code {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            background: var(--primary-100);
+            color: var(--primary-700);
+            padding: 3px 8px;
+            border-radius: 4px;
+            display: inline-block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+        .role-card .role-name {
+            font-weight: 700;
+            font-size: 1rem;
+            color: var(--gray-900);
+            margin-bottom: 4px;
+        }
+        .role-card .role-summary {
+            font-size: 0.82rem;
+            color: var(--gray-500);
+            line-height: 1.5;
+        }
+
+        /* ─── BADGES ────────────────────────── */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            white-space: nowrap;
+        }
+        .badge-green {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .badge-blue {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        .badge-orange {
+            background: #fff7ed;
+            color: #9a3412;
+        }
+        .badge-purple {
+            background: #f3e8ff;
+            color: #6b21a8;
+        }
+        .badge-red {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .badge-gray {
+            background: #f3f4f6;
+            color: #4b5563;
+        }
+        .badge-teal {
+            background: #ccfbf1;
+            color: #134e4a;
+        }
+        .method-badge {
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        .method-get {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+        .method-post {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .method-put {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        .method-patch {
+            background: #f3e8ff;
+            color: #6b21a8;
+        }
+        .method-delete {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        /* ─── TABLES ────────────────────────── */
+        .table-wrapper {
+            overflow-x: auto;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--gray-200);
+            box-shadow: var(--shadow-sm);
+            margin: 16px 0;
+            background: var(--white);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+        }
+        table thead {
+            background: var(--gray-50);
+            position: sticky;
+            top: 0;
+        }
+        table th {
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 700;
+            color: var(--gray-700);
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid var(--gray-200);
+            white-space: nowrap;
+        }
+        table td {
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--gray-100);
+            color: var(--gray-700);
+            vertical-align: top;
+        }
+        table tbody tr:hover {
+            background: var(--primary-50);
+        }
+        table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        .table-code {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            background: var(--gray-100);
+            padding: 2px 7px;
+            border-radius: 3px;
+            color: var(--gray-800);
+        }
+
+        /* ─── COLLAPSIBLE ──────────────────── */
+        .collapsible {
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            margin-bottom: 12px;
+            background: var(--white);
+            overflow: hidden;
+        }
+        .collapsible-summary {
+            padding: 14px 20px;
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--gray-800);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            user-select: none;
+            transition: background var(--transition);
+            gap: 12px;
+            font-size: 0.95rem;
+        }
+        .collapsible-summary:hover {
+            background: var(--gray-50);
+        }
+        .collapsible-summary::after {
+            content: '▸';
+            font-size: 0.8rem;
+            transition: transform var(--transition);
+            color: var(--gray-400);
+            flex-shrink: 0;
+        }
+        .collapsible.open .collapsible-summary::after {
+            transform: rotate(90deg);
+        }
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s ease, padding 0.4s ease;
+            padding: 0 20px;
+        }
+        .collapsible.open .collapsible-content {
+            max-height: 8000px;
+            padding: 0 20px 16px;
+        }
+
+        /* ─── WORKFLOW / TIMELINE ──────────── */
+        .workflow-container {
+            background: var(--white);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--gray-200);
+            padding: 28px 24px;
+            margin: 16px 0;
+            box-shadow: var(--shadow-sm);
+        }
+        .workflow-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: var(--gray-800);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .timeline {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: flex-start;
+            position: relative;
+        }
+        .timeline-step {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--primary-50);
+            border: 1px solid var(--primary-200);
+            border-radius: 20px;
+            padding: 10px 16px;
+            font-size: 0.82rem;
+            font-weight: 500;
+            color: var(--primary-800);
+            white-space: nowrap;
+            transition: all var(--transition);
+        }
+        .timeline-step:hover {
+            background: var(--primary-100);
+            border-color: var(--primary-400);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-sm);
+        }
+        .timeline-arrow {
+            color: var(--primary-400);
+            font-weight: 700;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .phase-flow {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+        }
+        .phase-card {
+            background: var(--white);
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            padding: 16px;
+            text-align: center;
+            transition: all var(--transition);
+            position: relative;
+        }
+        .phase-card.current {
+            border-color: var(--primary-500);
+            background: var(--primary-50);
+            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1);
+        }
+        .phase-card .phase-num {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--primary-100);
+            color: var(--primary-700);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.85rem;
+            margin-bottom: 8px;
+        }
+        .phase-card.current .phase-num {
+            background: var(--primary-600);
+            color: #fff;
+        }
+        .phase-card .phase-name {
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: var(--gray-800);
+        }
+
+        /* ─── SEQUENCE DIAGRAM (CSS) ───────── */
+        .sequence-diagram {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 16px;
+            background: var(--gray-50);
+            border-radius: var(--radius-lg);
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            overflow-x: auto;
+        }
+        .seq-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 10px;
+            border-radius: 4px;
+            transition: background var(--transition);
+        }
+        .seq-row:hover {
+            background: var(--primary-50);
+        }
+        .seq-actor {
+            font-weight: 700;
+            color: var(--primary-700);
+            min-width: 60px;
+            text-align: center;
+            background: var(--primary-100);
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.72rem;
+        }
+        .seq-arrow {
+            color: var(--gray-400);
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+        .seq-msg {
+            color: var(--gray-700);
+            flex: 1;
+        }
+        .seq-note {
+            color: var(--gray-500);
+            font-style: italic;
+            font-size: 0.7rem;
+        }
+        .seq-alt {
+            background: #fefce8;
+            border-left: 3px solid #eab308;
+            padding: 8px 12px;
+            margin: 4px 0 4px 20px;
+            border-radius: 0 6px 6px 0;
+            font-size: 0.73rem;
+            color: #92400e;
+            font-weight: 600;
+        }
+
+        /* ─── SEARCH BAR ───────────────────── */
+        .search-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .search-input {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px 16px;
+            border: 1px solid var(--gray-300);
+            border-radius: var(--radius);
+            font-size: 0.9rem;
+            font-family: var(--font-sans);
+            transition: all var(--transition);
+            background: var(--white);
+        }
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary-500);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
+        }
+        .search-input::placeholder {
+            color: var(--gray-400);
+        }
+        .search-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-size: 0.78rem;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid var(--gray-300);
+            background: var(--white);
+            transition: all var(--transition);
+            user-select: none;
+        }
+        .search-badge:hover,
+        .search-badge.active-filter {
+            background: var(--primary-50);
+            border-color: var(--primary-400);
+            color: var(--primary-700);
+        }
+        .no-results {
+            text-align: center;
+            padding: 32px;
+            color: var(--gray-400);
+            font-style: italic;
+        }
+        .result-count {
+            font-size: 0.8rem;
+            color: var(--gray-500);
+            margin-bottom: 8px;
+        }
+
+        /* ─── PERMISSION MATRIX ────────────── */
+        .matrix-wrapper {
+            overflow-x: auto;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--gray-200);
+            box-shadow: var(--shadow-sm);
+            background: var(--white);
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .matrix-wrapper table {
+            font-size: 0.75rem;
+            min-width: 900px;
+        }
+        .matrix-wrapper th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background: var(--gray-50);
+        }
+        .matrix-wrapper th:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 3;
+            background: var(--gray-50);
+        }
+        .matrix-wrapper td:first-child {
+            position: sticky;
+            left: 0;
+            background: var(--white);
+            font-weight: 600;
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            z-index: 1;
+        }
+        .matrix-wrapper tr:hover td:first-child {
+            background: var(--primary-50);
+        }
+        .perm-yes {
+            color: #065f46;
+            font-weight: 700;
+        }
+        .perm-no {
+            color: #d1d5db;
+        }
+
+        /* ─── BACK TO TOP ──────────────────── */
+        .back-to-top {
+            position: fixed;
+            bottom: 28px;
+            right: 28px;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: var(--primary-700);
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            font-size: 1.2rem;
+            box-shadow: var(--shadow-lg);
+            transition: all var(--transition);
+            z-index: 90;
+            opacity: 0;
+            transform: translateY(20px);
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .back-to-top.visible {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+        .back-to-top:hover {
+            background: var(--primary-800);
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-xl);
+        }
+        /* ─── ERD DIAGRAM ─────────────────────── */
+.erd-card {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--gray-200);
+  padding: 24px;
+  margin: 20px 0;
+  box-shadow: var(--shadow-sm);
+}
+.erd-diagram {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: center;
+  margin-top: 16px;
+}
+.erd-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 180px;
+}
+.erd-entity {
+  background: var(--primary-50);
+  border: 2px solid var(--primary-200);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  text-align: center;
+  width: 100%;
+  transition: all var(--transition);
+  box-shadow: var(--shadow-sm);
+}
+.erd-entity:hover {
+  border-color: var(--primary-500);
+  background: var(--primary-100);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.erd-entity-name {
+  font-weight: 700;
+  color: var(--primary-800);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  display: block;
+  margin-bottom: 2px;
+}
+.erd-entity-desc {
+  font-size: 0.7rem;
+  color: var(--gray-600);
+  display: block;
+}
+.erd-arrow {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--primary-500);
+  text-align: center;
+  line-height: 1;
+  margin: 2px 0;
+}
+/* Color variations for different entity groups (optional) */
+.erd-entity--users       { border-left: 4px solid var(--primary-600); }
+.erd-entity--projects    { border-left: 4px solid #2563eb; }
+.erd-entity--customer    { border-left: 4px solid #d97706; }
+.erd-entity--paid        { border-left: 4px solid #059669; }
+.erd-entity--payment     { border-left: 4px solid #7c3aed; }
+.erd-entity--job         { border-left: 4px solid #dc2626; }
+.erd-entity--app         { border-left: 4px solid #9333ea; }
+.erd-entity--dtask       { border-left: 4px solid #0891b2; }
+.erd-entity--phase       { border-left: 4px solid #ea580c; }
+.erd-entity--tasks       { border-left: 4px solid #4f46e5; }
+.erd-entity--sub         { border-left: 4px solid #0d9488; }
+.erd-entity--feedback    { border-left: 4px solid #be123c; }
+.erd-entity--qs-task     { border-left: 4px solid #b45309; }
+.erd-entity--qs-eval     { border-left: 4px solid #4338ca; }
+.erd-entity--notif       { border-left: 4px solid #9d174d; }
+.erd-entity--reads       { border-left: 4px solid #1e40af; }
+
+@media (max-width: 768px) {
+  .erd-column {
+    min-width: 150px;
+  }
+}
+
+        /* ─── RESPONSIVE ───────────────────── */
+        @media (max-width: 1024px) {
+            .sidebar {
+                position: fixed;
+                top: var(--header-height);
+                left: 0;
+                transform: translateX(-100%);
+                z-index: 60;
+                box-shadow: var(--shadow-xl);
+                transition: transform 0.3s ease;
+                width: 280px;
+                height: calc(100vh - var(--header-height));
+            }
+            .sidebar.open {
+                transform: translateX(0);
+            }
+            .sidebar-overlay {
+                display: none;
+                position: fixed;
+                inset: 0;
+                top: var(--header-height);
+                background: rgba(0, 0, 0, 0.4);
+                z-index: 55;
+            }
+            .sidebar-overlay.open {
+                display: block;
+            }
+            .mobile-menu-btn {
+                display: block;
+            }
+            .main-content {
+                padding: 20px 16px 60px;
+            }
+            .hero {
+                padding: 28px 20px;
+            }
+            .hero h1 {
+                font-size: 1.5rem;
+            }
+            .stats-grid {
+                grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+                gap: 10px;
+            }
+            .stat-card .stat-value {
+                font-size: 1.5rem;
+            }
+            .role-cards-grid {
+                grid-template-columns: 1fr;
+            }
+            .phase-flow {
+                grid-template-columns: 1fr 1fr;
+            }
+            .timeline {
+                flex-direction: column;
+                gap: 4px;
+            }
+            .timeline-arrow {
+                transform: rotate(90deg);
+                align-self: center;
+            }
+        }
+        @media (max-width: 600px) {
+            .header {
+                padding: 0 12px;
+            }
+            .header-logo {
+                font-size: 0.9rem;
+            }
+            .header-badge {
+                display: none;
+            }
+            .hero h1 {
+                font-size: 1.3rem;
+            }
+            .hero {
+                padding: 20px 16px;
+            }
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }
+            .stat-card {
+                padding: 14px 10px;
+            }
+            .stat-card .stat-value {
+                font-size: 1.3rem;
+            }
+            .phase-flow {
+                grid-template-columns: 1fr;
+            }
+            .main-content {
+                padding: 14px 8px 50px;
+            }
+            .card {
+                padding: 14px 16px;
+            }
+            table {
+                font-size: 0.75rem;
+            }
+            table th,
+            table td {
+                padding: 8px 10px;
+            }
+        }
+
+        /* ─── PRINT ────────────────────────── */
+        @media print {
+            .sidebar,
+            .header,
+            .back-to-top,
+            .mobile-menu-btn,
+            .sidebar-overlay {
+                display: none !important;
+            }
+            .main-content {
+                max-width: 100%;
+                padding: 0;
+            }
+            .hero {
+                break-inside: avoid;
+            }
+        }
+
+        /* ─── ANIMATIONS ──────────────────── */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(16px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .animate-in {
+            animation: fadeInUp 0.5s ease forwards;
+        }
+    </style>
+</head>
+<body>
+    <!-- ─── HEADER ─────────────────────────────────── -->
+    <header class="header" role="banner">
+        <a href="#" class="header-logo" aria-label="Workflow Management System Home">
+            <span class="logo-icon">⚙</span>
+            <span>WMS Architecture</span>
+        </a>
+        <span class="header-badge">v1.0</span>
+        <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Toggle navigation menu" aria-expanded="false">
+            ☰
+        </button>
+    </header>
+
+    <!-- ─── SIDEBAR OVERLAY (mobile) ──────────────── -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- ─── LAYOUT ────────────────────────────────── -->
+    <div class="app-layout">
+        <!-- ─── SIDEBAR ───────────────────────────── -->
+        <aside class="sidebar" id="sidebar" role="navigation" aria-label="Documentation navigation">
+            <nav>
+                <ul class="sidebar-nav" id="sidebarNav">
+                    <!-- Populated by JS -->
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- ─── MAIN CONTENT ───────────────────────── -->
+        <main class="main-content" id="mainContent" role="main">
+            <!-- ─── HERO ──────────────────────────── -->
+            <section class="hero animate-in" id="hero">
+                <h1>Workflow Management System</h1>
+                <p class="hero-subtitle">
+                    A role-based operational platform for construction and design firms — orchestrating the full
+                    lifecycle from customer intake to performance evaluation.
+                </p>
+                <div class="hero-meta">
+                    <span><span class="dot"></span> 8 User Roles</span>
+                    <span>📋 67 Business Rules</span>
+                    <span>🔌 76 API Endpoints</span>
+                    <span>🗄 27 Database Tables</span>
+                    <span>🔐 JWT + RBAC</span>
+                    <span>📱 Telegram Mini App</span>
+                </div>
+            </section>
+
+            <!-- ─── STATS DASHBOARD ───────────────── -->
+            <section class="stats-grid animate-in" id="stats-dashboard" aria-label="System statistics">
+                <div class="stat-card">
+                    <div class="stat-icon">👥</div>
+                    <div class="stat-value" id="statRoles">8</div>
+                    <div class="stat-label">User Roles</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📦</div>
+                    <div class="stat-value">15</div>
+                    <div class="stat-label">Major Modules</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🔌</div>
+                    <div class="stat-value">76</div>
+                    <div class="stat-label">API Endpoints</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📏</div>
+                    <div class="stat-value">67</div>
+                    <div class="stat-label">Business Rules</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🗄</div>
+                    <div class="stat-value">27</div>
+                    <div class="stat-label">Database Tables</div>
+                </div>
+            </section>
+
+            <!-- ══════════════════════════════════════ -->
+            <!-- SECTION 1: PROJECT OVERVIEW -->
+            <!-- ══════════════════════════════════════ -->
+            <section class="content-section" id="sec-overview">
+                <h2><span class="section-icon">📋</span> 1. Project Overview</h2>
+                <div class="card">
+                    <div class="card-header">🎯 Purpose</div>
+                    <p>The Workflow Management System orchestrates the full operational lifecycle: <strong>customer intake → payment verification → project creation → task assignment → multi-phase design production → quantity/cost review → site execution → performance evaluation</strong>.</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">✅ Goals</div>
+                    <ol style="padding-left:20px;color:var(--gray-600);font-size:0.93rem;line-height:2;">
+                        <li>Single source of truth for operational data across 8 roles.</li>
+                        <li>Role-based access control (RBAC) at the API layer.</li>
+                        <li>Full audit history for every state-changing action.</li>
+                        <li>Multi-role notification with independent read-status per user.</li>
+                        <li>Gated, linear workflow progression (4-phase designer pipeline).</li>
+                        <li>REST API consumed by a Telegram Mini App frontend.</li>
+                    </ol>
+                </div>
+
+                <!-- Main Workflow Timeline -->
+                <div class="workflow-container" aria-label="Main workflow timeline">
+                    <div class="workflow-title">🔄 Main Workflow</div>
+                    <div class="timeline" style="flex-wrap:wrap;">
+                        <span class="timeline-step">📥 Customer Intake</span>
+                        <span class="timeline-arrow">→</span>
+                        <span class="timeline-step">💳 Payment Upload</span>
+                        <span class="timeline-arrow">→</span>
+                        <span class="timeline-step">✅ Payment Verification</span>
+                        <span class="timeline-arrow">→</span>
+                        <span class="timeline-step">👑 CEO Approval</span>
+                        <span class="timeline-arrow">→</span>
+                        <span class="timeline-step">🏗 Project Creation</span>
+                        <span class="timeline-arrow">→</span>
+                        <span class="timeline-step">📝 Job Posting</span>
+                        <span class="timeline-arrow">→</span>
+                        <span class="timeline-step">🎨 Designer Application</span>
+                        <span class="timeline-arrow">→</span>
+                        <span class="timeline-step">📐 Assignment</span>
+                        <span class="timeline-arrow">→</span>
+                        <span class="timeline-step">🖌 Multi-Phase Design</span>
+                        <span class="timeline-arrow">→</span>
+                        <span class="timeline-step">🔍 Phase Review</span>
+                        <span class="timeline-arrow">→</span>
+                        <span class="timeline-step">📊 QS Review</span>
+                        <span class="timeline-arrow">→</span>
+                        <span class="timeline-step">🎯 Leadership Decision</span>
+                        <span class="timeline-arrow">→</span>
+                        <span class="timeline-step">🏗 Site Execution</span>
+                        <span class="timeline-arrow">→</span>
+                        <span class="timeline-step">⭐ Performance Rating</span>
+                    </div>
+                </div>
+            </section>
+
+            <hr class="section-divider">
+
+            <!-- ══════════════════════════════════════ -->
+            <!-- SECTION 2: USER ROLES -->
+            <!-- ══════════════════════════════════════ -->
+            <section class="content-section" id="sec-roles">
+                <h2><span class="section-icon">👥</span> 2. User Roles</h2>
+                <p>Eight distinct roles power the system, each with scoped responsibilities and access.</p>
+                <div class="role-cards-grid">
+                    <div class="role-card">
+                        <span class="role-code">ceo</span>
+                        <div class="role-name">👑 Chief Executive Officer</div>
+                        <p class="role-summary">Full oversight, user management, finance decisions, escalation authority.</p>
+                    </div>
+                    <div class="role-card">
+                        <span class="role-code">general_manager</span>
+                        <div class="role-name">📋 General Manager</div>
+                        <p class="role-summary">Operational leadership, task assignment, approval review. Mirrors CEO minus audit/user CRUD.</p>
+                    </div>
+                    <div class="role-card">
+                        <span class="role-code">marketing_lead</span>
+                        <div class="role-name">📢 Marketing Lead</div>
+                        <p class="role-summary">Customer intake, paid-customer handling, clarification responses to finance.</p>
+                    </div>
+                    <div class="role-card">
+                        <span class="role-code">finance_officer</span>
+                        <div class="role-name">💰 Finance Officer</div>
+                        <p class="role-summary">Payment verification, rejection, clarification requests. Gatekeeper of the payment pipeline.</p>
+                    </div>
+                    <div class="role-card">
+                        <span class="role-code">data_collector</span>
+                        <div class="role-name">📸 Data Collector</div>
+                        <p class="role-summary">Field data capture, evidence submission for tasks.</p>
+                    </div>
+                    <div class="role-card">
+                        <span class="role-code">quantity_surveyor</span>
+                        <div class="role-name">📊 Quantity Surveyor</div>
+                        <p class="role-summary">Cost/quality evaluation of design submissions. Recommends approval or revision.</p>
+                    </div>
+                    <div class="role-card">
+                        <span class="role-code">designer</span>
+                        <div class="role-name">🎨 Designer</div>
+                        <p class="role-summary">Job applications, multi-phase design submission (Case Study → Design → Rendering → Final).</p>
+                    </div>
+                    <div class="role-card">
+                        <span class="role-code">site_engineer</span>
+                        <div class="role-name">🏗 Site Engineer</div>
+                        <p class="role-summary">Field task execution, status updates, evidence capture at construction sites.</p>
+                    </div>
+                </div>
+            </section>
+
+            <hr class="section-divider">
+
+            <!-- ══════════════════════════════════════ -->
+            <!-- SECTION 3: FUNCTIONAL REQUIREMENTS -->
+            <!-- ══════════════════════════════════════ -->
+            <section class="content-section" id="sec-requirements">
+                <h2><span class="section-icon">📜</span> 3. Functional Requirements</h2>
+                <p>Complete catalog of all functional requirements organized by role and module.</p>
+                <div class="search-bar" id="reqSearchBar">
+                    <input type="text" class="search-input" id="reqSearchInput" placeholder="🔍 Search requirements by ID, role, feature, or description...">
+                    <span class="search-badge active-filter" data-filter="all">All</span>
+                    <span class="search-badge" data-filter="AUTH">Auth</span>
+                    <span class="search-badge" data-filter="USR">Users</span>
+                    <span class="search-badge" data-filter="MKT">Marketing</span>
+                    <span class="search-badge" data-filter="FIN">Finance</span>
+                    <span class="search-badge" data-filter="CEO">CEO</span>
+                    <span class="search-badge" data-filter="GM">GM</span>
+                    <span class="search-badge" data-filter="DES">Designer</span>
+                    <span class="search-badge" data-filter="QS">QS</span>
+                    <span class="search-badge" data-filter="SE">Site Eng</span>
+                    <span class="search-badge" data-filter="DC">Data Col</span>
+                </div>
+                <div class="result-count" id="reqResultCount"></div>
+                <div class="table-wrapper" id="reqTableWrapper">
+                    <table id="reqTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Role</th>
+                                <th>Feature</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reqTableBody">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="no-results" id="reqNoResults" style="display:none;">No requirements match your search criteria.</div>
+            </section>
+
+            <hr class="section-divider">
+
+            <!-- ══════════════════════════════════════ -->
+            <!-- SECTION 4: BUSINESS RULES -->
+            <!-- ══════════════════════════════════════ -->
+            <section class="content-section" id="sec-business-rules">
+                <h2><span class="section-icon">📏</span> 4. Business Rules</h2>
+                <p>67 business rules governing every state transition, validation, and access control decision.</p>
+                <div class="search-bar">
+                    <input type="text" class="search-input" id="brSearchInput" placeholder="🔍 Search business rules by ID, category, or description...">
+                </div>
+                <div class="result-count" id="brResultCount"></div>
+                <div id="brContainer">
+                    <!-- Populated by JS -->
+                </div>
+                <div class="no-results" id="brNoResults" style="display:none;">No business rules match your search.</div>
+            </section>
+
+            <hr class="section-divider">
+
+            <!-- ══════════════════════════════════════ -->
+            <!-- SECTION 5: NOTIFICATION RULES -->
+            <!-- ══════════════════════════════════════ -->
+            <section class="content-section" id="sec-notifications">
+                <h2><span class="section-icon">🔔</span> 5. Notification Rules</h2>
+                <p>Role-targeted notifications with independent per-user read tracking.</p>
+                <div class="card">
+                    <div class="card-header">📌 Key Principles</div>
+                    <ul style="padding-left:20px;color:var(--gray-600);font-size:0.9rem;line-height:2;">
+                        <li><strong>NOT-001:</strong> Notifications are role-targeted via <code class="table-code">target_roles</code> array.</li>
+                        <li><strong>NOT-002:</strong> Read status tracked per-user — User A reading does NOT affect User B.</li>
+                        <li><strong>NOT-003:</strong> <code class="table-code">notification_reads</code> records (user_id, notification_id, read_at).</li>
+                        <li><strong>NOT-004:</strong> Mark read individually or in bulk.</li>
+                        <li><strong>NOT-005:</strong> Notification counts calculated as unread for authenticated user's role.</li>
+                    </ul>
+                </div>
+
+                <!-- Notification Event Catalog -->
+                <h3>📬 Notification Event Catalog</h3>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr><th>ID</th><th>Trigger Event</th><th>Target Roles</th><th>Triggering Req</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><span class="badge badge-teal">NOT-010</span></td><td>Payment transferred to paid pipeline</td><td><span class="badge badge-blue">finance_officer</span></td><td>MKT-006</td></tr>
+                            <tr><td><span class="badge badge-teal">NOT-011</span></td><td>Payment verified by Finance</td><td><span class="badge badge-purple">ceo</span></td><td>FIN-002</td></tr>
+                            <tr><td><span class="badge badge-teal">NOT-012</span></td><td>Payment rejected by Finance</td><td><span class="badge badge-orange">marketing_lead</span></td><td>FIN-003</td></tr>
+                            <tr><td><span class="badge badge-teal">NOT-013</span></td><td>Clarification requested by Finance</td><td><span class="badge badge-orange">marketing_lead</span></td><td>FIN-004</td></tr>
+                            <tr><td><span class="badge badge-teal">NOT-014</span></td><td>Clarification response submitted</td><td><span class="badge badge-blue">finance_officer</span></td><td>MKT-009</td></tr>
+                            <tr><td><span class="badge badge-teal">NOT-015</span></td><td>CEO approved finance record</td><td><span class="badge badge-blue">finance_officer</span>, <span class="badge badge-gray">general_manager</span></td><td>CEO-030</td></tr>
+                            <tr><td><span class="badge badge-teal">NOT-016</span></td><td>Job posting created</td><td><span class="badge badge-green">designer</span></td><td>CEO-014</td></tr>
+                            <tr><td><span class="badge badge-teal">NOT-017</span></td><td>Designer application submitted</td><td><span class="badge badge-purple">ceo</span>, <span class="badge badge-gray">general_manager</span></td><td>DES-002</td></tr>
+                            <tr><td><span class="badge badge-teal">NOT-018</span></td><td>Application reviewed (assigned/rejected)</td><td><span class="badge badge-green">designer</span> (scoped)</td><td>CEO-019</td></tr>
+                            <tr><td><span class="badge badge-teal">NOT-019</span></td><td>Designer phase submitted</td><td><span class="badge badge-purple">ceo</span>, <span class="badge badge-gray">general_manager</span></td><td>DES-005–008</td></tr>
+                            <tr><td><span class="badge badge-teal">NOT-020</span></td><td>Designer phase reviewed</td><td><span class="badge badge-green">designer</span> (scoped)</td><td>CEO-023</td></tr>
+                            <tr><td><span class="badge badge-teal">NOT-021</span></td><td>Performance review submitted</td><td><span class="badge badge-green">designer</span></td><td>CEO-024</td></tr>
+                            <tr><td><span class="badge badge-teal">NOT-022</span></td><td>Task created with assignee</td><td><span class="badge badge-gray">[assignee_role]</span></td><td>CEO-008, GM-007</td></tr>
+                            <tr><td><span class="badge badge-teal">NOT-028</span></td><td>QS task assigned</td><td><span class="badge badge-teal">quantity_surveyor</span></td><td>CEO-026</td></tr>
+                            <tr><td><span class="badge badge-teal">NOT-029</span></td><td>QS evaluation submitted</td><td><span class="badge badge-purple">ceo</span>, <span class="badge badge-gray">general_manager</span></td><td>QS-003</td></tr>
+                            <tr><td><span class="badge badge-teal">NOT-030</span></td><td>QS decision made</td><td><span class="badge badge-teal">quantity_surveyor</span></td><td>CEO-029</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <hr class="section-divider">
+
+            <!-- ══════════════════════════════════════ -->
+            <!-- SECTION 6: DATABASE DESIGN -->
+            <!-- ══════════════════════════════════════ -->
+            <section class="content-section" id="sec-database">
+                <h2><span class="section-icon">🗄</span> 6. Database Design</h2>
+                <p>27 tables with full entity-relationship mapping. Click any table to expand its schema.</p>
+
+                <h3>6.1 Entity-Relationship Summary</h3>
+                <div class="card" style="font-size:0.82rem;font-family:var(--font-mono);line-height:1.8;max-height:400px;overflow-y:auto;">
+                    <pre style="white-space:pre-wrap;color:var(--gray-700);">users ──1:N──> tasks, projects, customer_requests, paid_customers, finance_history, designer_applications, designer_phase_submissions, designer_phase_reviews, quantity_review_tasks, quantity_review_evaluations, submissions, feedbacks, notification_reads, audit_logs
+                        projects ──1:N──> tasks, documents, job_postings, approvals, designer_tasks
+                        customer_requests ──1:1──> paid_customers
+                        paid_customers ──1:N──> payment_proofs, finance_history, clarification_responses
+                        job_postings ──1:N──> designer_applications (unique: posting+applicant)
+                        designer_applications ──1:1──> designer_tasks (when assigned)
+                        designer_tasks ──1:N──> designer_phase_submissions, designer_performance_reviews
+                        designer_phase_submissions ──1:N──> designer_phase_reviews
+                        quantity_review_tasks ──1:N──> quantity_review_evaluations
+                        tasks ──1:N──> task_attachments, submissions, feedbacks
+                        notifications ──1:N──> notification_reads</pre>
+                </div>
+
+
+                
+                <h3>6.1.1 ERD design</h3>
+                <!-- ════════════════════════════════════════ -->
+<!-- 6.1 VISUAL ERD DIAGRAM                -->
+<!-- ════════════════════════════════════════ -->
+<div class="erd-card">
+  <div class="card-header">📊 Entity-Relationship Diagram</div>
+  <div class="erd-diagram">
+    <!-- Main entities arranged roughly by functional area -->
+    <div class="erd-column">
+      <div class="erd-entity erd-entity--users">
+        <span class="erd-entity-name">users</span>
+        <span class="erd-entity-desc">Core identity, role, auth</span>
+      </div>
+      <div class="erd-arrow erd-arrow-down">▼ 1:N</div>
+      <div class="erd-entity erd-entity--projects">
+        <span class="erd-entity-name">projects</span>
+        <span class="erd-entity-desc">Stages & status</span>
+      </div>
+    </div>
+
+    <div class="erd-column">
+      <div class="erd-entity erd-entity--customer">
+        <span class="erd-entity-name">customer_requests</span>
+        <span class="erd-entity-desc">Marketing intake</span>
+      </div>
+      <div class="erd-arrow erd-arrow-down">▼ 1:1</div>
+      <div class="erd-entity erd-entity--paid">
+        <span class="erd-entity-name">paid_customers</span>
+        <span class="erd-entity-desc">Payment pipeline</span>
+      </div>
+      <div class="erd-arrow erd-arrow-down">▼ 1:N</div>
+      <div class="erd-entity erd-entity--payment">
+        <span class="erd-entity-name">payment_proofs</span>
+        <span class="erd-entity-desc">+ finance_history</span>
+      </div>
+    </div>
+
+    <div class="erd-column">
+      <div class="erd-entity erd-entity--job">
+        <span class="erd-entity-name">job_postings</span>
+        <span class="erd-entity-desc">Designer hiring</span>
+      </div>
+      <div class="erd-arrow erd-arrow-down">▼ 1:N</div>
+      <div class="erd-entity erd-entity--app">
+        <span class="erd-entity-name">designer_applications</span>
+        <span class="erd-entity-desc">Unique per posting+applicant</span>
+      </div>
+      <div class="erd-arrow erd-arrow-down">▼ 1:1</div>
+      <div class="erd-entity erd-entity--dtask">
+        <span class="erd-entity-name">designer_tasks</span>
+        <span class="erd-entity-desc">4-phase workflow</span>
+      </div>
+      <div class="erd-arrow erd-arrow-down">▼ 1:N</div>
+      <div class="erd-entity erd-entity--phase">
+        <span class="erd-entity-name">designer_phase_submissions</span>
+        <span class="erd-entity-desc">+ phase_reviews</span>
+      </div>
+    </div>
+
+    <div class="erd-column">
+      <div class="erd-entity erd-entity--tasks">
+        <span class="erd-entity-name">tasks</span>
+        <span class="erd-entity-desc">General / SE / DC tasks</span>
+      </div>
+      <div class="erd-arrow erd-arrow-down">▼ 1:N</div>
+      <div class="erd-entity erd-entity--sub">
+        <span class="erd-entity-name">submissions</span>
+        <span class="erd-entity-desc">+ attachments</span>
+      </div>
+      <div class="erd-arrow erd-arrow-down">▼ 1:N</div>
+      <div class="erd-entity erd-entity--feedback">
+        <span class="erd-entity-name">feedbacks</span>
+        <span class="erd-entity-desc">Versioned comments</span>
+      </div>
+    </div>
+
+    <div class="erd-column">
+      <div class="erd-entity erd-entity--qs-task">
+        <span class="erd-entity-name">quantity_review_tasks</span>
+        <span class="erd-entity-desc">QS assignment</span>
+      </div>
+      <div class="erd-arrow erd-arrow-down">▼ 1:N</div>
+      <div class="erd-entity erd-entity--qs-eval">
+        <span class="erd-entity-name">quantity_review_evaluations</span>
+        <span class="erd-entity-desc">Cost & recommendation</span>
+      </div>
+    </div>
+
+    <div class="erd-column">
+      <div class="erd-entity erd-entity--notif">
+        <span class="erd-entity-name">notifications</span>
+        <span class="erd-entity-desc">Role‑targeted</span>
+      </div>
+      <div class="erd-arrow erd-arrow-down">▼ 1:N</div>
+      <div class="erd-entity erd-entity--reads">
+        <span class="erd-entity-name">notification_reads</span>
+        <span class="erd-entity-desc">Per‑user read status</span>
+      </div>
+    </div>
+  </div>
+  <p style="font-size:0.78rem;color:var(--gray-500);margin-top:12px;text-align:center;">
+    🔗 All entities linked to <strong>users</strong> via foreign keys. Arrows indicate cardinality.
+  </p>
+</div>
+
+                <h3>6.2 Core Table Definitions</h3>
+                <!-- Key tables as collapsible cards -->
+                <div class="collapsible" id="collapsible-users">
+                    <div class="collapsible-summary" tabindex="0" role="button" aria-expanded="false">
+                        📋 <code class="table-code">users</code> — Core user table with 8 roles
+                    </div>
+                    <div class="collapsible-content">
+                        <div class="table-wrapper">
+                            <table>
+                                <thead><tr><th>Column</th><th>Type</th><th>Constraints</th></tr></thead>
+                                <tbody>
+                                    <tr><td>id</td><td>UUID</td><td>PK, DEFAULT gen_random_uuid()</td></tr>
+                                    <tr><td>username</td><td>VARCHAR(100)</td><td>UNIQUE, NOT NULL</td></tr>
+                                    <tr><td>name</td><td>VARCHAR(255)</td><td>NOT NULL</td></tr>
+                                    <tr><td>email</td><td>VARCHAR(255)</td><td>UNIQUE, NOT NULL</td></tr>
+                                    <tr><td>password_hash</td><td>VARCHAR(255)</td><td>NOT NULL</td></tr>
+                                    <tr><td>role</td><td>VARCHAR(50)</td><td>NOT NULL, CHECK IN (8 roles)</td></tr>
+                                    <tr><td>status</td><td>VARCHAR(20)</td><td>DEFAULT 'active', CHECK IN ('active','inactive','deleted')</td></tr>
+                                    <tr><td>created_at / updated_at</td><td>TIMESTAMPTZ</td><td>NOT NULL DEFAULT NOW()</td></tr>
+                                    <tr><td>deleted_at</td><td>TIMESTAMPTZ</td><td>NULLABLE</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="collapsible" id="collapsible-projects">
+                    <div class="collapsible-summary" tabindex="0" role="button" aria-expanded="false">
+                        📁 <code class="table-code">projects</code> — Project management with stage tracking
+                    </div>
+                    <div class="collapsible-content">
+                        <div class="table-wrapper">
+                            <table>
+                                <thead><tr><th>Column</th><th>Type</th><th>Constraints</th></tr></thead>
+                                <tbody>
+                                    <tr><td>id</td><td>VARCHAR(50)</td><td>PK (format: proj-{n})</td></tr>
+                                    <tr><td>name</td><td>VARCHAR(255)</td><td>NOT NULL</td></tr>
+                                    <tr><td>client_name</td><td>VARCHAR(255)</td><td>NOT NULL</td></tr>
+                                    <tr><td>stage</td><td>VARCHAR(50)</td><td>CHECK IN ('lead','design','approval','execution','completed')</td></tr>
+                                    <tr><td>status</td><td>VARCHAR(20)</td><td>DEFAULT 'active', CHECK IN ('active','on_hold','completed')</td></tr>
+                                    <tr><td>deadline</td><td>TIMESTAMPTZ</td><td>NULLABLE</td></tr>
+                                    <tr><td>created_by / assigned_to</td><td>UUID</td><td>FK → users(id)</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="collapsible" id="collapsible-paid-customers">
+                    <div class="collapsible-summary" tabindex="0" role="button" aria-expanded="false">
+                        💳 <code class="table-code">paid_customers</code> — Payment verification pipeline
+                    </div>
+                    <div class="collapsible-content">
+                        <div class="table-wrapper">
+                            <table>
+                                <thead><tr><th>Column</th><th>Type</th><th>Constraints</th></tr></thead>
+                                <tbody>
+                                    <tr><td>id</td><td>VARCHAR(50)</td><td>PK (format: paid-{n})</td></tr>
+                                    <tr><td>source_request_id</td><td>VARCHAR(50)</td><td>FK → customer_requests(id), UNIQUE</td></tr>
+                                    <tr><td>payment_verification_status</td><td>VARCHAR(30)</td><td>DEFAULT 'pending', CHECK IN ('pending','verified','approved','rejected','request_clarification')</td></tr>
+                                    <tr><td>payment_verified_by</td><td>UUID</td><td>FK → users(id), NULLABLE</td></tr>
+                                    <tr><td>transferred_by</td><td>UUID</td><td>FK → users(id), NOT NULL</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="collapsible" id="collapsible-designer-tasks">
+                    <div class="collapsible-summary" tabindex="0" role="button" aria-expanded="false">
+                        🎨 <code class="table-code">designer_tasks</code> — Multi-phase design workflow
+                    </div>
+                    <div class="collapsible-content">
+                        <div class="table-wrapper">
+                            <table>
+                                <thead><tr><th>Column</th><th>Type</th><th>Constraints</th></tr></thead>
+                                <tbody>
+                                    <tr><td>id</td><td>VARCHAR(50)</td><td>PK (format: dtask-{n})</td></tr>
+                                    <tr><td>project_id</td><td>VARCHAR(50)</td><td>FK → projects(id)</td></tr>
+                                    <tr><td>story_points</td><td>INTEGER</td><td>CHECK (>0)</td></tr>
+                                    <tr><td>assigned_to</td><td>UUID</td><td>FK → users(id)</td></tr>
+                                    <tr><td>current_phase</td><td>VARCHAR(20)</td><td>CHECK IN ('case_study','design_stage','rendering','final_stage')</td></tr>
+                                    <tr><td>approval_status</td><td>VARCHAR(20)</td><td>NULLABLE</td></tr>
+                                    <tr><td>application_id</td><td>VARCHAR(50)</td><td>FK → designer_applications(id)</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="collapsible" id="collapsible-qs">
+                    <div class="collapsible-summary" tabindex="0" role="button" aria-expanded="false">
+                        📊 <code class="table-code">quantity_review_tasks</code> & <code class="table-code">quantity_review_evaluations</code> — QS workflow
+                    </div>
+                    <div class="collapsible-content">
+                        <p style="font-size:0.85rem;color:var(--gray-600);"><strong>quantity_review_tasks:</strong> PK id (qs-review-{n}), job_id, design_work_reference, status CHECK IN ('pending_review','in_review','record_submitted'), assigned_to FK→users, submission_history JSONB.</p>
+                        <p style="font-size:0.85rem;color:var(--gray-600);"><strong>quantity_review_evaluations:</strong> PK id (qs-eval-{n}), task_id FK, design_cost_value DECIMAL(12,2) CHECK (>=0), recommendation CHECK IN ('recommended_for_approval','recommends_revision'), decision_status CHECK IN ('pending','approved','feedback').</p>
+                    </div>
+                </div>
+
+                <div class="collapsible" id="collapsible-notifications">
+                    <div class="collapsible-summary" tabindex="0" role="button" aria-expanded="false">
+                        🔔 <code class="table-code">notifications</code> & <code class="table-code">notification_reads</code> — Per-user read tracking
+                    </div>
+                    <div class="collapsible-content">
+                        <p style="font-size:0.85rem;color:var(--gray-600);"><strong>notifications:</strong> PK id, type, message, target_roles VARCHAR(50)[] (GIN indexed), entity_id, created_at.</p>
+                        <p style="font-size:0.85rem;color:var(--gray-600);"><strong>notification_reads:</strong> PK id UUID, notification_id FK, user_id FK, read_at TIMESTAMPTZ. UNIQUE(notification_id, user_id).</p>
+                    </div>
+                </div>
+
+                <div class="collapsible" id="collapsible-audit">
+                    <div class="collapsible-summary" tabindex="0" role="button" aria-expanded="false">
+                        📝 <code class="table-code">audit_logs</code> — Immutable audit trail
+                    </div>
+                    <div class="collapsible-content">
+                        <div class="table-wrapper">
+                            <table>
+                                <thead><tr><th>Column</th><th>Type</th><th>Constraints</th></tr></thead>
+                                <tbody>
+                                    <tr><td>id</td><td>BIGSERIAL</td><td>PK</td></tr>
+                                    <tr><td>entity_type / entity_id</td><td>VARCHAR(50)</td><td>NOT NULL</td></tr>
+                                    <tr><td>action</td><td>VARCHAR(50)</td><td>NOT NULL</td></tr>
+                                    <tr><td>actor_id</td><td>UUID</td><td>FK → users(id)</td></tr>
+                                    <tr><td>old_values / new_values</td><td>JSONB</td><td>NULLABLE</td></tr>
+                                    <tr><td>created_at</td><td>TIMESTAMPTZ</td><td>DEFAULT NOW()</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p style="font-size:0.8rem;color:var(--gray-500);">Indexes: (entity_type, entity_id), (actor_id), (action), (created_at). Partition by month recommended.</p>
+                    </div>
+                </div>
+                <p style="font-size:0.8rem;color:var(--gray-500);margin-top:8px;">Additional tables: <code class="table-code">refresh_tokens</code>, <code class="table-code">customer_requests</code>, <code class="table-code">payment_proofs</code>, <code class="table-code">finance_history</code>, <code class="table-code">clarification_responses</code>, <code class="table-code">clarification_attachments</code>, <code class="table-code">tasks</code>, <code class="table-code">task_attachments</code>, <code class="table-code">submissions</code>, <code class="table-code">feedbacks</code>, <code class="table-code">submission_attachments</code>, <code class="table-code">job_postings</code>, <code class="table-code">designer_applications</code>, <code class="table-code">designer_phase_submissions</code>, <code class="table-code">designer_phase_reviews</code>, <code class="table-code">designer_performance_reviews</code>, <code class="table-code">approvals</code>, <code class="table-code">documents</code>.</p>
+            </section>
+
+            <hr class="section-divider">
+
+            <!-- ══════════════════════════════════════ -->
+            <!-- SECTION 7: API ENDPOINTS -->
+            <!-- ══════════════════════════════════════ -->
+            <section class="content-section" id="sec-api">
+                <h2><span class="section-icon">🔌</span> 7. API Endpoints</h2>
+                <p>Complete REST API with JWT Bearer authentication and role-based access control.</p>
+                <div class="search-bar" id="apiSearchBar">
+                    <input type="text" class="search-input" id="apiSearchInput" placeholder="🔍 Search endpoints by URL, method, role, or requirement ID...">
+                    <span class="search-badge active-filter" data-filter="all">All</span>
+                    <span class="search-badge" data-filter="GET">GET</span>
+                    <span class="search-badge" data-filter="POST">POST</span>
+                    <span class="search-badge" data-filter="PUT">PUT</span>
+                    <span class="search-badge" data-filter="PATCH">PATCH</span>
+                    <span class="search-badge" data-filter="DELETE">DELETE</span>
+                </div>
+                <div class="result-count" id="apiResultCount"></div>
+                <div class="table-wrapper" id="apiTableWrapper">
+                    <table id="apiTable">
+                        <thead>
+                            <tr><th>Method</th><th>URL</th><th>Req ID</th><th>Roles</th><th>Auth</th></tr>
+                        </thead>
+                        <tbody id="apiTableBody">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="no-results" id="apiNoResults" style="display:none;">No API endpoints match your search criteria.</div>
+            </section>
+
+            <hr class="section-divider">
+
+            <!-- ══════════════════════════════════════ -->
+            <!-- SECTION 8: WORKFLOW DIAGRAMS -->
+            <!-- ══════════════════════════════════════ -->
+            <section class="content-section" id="sec-workflows">
+                <h2><span class="section-icon">🔄</span> 8. Workflow Diagrams</h2>
+
+                <!-- Designer Multi-Phase State Machine -->
+                <div class="workflow-container" aria-label="Designer multi-phase workflow">
+                    <div class="workflow-title">🎨 Designer Multi-Phase Workflow (State Machine)</div>
+                    <div class="phase-flow">
+                        <div class="phase-card current">
+                            <div class="phase-num">1</div>
+                            <div class="phase-name">Case Study</div>
+                            <p style="font-size:0.7rem;color:var(--gray-500);">Submit → Review → Approve/Feedback/Reject</p>
+                        </div>
+                        <div class="phase-card">
+                            <div class="phase-num">2</div>
+                            <div class="phase-name">Design Stage</div>
+                            <p style="font-size:0.7rem;color:var(--gray-500);">Requires Phase 1 approved</p>
+                        </div>
+                        <div class="phase-card">
+                            <div class="phase-num">3</div>
+                            <div class="phase-name">Rendering</div>
+                            <p style="font-size:0.7rem;color:var(--gray-500);">Requires Phase 2 approved</p>
+                        </div>
+                        <div class="phase-card">
+                            <div class="phase-num">4</div>
+                            <div class="phase-name">Final Stage</div>
+                            <p style="font-size:0.7rem;color:var(--gray-500);">Mandatory screenshot • Task Complete</p>
+                        </div>
+                    </div>
+                    <p style="font-size:0.78rem;color:var(--gray-500);margin-top:12px;">
+                        <strong>Rules:</strong> Strictly sequential. Feedback → revision required. Rejection → task locked. All 4 approved → task completed.
+                    </p>
+                </div>
+
+                <!-- Payment Verification Flow -->
+                <div class="workflow-container" aria-label="Payment verification flow">
+                    <div class="workflow-title">💳 Marketing → Finance Payment Verification</div>
+                    <div class="sequence-diagram">
+                        <div class="seq-row"><span class="seq-actor">Marketing</span><span class="seq-arrow">→</span><span class="seq-msg">Create Customer Request (MKT-001)</span></div>
+                        <div class="seq-row"><span class="seq-actor">Marketing</span><span class="seq-arrow">→</span><span class="seq-msg">Transfer to Paid + Proof Files (MKT-006)</span></div>
+                        <div class="seq-note" style="margin-left:30px;">status = pending • NOT-010 → Finance</div>
+                        <div class="seq-row"><span class="seq-actor">Finance</span><span class="seq-arrow">→</span><span class="seq-msg">List Verifications (FIN-001) → Get Detail (FIN-005)</span></div>
+                        <div class="seq-alt">🔀 Verify: status=verified → NOT-011 → CEO → CEO Approve (CEO-030) → status=approved → NOT-015</div>
+                        <div class="seq-alt">🔀 Reject: status=rejected → NOT-012 → Marketing notified</div>
+                        <div class="seq-alt">🔀 Clarify: status=request_clarification → NOT-013 → Marketing responds (MKT-009) → NOT-014 → Finance</div>
+                    </div>
+                </div>
+
+                <!-- QS Review Cycle -->
+                <div class="workflow-container" aria-label="Quantity surveyor review cycle">
+                    <div class="workflow-title">📊 Quantity Surveyor Review Cycle</div>
+                    <div class="sequence-diagram">
+                        <div class="seq-row"><span class="seq-actor">Leadership</span><span class="seq-arrow">→</span><span class="seq-msg">Forward for QS Review (CEO-026)</span></div>
+                        <div class="seq-note" style="margin-left:30px;">status = pending_review • NOT-028 (task_assigned) → QS</div>
+                        <div class="seq-row"><span class="seq-actor">QS</span><span class="seq-arrow">→</span><span class="seq-msg">Mark In Review (QS-002) → status=in_review</span></div>
+                        <div class="seq-row"><span class="seq-actor">QS</span><span class="seq-arrow">→</span><span class="seq-msg">Submit Evaluation (QS-003) → status=record_submitted</span></div>
+                        <div class="seq-note" style="margin-left:30px;">NOT-029 (evaluation_submitted) → CEO/GM</div>
+                        <div class="seq-row"><span class="seq-actor">Leadership</span><span class="seq-arrow">→</span><span class="seq-msg">Decision: approved or feedback (CEO-029)</span></div>
+                        <div class="seq-note" style="margin-left:30px;">NOT-030 (decision_made) → QS</div>
+                    </div>
+                </div>
+
+                <!-- Notification Independent Read -->
+                <div class="workflow-container" aria-label="Notification independent read flow">
+                    <div class="workflow-title">🔔 Notification Independent Read Flow</div>
+                    <div class="sequence-diagram">
+                        <div class="seq-note">Notification created with target_roles=['ceo']</div>
+                        <div class="seq-row"><span class="seq-actor">CEO (User A)</span><span class="seq-arrow">→</span><span class="seq-msg">GET /api/notifications → unread=true</span></div>
+                        <div class="seq-row"><span class="seq-actor">CEO (User B)</span><span class="seq-arrow">→</span><span class="seq-msg">GET /api/notifications → unread=true (independent!)</span></div>
+                        <div class="seq-row"><span class="seq-actor">CEO (User A)</span><span class="seq-arrow">→</span><span class="seq-msg">PATCH mark read → INSERT notification_read (A)</span></div>
+                        <div class="seq-row"><span class="seq-actor">CEO (User B)</span><span class="seq-arrow">→</span><span class="seq-msg">GET /api/notifications → STILL unread=true ✓</span></div>
+                    </div>
+                </div>
+            </section>
+
+            <hr class="section-divider">
+
+            <!-- ══════════════════════════════════════ -->
+            <!-- SECTION 9: PERMISSION MATRIX -->
+            <!-- ══════════════════════════════════════ -->
+            <section class="content-section" id="sec-permissions">
+                <h2><span class="section-icon">🔐</span> 9. Permission Matrix</h2>
+                <p>Role-based access control across all functional requirements. <strong>Legend:</strong> C=Create, R=Read, U=Update, D=Delete, — =No Access.</p>
+                <div class="matrix-wrapper">
+                    <table id="permMatrix">
+                        <thead>
+                            <tr><th>Req ID</th><th>CEO</th><th>GM</th><th>Marketing</th><th>Finance</th><th>QS</th><th>Designer</th><th>SE</th><th>DC</th></tr>
+                        </thead>
+                        <tbody id="permMatrixBody">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <hr class="section-divider">
+
+            <!-- ══════════════════════════════════════ -->
+            <!-- SECTION 10: NON-FUNCTIONAL REQUIREMENTS -->
+            <!-- ══════════════════════════════════════ -->
+            <section class="content-section" id="sec-nfr">
+                <h2><span class="section-icon">⚡</span> 10. Non-Functional Requirements</h2>
+                <div class="card">
+                    <div class="card-header">🔒 Security (NFR-SEC)</div>
+                    <ul style="padding-left:20px;color:var(--gray-600);font-size:0.88rem;line-height:1.9;">
+                        <li>JWT Bearer on all endpoints (except login/refresh). Access token: 15 min. Refresh: 7 days hashed.</li>
+                        <li>RBAC middleware validates role before business logic.</li>
+                        <li>Passwords: bcrypt (cost≥12) or argon2id. Never log plaintext.</li>
+                        <li>Input sanitized — parameterized queries only. File uploads validated MIME + max 10MB.</li>
+                        <li>Rate limiting: 5 login attempts/IP/minute. Security headers enforced.</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <div class="card-header">📊 Performance (NFR-PERF)</div>
+                    <ul style="padding-left:20px;color:var(--gray-600);font-size:0.88rem;line-height:1.9;">
+                        <li>Pagination on all list endpoints (page, perPage; default 20, max 100).</li>
+                        <li>95th percentile: &lt;500ms reads, &lt;1000ms writes.</li>
+                        <li>Indexes on all FKs and filter columns. Streaming for file upload/download.</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <div class="card-header">📝 Logging & Audit (NFR-LOG)</div>
+                    <ul style="padding-left:20px;color:var(--gray-600);font-size:0.88rem;line-height:1.9;">
+                        <li>Every state change logged: entity, ID, action, actor, timestamp, old/new values (JSONB).</li>
+                        <li>Audit logs append-only. Only CEO views. No passwords/tokens in logs.</li>
+                    </ul>
+                </div>
+            </section>
+
+            <hr class="section-divider">
+
+            <!-- ══════════════════════════════════════ -->
+            <!-- SECTION 11: ASSUMPTIONS & RECOMMENDATIONS -->
+            <!-- ══════════════════════════════════════ -->
+            <section class="content-section" id="sec-assumptions">
+                <h2><span class="section-icon">💡</span> 11. Assumptions & Recommendations</h2>
+                <div class="card">
+                    <div class="card-header">📌 Key Assumptions</div>
+                    <ol style="padding-left:20px;color:var(--gray-600);font-size:0.88rem;line-height:1.9;">
+                        <li>JWT Bearer with role claims. Frontend currently uses mock auth.</li>
+                        <li>Single-tenant deployment. No tenant isolation needed.</li>
+                        <li>In-app notifications only; no email infrastructure.</li>
+                        <li>REST GET polling for notifications; no WebSocket/SSE.</li>
+                        <li>Assigned application creates designer task (one-to-one).</li>
+                        <li>DC tasks can share unified <code class="table-code">tasks</code> table with discriminator column.</li>
+                    </ol>
+                </div>
+                <div class="card">
+                    <div class="card-header">🔮 Top Recommendations</div>
+                    <ol style="padding-left:20px;color:var(--gray-600);font-size:0.88rem;line-height:1.9;">
+                        <li><strong>REQ-REC-001:</strong> Implement forgot/reset password flow with email token.</li>
+                        <li><strong>REQ-REC-003:</strong> JWT blacklist for immediate invalidation on logout/role change.</li>
+                        <li><strong>REQ-REC-007:</strong> Automated deadline reminder notifications (&lt;24h, &lt;1h).</li>
+                        <li><strong>REQ-REC-010:</strong> Include <code class="table-code">/api/v1/</code> prefix for versioning.</li>
+                        <li><strong>REQ-REC-013:</strong> Health check endpoint <code class="table-code">GET /api/health</code>.</li>
+                        <li><strong>REQ-REC-015:</strong> Soft delete consistency across all entities.</li>
+                        <li><strong>REQ-REC-018:</strong> Allow QS resubmission cycle on feedback.</li>
+                        <li><strong>REQ-REC-020:</strong> Full-text search via PostgreSQL <code class="table-code">tsvector</code>.</li>
+                    </ol>
+                </div>
+            </section>
+
+            <hr class="section-divider">
+
+            <!-- ══════════════════════════════════════ -->
+            <!-- SECTION 12: APPENDICES -->
+            <!-- ══════════════════════════════════════ -->
+            <section class="content-section" id="sec-appendices">
+                <h2><span class="section-icon">📎</span> Appendices</h2>
+                <div class="card">
+                    <div class="card-header">A: ID Prefix Format</div>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead><tr><th>Entity</th><th>Prefix</th><th>Example</th></tr></thead>
+                            <tbody>
+                                <tr><td>Projects</td><td><code class="table-code">proj-</code></td><td>proj-1</td></tr>
+                                <tr><td>Tasks</td><td><code class="table-code">task-</code></td><td>task-1</td></tr>
+                                <tr><td>Designer Tasks</td><td><code class="table-code">dtask-</code></td><td>dtask-2</td></tr>
+                                <tr><td>Designer Applications</td><td><code class="table-code">dapp-</code></td><td>dapp-1</td></tr>
+                                <tr><td>Customer Requests</td><td><code class="table-code">cr-</code></td><td>cr-6</td></tr>
+                                <tr><td>Paid Customers</td><td><code class="table-code">paid-</code></td><td>paid-9</td></tr>
+                                <tr><td>Job Postings</td><td><code class="table-code">job-post-</code></td><td>job-post-1</td></tr>
+                                <tr><td>QS Review Tasks</td><td><code class="table-code">qs-review-</code></td><td>qs-review-1</td></tr>
+                                <tr><td>QS Evaluations</td><td><code class="table-code">qs-eval-</code></td><td>qs-eval-1</td></tr>
+                                <tr><td>Performance Reviews</td><td><code class="table-code">r-{initials}-</code></td><td>r-ec-001</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">B: localStorage → Database Table Mapping</div>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead><tr><th>Frontend localStorage Key</th><th>Backend Database Table</th></tr></thead>
+                            <tbody>
+                                <tr><td><code class="table-code">user</code></td><td>users (session → JWT)</td></tr>
+                                <tr><td><code class="table-code">customer-requests</code></td><td>customer_requests</td></tr>
+                                <tr><td><code class="table-code">paid-customers</code></td><td>paid_customers + payment_proofs + finance_history + clarification_responses</td></tr>
+                                <tr><td><code class="table-code">workflow-tasks</code></td><td>tasks</td></tr>
+                                <tr><td><code class="table-code">designer-tasks</code></td><td>designer_tasks</td></tr>
+                                <tr><td><code class="table-code">designer-task-applications</code></td><td>designer_applications</td></tr>
+                                <tr><td><code class="table-code">designer-submission-progress</code></td><td>designer_phase_submissions + designer_phase_reviews</td></tr>
+                                <tr><td><code class="table-code">designer-task-reviews</code></td><td>designer_performance_reviews</td></tr>
+                                <tr><td><code class="table-code">quantity-surveyor-review-tasks</code></td><td>quantity_review_tasks</td></tr>
+                                <tr><td><code class="table-code">quantity-surveyor-evaluations</code></td><td>quantity_review_evaluations</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <p style="text-align:center;color:var(--gray-400);font-size:0.8rem;padding:40px 0 20px;">
+                📄 Document Version 1.0 • Backend Architecture — Workflow Management System
+            </p>
+        </main>
+    </div>
+
+    <!-- ─── BACK TO TOP ──────────────────────────── -->
+    <button class="back-to-top" id="backToTop" aria-label="Scroll to top" title="Back to top">↑</button>
+
+    <script>
+        (function() {
+            // ═══════════════════════════════════════════
+            // DATA: Functional Requirements
+            // ═══════════════════════════════════════════
+            const requirementsData = [
+                { id: 'AUTH-001', role: 'All', feature: 'Login', desc: 'Authenticate user, return JWT access + refresh tokens' },
+                { id: 'AUTH-002', role: 'All', feature: 'Logout', desc: 'Invalidate refresh token' },
+                { id: 'AUTH-003', role: 'All', feature: 'Get Current User',
+                desc: 'Return authenticated user profile from JWT' },
+                { id: 'AUTH-004', role: 'All', feature: 'Refresh Token',
+                desc: 'Exchange refresh token for new access token' },
+                { id: 'USR-001', role: 'CEO, GM', feature: 'List Users',
+                desc: 'Paginated user list with role/status/search filters' },
+                { id: 'USR-002', role: 'CEO', feature: 'Create User',
+                desc: 'CEO creates user with role, hashed password' },
+                { id: 'USR-003', role: 'CEO, GM', feature: 'Get User', desc: 'Retrieve single user by ID' },
+                { id: 'USR-004', role: 'CEO', feature: 'Update User',
+                desc: 'Update profile/role/status; CEO changes role; self changes profile' },
+                { id: 'USR-005', role: 'CEO', feature: 'Soft Delete User',
+            desc: 'Set status=deleted, deleted_at=NOW()' },
+                { id: 'MKT-001', role: 'Marketing', feature: 'Create Customer Request',
+                    desc: 'Intake new customer lead with contact/category/description' },
+                { id: 'MKT-002', role: 'Marketing, CEO, GM', feature: 'List Customer Requests',
+                    desc: 'View requests with status/category/search filters' },
+                { id: 'MKT-003', role: 'Marketing, CEO, GM', feature: 'Get Customer Request',
+                    desc: 'View single request detail' },
+                { id: 'MKT-004', role: 'Marketing', feature: 'Update Customer Request',
+                    desc: 'Edit request fields (cannot edit after transfer)' },
+                { id: 'MKT-005', role: 'Marketing, CEO', feature: 'Delete Customer Request',
+                    desc: 'Remove request (cannot delete after transfer)' },
+                { id: 'MKT-006', role: 'Marketing', feature: 'Transfer to Paid Customer',
+                    desc: 'Move request to paid pipeline with payment proof files' },
+                { id: 'MKT-009', role: 'Marketing', feature: 'Submit Clarification Response',
+                    desc: 'Respond to finance request with description + attachments' },
+                { id: 'FIN-001', role: 'Finance, CEO, GM', feature: 'List Finance Verifications',
+                    desc: 'View verification queue by tab (5 tabs)' },
+                { id: 'FIN-002', role: 'Finance', feature: 'Verify Payment',
+                    desc: 'Approve payment proof → status=verified; notify CEO' },
+                { id: 'FIN-003', role: 'Finance', feature: 'Reject Payment',
+                    desc: 'Reject payment proof → status=rejected; mandatory note' },
+                { id: 'FIN-004', role: 'Finance', feature: 'Request Clarification',
+                    desc: 'Ask marketing for more info → status=request_clarification' },
+                { id: 'CEO-001', role: 'CEO', feature: 'View Main Dashboard',
+                    desc: 'Aggregated counts (projects, tasks, approvals, notifications)' },
+                { id: 'CEO-003', role: 'CEO, GM', feature: 'Create Project',
+                    desc: 'New project with client/stage/deadline/assignment' },
+                { id: 'CEO-008', role: 'CEO, GM', feature: 'Create Task',
+                    desc: 'New task with title/description/instruction/assign/deadline' },
+                { id: 'CEO-012', role: 'CEO, GM', feature: 'Approve Task',
+                    desc: 'Approve with optional feedback; sets approvalStatus=approved' },
+                { id: 'CEO-014', role: 'CEO, GM', feature: 'Create Job Posting',
+                    desc: 'New posting with project/title/storyPoints/deadline' },
+                { id: 'CEO-019', role: 'CEO, GM', feature: 'Review Application',
+                    desc: 'Assign (create designer task) or reject with note' },
+                { id: 'CEO-023', role: 'CEO, GM', feature: 'Review Designer Phase',
+                    desc: 'Approve/feedback/reject on phase with snapshot preservation' },
+                { id: 'CEO-024', role: 'CEO, GM', feature: 'Submit Performance Review',
+                    desc: 'Rate completed task (creativity/timeliness/understanding/rendering 0-5)' },
+                { id: 'CEO-026', role: 'CEO, GM', feature: 'Create QS Review Task',
+                    desc: 'Forward design submission for cost/quality review' },
+                { id: 'CEO-029', role: 'CEO, GM', feature: 'Leadership Decision on QS',
+                    desc: 'Final decision (approved/feedback) on QS evaluation' },
+                { id: 'CEO-030', role: 'CEO', feature: 'CEO Approve Finance',
+                    desc: 'Final approval of finance-verified record → status=approved' },
+                { id: 'CEO-040', role: 'CEO', feature: 'View Audit Logs',
+                    desc: 'Audit trail with entity/action/date range filters' },
+                { id: 'GM-001', role: 'GM', feature: 'View Main Dashboard',
+                    desc: 'Same as CEO-001 aggregated counts' },
+                { id: 'DES-001', role: 'Designer', feature: 'Browse Open Job Postings',
+                    desc: 'List open postings (status=pending, unassigned)' },
+                { id: 'DES-002', role: 'Designer', feature: 'Apply to Job Posting',
+                    desc: 'Submit application with message (one per posting)' },
+                { id: 'DES-005', role: 'Designer', feature: 'Submit Case Study',
+                    desc: 'Phase 1 submission (note + optional screenshot)' },
+                { id: 'DES-006', role: 'Designer', feature: 'Submit Design Stage',
+                    desc: 'Phase 2 submission (requires phase 1 approved)' },
+                { id: 'DES-007', role: 'Designer', feature: 'Submit Rendering',
+                    desc: 'Phase 3 submission (requires phase 2 approved)' },
+                { id: 'DES-008', role: 'Designer', feature: 'Submit Final Stage',
+                    desc: 'Phase 4 submission (requires phase 3 approved, mandatory screenshot)' },
+                { id: 'QS-001', role: 'QS', feature: 'List Review Tasks',
+                    desc: 'Assigned QS tasks with status filter' },
+                { id: 'QS-003', role: 'QS', feature: 'Submit Evaluation',
+                    desc: 'Cost evaluation with recommendation; creates notification for leadership' },
+                { id: 'SE-001', role: 'Site Engineer', feature: 'List My Tasks',
+                    desc: 'Tasks assigned to authenticated SE with status filter' },
+                { id: 'SE-004', role: 'Site Engineer', feature: 'Change Task Status',
+                    desc: 'Update status (pending/in_progress/completed/incomplete/rejected)' },
+                { id: 'DC-001', role: 'Data Collector', feature: 'List My Tasks',
+                    desc: 'Tasks assigned to authenticated DC' },
+                { id: 'DC-003', role: 'Data Collector', feature: 'Submit Evidence',
+                    desc: 'Submit notes + file attachments → creates submission record' },
+            ];
+
+            // ═══════════════════════════════════════════
+            // DATA: Business Rules
+            // ═══════════════════════════════════════════
+            const businessRulesData = [
+                { id: 'BR-001', category: 'Customer Request',
+                    desc: 'Customer request cannot be transferred to paid pipeline more than once. Once transferred, source request archived (status=\'closed\').',
+                    catKey: 'customer' },
+                { id: 'BR-002', category: 'Customer Request',
+                    desc: 'Cannot update/delete a transferred customer request.', catKey: 'customer' },
+                { id: 'BR-003', category: 'Customer Request',
+                    desc: 'If category=\'other\', otherCategoryDescription is required.', catKey: 'customer' },
+                { id: 'BR-004', category: 'Customer Request', desc: 'Phone number must pass format validation.',
+                    catKey: 'customer' },
+                { id: 'BR-005', category: 'Customer Request',
+                    desc: 'Proof of payment files required when transferring to paid pipeline.', catKey: 'customer' },
+                { id: 'BR-006', category: 'Payment Verification',
+                    desc: 'Status transitions: pending → verified|rejected|request_clarification; verified → approved (CEO only).',
+                    catKey: 'payment' },
+                { id: 'BR-007', category: 'Payment Verification',
+                    desc: 'Only Finance Officer can verify/reject/clarify.', catKey: 'payment' },
+                { id: 'BR-008', category: 'Payment Verification',
+                    desc: 'Only CEO can execute final "CEO approve" to set status=approved.', catKey: 'payment' },
+                { id: 'BR-009', category: 'Payment Verification',
+                    desc: 'Clarification request requires mandatory message.', catKey: 'payment' },
+                { id: 'BR-010', category: 'Payment Verification', desc: 'Rejection requires mandatory message.',
+                    catKey: 'payment' },
+                { id: 'BR-011', category: 'Payment Verification',
+                    desc: 'All finance decisions recorded in finance_history (actor, timestamp, note).',
+                catKey: 'payment' },
+                { id: 'BR-012', category: 'Payment Verification',
+                    desc: 'Clarification response requires description + at least one image attachment.',
+                catKey: 'payment' },
+                { id: 'BR-015', category: 'Designer Workflow',
+                    desc: 'Phases strictly sequential: Case Study → Design Stage → Rendering → Final Stage. Cannot skip.',
+                    catKey: 'designer' },
+                { id: 'BR-016', category: 'Designer Workflow',
+                    desc: 'If phase review status=rejected, cannot submit further revisions. Task locked at that phase.',
+                    catKey: 'designer' },
+                { id: 'BR-017', category: 'Designer Workflow',
+                    desc: 'If review status=feedback, designer must submit revision to restart review.',
+                catKey: 'designer' },
+                { id: 'BR-018', category: 'Designer Workflow',
+                    desc: 'Cannot proceed to next phase if current phase has feedback status.', catKey: 'designer' },
+                { id: 'BR-019', category: 'Designer Workflow',
+                    desc: 'All phase history preserved as immutable snapshots (note, screenshot, review status, message, timestamp).',
+                    catKey: 'designer' },
+                { id: 'BR-022', category: 'Designer Workflow',
+                    desc: 'Phase rejection → task overall status=rejected.', catKey: 'designer' },
+                { id: 'BR-023', category: 'Designer Workflow',
+                    desc: 'All 4 phases approved → task status=completed, approvalStatus=approved.',
+                catKey: 'designer' },
+                { id: 'BR-024', category: 'Designer Workflow',
+                    desc: 'Final Stage requires screenshot (mandatory); other phases optional.', catKey: 'designer' },
+                { id: 'BR-028', category: 'Designer Applications',
+                    desc: 'Designer cannot apply to same posting twice.', catKey: 'designer' },
+                { id: 'BR-029', category: 'Designer Applications',
+                    desc: 'Cannot apply to posting that already has assigned designer.', catKey: 'designer' },
+                { id: 'BR-031', category: 'Designer Applications',
+                    desc: 'Application assigned → applicant becomes task\'s assignedTo; posting status=assigned.',
+                    catKey: 'designer' },
+                { id: 'BR-034', category: 'Quantity Surveyor',
+                    desc: 'Status transitions: pending_review → in_review → record_submitted.', catKey: 'qs' },
+                { id: 'BR-035', category: 'Quantity Surveyor',
+                    desc: 'Only assigned QS can mark in_review or submit evaluation.', catKey: 'qs' },
+                { id: 'BR-036', category: 'Quantity Surveyor',
+                    desc: 'Only CEO/GM can forward design submission for QS review.', catKey: 'qs' },
+                { id: 'BR-038', category: 'Quantity Surveyor',
+                    desc: 'Recommendation: recommended_for_approval or recommends_revision.', catKey: 'qs' },
+                { id: 'BR-039', category: 'Quantity Surveyor',
+                    desc: 'Leadership decision: approved or feedback.', catKey: 'qs' },
+                { id: 'BR-044', category: 'General Tasks',
+                    desc: 'Status transitions: pending → in_progress → completed|incomplete|rejected.', catKey: 'tasks' },
+                { id: 'BR-045', category: 'General Tasks', desc: 'Task approval requires CEO/GM role.',
+                catKey: 'tasks' },
+                { id: 'BR-046', category: 'General Tasks',
+                    desc: 'Approve: feedback optional. Reject: feedback mandatory.', catKey: 'tasks' },
+                { id: 'BR-052', category: 'User Management',
+                    desc: 'Only CEO can create/update role/status/delete users.', catKey: 'users' },
+                { id: 'BR-053', category: 'User Management', desc: 'User cannot delete themselves.', catKey: 'users' },
+                { id: 'BR-054', category: 'User Management',
+                    desc: 'Soft-deleted users cannot authenticate.', catKey: 'users' },
+                { id: 'BR-055', category: 'User Management', desc: 'Username unique across active users.',
+                catKey: 'users' },
+                { id: 'BR-059', category: 'Project & Audit',
+                    desc: 'Only CEO/GM create and update projects.', catKey: 'project' },
+                { id: 'BR-060', category: 'Project & Audit', desc: 'Only CEO delete/archive projects.',
+                catKey: 'project' },
+                { id: 'BR-061', category: 'Project & Audit',
+                    desc: 'Stages: lead → design → approval → execution → completed.', catKey: 'project' },
+                { id: 'BR-065', category: 'Project & Audit',
+                    desc: 'Every state change logged to audit (entity, action, actor, timestamp, old/new values).',
+                    catKey: 'project' },
+                { id: 'BR-066', category: 'Project & Audit', desc: 'Audit logs append-only.', catKey: 'project' },
+                { id: 'BR-067', category: 'Project & Audit', desc: 'Only CEO views audit logs.', catKey: 'project' },
+            ];
+
+            // ═══════════════════════════════════════════
+            // DATA: API Endpoints
+            // ═══════════════════════════════════════════
+            const apiEndpointsData = [
+                { method: 'POST', url: '/api/auth/login', reqId: 'AUTH-001', roles: 'All', auth: 'No' },
+                { method: 'POST', url: '/api/auth/logout', reqId: 'AUTH-002', roles: 'All', auth: 'Yes' },
+                { method: 'GET', url: '/api/auth/me', reqId: 'AUTH-003', roles: 'All', auth: 'Yes' },
+                { method: 'POST', url: '/api/auth/refresh', reqId: 'AUTH-004', roles: 'All', auth: 'No' },
+                { method: 'GET', url: '/api/users', reqId: 'USR-001', roles: 'CEO, GM', auth: 'Yes' },
+                { method: 'POST', url: '/api/users', reqId: 'USR-002', roles: 'CEO', auth: 'Yes' },
+                { method: 'GET', url: '/api/users/:id', reqId: 'USR-003', roles: 'CEO, GM, self', auth: 'Yes' },
+                { method: 'PUT', url: '/api/users/:id', reqId: 'USR-004', roles: 'CEO, self', auth: 'Yes' },
+                { method: 'DELETE', url: '/api/users/:id', reqId: 'USR-005', roles: 'CEO', auth: 'Yes' },
+                { method: 'GET', url: '/api/projects', reqId: 'CEO-002', roles: 'All (scoped)', auth: 'Yes' },
+                { method: 'POST', url: '/api/projects', reqId: 'CEO-003', roles: 'CEO, GM', auth: 'Yes' },
+                { method: 'GET', url: '/api/projects/:id', reqId: 'CEO-004', roles: 'All (scoped)', auth: 'Yes' },
+                { method: 'PUT', url: '/api/projects/:id', reqId: 'CEO-005', roles: 'CEO, GM', auth: 'Yes' },
+                { method: 'DELETE', url: '/api/projects/:id', reqId: 'CEO-006', roles: 'CEO', auth: 'Yes' },
+                { method: 'GET', url: '/api/tasks', reqId: 'CEO-007', roles: 'All (scoped)', auth: 'Yes' },
+                { method: 'POST', url: '/api/tasks', reqId: 'CEO-008', roles: 'CEO, GM', auth: 'Yes' },
+                { method: 'GET', url: '/api/tasks/:id', reqId: 'CEO-009', roles: 'All (scoped)', auth: 'Yes' },
+                { method: 'PUT', url: '/api/tasks/:id', reqId: 'CEO-010', roles: 'CEO, GM, assignee',
+                auth: 'Yes' },
+                { method: 'PATCH', url: '/api/tasks/:id/status', reqId: 'CEO-011', roles: 'CEO, GM, assignee',
+                    auth: 'Yes' },
+                { method: 'POST', url: '/api/tasks/:id/approve', reqId: 'CEO-012', roles: 'CEO, GM',
+                auth: 'Yes' },
+                { method: 'POST', url: '/api/tasks/:id/reject', reqId: 'CEO-013', roles: 'CEO, GM', auth: 'Yes' },
+                { method: 'POST', url: '/api/tasks/:id/attachments', reqId: 'SE-005', roles: 'CEO, GM, assignee',
+                    auth: 'Yes' },
+                { method: 'POST', url: '/api/tasks/:id/submissions', reqId: 'DC-003', roles: 'DC, SE, assignee',
+                    auth: 'Yes' },
+                { method: 'POST', url: '/api/tasks/:id/feedbacks', reqId: 'CEO-036',
+                    roles: 'CEO, GM, task owner', auth: 'Yes' },
+                { method: 'GET', url: '/api/customer-requests', reqId: 'MKT-002', roles: 'MKT, CEO, GM',
+                auth: 'Yes' },
+                { method: 'POST', url: '/api/customer-requests', reqId: 'MKT-001', roles: 'MKT', auth: 'Yes' },
+                { method: 'GET', url: '/api/customer-requests/:id', reqId: 'MKT-003', roles: 'MKT, CEO, GM',
+                    auth: 'Yes' },
+                { method: 'PUT', url: '/api/customer-requests/:id', reqId: 'MKT-004', roles: 'MKT', auth: 'Yes' },
+                { method: 'DELETE', url: '/api/customer-requests/:id', reqId: 'MKT-005', roles: 'MKT, CEO',
+                auth: 'Yes' },
+                { method: 'POST', url: '/api/paid-customers', reqId: 'MKT-006', roles: 'MKT', auth: 'Yes' },
+                { method: 'GET', url: '/api/paid-customers', reqId: 'MKT-007', roles: 'MKT, Finance, CEO, GM',
+                    auth: 'Yes' },
+                { method: 'GET', url: '/api/paid-customers/:id', reqId: 'MKT-008', roles: 'MKT, Finance, CEO, GM',
+                    auth: 'Yes' },
+                { method: 'POST', url: '/api/paid-customers/:id/verify', reqId: 'FIN-002', roles: 'Finance',
+                    auth: 'Yes' },
+                { method: 'POST', url: '/api/paid-customers/:id/clarify', reqId: 'MKT-009', roles: 'MKT',
+                auth: 'Yes' },
+                { method: 'POST', url: '/api/paid-customers/:id/ceo-approve', reqId: 'CEO-030', roles: 'CEO',
+                    auth: 'Yes' },
+                { method: 'GET', url: '/api/finance/verifications', reqId: 'FIN-001', roles: 'Finance, CEO, GM',
+                    auth: 'Yes' },
+                { method: 'GET', url: '/api/job-postings', reqId: 'CEO-015', roles: 'CEO, GM, Designer',
+                auth: 'Yes' },
+                { method: 'POST', url: '/api/job-postings', reqId: 'CEO-014', roles: 'CEO, GM', auth: 'Yes' },
+                { method: 'PUT', url: '/api/job-postings/:id', reqId: 'CEO-016', roles: 'CEO, GM', auth: 'Yes' },
+                { method: 'DELETE', url: '/api/job-postings/:id', reqId: 'CEO-017', roles: 'CEO, GM',
+                auth: 'Yes' },
+                { method: 'GET', url: '/api/job-postings/:id/applications', reqId: 'CEO-018', roles: 'CEO, GM',
+                    auth: 'Yes' },
+                { method: 'POST', url: '/api/job-postings/:id/applications', reqId: 'DES-002', roles: 'Designer',
+                    auth: 'Yes' },
+                { method: 'PUT', url: '/api/applications/:id', reqId: 'CEO-019', roles: 'CEO, GM', auth: 'Yes' },
+                { method: 'GET', url: '/api/designer-tasks', reqId: 'CEO-021', roles: 'CEO, GM, Designer',
+                auth: 'Yes' },
+                { method: 'POST', url: '/api/designer-tasks', reqId: 'CEO-020', roles: 'CEO, GM', auth: 'Yes' },
+                { method: 'GET', url: '/api/designer-tasks/:id/progress', reqId: 'CEO-022',
+                    roles: 'CEO, GM, assignee', auth: 'Yes' },
+                { method: 'POST', url: '/api/designer-tasks/:id/phases/:phase/submissions', reqId: 'DES-005',
+                    roles: 'Designer (assignee)', auth: 'Yes' },
+                { method: 'POST', url: '/api/designer-tasks/:id/phases/:phase/review', reqId: 'CEO-023',
+                    roles: 'CEO, GM', auth: 'Yes' },
+                { method: 'POST', url: '/api/designer-tasks/:id/review', reqId: 'CEO-024', roles: 'CEO, GM',
+                    auth: 'Yes' },
+                { method: 'GET', url: '/api/designer-performance', reqId: 'CEO-025',
+                    roles: 'CEO, GM, Designer', auth: 'Yes' },
+                { method: 'GET', url: '/api/quantity-review-tasks', reqId: 'CEO-027', roles: 'CEO, GM, QS',
+                    auth: 'Yes' },
+                { method: 'POST', url: '/api/quantity-review-tasks', reqId: 'CEO-026', roles: 'CEO, GM',
+                auth: 'Yes' },
+                { method: 'PATCH', url: '/api/quantity-review-tasks/:id/status', reqId: 'QS-002', roles: 'QS',
+                    auth: 'Yes' },
+                { method: 'GET', url: '/api/quantity-review-evaluations', reqId: 'CEO-028',
+                    roles: 'CEO, GM, QS', auth: 'Yes' },
+                { method: 'POST', url: '/api/quantity-review-evaluations', reqId: 'QS-003', roles: 'QS',
+                auth: 'Yes' },
+                { method: 'POST', url: '/api/quantity-review-evaluations/:id/decision', reqId: 'CEO-029',
+                    roles: 'CEO, GM', auth: 'Yes' },
+                { method: 'GET', url: '/api/approvals', reqId: 'CEO-031', roles: 'CEO, GM', auth: 'Yes' },
+                { method: 'POST', url: '/api/approvals/:id/review', reqId: 'CEO-032', roles: 'CEO, GM',
+                auth: 'Yes' },
+                { method: 'GET', url: '/api/dashboard', reqId: 'CEO-001', roles: 'All (scoped)', auth: 'Yes' },
+                { method: 'GET', url: '/api/dashboard/finance', reqId: 'FIN-006', roles: 'Finance', auth: 'Yes' },
+                { method: 'GET', url: '/api/dashboard/site-engineer', reqId: 'SE-006', roles: 'SE, CEO, GM',
+                    auth: 'Yes' },
+                { method: 'GET', url: '/api/dashboard/quantity-surveyor', reqId: 'QS-008', roles: 'QS',
+                auth: 'Yes' },
+                { method: 'GET', url: '/api/notifications', reqId: 'CEO-038', roles: 'All', auth: 'Yes' },
+                { method: 'PATCH', url: '/api/notifications/:id/read', reqId: 'CEO-039', roles: 'All',
+                auth: 'Yes' },
+                { method: 'POST', url: '/api/notifications/read', reqId: '—', roles: 'All', auth: 'Yes' },
+                { method: 'POST', url: '/api/notifications/read-role', reqId: 'QS-007', roles: 'All',
+                auth: 'Yes' },
+                { method: 'POST', url: '/api/uploads', reqId: '—', roles: 'All', auth: 'Yes' },
+                { method: 'GET', url: '/api/uploads/:id', reqId: '—', roles: 'All', auth: 'Yes' },
+                { method: 'GET', url: '/api/uploads/:id/download', reqId: '—', roles: 'All', auth: 'Yes' },
+                { method: 'DELETE', url: '/api/uploads/:id', reqId: '—', roles: 'Uploader, CEO', auth: 'Yes' },
+                { method: 'GET', url: '/api/audit', reqId: 'CEO-040', roles: 'CEO', auth: 'Yes' },
+                { method: 'GET', url: '/api/data-collector-tasks', reqId: 'CEO-033', roles: 'CEO, GM, DC',
+                    auth: 'Yes' },
+                { method: 'POST', url: '/api/data-collector-tasks', reqId: 'CEO-034', roles: 'CEO, GM',
+                auth: 'Yes' },
+            ];
+
+            // ═══════════════════════════════════════════
+            // DATA: Permission Matrix
+            // ═══════════════════════════════════════════
+            const permMatrixData = [
+                { req: 'AUTH-001–004', ceo: 'CRU', gm: 'CRU', mkt: 'CRU', fin: 'CRU', qs: 'CRU', des: 'CRU',
+                    se: 'CRU', dc: 'CRU' },
+                { req: 'USR-001', ceo: 'R', gm: 'R', mkt: '—', fin: '—', qs: '—', des: '—', se: '—', dc: '—' },
+                { req: 'USR-002', ceo: 'C', gm: '—', mkt: '—', fin: '—', qs: '—', des: '—', se: '—', dc: '—' },
+                { req: 'USR-003', ceo: 'R', gm: 'R', mkt: '—', fin: '—', qs: '—', des: '—', se: '—', dc: '—' },
+                { req: 'USR-004', ceo: 'U', gm: '—', mkt: '—', fin: '—', qs: '—', des: '—', se: '—', dc: '—' },
+                { req: 'USR-005', ceo: 'D', gm: '—', mkt: '—', fin: '—', qs: '—', des: '—', se: '—', dc: '—' },
+                { req: 'MKT-001–005', ceo: 'RU', gm: 'R', mkt: 'CRUD', fin: '—', qs: '—', des: '—', se: '—',
+                    dc: '—' },
+                { req: 'MKT-006–011', ceo: 'R', gm: 'R', mkt: 'CRU', fin: 'R', qs: '—', des: '—', se: '—',
+                dc: '—' },
+                { req: 'FIN-001–005', ceo: 'R', gm: 'R', mkt: '—', fin: 'CRU', qs: '—', des: '—', se: '—',
+                dc: '—' },
+                { req: 'CEO-001–006', ceo: 'CRUD', gm: 'CRU', mkt: 'R', fin: 'R', qs: '—', des: '—', se: '—',
+                    dc: '—' },
+                { req: 'CEO-007–013', ceo: 'CRU', gm: 'CRU', mkt: 'R', fin: 'R', qs: '—', des: '—', se: 'RU',
+                    dc: 'RU' },
+                { req: 'CEO-014–019', ceo: 'CRUD', gm: 'CRUD', mkt: '—', fin: '—', qs: '—', des: 'R', se: '—',
+                    dc: '—' },
+                { req: 'CEO-020–025', ceo: 'CRU', gm: 'CRU', mkt: '—', fin: '—', qs: '—', des: 'RU', se: '—',
+                    dc: '—' },
+                { req: 'CEO-026–029', ceo: 'CRU', gm: 'CRU', mkt: '—', fin: '—', qs: 'RU', des: '—', se: '—',
+                    dc: '—' },
+                { req: 'CEO-030', ceo: 'U', gm: '—', mkt: '—', fin: '—', qs: '—', des: '—', se: '—', dc: '—' },
+                { req: 'CEO-031–036', ceo: 'RU', gm: 'RU', mkt: '—', fin: '—', qs: '—', des: '—', se: '—',
+                dc: 'RU' },
+                { req: 'CEO-038–039', ceo: 'RU', gm: 'RU', mkt: 'RU', fin: 'RU', qs: 'RU', des: 'RU', se: 'RU',
+                    dc: 'RU' },
+                { req: 'CEO-040', ceo: 'R', gm: '—', mkt: '—', fin: '—', qs: '—', des: '—', se: '—', dc: '—' },
+                { req: 'DES-001–002', ceo: '—', gm: '—', mkt: '—', fin: '—', qs: '—', des: 'CR', se: '—',
+                dc: '—' },
+                { req: 'DES-003–010', ceo: 'R', gm: 'R', mkt: '—', fin: '—', qs: '—', des: 'CRU', se: '—',
+                dc: '—' },
+                { req: 'QS-001–005', ceo: 'R', gm: 'R', mkt: '—', fin: '—', qs: 'CRU', des: '—', se: '—',
+                dc: '—' },
+                { req: 'SE-001–005', ceo: 'R', gm: 'R', mkt: '—', fin: '—', qs: '—', des: '—', se: 'CRU',
+                dc: '—' },
+                { req: 'DC-001–004', ceo: 'R', gm: 'R', mkt: '—', fin: '—', qs: '—', des: '—', se: '—',
+                dc: 'CRU' },
+            ];
+
+            // ═══════════════════════════════════════════
+            // POPULATE REQUIREMENTS TABLE
+            // ═══════════════════════════════════════════
+            function populateReqTable(data) {
+                const tbody = document.getElementById('reqTableBody');
+                tbody.innerHTML = data.map(r => `
+                    <tr>
+                        <td><span class="badge badge-teal">${r.id}</span></td>
+                        <td>${r.role}</td>
+                        <td><strong>${r.feature}</strong></td>
+                        <td>${r.desc}</td>
+                    </tr>
+                `).join('');
+                document.getElementById('reqResultCount').textContent =
+                    `Showing ${data.length} of ${requirementsData.length} requirements`;
+            }
+
+            // ═══════════════════════════════════════════
+            // POPULATE BUSINESS RULES
+            // ═══════════════════════════════════════════
+            function populateBusinessRules(data) {
+                const container = document.getElementById('brContainer');
+                const categories = [...new Set(data.map(r => r.category))];
+                container.innerHTML = categories.map(cat => {
+                    const rules = data.filter(r => r.category === cat);
+                    return `
+                        <div class="collapsible open" data-category="${cat}">
+                            <div class="collapsible-summary" tabindex="0" role="button" aria-expanded="true">
+                                📁 ${cat} <span class="badge badge-gray">${rules.length} rules</span>
+                            </div>
+                            <div class="collapsible-content">
+                                ${rules.map(r => `
+                                    <div style="padding:8px 0;border-bottom:1px solid var(--gray-100);">
+                                        <span class="badge badge-teal" style="margin-right:8px;">${r.id}</span>
+                                        <span style="color:var(--gray-700);font-size:0.88rem;">${r.desc}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                document.getElementById('brResultCount').textContent =
+                    `Showing ${data.length} of ${businessRulesData.length} business rules`;
+                // Re-bind collapsible events
+                bindCollapsibles();
+            }
+
+            // ═══════════════════════════════════════════
+            // POPULATE API TABLE
+            // ═══════════════════════════════════════════
+            function populateApiTable(data) {
+                const tbody = document.getElementById('apiTableBody');
+                tbody.innerHTML = data.map(e => {
+                    const methodClass = 'method-' + e.method.toLowerCase();
+                    return `
+                        <tr>
+                            <td><span class="method-badge ${methodClass}">${e.method}</span></td>
+                            <td><code class="table-code">${e.url}</code></td>
+                            <td><span class="badge badge-teal">${e.reqId}</span></td>
+                            <td>${e.roles}</td>
+                            <td>${e.auth === 'Yes' ? '<span class="badge badge-green">🔒 JWT</span>' : '<span class="badge badge-gray">Public</span>'}</td>
+                        </tr>
+                    `;
+                }).join('');
+                document.getElementById('apiResultCount').textContent =
+                    `Showing ${data.length} of ${apiEndpointsData.length} endpoints`;
+            }
+
+            // ═══════════════════════════════════════════
+            // POPULATE PERMISSION MATRIX
+            // ═══════════════════════════════════════════
+            function populatePermMatrix() {
+                const tbody = document.getElementById('permMatrixBody');
+                tbody.innerHTML = permMatrixData.map(r => `
+                    <tr>
+                        <td><strong>${r.req}</strong></td>
+                        <td class="${r.ceo === '—' ? 'perm-no' : 'perm-yes'}">${r.ceo}</td>
+                        <td class="${r.gm === '—' ? 'perm-no' : 'perm-yes'}">${r.gm}</td>
+                        <td class="${r.mkt === '—' ? 'perm-no' : 'perm-yes'}">${r.mkt}</td>
+                        <td class="${r.fin === '—' ? 'perm-no' : 'perm-yes'}">${r.fin}</td>
+                        <td class="${r.qs === '—' ? 'perm-no' : 'perm-yes'}">${r.qs}</td>
+                        <td class="${r.des === '—' ? 'perm-no' : 'perm-yes'}">${r.des}</td>
+                        <td class="${r.se === '—' ? 'perm-no' : 'perm-yes'}">${r.se}</td>
+                        <td class="${r.dc === '—' ? 'perm-no' : 'perm-yes'}">${r.dc}</td>
+                    </tr>
+                `).join('');
+            }
+
+            // ═══════════════════════════════════════════
+            // COLLAPSIBLE BINDING
+            // ═══════════════════════════════════════════
+            function bindCollapsibles() {
+                document.querySelectorAll('.collapsible-summary').forEach(summary => {
+                    // Remove old listeners by cloning
+                    const newSummary = summary.cloneNode(true);
+                    summary.parentNode.replaceChild(newSummary, summary);
+                    newSummary.addEventListener('click', function() {
+                        const collapsible = this.parentElement;
+                        collapsible.classList.toggle('open');
+                        const isOpen = collapsible.classList.contains('open');
+                        this.setAttribute('aria-expanded', isOpen);
+                    });
+                    newSummary.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            this.click();
+                        }
+                    });
+                });
+            }
+
+            // ═══════════════════════════════════════════
+            // SEARCH / FILTER FUNCTIONALITY
+            // ═══════════════════════════════════════════
+            // Requirements search
+            const reqSearchInput = document.getElementById('reqSearchInput');
+            const reqSearchBar = document.getElementById('reqSearchBar');
+            let reqActiveFilter = 'all';
+
+            function filterRequirements() {
+                const query = reqSearchInput.value.toLowerCase();
+                let filtered = requirementsData;
+                if (reqActiveFilter !== 'all') {
+                    filtered = filtered.filter(r => r.id.startsWith(reqActiveFilter));
+                }
+                if (query) {
+                    filtered = filtered.filter(r =>
+                        r.id.toLowerCase().includes(query) ||
+                        r.role.toLowerCase().includes(query) ||
+                        r.feature.toLowerCase().includes(query) ||
+                        r.desc.toLowerCase().includes(query)
+                    );
+                }
+                populateReqTable(filtered);
+                document.getElementById('reqNoResults').style.display = filtered.length === 0 ? 'block' :
+                    'none';
+                document.getElementById('reqTableWrapper').style.display = filtered.length === 0 ? 'none' : '';
+            }
+
+            reqSearchInput.addEventListener('input', filterRequirements);
+            reqSearchBar.querySelectorAll('.search-badge').forEach(badge => {
+                badge.addEventListener('click', function() {
+                    reqSearchBar.querySelectorAll('.search-badge').forEach(b => b.classList.remove(
+                        'active-filter'));
+                    this.classList.add('active-filter');
+                    reqActiveFilter = this.dataset.filter;
+                    filterRequirements();
+                });
+            });
+
+            // Business Rules search
+            const brSearchInput = document.getElementById('brSearchInput');
+            brSearchInput.addEventListener('input', function() {
+                const query = this.value.toLowerCase();
+                let filtered = businessRulesData;
+                if (query) {
+                    filtered = filtered.filter(r =>
+                        r.id.toLowerCase().includes(query) ||
+                        r.category.toLowerCase().includes(query) ||
+                        r.desc.toLowerCase().includes(query)
+                    );
+                }
+                populateBusinessRules(filtered);
+                document.getElementById('brNoResults').style.display = filtered.length === 0 ? 'block' :
+                    'none';
+            });
+
+            // API Endpoints search
+            const apiSearchInput = document.getElementById('apiSearchInput');
+            const apiSearchBar = document.getElementById('apiSearchBar');
+            let apiActiveFilter = 'all';
+
+            function filterApiEndpoints() {
+                const query = apiSearchInput.value.toLowerCase();
+                let filtered = apiEndpointsData;
+                if (apiActiveFilter !== 'all') {
+                    filtered = filtered.filter(e => e.method === apiActiveFilter);
+                }
+                if (query) {
+                    filtered = filtered.filter(e =>
+                        e.url.toLowerCase().includes(query) ||
+                        e.method.toLowerCase().includes(query) ||
+                        e.roles.toLowerCase().includes(query) ||
+                        e.reqId.toLowerCase().includes(query)
+                    );
+                }
+                populateApiTable(filtered);
+                document.getElementById('apiNoResults').style.display = filtered.length === 0 ? 'block' :
+                    'none';
+                document.getElementById('apiTableWrapper').style.display = filtered.length === 0 ? 'none' : '';
+            }
+
+            apiSearchInput.addEventListener('input', filterApiEndpoints);
+            apiSearchBar.querySelectorAll('.search-badge').forEach(badge => {
+                badge.addEventListener('click', function() {
+                    apiSearchBar.querySelectorAll('.search-badge').forEach(b => b.classList.remove(
+                        'active-filter'));
+                    this.classList.add('active-filter');
+                    apiActiveFilter = this.dataset.filter;
+                    filterApiEndpoints();
+                });
+            });
+
+            // ═══════════════════════════════════════════
+            // SIDEBAR NAVIGATION GENERATION
+            // ═══════════════════════════════════════════
+            function buildSidebarNav() {
+                const nav = document.getElementById('sidebarNav');
+                const sections = [
+                    { label: 'Overview', href: '#sec-overview', icon: '📋', group: 'GETTING STARTED' },
+                    { label: 'User Roles', href: '#sec-roles', icon: '👥', group: null },
+                    { label: 'Functional Requirements', href: '#sec-requirements', icon: '📜',
+                        group: 'SPECIFICATIONS' },
+                    { label: 'Business Rules', href: '#sec-business-rules', icon: '📏', group: null },
+                    { label: 'Notification Rules', href: '#sec-notifications', icon: '🔔', group: null },
+                    { label: 'Database Design', href: '#sec-database', icon: '🗄', group: 'DATA LAYER' },
+                    { label: 'API Endpoints', href: '#sec-api', icon: '🔌', group: 'API' },
+                    { label: 'Workflow Diagrams', href: '#sec-workflows', icon: '🔄', group: 'VISUALS' },
+                    { label: 'Permission Matrix', href: '#sec-permissions', icon: '🔐', group: null },
+                    { label: 'Non-Functional Reqs', href: '#sec-nfr', icon: '⚡', group: 'QUALITY' },
+                    { label: 'Assumptions & Recs', href: '#sec-assumptions', icon: '💡', group: null },
+                    { label: 'Appendices', href: '#sec-appendices', icon: '📎', group: 'REFERENCE' },
+                ];
+                let html = '';
+                let lastGroup = '';
+                sections.forEach(s => {
+                    if (s.group && s.group !== lastGroup) {
+                        html += `<li class="nav-section">${s.group}</li>`;
+                        lastGroup = s.group;
+                    }
+                    html +=
+                        `<li><a href="${s.href}" data-target="${s.href.replace('#','')}">${s.icon} ${s.label}</a></li>`;
+                });
+                nav.innerHTML = html;
+            }
+
+            // ═══════════════════════════════════════════
+            // ACTIVE SECTION HIGHLIGHTING
+            // ═══════════════════════════════════════════
+            function updateActiveNavLink() {
+                const sections = document.querySelectorAll('.content-section');
+                const navLinks = document.querySelectorAll('.sidebar-nav li a');
+                let currentId = '';
+                sections.forEach(section => {
+                    const rect = section.getBoundingClientRect();
+                    if (rect.top <= 120) {
+                        currentId = section.id;
+                    }
+                });
+                navLinks.forEach(link => {
+                    link.classList.remove('active');
+                    if (link.dataset.target === currentId) {
+                        link.classList.add('active');
+                    }
+                });
+            }
+
+            // ═══════════════════════════════════════════
+            // MOBILE SIDEBAR TOGGLE
+            // ═══════════════════════════════════════════
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            const mobileBtn = document.getElementById('mobileMenuBtn');
+
+            function openSidebar() {
+                sidebar.classList.add('open');
+                overlay.classList.add('open');
+                mobileBtn.setAttribute('aria-expanded', 'true');
+                document.body.style.overflow = 'hidden';
+            }
+
+            function closeSidebar() {
+                sidebar.classList.remove('open');
+                overlay.classList.remove('open');
+                mobileBtn.setAttribute('aria-expanded', 'false');
+                document.body.style.overflow = '';
+            }
+
+            mobileBtn.addEventListener('click', () => {
+                if (sidebar.classList.contains('open')) {
+                    closeSidebar();
+                } else {
+                    openSidebar();
+                }
+            });
+            overlay.addEventListener('click', closeSidebar);
+
+            // Close sidebar when a nav link is clicked (mobile)
+            document.getElementById('sidebarNav').addEventListener('click', function(e) {
+                if (e.target.tagName === 'A' && window.innerWidth <= 1024) {
+                    setTimeout(closeSidebar, 200);
+                }
+            });
+
+            // ═══════════════════════════════════════════
+            // BACK TO TOP BUTTON
+            // ═══════════════════════════════════════════
+            const backToTopBtn = document.getElementById('backToTop');
+            function updateBackToTop() {
+                if (window.scrollY > 500) {
+                    backToTopBtn.classList.add('visible');
+                } else {
+                    backToTopBtn.classList.remove('visible');
+                }
+            }
+            backToTopBtn.addEventListener('click', () => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+
+            // ═══════════════════════════════════════════
+            // GLOBAL SCROLL LISTENER
+            // ═══════════════════════════════════════════
+            window.addEventListener('scroll', () => {
+                updateActiveNavLink();
+                updateBackToTop();
+            });
+
+            // ═══════════════════════════════════════════
+            // INITIALIZATION
+            // ═══════════════════════════════════════════
+            function init() {
+                buildSidebarNav();
+                populateReqTable(requirementsData);
+                populateBusinessRules(businessRulesData);
+                populateApiTable(apiEndpointsData);
+                populatePermMatrix();
+                bindCollapsibles();
+                updateActiveNavLink();
+                updateBackToTop();
+                document.getElementById('reqResultCount').textContent =
+                    `Showing ${requirementsData.length} of ${requirementsData.length} requirements`;
+                document.getElementById('brResultCount').textContent =
+                    `Showing ${businessRulesData.length} of ${businessRulesData.length} business rules`;
+                document.getElementById('apiResultCount').textContent =
+                    `Showing ${apiEndpointsData.length} of ${apiEndpointsData.length} endpoints`;
+            }
+
+            // Run on DOM ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', init);
+            } else {
+                init();
+            }
+        })();
+    </script>
+</body>
+</html>

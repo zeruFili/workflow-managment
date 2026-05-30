@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Backend Architecture — Workflow Management System</title>
+<style>
+:root{--g50:#f0fdf4;--g100:#dcfce7;--g200:#bbf7d0;--g300:#86efac;--g400:#4ade80;--g500:#22c55e;--g600:#16a34a;--g700:#15803d;--g800:#166534;--g900:#14532d;--w:#fff;--g1:#f3f4f6;--g2:#e5e7eb;--g3:#d1d5db;--g4:#9ca3af;--g5:#6b7280;--g6:#4b5563;--g7:#374151;--g8:#1f2937;--g9:#111827;--b:#dbeafe;--bt:#1d4ed8;--r:#fee2e2;--rt:#b91c1c;--y:#fef3c7;--yt:#a16207;--p:#ede9fe;--pt:#6d28d9;--sh:0 1px 3px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06);--shm:0 4px 6px -1px rgba(0,0,0,.1);--shl:0 10px 15px -3px rgba(0,0,0,.1);--r:.75rem;--rs:.5rem;--sw:280px;--tr:.2s}
+*,::before,::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;scroll-padding-top:80px}
+body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;background:var(--g1);color:var(--g8);line-height:1.6;display:flex;min-height:100vh}
+code{font-family:'JetBrains Mono','Fira Code','Cascadia Code',Consolas,monospace;font-size:.8125rem;background:var(--g1);padding:.125rem .375rem;border-radius:3px;border:1px solid var(--g2);color:var(--g7)}
+pre{background:var(--g9);color:#e5e7eb;border-radius:var(--r);padding:1rem 1.25rem;overflow-x:auto;font-size:.8125rem;line-height:1.7;margin:.5rem 0}
+pre code{background:transparent;border:none;color:inherit;padding:0}
+
+/* Sidebar */
+.sidebar{position:fixed;top:0;left:0;bottom:0;width:var(--sw);background:var(--w);border-right:1px solid var(--g2);display:flex;flex-direction:column;z-index:100;transition:transform var(--tr)}
+.sidebar-hdr{padding:1.25rem 1.5rem;border-bottom:1px solid var(--g1)}
+.sidebar-hdr h1{font-size:.9375rem;font-weight:800;color:var(--g9);line-height:1.3}
+.sidebar-hdr .v{display:inline-block;margin-top:.25rem;font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--g700);background:var(--g100);padding:.125rem .5rem;border-radius:9999px}
+.sidebar-srch{padding:.75rem 1.5rem;border-bottom:1px solid var(--g1);position:relative}
+.sidebar-srch input{width:100%;padding:.5rem .75rem .5rem 2.25rem;border:1px solid var(--g2);border-radius:var(--rs);font-size:.75rem;background:var(--g1);outline:none;transition:border-color var(--tr),box-shadow var(--tr)}
+.sidebar-srch input:focus{border-color:var(--g400);box-shadow:0 0 0 3px var(--g100)}
+.srch-icon{position:absolute;left:1.75rem;top:50%;transform:translateY(-50%);color:var(--g4);pointer-events:none}
+.sidebar-nav{flex:1;overflow-y:auto;padding:.5rem 0}
+.sidebar-nav summary{padding:.5rem 1.5rem;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--g5);cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center}
+.sidebar-nav summary::-webkit-details-marker{display:none}
+.sidebar-nav summary::before{content:'';display:inline-block;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid var(--g4);transition:transform var(--tr);margin-right:.25rem}
+.sidebar-nav details[open]>summary::before{transform:rotate(90deg)}
+.sidebar-nav details[open]>summary{color:var(--g600)}
+.sidebar-nav a{display:block;padding:.35rem 1.5rem .35rem 2rem;font-size:.75rem;color:var(--g6);border-left:2px solid transparent;transition:all var(--tr);text-decoration:none}
+.sidebar-nav a:hover,.sidebar-nav a.active{color:var(--g700);background:var(--g50);border-left-color:var(--g500)}
+
+/* Mobile */
+.mob-btn{display:none;position:fixed;top:.75rem;left:.75rem;z-index:200;width:40px;height:40px;border-radius:var(--rs);border:1px solid var(--g2);background:var(--w);cursor:pointer;align-items:center;justify-content:center;box-shadow:var(--sh)}
+.mob-btn span{display:block;width:18px;height:2px;background:var(--g7);position:relative}
+.mob-btn span::before,.mob-btn span::after{content:'';position:absolute;width:18px;height:2px;background:var(--g7);left:0;transition:transform var(--tr)}
+.mob-btn span::before{top:-6px}.mob-btn span::after{top:6px}
+.sb-open .mob-btn span{background:transparent}
+.sb-open .mob-btn span::before{transform:rotate(45deg);top:0}
+.sb-open .mob-btn span::after{transform:rotate(-45deg);top:0}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:99}
+.sb-open .overlay{display:block}
+@media(max-width:768px){.mob-btn{display:flex}.sidebar{transform:translateX(-100%)}.sb-open .sidebar{transform:translateX(0)}.main{margin-left:0!important;padding:4rem 1rem 1.5rem!important}}
+@media(max-width:480px){.hero-stats{grid-template-columns:repeat(3,1fr)!important}.phase-flow{flex-direction:column}.phase-arrow{display:none}.wf-card{padding:1rem!important}}
+
+/* Main */
+.main{margin-left:var(--sw);flex:1;min-width:0;padding:0}
+.main-inner{max-width:1100px;padding:2rem 3rem}
+
+/* Hero */
+.hero{background:linear-gradient(135deg,var(--g700),var(--g900));color:var(--w);padding:3rem 3rem 2.5rem;margin:0}
+.hero h2{font-size:2rem;font-weight:800;line-height:1.2}
+.hero p{color:var(--g200);font-size:.9375rem;margin-top:.5rem;max-width:650px}
+.hero-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;margin-top:2rem}
+.hero-stat{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:var(--r);padding:1.25rem;text-align:center;backdrop-filter:blur(4px)}
+.hero-stat .num{font-size:2.25rem;font-weight:800;color:var(--g400)}
+.hero-stat .lbl{font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--g200);margin-top:.25rem}
+
+/* Sections */
+h2{font-size:1.625rem;font-weight:800;color:var(--g9);margin:2.5rem 0 1rem;padding-bottom:.5rem;border-bottom:2px solid var(--g200);display:flex;align-items:center;gap:.5rem}
+h2:first-of-type{margin-top:0}
+h3{font-size:1.2rem;font-weight:700;color:var(--g8);margin:2rem 0 .75rem}
+h4{font-size:1rem;font-weight:600;color:var(--g7);margin:1.25rem 0 .5rem}
+p{color:var(--g6);font-size:.875rem;margin:.5rem 0}
+
+/* Cards */
+.card{background:var(--w);border:1px solid var(--g2);border-radius:var(--r);padding:1.5rem;margin:1rem 0;box-shadow:var(--sh);transition:box-shadow var(--tr)}
+.card:hover{box-shadow:var(--shm)}
+.cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;margin:1rem 0}
+
+/* Role cards */
+.rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.75rem;margin:1rem 0}
+.rcard{background:var(--w);border:1px solid var(--g2);border-radius:var(--r);padding:1.25rem;box-shadow:var(--sh);transition:all var(--tr);cursor:default}
+.rcard:hover{border-color:var(--g300);box-shadow:var(--shm)}
+.rcard .remoji{font-size:1.5rem}
+.rcard h4{font-size:.9375rem;font-weight:700;margin:.375rem 0 .125rem}
+.rcard .rcode{font-size:.6875rem;font-weight:600;color:var(--g700);background:var(--g50);display:inline-block;padding:.1rem .45rem;border-radius:3px;border:1px solid var(--g200)}
+.rcard .rdesc{font-size:.75rem;color:var(--g5);margin-top:.375rem;line-height:1.4}
+
+/* Endpoint cards */
+.epcard{background:var(--w);border:1px solid var(--g2);border-radius:var(--r);margin:.5rem 0;overflow:hidden;box-shadow:var(--sh)}
+.epcard summary{padding:.75rem 1.25rem;cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;gap:.75rem;font-weight:600;font-size:.8125rem;flex-wrap:wrap}
+.epcard summary::-webkit-details-marker{display:none}
+.epcard .chev{margin-left:auto;transition:transform var(--tr);color:var(--g4);flex-shrink:0}
+.epcard[open]>summary .chev{transform:rotate(180deg)}
+.epcard[open]>summary{background:var(--g50);border-bottom:1px solid var(--g100)}
+.epcard .epbody{padding:1.25rem}
+.epcard .epbody h5{font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--g5);margin-bottom:.25rem;margin-top:.75rem}
+.epcard .epbody h5:first-child{margin-top:0}
+.met{display:inline-block;font-size:.625rem;font-weight:800;padding:.18rem .5rem;border-radius:3px;letter-spacing:.03em;text-transform:uppercase;white-space:nowrap}
+.m-get{background:var(--b);color:var(--bt)}.m-post{background:var(--g100);color:var(--g700)}.m-put{background:var(--y);color:var(--yt)}.m-patch{background:var(--p);color:var(--pt)}.m-delete{background:var(--r);color:var(--rt)}
+.bdg{display:inline-block;font-size:.625rem;font-weight:600;padding:.12rem .45rem;border-radius:9999px;white-space:nowrap}
+.bdg-auth{background:var(--g100);color:var(--g700)}.bdg-no{background:var(--g1);color:var(--g5)}.bdg-role{background:var(--g50);color:var(--g700);border:1px solid var(--g200)}
+
+/* Tables */
+.tw{overflow-x:auto;margin:1rem 0;border:1px solid var(--g2);border-radius:var(--r);background:var(--w)}
+table{width:100%;border-collapse:collapse;font-size:.8125rem}
+th{background:var(--g1);font-weight:700;font-size:.6875rem;text-transform:uppercase;letter-spacing:.05em;color:var(--g6);padding:.625rem .875rem;text-align:left;border-bottom:2px solid var(--g2)}
+td{padding:.5rem .875rem;border-bottom:1px solid var(--g1);color:var(--g7)}
+tr:last-child td{border-bottom:none}tr:hover td{background:var(--g50)}
+
+/* Callout */
+.callout{background:var(--g50);border-left:4px solid var(--g500);padding:1rem 1.25rem;border-radius:0 var(--rs) var(--rs) 0;margin:1rem 0;font-size:.8125rem;color:var(--g900)}
+.callout strong{color:var(--g700)}
+
+/* Timeline / Workflow */
+.wf-card{background:var(--w);border:1px solid var(--g2);border-radius:var(--r);padding:1.5rem;margin:1rem 0;box-shadow:var(--sh)}
+.phase-flow{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.phase-step{background:var(--g50);border:1px solid var(--g200);border-radius:var(--rs);padding:.5rem .75rem;font-size:.75rem;font-weight:600;color:var(--g700);white-space:nowrap}
+.phase-arrow{color:var(--g400);font-weight:700;font-size:1rem}
+.phase-step.active{border-color:var(--g500);background:var(--g100);color:var(--g800)}
+.phase-step.done{border-color:var(--g300);background:var(--g100);color:var(--g600)}
+
+/* State machine */
+.sm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.5rem;margin:.75rem 0}
+.sm-node{border:1px solid var(--g2);border-radius:var(--rs);padding:.625rem .875rem;font-size:.75rem;font-weight:600;text-align:center;background:var(--w)}
+.sm-node.s-start{border-color:var(--g500);background:var(--g50);color:var(--g700)}
+.sm-node.s-end{border-color:var(--g300);background:var(--g50);color:var(--g600)}
+.sm-node.s-lock{border-color:var(--r);background:var(--r);color:var(--rt)}
+
+/* ERD */
+.erd{display:flex;flex-wrap:wrap;gap:.375rem;margin:.75rem 0;align-items:center;font-family:monospace;font-size:.75rem}
+.erd a{color:var(--g700);text-decoration:none;font-weight:700}
+.erd span{color:var(--g5);margin:0 .25rem}
+
+/* Permission matrix */
+.pm td{text-align:center;font-size:.75rem;font-weight:600;padding:.4rem .5rem}
+.pm td.c{color:var(--g700);background:var(--g100)}.pm td.r{color:var(--bt);background:var(--b)}.pm td.u{color:var(--yt);background:var(--y)}.pm td.d{color:var(--rt);background:var(--r)}.pm td.na{color:var(--g4)}.pm th.rl{font-size:.6875rem;white-space:nowrap}
+
+/* Back to top */
+.btt{position:fixed;bottom:1.5rem;right:1.5rem;width:44px;height:44px;border-radius:50%;background:var(--g500);color:var(--w);border:none;cursor:pointer;box-shadow:var(--shl);display:flex;align-items:center;justify-content:center;opacity:0;transform:translateY(10px);transition:all var(--tr);pointer-events:none;z-index:50}
+.btt.v{opacity:1;transform:translateY(0);pointer-events:auto}
+.btt:hover{background:var(--g600)}
+
+/* Search */
+.hid{display:none!important}
+.footer{margin-top:3rem;padding:2rem 0;border-top:1px solid var(--g2);text-align:center;font-size:.75rem;color:var(--g5)}
+.lgnd{display:flex;gap:1rem;flex-wrap:wrap;margin:.5rem 0;font-size:.6875rem;font-weight:600}
+.lgnd span{display:flex;align-items:center;gap:.25rem}
+.lgnd .dot{width:8px;height:8px;border-radius:50%}
+.d-g{background:var(--g100);color:var(--g700);border:1px solid var(--g200)}.d-b{background:var(--b);color:var(--bt)}.d-y{background:var(--y);color:var(--yt)}.d-r{background:var(--r);color:var(--rt)}
+</style>
+</head>
+<body>
+
+<div class="overlay" onclick="cl()"></div>
+<button class="mob-btn" onclick="tb()" aria-label="Menu"><span></span></button>
+
+<aside class="sidebar" id="sb">
+  <div class="sidebar-hdr"><h1>WFM Backend<br>Architecture</h1><span class="v">v1.0</span></div>
+  <div class="sidebar-srch">
+    <svg class="srch-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input type="text" id="q" placeholder="Search all content..." oninput="sch()" aria-label="Search">
+  </div>
+  <nav class="sidebar-nav" id="nav"></nav>
+</aside>
+
+<main class="main" id="mc">
+  <section class="hero" id="hero">
+    <h2>Workflow Management System</h2>
+    <p>Role-based operational platform for construction and design firms. Orchestrates the full lifecycle: customer intake → payment verification → project creation → task assignment → multi-phase design production → quantity/cost review → site execution → performance evaluation.</p>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="num">8</div><div class="lbl">User Roles</div></div>
+      <div class="hero-stat"><div class="num">16</div><div class="lbl">Major Modules</div></div>
+      <div class="hero-stat"><div class="num">60+</div><div class="lbl">API Endpoints</div></div>
+      <div class="hero-stat"><div class="num">67</div><div class="lbl">Business Rules</div></div>
+      <div class="hero-stat"><div class="num">25+</div><div class="lbl">Database Tables</div></div>
+      <div class="hero-stat"><div class="num">32</div><div class="lbl">Notification Events</div></div>
+    </div>
+  </section>
+
+  <div class="main-inner" id="content">
+    <noscript><div class="callout"><strong>JavaScript is required</strong> to render this documentation. Please enable JavaScript in your browser.</div></noscript>
+  </div>
+</main>
+
+<button class="btt" id="btt" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Top">▲</button>
+
+<div class="footer">Workflow Management System — Backend Architecture v1.0 · Reverse-engineered from frontend codebase</div>
+
+<script>
+const D = {
+  secs: [
+    {id:'overview',t:'Project Overview',i:'📋',
+      c:`
+        <div class="w">
+          <div class="callout"><strong>Target Audience:</strong> Backend Developers, Database Designers, API Developers</div>
+          <h3>Goals</h3>
+          <div class="cgrid">
+            <div class="card"><strong>1.</strong> Single source of truth for operational data across 8 roles</div>
+            <div class="card"><strong>2.</strong> Role-based access control (RBAC) at the API layer</div>
+            <div class="card"><strong>3.</strong> Full audit history for every state-changing action</div>
+            <div class="card"><strong>4.</strong> Multi-role notification with independent read-status per user</div>
+            <div class="card"><strong>5.</strong> Gated, linear workflow progression (4-phase designer pipeline)</div>
+            <div class="card"><strong>6.</strong> REST API consumed by a Telegram Mini App frontend</div>
+          </div>
+        </div>`
+    },
+    {id:'roles',t:'User Roles',i:'👥',
+      c:`
+        <div class="rgrid">${(
+          [{e:'👑',n:'CEO',c:'ceo',d:'Full oversight, user management, finance decisions, escalation'},
+           {e:'⭐',n:'General Manager',c:'general_manager',d:'Operational leadership, task assignment, approval review'},
+           {e:'📢',n:'Marketing Lead',c:'marketing_lead',d:'Customer intake, paid-customer handling, clarification responses'},
+           {e:'💰',n:'Finance Officer',c:'finance_officer',d:'Payment verification, rejection, clarification requests'},
+           {e:'📊',n:'Data Collector',c:'data_collector',d:'Field data capture, evidence submission'},
+           {e:'📐',n:'Quantity Surveyor',c:'quantity_surveyor',d:'Cost/quality evaluation of design submissions'},
+           {e:'🎨',n:'Designer',c:'designer',d:'Job applications, multi-phase design submission'},
+           {e:'🏗️',n:'Site Engineer',c:'site_engineer',d:'Field task execution, status updates, evidence capture'}]
+        ).map(r=>`<div class="rcard"><div class="remoji">${r.e}</div><h4>${r.n}</h4><span class="rcode">${r.c}</span><div class="rdesc">${r.d}</div></div>`).join('')}</div>`
+    },
+    {id:'workflow',t:'Main Workflow',i:'🔄',
+      c:`
+        <div class="wf-card">
+          <div class="phase-flow" style="justify-content:center">
+            ${['Customer Intake','Payment Upload','Payment Verification','CEO Approval','Project Creation','Job Posting','Designer Application','Assignment','Design Production','Phase Review','QS Review','Leadership Decision','Site Execution','Performance Rating'].map((s,i)=>`<span class="phase-step ${i===0?'active':i===13?'done':''}">${i+1>9?i+1:'0'+(i+1)}. ${s}</span>${i<13?'<span class="phase-arrow">→</span>':''}`).join('')}
+          </div>
+        </div>`
+    },
+    {id:'func-reqs',t:'Functional Requirements',i:'📝', sub:true}
+  ];
+
+  const roles = [
+    {n:'Authentication / User Management',id:'auth',u:[
+      ['AUTH-001','Login','Authenticate user, return JWT access + refresh tokens','None','users, refresh_tokens'],
+      ['AUTH-002','Logout','Invalidate refresh token','AUTH-001','refresh_tokens'],
+      ['AUTH-003','Get Current User','Return authenticated user profile from JWT','AUTH-001','users'],
+      ['AUTH-004','Refresh Token','Exchange refresh token for new access token','AUTH-001','refresh_tokens'],
+      ['USR-001','List Users','Paginated user list with role/status/search filters','AUTH-001','users'],
+      ['USR-002','Create User','CEO creates user with role, hashed password','USR-001','users'],
+      ['USR-003','Get User','Retrieve single user by ID','AUTH-001','users'],
+      ['USR-004','Update User','Update profile/role/status; CEO changes role; self changes profile','USR-003','users'],
+      ['USR-005','Soft Delete User','Set status=deleted, deleted_at=NOW()','USR-003','users']
+    ]},
+    {n:'Marketing Lead',id:'mkt',u:[
+      ['MKT-001','Create Customer Request','Intake new customer lead with contact/category/description','AUTH-001','customer_requests'],
+      ['MKT-002','List Customer Requests','View requests with status/category/search filters','MKT-001','customer_requests'],
+      ['MKT-003','Get Customer Request','View single request detail','MKT-002','customer_requests'],
+      ['MKT-004','Update Customer Request','Edit request fields (cannot edit after transfer)','MKT-003','customer_requests'],
+      ['MKT-005','Delete Customer Request','Remove request (cannot delete after transfer)','MKT-003','customer_requests'],
+      ['MKT-006','Transfer to Paid Customer','Move request to paid pipeline with payment proof files','MKT-003','customer_requests, paid_customers, payment_proofs, finance_history'],
+      ['MKT-007','List Paid Customers','View paid records with status filter','MKT-006','paid_customers, payment_proofs'],
+      ['MKT-008','Get Paid Customer','Full detail with verification history and clarifications','MKT-007','paid_customers, payment_proofs, finance_history, clarification_responses'],
+      ['MKT-009','Submit Clarification Response','Respond to finance request with description + attachments','MKT-008, FIN-004','paid_customers, clarification_responses, clarification_attachments'],
+      ['MKT-010','Resubmit Payment After Feedback','Submit new proof files after finance feedback','MKT-008','paid_customers, payment_proofs, finance_history'],
+      ['MKT-011','View Finance Review Result','See finance decision and notes','MKT-008, FIN-002/003/004','paid_customers, finance_history'],
+      ['MKT-012','View Marketing Dashboard','Aggregated metrics for marketing','AUTH-001','customer_requests, paid_customers, notifications'],
+      ['MKT-013','View Notifications','List notifications for marketing_lead role','AUTH-001','notifications'],
+      ['MKT-014','Mark Notification Read','Mark single or all notifications read','MKT-013','notification_reads']
+    ]},
+    {n:'Finance Officer',id:'fin',u:[
+      ['FIN-001','List Finance Verifications','View verification queue by tab (5 tabs)','AUTH-001','paid_customers, payment_proofs, finance_history'],
+      ['FIN-002','Verify Payment','Approve payment proof → status=verified; notify CEO','FIN-001','paid_customers, finance_history, notifications'],
+      ['FIN-003','Reject Payment','Reject payment proof → status=rejected; mandatory note','FIN-001','paid_customers, finance_history, notifications'],
+      ['FIN-004','Request Clarification','Ask marketing for more info → status=request_clarification','FIN-001','paid_customers, finance_history, notifications'],
+      ['FIN-005','Get Verification Detail','Full record with finance history and clarifications','FIN-001','paid_customers, payment_proofs, finance_history, clarification_responses'],
+      ['FIN-006','View Finance Dashboard','Aggregated counts for finance','AUTH-001','paid_customers, notifications'],
+      ['FIN-007','View Notifications','List notifications for finance_officer role','AUTH-001','notifications'],
+      ['FIN-008','Mark Notification Read','Mark single or all notifications read','FIN-007','notification_reads']
+    ]},
+    {n:'CEO',id:'ceo',u:[
+      ['CEO-001','View Main Dashboard','Aggregated counts (projects, tasks, approvals, notifications)','AUTH-001','projects, tasks, approvals, job_postings, notifications, paid_customers'],
+      ['CEO-002','List Projects','All projects with filters','AUTH-001','projects'],
+      ['CEO-003','Create Project','New project with client/stage/deadline/assignment','CEO-002','projects'],
+      ['CEO-004','Get Project','Project detail with task counts and documents','CEO-002','projects, tasks, documents'],
+      ['CEO-005','Update Project','Edit project fields, stage, status','CEO-004','projects'],
+      ['CEO-006','Delete Project','Soft-delete/archive project; cascade archive tasks/docs','CEO-004','projects, tasks, documents'],
+      ['CEO-007','List Tasks','All tasks with status/assignee/project/approval filters','AUTH-001','tasks'],
+      ['CEO-008','Create Task','New task with title/description/instruction/assign/deadline','CEO-002','tasks'],
+      ['CEO-009','Get Task','Task detail with submissions/feedbacks/attachments','CEO-007','tasks, submissions, feedbacks, task_attachments'],
+      ['CEO-010','Update Task','Edit task fields','CEO-009','tasks'],
+      ['CEO-011','Change Task Status','Update status (pending/in_progress/completed/incomplete/rejected)','CEO-009','tasks'],
+      ['CEO-012','Approve Task','Approve with optional feedback; sets approvalStatus=approved','CEO-009','tasks'],
+      ['CEO-013','Reject Task','Reject with mandatory feedback; sets approvalStatus=rejected','CEO-009','tasks'],
+      ['CEO-014','Create Job Posting','New posting with project/title/storyPoints/deadline','AUTH-001','job_postings'],
+      ['CEO-015','List Job Postings','All postings with status/project filters','CEO-014','job_postings'],
+      ['CEO-016','Update Job Posting','Edit posting fields','CEO-015','job_postings'],
+      ['CEO-017','Delete Job Posting','Delete posting; cascade-delete pending applications','CEO-015','job_postings, designer_applications'],
+      ['CEO-018','List Applications','All applications for a posting','CEO-015','designer_applications'],
+      ['CEO-019','Review Application','Assign (create designer task) or reject with note','CEO-018','designer_applications, designer_tasks'],
+      ['CEO-020','Create Designer Task','New designer task with story_points, project, assignment','AUTH-001','designer_tasks'],
+      ['CEO-021','List Designer Tasks','All designer tasks (scoped)','CEO-020','designer_tasks'],
+      ['CEO-022','Get Designer Progress','All 4 phases with submission history and review trail','CEO-021','designer_tasks, designer_phase_submissions, designer_phase_reviews'],
+      ['CEO-023','Review Designer Phase','Approve/feedback/reject on phase with snapshot preservation','CEO-022, DES-015','designer_phase_submissions, designer_phase_reviews'],
+      ['CEO-024','Submit Performance Review','Rate completed task (creativity/timeliness/understanding/rendering 0-5)','CEO-021','designer_performance_reviews'],
+      ['CEO-025','View Performance Dashboard','Aggregated designer metrics','AUTH-001','designer_tasks, designer_performance_reviews'],
+      ['CEO-026','Create QS Review Task','Forward design submission for cost/quality review','AUTH-001','quantity_review_tasks, notifications'],
+      ['CEO-027','List QS Review Tasks','All review tasks with status filter','CEO-026','quantity_review_tasks'],
+      ['CEO-028','List QS Evaluations','All evaluation records','AUTH-001','quantity_review_evaluations'],
+      ['CEO-029','Leadership Decision on QS','Final decision (approved/feedback) on QS evaluation','CEO-028, QS-004','quantity_review_evaluations, notifications'],
+      ['CEO-030','CEO Approve Finance','Final approval of finance-verified record → status=approved','FIN-002','paid_customers, finance_history'],
+      ['CEO-031','List Approvals','Project-stage approval items','AUTH-001','approvals'],
+      ['CEO-032','Review Approval','Approve/reject approval request','CEO-031','approvals'],
+      ['CEO-033','List DC Tasks','Data collector tasks with submissions/feedbacks','AUTH-001','data_collector_tasks, submissions, feedbacks'],
+      ['CEO-034','Create DC Task','New data collection task with assignment','AUTH-001','data_collector_tasks'],
+      ['CEO-035','Approve DC Submission','Approve evidence submission with optional feedback','CEO-033','submissions'],
+      ['CEO-036','Add Feedback','Add feedback (rich text) on task/submission','AUTH-001','feedbacks'],
+      ['CEO-037','View Customer Data','All customer requests and paid customer records','AUTH-001','customer_requests, paid_customers'],
+      ['CEO-038','View Notifications','List notifications for CEO role','AUTH-001','notifications, notification_reads'],
+      ['CEO-039','Mark Notification Read','Mark single/bulk as read','CEO-038','notification_reads'],
+      ['CEO-040','View Audit Logs','Audit trail with entity/action/date range filters','AUTH-001','audit_logs']
+    ]},
+    {n:'General Manager',id:'gm',u:[
+      ['GM-001','View Main Dashboard','Same as CEO-001','AUTH-001','projects, tasks, approvals, job_postings, notifications, paid_customers'],
+      ['GM-002','List Projects','All projects with filters','AUTH-001','projects'],
+      ['GM-003','Create Project','New project','GM-002','projects'],
+      ['GM-004','Get Project','Project detail','GM-002','projects, tasks, documents'],
+      ['GM-005','Update Project','Edit project (cannot delete)','GM-004','projects'],
+      ['GM-006','List Tasks','All tasks with filters','AUTH-001','tasks'],
+      ['GM-007','Create Task','New task','GM-002','tasks'],
+      ['GM-008','Get Task','Task detail','GM-006','tasks, submissions, feedbacks, task_attachments'],
+      ['GM-009','Update Task','Edit task','GM-008','tasks'],
+      ['GM-010','Approve Task','Approve with optional feedback','GM-008','tasks'],
+      ['GM-011','Reject Task','Reject with mandatory feedback','GM-008','tasks'],
+      ['GM-012','Create Job Posting','New posting','AUTH-001','job_postings'],
+      ['GM-013','List Job Postings','All postings','GM-012','job_postings'],
+      ['GM-014','List Applications','Applications for posting','GM-013','designer_applications'],
+      ['GM-015','Review Application','Assign/reject with note','GM-014','designer_applications, designer_tasks'],
+      ['GM-016','Create Designer Task','New designer task','AUTH-001','designer_tasks'],
+      ['GM-017','List Designer Tasks','All (scoped)','GM-016','designer_tasks'],
+      ['GM-018','Get Designer Progress','4-phase progress','GM-017','designer_tasks, designer_phase_submissions, designer_phase_reviews'],
+      ['GM-019','Review Designer Phase','Phase review (approve/feedback/reject)','GM-018, DES-015','designer_phase_submissions, designer_phase_reviews'],
+      ['GM-020','Submit Performance Review','Rate completed task','GM-017','designer_performance_reviews'],
+      ['GM-021','View Performance Dashboard','Designer metrics','AUTH-001','designer_tasks, designer_performance_reviews'],
+      ['GM-022','Create QS Review Task','Forward for QS review','AUTH-001','quantity_review_tasks, notifications'],
+      ['GM-023','List QS Review Tasks','All tasks with filter','GM-022','quantity_review_tasks'],
+      ['GM-024','List QS Evaluations','All evaluations','AUTH-001','quantity_review_evaluations'],
+      ['GM-025','Leadership Decision on QS','Final decision','GM-024, QS-004','quantity_review_evaluations, notifications'],
+      ['GM-026','List Approvals','Approval items','AUTH-001','approvals'],
+      ['GM-027','Review Approval','Approve/reject','GM-026','approvals'],
+      ['GM-028','List DC Tasks','DC tasks','AUTH-001','data_collector_tasks, submissions, feedbacks'],
+      ['GM-029','Create DC Task','New DC task','AUTH-001','data_collector_tasks'],
+      ['GM-030','Approve DC Submission','Approve evidence','GM-028','submissions'],
+      ['GM-031','Add Feedback','Feedback on task','AUTH-001','feedbacks'],
+      ['GM-032','View Customer Data','Customer records (read-only)','AUTH-001','customer_requests, paid_customers'],
+      ['GM-033','View SE Dashboard','Site engineer metrics','AUTH-001','tasks, projects'],
+      ['GM-034','View Users','User list (view-only)','AUTH-001','users'],
+      ['GM-035','View Notifications','List for GM role','AUTH-001','notifications, notification_reads'],
+      ['GM-036','Mark Notification Read','Mark read','GM-035','notification_reads']
+    ]},
+    {n:'Designer',id:'des',u:[
+      ['DES-001','Browse Open Job Postings','List open postings (status=pending, unassigned)','AUTH-001','job_postings'],
+      ['DES-002','Apply to Job Posting','Submit application with message (one per posting)','DES-001','designer_applications'],
+      ['DES-003','List My Designer Tasks','Tasks assigned to authenticated designer','AUTH-001','designer_tasks'],
+      ['DES-004','Get My Task Progress','4-phase progress with submission history and review feedback','DES-003','designer_tasks, designer_phase_submissions, designer_phase_reviews'],
+      ['DES-005','Submit Case Study','Phase 1 submission (note + optional screenshot)','DES-004','designer_phase_submissions'],
+      ['DES-006','Submit Design Stage','Phase 2 submission (requires phase 1 approved)','DES-004, DES-005','designer_phase_submissions'],
+      ['DES-007','Submit Rendering','Phase 3 submission (requires phase 2 approved)','DES-004, DES-006','designer_phase_submissions'],
+      ['DES-008','Submit Final Stage','Phase 4 submission (requires phase 3 approved, mandatory screenshot)','DES-004, DES-007','designer_phase_submissions'],
+      ['DES-009','Submit Phase Revision','Resubmit after feedback; creates new history entry','DES-004','designer_phase_submissions'],
+      ['DES-010','View Phase Review Result','See leadership review outcome per phase','DES-004, CEO-023','designer_phase_reviews'],
+      ['DES-011','View My Performance','Own performance scores and completion history','AUTH-001','designer_performance_reviews'],
+      ['DES-012','View Notifications','List for designer role','AUTH-001','notifications'],
+      ['DES-013','Mark Notification Read','Mark read','DES-012','notification_reads'],
+      ['DES-014','View My Application Status','See application status (pending/assigned/rejected)','DES-002','designer_applications'],
+      ['DES-015','Submit Phase (Generic)','Submit work for a specific phase','DES-004','designer_phase_submissions']
+    ]},
+    {n:'Quantity Surveyor',id:'qs',u:[
+      ['QS-001','List Review Tasks','Assigned QS tasks with status filter','AUTH-001','quantity_review_tasks'],
+      ['QS-002','Mark Task In Review','Change status pending_review → in_review','QS-001','quantity_review_tasks'],
+      ['QS-003','Submit Evaluation','Cost evaluation with recommendation','QS-002','quantity_review_evaluations, quantity_review_tasks, notifications'],
+      ['QS-004','List Evaluations','Own evaluations with filters','QS-003','quantity_review_evaluations'],
+      ['QS-005','View Leadership Decision','Final decision (approved/feedback) on evaluation','QS-004, CEO-029','quantity_review_evaluations'],
+      ['QS-006','View QS Notifications','QS-specific notifications','AUTH-001','notifications'],
+      ['QS-007','Mark Role Notifications Read','Mark all by type for QS role','QS-006','notification_reads'],
+      ['QS-008','View QS Dashboard','Aggregated counts for QS','AUTH-001','quantity_review_tasks, quantity_review_evaluations']
+    ]},
+    {n:'Site Engineer',id:'se',u:[
+      ['SE-001','List My Tasks','Tasks assigned to authenticated SE with status filter','AUTH-001','tasks'],
+      ['SE-002','Get Task Detail','Task with project context/instructions/deadline/attachments','SE-001','tasks, projects, task_attachments'],
+      ['SE-003','Update Task Description','Edit description (field notes/progress)','SE-002','tasks'],
+      ['SE-004','Change Task Status','Update status (pending/in_progress/completed/incomplete/rejected)','SE-002','tasks'],
+      ['SE-005','Upload Task Attachment','Field evidence (images/docs) attached to task','SE-002','task_attachments'],
+      ['SE-006','View SE Dashboard','Tasks by status, highlighted/new tasks, project summary','AUTH-001','tasks'],
+      ['SE-007','View Notifications','List for site_engineer role','AUTH-001','notifications'],
+      ['SE-008','Mark Notification Read','Mark read','SE-007','notification_reads']
+    ]},
+    {n:'Data Collector',id:'dc',u:[
+      ['DC-001','List My Tasks','Tasks assigned to authenticated DC','AUTH-001','data_collector_tasks'],
+      ['DC-002','Get Task Detail','Task with project context/instruction/submissions/feedbacks','DC-001','data_collector_tasks, submissions, feedbacks'],
+      ['DC-003','Submit Evidence','Submit notes + file attachments → creates submission record','DC-002','submissions, submission_attachments'],
+      ['DC-004','View Submission Results','Leadership review results on submitted evidence','DC-003','submissions'],
+      ['DC-005','View Notifications','List for data_collector role','AUTH-001','notifications'],
+      ['DC-006','Mark Notification Read','Mark read','DC-005','notification_reads']
+    ]}
+  ];
+
+  const bizRules = [
+    {t:'Customer Request Rules',r:[
+      ['BR-001','Customer request cannot be transferred more than once. Once transferred, source archived (status=closed).'],
+      ['BR-002','Cannot update/delete a transferred customer request.'],
+      ['BR-003','If category=other, otherCategoryDescription is required.'],
+      ['BR-004','Phone number must pass format validation.'],
+      ['BR-005','Proof of payment files required when transferring to paid pipeline.']
+    ]},
+    {t:'Payment Verification Rules',r:[
+      ['BR-006','Status transitions: pending → verified|rejected|request_clarification; verified → approved (CEO only).'],
+      ['BR-007','Only Finance Officer can verify/reject/clarify.'],
+      ['BR-008','Only CEO can execute final "CEO approve" to set status=approved.'],
+      ['BR-009','Clarification request requires mandatory message.'],
+      ['BR-010','Rejection requires mandatory message.'],
+      ['BR-011','All finance decisions recorded in finance_history (actor, timestamp, note).'],
+      ['BR-012','Clarification response requires description + at least one image attachment.'],
+      ['BR-013','Marketing can only respond when status=request_clarification.'],
+      ['BR-014','Finance history and clarification responses preserved (immutable audit).']
+    ]},
+    {t:'Designer Multi-Phase Workflow Rules',r:[
+      ['BR-015','Phases strictly sequential: Case Study → Design Stage → Rendering → Final Stage. Cannot skip.'],
+      ['BR-016','If phase review status=rejected, cannot submit further revisions. Task locked at that phase.'],
+      ['BR-017','If review status=feedback, designer must submit revision to restart review.'],
+      ['BR-018','Cannot proceed to next phase if current phase has feedback status.'],
+      ['BR-019','All phase history preserved as immutable snapshots.'],
+      ['BR-020','Latest/live phase data stored separately from historical review trail.'],
+      ['BR-021','Revision submissions create new designer submission snapshots.'],
+      ['BR-022','Phase rejection → task overall status=rejected.'],
+      ['BR-023','All 4 phases approved → task status=completed, approvalStatus=approved.'],
+      ['BR-024','Final Stage requires screenshot (mandatory); other phases optional.'],
+      ['BR-025','Designer can only submit to assigned tasks.'],
+      ['BR-026','Performance reviews only for completed designer tasks.'],
+      ['BR-027','Ratings 0-5, up to one decimal place.']
+    ]},
+    {t:'Designer Application Rules',r:[
+      ['BR-028','Designer cannot apply to same posting twice.'],
+      ['BR-029','Cannot apply to posting that already has assigned designer.'],
+      ['BR-030','Only CEO/GM can review applications.'],
+      ['BR-031','Application assigned → applicant becomes task assignedTo; posting status=assigned.'],
+      ['BR-032','Application rejected → status updated with reviewer note.'],
+      ['BR-033','Assigned application creates corresponding designer task record.']
+    ]},
+    {t:'Quantity Surveyor Rules',r:[
+      ['BR-034','Status transitions: pending_review → in_review → record_submitted.'],
+      ['BR-035','Only assigned QS can mark in_review or submit evaluation.'],
+      ['BR-036','Only CEO/GM can forward design submission for QS review.'],
+      ['BR-037','Evaluation cannot be submitted unless task status=in_review.'],
+      ['BR-038','Recommendation: recommended_for_approval or recommends_revision.'],
+      ['BR-039','Leadership decision: approved or feedback.'],
+      ['BR-040','Evaluation submitted → notification to CEO/GM (type=evaluation_submitted).'],
+      ['BR-041','Leadership decision → notification to QS (type=decision_made).'],
+      ['BR-042','Task created → notification to QS (type=task_assigned).'],
+      ['BR-043','Notification read tracked per-role; multiple roles independent read states.']
+    ]},
+    {t:'General Task Rules',r:[
+      ['BR-044','Status transitions: pending → in_progress → completed|incomplete|rejected.'],
+      ['BR-045','Task approval requires CEO/GM role.'],
+      ['BR-046','Approve: feedback optional. Reject: feedback mandatory.'],
+      ['BR-047','Assigned user can change own task status.'],
+      ['BR-048','Site engineer only sees own tasks.'],
+      ['BR-049','DC submissions require at least notes or attachments.'],
+      ['BR-050','Feedback version auto-increments.'],
+      ['BR-051','Feedback authors can edit/delete own feedback.']
+    ]},
+    {t:'User Management Rules',r:[
+      ['BR-052','Only CEO can create/update role/status/delete users.'],
+      ['BR-053','User cannot delete themselves.'],
+      ['BR-054','Soft-deleted users cannot authenticate.'],
+      ['BR-055','Username unique across active users.'],
+      ['BR-056','Password min 8 chars for new users.'],
+      ['BR-057','Email valid format.'],
+      ['BR-058','Role must be one of 8 allowed values.']
+    ]},
+    {t:'Project & Audit Rules',r:[
+      ['BR-059','Only CEO/GM create and update projects.'],
+      ['BR-060','Only CEO delete/archive projects.'],
+      ['BR-061','Stages: lead → design → approval → execution → completed.'],
+      ['BR-062','Status: active, on_hold, completed.'],
+      ['BR-065','Every state change logged to audit (entity, action, actor, timestamp, old/new values).'],
+      ['BR-066','Audit logs append-only.'],
+      ['BR-067','Only CEO views audit logs.']
+    ]}
+  ];
+
+  const tables = [
+    {n:'users',c:[['id','UUID','PK'],['username','VARCHAR(100)','UNIQUE, NOT NULL'],['name','VARCHAR(255)','NOT NULL'],['email','VARCHAR(255)','UNIQUE, NOT NULL'],['password_hash','VARCHAR(255)','NOT NULL'],['role','VARCHAR(50)','NOT NULL, CHECK IN 8 roles'],['phone','VARCHAR(50)','NULLABLE'],['status','VARCHAR(20)','active/inactive/deleted'],['created_at','TIMESTAMPTZ','DEFAULT NOW()'],['updated_at','TIMESTAMPTZ','DEFAULT NOW()'],['deleted_at','TIMESTAMPTZ','NULLABLE']]},
+    {n:'refresh_tokens',c:[['id','UUID','PK'],['user_id','UUID','FK→users ON DELETE CASCADE'],['token_hash','VARCHAR(255)','UNIQUE, NOT NULL'],['expires_at','TIMESTAMPTZ','NOT NULL'],['created_at','TIMESTAMPTZ','DEFAULT NOW()'],['revoked_at','TIMESTAMPTZ','NULLABLE']]},
+    {n:'projects',c:[['id','VARCHAR(50)','PK (proj-{n})'],['name','VARCHAR(255)','NOT NULL'],['client_name','VARCHAR(255)','NOT NULL'],['description','TEXT','NULLABLE'],['stage','VARCHAR(50)','NOT NULL (5 stages)'],['status','VARCHAR(20)','active/on_hold/completed'],['deadline','TIMESTAMPTZ','NULLABLE'],['created_by','UUID','FK→users'],['assigned_to','UUID','FK→users, NULLABLE'],['created_at','TIMESTAMPTZ','DEFAULT NOW()'],['updated_at','TIMESTAMPTZ','DEFAULT NOW()']]},
+    {n:'customer_requests',c:[['id','VARCHAR(50)','PK (cr-{n})'],['customer_name','VARCHAR(255)','NOT NULL'],['customer_phone','VARCHAR(50)','NOT NULL'],['customer_email','VARCHAR(255)','NULLABLE'],['customer_address','TEXT','NOT NULL'],['category','VARCHAR(50)','NOT NULL (4 categories)'],['service_description','TEXT','NOT NULL'],['preferred_start_date','TIMESTAMPTZ','NULLABLE'],['budget','VARCHAR(255)','NULLABLE'],['notes','TEXT','NULLABLE'],['other_category_description','VARCHAR(255)','NULLABLE'],['status','VARCHAR(20)','new/in_review/scheduled/closed'],['created_by','UUID','FK→users'],['created_by_name','VARCHAR(255)','NOT NULL'],['created_at','TIMESTAMPTZ','DEFAULT NOW()'],['updated_at','TIMESTAMPTZ','DEFAULT NOW()']]},
+    {n:'paid_customers',c:[['id','VARCHAR(50)','PK (paid-{n})'],['source_request_id','VARCHAR(50)','FK→customer_requests, UNIQUE'],['customer_name','VARCHAR(255)','NOT NULL'],['customer_phone','VARCHAR(50)','NOT NULL'],['customer_email','VARCHAR(255)','NULLABLE'],['customer_address','TEXT','NOT NULL'],['category','VARCHAR(50)','NOT NULL'],['service_description','TEXT','NOT NULL'],['payment_note','TEXT','NULLABLE'],['payment_verification_status','VARCHAR(30)','DEFAULT pending (5 states)'],['payment_verified_at','TIMESTAMPTZ','NULLABLE'],['payment_verified_by','UUID','FK→users, NULLABLE'],['transferred_at','TIMESTAMPTZ','DEFAULT NOW()'],['transferred_by','UUID','FK→users'],['transferred_by_name','VARCHAR(255)','NOT NULL'],['created_at','TIMESTAMPTZ','DEFAULT NOW()']]},
+    {n:'payment_proofs',c:[['id','UUID','PK'],['paid_customer_id','VARCHAR(50)','FK→paid_customers CASCADE'],['file_name','VARCHAR(255)','NOT NULL'],['file_type','VARCHAR(100)','NOT NULL'],['file_size','VARCHAR(50)','NOT NULL'],['file_path','VARCHAR(500)','NOT NULL'],['upload_stage','VARCHAR(20)','initial/resubmission/clarification'],['uploaded_by','UUID','FK→users'],['uploaded_at','TIMESTAMPTZ','DEFAULT NOW()']]},
+    {n:'finance_history',c:[['id','UUID','PK'],['paid_customer_id','VARCHAR(50)','FK→paid_customers CASCADE'],['action','VARCHAR(30)','verify/reject/request_clarification/ceo_approve'],['note','TEXT','NOT NULL'],['actor_id','UUID','FK→users'],['actor_name','VARCHAR(255)','NOT NULL'],['created_at','TIMESTAMPTZ','DEFAULT NOW()']]},
+    {n:'clarification_responses',c:[['id','UUID','PK'],['paid_customer_id','VARCHAR(50)','FK→paid_customers CASCADE'],['description','TEXT','NOT NULL'],['responded_by','UUID','FK→users'],['responded_by_name','VARCHAR(255)','NOT NULL'],['responded_at','TIMESTAMPTZ','DEFAULT NOW()']]},
+    {n:'clarification_attachments',c:[['id','UUID','PK'],['clarification_response_id','UUID','FK→clarification_responses CASCADE'],['file_name','VARCHAR(255)','NOT NULL'],['file_type','VARCHAR(100)','NOT NULL'],['file_size','VARCHAR(50)','NOT NULL'],['file_path','VARCHAR(500)','NOT NULL']]},
+    {n:'tasks',c:[['id','VARCHAR(50)','PK (task-{n})'],['project_id','VARCHAR(50)','FK→projects'],['title','VARCHAR(255)','NOT NULL'],['description','TEXT','NULLABLE'],['instruction','TEXT','NULLABLE'],['assigned_to','UUID','FK→users, NULLABLE'],['assigned_by','UUID','FK→users'],['status','VARCHAR(20)','5 statuses'],['deadline','TIMESTAMPTZ','NULLABLE'],['approval_status','VARCHAR(20)','pending/approved/rejected'],['approved_by','UUID','FK→users, NULLABLE'],['approved_at','TIMESTAMPTZ','NULLABLE'],['task_type','VARCHAR(30)','general/site_engineer/data_collector/designer'],['created_at','TIMESTAMPTZ','DEFAULT NOW()','Indexes: status, assigned_to, project, approval']]},
+    {n:'job_postings',c:[['id','VARCHAR(50)','PK (job-post-{n})'],['project_id','VARCHAR(50)','FK→projects'],['title','VARCHAR(255)','NOT NULL'],['description','TEXT','NULLABLE'],['instruction','TEXT','NULLABLE'],['story_points','INTEGER','NOT NULL, CHECK>0'],['status','VARCHAR(20)','pending/assigned/closed'],['deadline','TIMESTAMPTZ','NULLABLE'],['created_by','UUID','FK→users'],['created_at','TIMESTAMPTZ','DEFAULT NOW()']]},
+    {n:'designer_applications',c:[['id','VARCHAR(50)','PK (dapp-{n})'],['job_posting_id','VARCHAR(50)','FK→job_postings CASCADE'],['applicant_id','UUID','FK→users'],['applicant_name','VARCHAR(255)','NOT NULL'],['message','TEXT','NOT NULL'],['status','VARCHAR(20)','pending/assigned/rejected'],['reviewed_by','UUID','FK→users, NULLABLE'],['review_note','TEXT','NULLABLE'],['applied_at','TIMESTAMPTZ','DEFAULT NOW()','UNIQUE(job_posting_id,applicant_id)']]},
+    {n:'designer_tasks',c:[['id','VARCHAR(50)','PK (dtask-{n})'],['project_id','VARCHAR(50)','FK→projects'],['title','VARCHAR(255)','NOT NULL'],['story_points','INTEGER','NOT NULL, CHECK>0'],['assigned_to','UUID','FK→users'],['assigned_by','UUID','FK→users'],['status','VARCHAR(20)','Pending/completed/rejected'],['current_phase','VARCHAR(20)','case_study/design_stage/rendering/final_stage'],['application_id','VARCHAR(50)','FK→designer_applications, NULLABLE'],['deadline','TIMESTAMPTZ','NULLABLE'],['created_at','TIMESTAMPTZ','DEFAULT NOW()']]},
+    {n:'designer_phase_submissions',c:[['id','UUID','PK'],['designer_task_id','VARCHAR(50)','FK→designer_tasks CASCADE'],['phase','VARCHAR(20)','NOT NULL (4 phases)'],['note','TEXT','NULLABLE'],['screenshot_path','VARCHAR(500)','NULLABLE'],['submitted_at','TIMESTAMPTZ','DEFAULT NOW()','Index:(task_id,phase)']]},
+    {n:'designer_phase_reviews',c:[['id','UUID','PK'],['submission_id','UUID','FK→designer_phase_submissions CASCADE'],['designer_task_id','VARCHAR(50)','FK→designer_tasks CASCADE'],['phase','VARCHAR(20)','NOT NULL'],['action','VARCHAR(20)','approve/feedback/reject'],['message','TEXT','NOT NULL'],['reviewer_id','UUID','FK→users'],['reviewer_name','VARCHAR(255)','NOT NULL'],['reviewed_at','TIMESTAMPTZ','DEFAULT NOW()'],['snapshot_note','TEXT','NULLABLE'],['snapshot_screenshot','VARCHAR(500)','NULLABLE']]},
+    {n:'designer_performance_reviews',c:[['id','VARCHAR(50)','PK (r-{initials}-{n})'],['designer_task_id','VARCHAR(50)','FK→designer_tasks'],['designer_id','UUID','FK→users'],['task_title','VARCHAR(255)','NOT NULL'],['project_id','VARCHAR(50)','FK→projects'],['story_points','INTEGER','NOT NULL'],['overall_rating','DECIMAL(3,1)','CHECK 0-5'],['rendering_quality','DECIMAL(3,1)','CHECK 0-5'],['timeliness','DECIMAL(3,1)','CHECK 0-5'],['creativity','DECIMAL(3,1)','CHECK 0-5'],['client_understanding','DECIMAL(3,1)','CHECK 0-5'],['revision_efficiency','DECIMAL(3,1)','CHECK 0-5'],['revision_count','INTEGER','DEFAULT 0'],['feedback','TEXT','NULLABLE'],['rated_by','UUID','FK→users'],['completed_at','TIMESTAMPTZ','NOT NULL']]},
+    {n:'quantity_review_tasks',c:[['id','VARCHAR(50)','PK (qs-review-{n})'],['job_id','VARCHAR(50)','NOT NULL'],['design_work_reference','VARCHAR(100)','NOT NULL'],['description','TEXT','NOT NULL'],['designer_name','VARCHAR(255)','NOT NULL'],['submission_date','TIMESTAMPTZ','NOT NULL'],['budget_expectation_reference','VARCHAR(100)','NULLABLE'],['status','VARCHAR(30)','pending_review/in_review/record_submitted'],['created_by','UUID','FK→users'],['assigned_to','UUID','FK→users'],['evaluation_id','VARCHAR(50)','FK→evaluations, NULLABLE'],['created_at','TIMESTAMPTZ','DEFAULT NOW()']]},
+    {n:'quantity_review_evaluations',c:[['id','VARCHAR(50)','PK (qs-eval-{n})'],['task_id','VARCHAR(50)','FK→quantity_review_tasks'],['surveyor_id','UUID','FK→users'],['surveyor_name','VARCHAR(255)','NOT NULL'],['design_cost_value','DECIMAL(12,2)','NOT NULL, CHECK>=0'],['evaluation_notes','TEXT','NOT NULL'],['recommendation','VARCHAR(30)','recommended_for_approval/recommends_revision'],['submitted_at','TIMESTAMPTZ','DEFAULT NOW()'],['decision_status','VARCHAR(20)','pending/approved/feedback'],['decided_by','UUID','FK→users, NULLABLE'],['decided_at','TIMESTAMPTZ','NULLABLE']]},
+    {n:'notifications',c:[['id','VARCHAR(50)','PK'],['type','VARCHAR(50)','NOT NULL'],['task_id','VARCHAR(50)','NULLABLE'],['evaluation_id','VARCHAR(50)','NULLABLE'],['entity_id','VARCHAR(50)','NULLABLE'],['message','VARCHAR(500)','NOT NULL'],['description','TEXT','NULLABLE'],['target_roles','VARCHAR(50)[]','NOT NULL (GIN indexed)'],['created_at','TIMESTAMPTZ','DEFAULT NOW()']]},
+    {n:'notification_reads',c:[['id','UUID','PK'],['notification_id','VARCHAR(50)','FK→notifications CASCADE'],['user_id','UUID','FK→users CASCADE'],['read_at','TIMESTAMPTZ','DEFAULT NOW()','UNIQUE(notification_id,user_id)']]},
+    {n:'audit_logs',c:[['id','BIGSERIAL','PK'],['entity_type','VARCHAR(50)','NOT NULL'],['entity_id','VARCHAR(50)','NOT NULL'],['action','VARCHAR(50)','NOT NULL'],['actor_id','UUID','FK→users'],['actor_name','VARCHAR(255)','NOT NULL'],['old_values','JSONB','NULLABLE'],['new_values','JSONB','NULLABLE'],['ip_address','INET','NULLABLE'],['created_at','TIMESTAMPTZ','DEFAULT NOW()','Indexes:(entity,entity_id),(actor_id),(action),(created_at)']]}
+  ];
+
+  const apis = [
+    {t:'Auth',e:[
+      ['AUTH-001','POST','/api/auth/login',false,'All'],['AUTH-002','POST','/api/auth/logout',true,'All'],
+      ['AUTH-003','GET','/api/auth/me',true,'All'],['AUTH-004','POST','/api/auth/refresh',false,'All']
+    ]},
+    {t:'Users',e:[
+      ['USR-001','GET','/api/users',true,'CEO, GM'],['USR-002','POST','/api/users',true,'CEO'],
+      ['USR-003','GET','/api/users/:id',true,'CEO, GM, self'],['USR-004','PUT','/api/users/:id',true,'CEO, self'],
+      ['USR-005','DELETE','/api/users/:id',true,'CEO']
+    ]},
+    {t:'Projects',e:[
+      ['CEO-002','GET','/api/projects',true,'All (scoped)'],['CEO-003','POST','/api/projects',true,'CEO, GM'],
+      ['CEO-004','GET','/api/projects/:id',true,'All (scoped)'],['CEO-005','PUT','/api/projects/:id',true,'CEO, GM'],
+      ['CEO-006','DELETE','/api/projects/:id',true,'CEO'],['—','GET','/api/projects/:id/tasks',true,'All'],
+      ['—','GET','/api/projects/:id/documents',true,'All'],['—','POST','/api/projects/:id/documents',true,'CEO, GM, members']
+    ]},
+    {t:'Tasks (General/SE)',e:[
+      ['CEO-007','GET','/api/tasks',true,'All (scoped)'],['CEO-008','POST','/api/tasks',true,'CEO, GM'],
+      ['CEO-009','GET','/api/tasks/:id',true,'All (scoped)'],['CEO-010','PUT','/api/tasks/:id',true,'CEO, GM, assignee'],
+      ['CEO-011','PATCH','/api/tasks/:id/status',true,'CEO, GM, assignee'],['CEO-012','POST','/api/tasks/:id/approve',true,'CEO, GM'],
+      ['CEO-013','POST','/api/tasks/:id/reject',true,'CEO, GM'],['SE-005','POST','/api/tasks/:id/attachments',true,'CEO, GM, assignee'],
+      ['DC-003','POST','/api/tasks/:id/submissions',true,'DC, SE, assignee'],['—','PATCH','/api/feedbacks/:id',true,'Author'],
+      ['—','DELETE','/api/feedbacks/:id',true,'Author']
+    ]},
+    {t:'Data Collector',e:[['CEO-033','GET','/api/data-collector-tasks',true,'CEO, GM, DC'],['CEO-034','POST','/api/data-collector-tasks',true,'CEO, GM']]},
+    {t:'Customer Requests',e:[
+      ['MKT-002','GET','/api/customer-requests',true,'MKT, CEO, GM'],['MKT-001','POST','/api/customer-requests',true,'MKT'],
+      ['MKT-003','GET','/api/customer-requests/:id',true,'MKT, CEO, GM'],['MKT-004','PUT','/api/customer-requests/:id',true,'MKT'],
+      ['MKT-005','DELETE','/api/customer-requests/:id',true,'MKT, CEO']
+    ]},
+    {t:'Paid Customers & Finance',e:[
+      ['MKT-006','POST','/api/paid-customers',true,'MKT'],['MKT-007','GET','/api/paid-customers',true,'MKT, Finance, CEO, GM'],
+      ['MKT-008','GET','/api/paid-customers/:id',true,'MKT, Finance, CEO, GM'],['FIN-002','POST','/api/paid-customers/:id/verify',true,'Finance'],
+      ['MKT-009','POST','/api/paid-customers/:id/clarify',true,'MKT'],['CEO-030','POST','/api/paid-customers/:id/ceo-approve',true,'CEO'],
+      ['FIN-001','GET','/api/finance/verifications',true,'Finance, CEO, GM']
+    ]},
+    {t:'Job Postings',e:[
+      ['DES-001','GET','/api/job-postings',true,'CEO, GM, Designer'],['CEO-014','POST','/api/job-postings',true,'CEO, GM'],
+      ['CEO-016','PUT','/api/job-postings/:id',true,'CEO, GM'],['CEO-017','DELETE','/api/job-postings/:id',true,'CEO, GM'],
+      ['CEO-018','GET','/api/job-postings/:id/applications',true,'CEO, GM'],['DES-002','POST','/api/job-postings/:id/applications',true,'Designer'],
+      ['CEO-019','PUT','/api/applications/:id',true,'CEO, GM']
+    ]},
+    {t:'Designer Multi-Phase',e:[
+      ['DES-003','GET','/api/designer-tasks',true,'CEO, GM, Designer'],['CEO-020','POST','/api/designer-tasks',true,'CEO, GM'],
+      ['DES-004','GET','/api/designer-tasks/:id/progress',true,'CEO, GM, assignee'],['DES-005','POST','/api/designer-tasks/:id/phases/:phase/submissions',true,'Designer'],
+      ['CEO-023','POST','/api/designer-tasks/:id/phases/:phase/review',true,'CEO, GM'],['CEO-024','POST','/api/designer-tasks/:id/review',true,'CEO, GM']
+    ]},
+    {t:'Performance',e:[['CEO-025','GET','/api/designer-performance',true,'CEO, GM, Designer']]},
+    {t:'Quantity Surveyor',e:[
+      ['QS-001','GET','/api/quantity-review-tasks',true,'CEO, GM, QS'],['CEO-026','POST','/api/quantity-review-tasks',true,'CEO, GM'],
+      ['QS-002','PATCH','/api/quantity-review-tasks/:id/status',true,'QS'],['QS-004','GET','/api/quantity-review-evaluations',true,'CEO, GM, QS'],
+      ['QS-003','POST','/api/quantity-review-evaluations',true,'QS'],['CEO-029','POST','/api/quantity-review-evaluations/:id/decision',true,'CEO, GM'],
+      ['QS-006','GET','/api/quantity-review-notifications',true,'CEO, GM, QS']
+    ]},
+    {t:'Approvals & Dashboard',e:[
+      ['CEO-031','GET','/api/approvals',true,'CEO, GM'],['—','POST','/api/approvals',true,'CEO, GM, assignee'],
+      ['CEO-032','POST','/api/approvals/:id/review',true,'CEO, GM'],['CEO-001','GET','/api/dashboard',true,'All (scoped)'],
+      ['FIN-006','GET','/api/dashboard/finance',true,'Finance'],['SE-006','GET','/api/dashboard/site-engineer',true,'SE, CEO, GM'],
+      ['QS-008','GET','/api/dashboard/quantity-surveyor',true,'QS']
+    ]},
+    {t:'Notifications, Uploads, Audit',e:[
+      ['CEO-038','GET','/api/notifications',true,'All'],['CEO-039','PATCH','/api/notifications/:id/read',true,'All'],
+      ['—','POST','/api/notifications/read',true,'All'],['QS-007','POST','/api/notifications/read-role',true,'All'],
+      ['—','POST','/api/uploads',true,'All'],['—','GET','/api/uploads/:id',true,'All'],
+      ['—','GET','/api/uploads/:id/download',true,'All'],['—','DELETE','/api/uploads/:id',true,'Uploader, CEO'],
+      ['CEO-040','GET','/api/audit',true,'CEO']
+    ]}
+  ];
+
+  const notifEvents = [
+    ['NOT-010','Payment transferred to paid pipeline','finance_officer','MKT-006'],
+    ['NOT-011','Payment verified by Finance','ceo','FIN-002'],
+    ['NOT-012','Payment rejected by Finance','marketing_lead','FIN-003'],
+    ['NOT-013','Clarification requested by Finance','marketing_lead','FIN-004'],
+    ['NOT-014','Clarification response submitted','finance_officer','MKT-009'],
+    ['NOT-015','CEO approved finance record','finance_officer, general_manager','CEO-030'],
+    ['NOT-016','Job posting created','designer','CEO-014'],
+    ['NOT-017','Designer application submitted','ceo, general_manager','DES-002'],
+    ['NOT-018','Application reviewed (assigned/rejected)','designer (scoped to applicant)','CEO-019'],
+    ['NOT-019','Designer phase submitted','ceo, general_manager','DES-005–008'],
+    ['NOT-020','Designer phase reviewed','designer (scoped to assignee)','CEO-023'],
+    ['NOT-021','Performance review submitted','designer','CEO-024'],
+    ['NOT-022','Task created with assignee','[assignee_role]','CEO-008, GM-007'],
+    ['NOT-023','Task approved','[assignee_role]','CEO-012'],
+    ['NOT-024','Task rejected','[assignee_role]','CEO-013'],
+    ['NOT-025','DC evidence submitted','ceo, general_manager','DC-003'],
+    ['NOT-026','DC submission approved','data_collector','CEO-035'],
+    ['NOT-027','Feedback added to task','[assignee_role]','CEO-036'],
+    ['NOT-028','QS task assigned (task_assigned)','quantity_surveyor','CEO-026'],
+    ['NOT-029','QS evaluation submitted (evaluation_submitted)','ceo, general_manager','QS-003'],
+    ['NOT-030','QS decision made (decision_made)','quantity_surveyor','CEO-029'],
+    ['NOT-031','Approval requested','ceo, general_manager','—'],
+    ['NOT-032','Approval reviewed','[requester_role]','CEO-032']
+  ];
+
+  const nfr = [
+    {t:'Security',r:[
+      ['NFR-SEC-01','All endpoints (except login/refresh) require valid JWT Bearer token.'],
+      ['NFR-SEC-02','RBAC middleware validates role before business logic execution.'],
+      ['NFR-SEC-03','Passwords hashed with bcrypt (cost >= 12) or argon2id. Never log plaintext.'],
+      ['NFR-SEC-04','Access token: 15 min expiry. Refresh token: 7 days, stored hashed.'],
+      ['NFR-SEC-05','All input sanitized (SQL injection, XSS). Parameterized queries only.'],
+      ['NFR-SEC-06','File uploads validated for MIME type, extension, max 10MB. Stored outside web root.'],
+      ['NFR-SEC-07','Rate limiting: max 5 login attempts/IP/minute.'],
+      ['NFR-SEC-08','Security headers: X-Content-Type-Options, X-Frame-Options, CSP, HSTS.'],
+      ['NFR-SEC-09','JWT payload: user ID, role, username. Role changes invalidate tokens.']
+    ]},
+    {t:'Logging & Audit',r:[
+      ['NFR-LOG-01','Every state change logged with entity, ID, action, actor, timestamp, old/new values.'],
+      ['NFR-LOG-02','Auth events logged (login success/fail, logout, refresh).'],
+      ['NFR-LOG-03','500 errors logged with correlation IDs.'],
+      ['NFR-LOG-04','Only CEO views audit logs.'],
+      ['NFR-LOG-05','Audit logs append-only.'],
+      ['NFR-LOG-06','No passwords/tokens in logs.']
+    ]},
+    {t:'Performance',r:[
+      ['NFR-PERF-01','Pagination on all list endpoints (page, perPage; default 20, max 100).'],
+      ['NFR-PERF-02','meta object with total, page, perPage.'],
+      ['NFR-PERF-03','95th percentile: <500ms reads, <1000ms writes.'],
+      ['NFR-PERF-04','Indexes on all FKs and filter columns.'],
+      ['NFR-PERF-05','Streaming for file upload/download.'],
+      ['NFR-PERF-06','Server-side notification counts (aggregate queries).']
+    ]},
+    {t:'Filtering & Search',r:[
+      ['NFR-FIL-01','Common params: page, perPage, search (ILIKE on name/title).'],
+      ['NFR-FIL-02','Role-specific filters (status, assignedTo, projectId, approvalStatus).'],
+      ['NFR-FIL-03','Case-insensitive search via ILIKE.'],
+      ['NFR-FIL-04','Configurable sort (createdAt:desc, deadline:asc).']
+    ]},
+    {t:'File Upload',r:[
+      ['NFR-FILE-01','Max 10MB/file; 413 if exceeded.'],
+      ['NFR-FILE-02','Allowed MIME: image/*, application/pdf, .doc, .docx, .xlsx. 422 for others.'],
+      ['NFR-FILE-03','UUID filenames to prevent collisions.'],
+      ['NFR-FILE-04','File metadata (name, type, size, uploader, timestamp) in DB.'],
+      ['NFR-FILE-05','Auth-gated downloads; 403 if unauthorized.'],
+      ['NFR-FILE-06','Presigned URLs expire in 1 hour.']
+    ]},
+    {t:'Scalability',r:[
+      ['NFR-SCALE-01','Stateless API (besides JWT validation).'],
+      ['NFR-SCALE-02','Connection pooling configured.'],
+      ['NFR-SCALE-03','Archive notification_reads >90 days.'],
+      ['NFR-SCALE-04','Partition audit_logs by month.']
+    ]},
+    {t:'Reliability',r:[
+      ['NFR-REL-01','Multi-table operations wrapped in transactions.'],
+      ['NFR-REL-02','Application assignment + designer task creation = atomic.'],
+      ['NFR-REL-03','Customer transfer + status update = atomic.'],
+      ['NFR-REL-04','QS evaluation + task status + notification = atomic.']
+    ]}
+  ];
+
+  function mcl(m){let c=m.toLowerCase();return c==='get'?'m-get':c==='post'?'m-post':c==='put'?'m-put':c==='patch'?'m-patch':c==='delete'?'m-delete':c==='head'?'m-get':''}
+  function ab(a){return a?'<span class="bdg bdg-auth">Auth</span>':'<span class="bdg bdg-no">Public</span>'}
+
+  function build() {
+    let h='';
+
+    // Overview + Roles + Workflow
+    h+=`<section id="overview"><h2>📋 Project Overview</h2>${D.secs[0].c}</section>`;
+    h+=`<section id="roles"><h2>👥 User Roles</h2>${D.secs[1].c}</section>`;
+    h+=`<section id="workflow"><h2>🔄 Main Workflow</h2>${D.secs[2].c}</section>`;
+
+    // Functional Requirements
+    h+=`<section id="func-reqs"><h2>📝 Functional Requirements (by Role)</h2>`;
+    roles.forEach(r=>{
+      h+=`<details class="epcard" id="fr-${r.id}" open data-searchable><summary>${r.n} <span style="margin-left:auto;font-size:.6875rem;color:var(--g4);font-weight:400">${r.u.length} requirements</span></summary><div class="epbody"><div class="tw"><table><tr><th>ID</th><th>Title</th><th>Description</th><th>Dependencies</th><th>Tables</th></tr>`;
+      r.u.forEach(u=>h+=`<tr><td><code>${u[0]}</code></td><td style="font-weight:600">${u[1]}</td><td style="font-size:.75rem">${u[2]}</td><td style="font-size:.6875rem">${u[3]}</td><td style="font-size:.6875rem"><code>${u[4]}</code></td></tr>`);
+      h+=`</table></div></div></details>`;
+    });
+    h+=`</section>`;
+
+    // Business Rules
+    h+=`<section id="biz-rules"><h2>⚖️ Business Rules</h2>`;
+    bizRules.forEach(b=>{
+      h+=`<details class="epcard" id="br-${b.t.replace(/\s/g,'-')}" open data-searchable><summary>${b.t} <span style="margin-left:auto;font-size:.6875rem;color:var(--g4);font-weight:400">${b.r.length} rules</span></summary><div class="epbody">`;
+      b.r.forEach(r=>h+=`<div style="display:flex;gap:.75rem;padding:.375rem 0;border-bottom:1px solid var(--g1);font-size:.8125rem;align-items:flex-start"><code style="flex-shrink:0;font-weight:700;font-size:.6875rem">${r[0]}</code><span>${r[1]}</span></div>`);
+      h+=`</div></details>`;
+    });
+    h+=`</section>`;
+
+    // Notification Rules
+    h+=`<section id="notif-rules"><h2>🔔 Notification Rules</h2>`;
+    h+=`<div class="callout"><strong>Core Principle:</strong> Notifications are role-targeted via <code>target_roles</code> array. Read status tracked per-user via <code>notification_reads</code>. User A reading does NOT affect User B.</div>`;
+    h+=`<h3>Notification Event Catalog</h3><div class="tw"><table><tr><th>ID</th><th>Trigger Event</th><th>Target Roles</th><th>Triggering Req</th></tr>`;
+    notifEvents.forEach(e=>h+=`<tr><td><code>${e[0]}</code></td><td>${e[1]}</td><td><code>${e[2]}</code></td><td>${e[3]}</td></tr>`);
+    h+=`</table></div>`;
+    h+=`<div class="callout"><strong>QS-Specific:</strong> QS notifications use dedicated type field: task_assigned, evaluation_submitted, decision_made. Tracked via read_by_roles array for multi-role independent read states.</div>`;
+    h+=`</section>`;
+
+    // Database Design
+    h+=`<section id="db"><h2>🗄️ Database Design</h2>`;
+    h+=`<div class="callout"><strong>ERD Summary:</strong> users → tasks/projects/customer_requests/paid_customers/designer_tasks/submissions/feedbacks/notifications. projects → tasks/documents/job_postings/approvals/designer_tasks. customer_requests → paid_customers (1:1). paid_customers → payment_proofs/finance_history/clarification_responses. job_postings → designer_applications (unique posting+applicant) → designer_tasks. designer_tasks → designer_phase_submissions → designer_phase_reviews. quantity_review_tasks → quantity_review_evaluations.</div>`;
+
+    tables.forEach(t=>{
+      h+=`<details class="epcard" data-searchable><summary><code style="font-size:.875rem;font-weight:700">${t.n}</code><span style="margin-left:auto;font-size:.6875rem;color:var(--g4);font-weight:400">${t.c.length} columns</span></summary><div class="epbody"><div class="tw"><table><tr><th>Column</th><th>Type</th><th>Constraints</th></tr>`;
+      t.c.forEach(c=>h+=`<tr><td><code>${c[0]}</code></td><td><code>${c[1]}</code></td><td style="font-size:.75rem">${c[2]}</td></tr>`);
+      h+=`</table></div></div></details>`;
+    });
+    h+=`</section>`;
+
+    // API Requirements
+    h+=`<section id="api"><h2>🔌 API Requirements</h2>`;
+    apis.forEach(a=>{
+      h+=`<h3 id="api-${a.t.replace(/\s|[/]/g,'-').toLowerCase()}">${a.t}</h3>`;
+      a.e.forEach(e=>{
+        h+=`<details class="epcard" data-searchable><summary><span class="met ${mcl(e[1])}">${e[1]}</span><code style="font-weight:600;font-size:.8125rem">${e[2]}</code>${ab(e[3])}<span style="font-size:.6875rem;color:var(--g5)">${e[4]}</span></summary><div class="epbody"><p><strong>Requirement:</strong> ${e[0]}</p><p><strong>Roles:</strong> ${e[4]}</p></div></details>`;
+      });
+    });
+    h+=`</section>`;
+
+    // DTO Definitions
+    h+=`<section id="dto"><h2>📦 DTO Definitions (Key Examples)</h2>`;
+    const dtos = [
+      ['POST /api/auth/login','Request','{ "username": "string", "password": "string (min 8)" }','Response','{ "success": true, "data": { "accessToken": "JWT", "refreshToken": "string", "user": { "id": "UUID", "username": "string", "name": "string", "role": "string" } } }'],
+      ['POST /api/users','Request','{ "username", "name", "email", "password": "string (min 8)", "role": "one of 8 roles", "phone?": "string" }','Response','{ "success": true, "data": { "id": "UUID" } }'],
+      ['POST /api/projects','Request','{ "name": "string", "clientName": "string", "stage": "lead|design|approval|execution|completed" }','Response','{ "success": true, "data": { "id": "proj-{n}" } }'],
+      ['POST /api/paid-customers','multipart/form-data','sourceRequestId (req), paymentNote (opt), proofFiles (file[], req)','Response','{ "success": true, "data": { "id": "paid-{n}", "paymentVerificationStatus": "pending" } }'],
+      ['POST /api/paid-customers/:id/verify','Request','{ "action": "verify|reject|request_clarification", "message": "str (req)" }','Response','{ "success": true, "data": { "paymentVerificationStatus": "verified", ... } }'],
+      ['POST /api/designer-tasks/:id/phases/:phase/review','Request','{ "action": "approve|feedback|reject", "message": "str (req for reject)" }','Response','{ "success": true, "data": { "history": [{ "status", "message", "reviewerName", "timestamp" }] } }'],
+      ['GET /api/designer-tasks/:id/progress','Response','{ "success": true, "data": { "caseStudy": { "note", "screenshot", "history": [...] }, "designStage": {...}, "rendering": {...}, "finalStage": {...} } }',''],
+      ['POST /api/quantity-review-evaluations','Request','{ "taskId", "designCostValue": "numeric str", "evaluationNotes", "recommendation": "recommended_for_approval|recommends_revision" }',''],
+      ['GET /api/dashboard','Response','{ "success": true, "data": { "projectsCount": 12, "tasks": { "total": 120, "pending": 24, "inProgress": 60, "completed": 36 }, ... } }',''],
+      ['Standard Envelope','—','Success: { "success": true, "data": {...}, "meta": {...} }','Error','{ "success": false, "message": "Human readable", "errors": { "field": "reason" } }']
+    ];
+    dtos.forEach(d=>{
+      h+=`<details class="epcard" data-searchable><summary style="font-size:.8125rem"><strong>${d[0]}</strong></summary><div class="epbody">`;
+      if(d[1]&&d[2])h+=`<h5>${d[1]}</h5><pre><code>${d[2].replace(/</g,'&lt;').replace(/>/g,'&gt;')}</code></pre>`;
+      if(d[3]&&d[4])h+=`<h5>${d[3]}</h5><pre><code>${d[4].replace(/</g,'&lt;').replace(/>/g,'&gt;')}</code></pre>`;
+      h+=`</div></details>`;
+    });
+    h+=`</section>`;
+
+    // Designer State Machine
+    h+=`<section id="designer-sm"><h2>🔄 Designer Multi-Phase State Machine</h2>`;
+    h+=`<div class="wf-card"><div class="phase-flow" style="margin-bottom:1rem;justify-content:center">${['Case Study','Design Stage','Rendering','Final Stage'].map((s,i)=>`<span class="phase-step ${i===0?'active':''}">Phase ${i+1}: ${s}</span>${i<3?'<span class="phase-arrow">→</span>':''}`).join('')}</div>`;
+    const states = [
+      ['No Submission','s-start','Designer submits Case Study'],
+      ['Case Study Submitted','','Leadership approves→Case Study Approved; feedback→CS Feedback; reject→CS Rejected (Locked)'],
+      ['Case Study Approved','s-end','Designer submits Design Stage'],
+      ['Design Stage Submitted','','Leadership approves→DS Approved; feedback→DS Feedback; reject→DS Rejected (Locked)'],
+      ['Design Stage Approved','s-end','Designer submits Rendering'],
+      ['Rendering Submitted','','Leadership approves→R Approved; feedback→R Feedback; reject→R Rejected (Locked)'],
+      ['Rendering Approved','s-end','Designer submits Final Stage'],
+      ['Final Stage Submitted','','Leadership approves→FS Approved (Complete); feedback→FS Feedback; reject→FS Rejected (Locked)'],
+      ['Task Complete','done','All 4 phases approved']
+    ];
+    h+=`<div class="sm-grid">${states.map(s=>`<div class="sm-node ${s[1]}"><strong>${s[0]}</strong><br><span style="font-size:.6875rem;color:var(--g5)">${s[2]}</span></div>`).join('')}</div></div>`;
+    h+=`</section>`;
+
+    // Workflow Sequence Diagrams (Simplified as timeline)
+    h+=`<section id="sequences"><h2>📊 Workflow Sequences</h2>`;
+    
+    // Marketing → Finance
+    h+=`<h3>Marketing → Finance Payment Verification</h3>`;
+    h+=`<div class="wf-card"><div class="phase-flow" style="margin-bottom:.75rem">${['Marketing: Create Customer Request','Transfer to Paid + Proof','Status = pending','Finance: List Verifications','Get Detail','Verify|Reject|Clarify','CEO: CEO Approve','Status = approved'].map(s=>`<span class="phase-step">${s}</span>`).join('<span class="phase-arrow">→</span>')}</div></div>`;
+
+    // QS Review
+    h+=`<h3>Quantity Surveyor Review Cycle</h3>`;
+    h+=`<div class="wf-card"><div class="phase-flow">${['Leadership: Forward for QS','Status = pending_review','QS: Mark In Review','Status = in_review','QS: Submit Evaluation','Status = record_submitted','Leadership: Decision (approved/feedback)','Notify QS'].map(s=>`<span class="phase-step">${s}</span>`).join('<span class="phase-arrow">→</span>')}</div></div>`;
+
+    // Job Posting → Assignment
+    h+=`<h3>Designer Job Posting → Assignment</h3>`;
+    h+=`<div class="wf-card"><div class="phase-flow">${['Leadership: Create Job Posting','Notify Designers','Designer: Browse + Apply','Notify Leadership','Leadership: Review','Assign → Create Designer Task','OR Reject'].map(s=>`<span class="phase-step">${s}</span>`).join('<span class="phase-arrow">→</span>')}</div></div>`;
+
+    // Notification Independent Read
+    h+=`<h3>Notification Independent Read Flow</h3>`;
+    h+=`<div class="callout"><strong>Key Concept:</strong> When a notification is created with <code>target_roles=['ceo']</code>, both CEO User A and CEO User B see it. When CEO A marks it as read (INSERT into notification_reads), it remains UNREAD for CEO B. Read status is per-user, not per-notification.</div>`;
+
+    // Auth flow
+    h+=`<h3>Authentication Flow</h3>`;
+    h+=`<div class="wf-card"><div class="phase-flow">${['Client: POST /api/auth/login','DB: SELECT user, status=active','Verify bcrypt hash','Generate JWT (15min) + refresh','INSERT refresh_token','Return {accessToken, refreshToken, user}','All requests: Bearer <accessToken>','On expire: POST /api/auth/refresh'].map(s=>`<span class="phase-step">${s}</span>`).join('<span class="phase-arrow">→</span>')}</div></div>`;
+    h+=`</section>`;
+
+    // Permission Matrix
+    h+=`<section id="perm"><h2>🔐 Permission Matrix</h2>`;
+    const pmRows = [
+      ['AUTH-001–004','C R U','C R U','C R U','C R U','C R U','C R U','C R U','C R U'],
+      ['USR-001','R','R','—','—','—','—','—','—'],
+      ['USR-002','C','—','—','—','—','—','—','—'],
+      ['USR-003','R','R','—','—','—','—','—','—'],
+      ['USR-004','U','—','—','—','—','—','—','—'],
+      ['USR-005','D','—','—','—','—','—','—','—'],
+      ['MKT-001–005','R U','R','C R U D','—','—','—','—','—'],
+      ['MKT-006–011','R','R','C R U','R','—','—','—','—'],
+      ['FIN-001–005','R','R','—','C R U','—','—','—','—'],
+      ['CEO-001–006','C R U D','C R U','R','R','—','—','—','—'],
+      ['CEO-007–013','C R U','C R U','R','R','—','—','R U','R U'],
+      ['CEO-014–019','C R U D','C R U D','—','—','—','R','—','—'],
+      ['CEO-020–025','C R U','C R U','—','—','—','R U','—','—'],
+      ['CEO-026–029','C R U','C R U','—','—','R U','—','—','—'],
+      ['CEO-030','U','—','—','—','—','—','—','—'],
+      ['CEO-031–036','R U','R U','—','—','—','—','—','R U'],
+      ['CEO-037','R','R','R','R','—','—','—','—'],
+      ['CEO-038–039','R U','R U','R U','R U','R U','R U','R U','R U'],
+      ['CEO-040','R','—','—','—','—','—','—','—'],
+      ['DES-001–002','—','—','—','—','—','C R','—','—'],
+      ['DES-003–010','R','R','—','—','—','C R U','—','—'],
+      ['DES-011','R','R','—','—','—','R','—','—'],
+      ['QS-001–005','R','R','—','—','C R U','—','—','—'],
+      ['SE-001–005','R','R','—','—','—','—','C R U','—'],
+      ['DC-001–004','R','R','—','—','—','—','—','C R U']
+    ];
+    const rls = ['Req ID','CEO','GM','Marketing','Finance','QS','Designer','SE','DC'];
+    h+=`<div class="tw pm"><table><tr>${rls.map(l=>`<th class="rl">${l}</th>`).join('')}</tr>`;
+    pmRows.forEach(r=>{
+      h+=`<tr><td style="font-size:.6875rem;font-weight:700"><code>${r[0]}</code></td>`;
+      for(let i=1;i<r.length;i++){
+        let cl='na',t=r[i];
+        if(t.includes('C'))cl='c';else if(t.includes('U'))cl='u';else if(t.includes('D'))cl='d';else if(t.includes('R'))cl='r';
+        h+=`<td class="${cl}">${t}</td>`;
+      }
+      h+=`</tr>`;
+    });
+    h+=`</table></div>`;
+    h+=`<div class="lgnd"><span><span class="dot d-g"></span> Create</span><span><span class="dot d-b"></span> Read</span><span><span class="dot d-y"></span> Update</span><span><span class="dot d-r"></span> Delete</span><span style="color:var(--g4)">— No Access</span></div>`;
+    h+=`</section>`;
+
+    // NFRs
+    h+=`<section id="nfr"><h2>🛡️ Non-Functional Requirements</h2>`;
+    nfr.forEach(n=>{
+      h+=`<details class="epcard" data-searchable open><summary>${n.t} <span style="margin-left:auto;font-size:.6875rem;color:var(--g4);font-weight:400">${n.r.length} requirements</span></summary><div class="epbody">`;
+      n.r.forEach(r=>h+=`<div style="display:flex;gap:.75rem;padding:.375rem 0;border-bottom:1px solid var(--g1);font-size:.8125rem;align-items:flex-start"><code style="flex-shrink:0;font-weight:700;font-size:.6875rem">${r[0]}</code><span>${r[1]}</span></div>`);
+      h+=`</div></details>`;
+    });
+    h+=`</section>`;
+
+    // Assumptions & Recommendations
+    h+=`<section id="assumptions"><h2>💡 Assumptions & Recommendations</h2>`;
+    h+=`<h3>Assumptions</h3><div class="cgrid">${[['JWT Auth','JWT Bearer with role claims. Frontend currently uses mock auth.'],['ID Format','Prefixed strings (proj-1). Use UUIDs internally; map to external format.'],['Single-Tenant','Single organization deployment. No tenant isolation needed.'],['No Email','In-app notifications only; no email infrastructure.'],['Polling','REST GET polling; no WebSocket/SSE push.'],['Application→Task','Assigned application creates designer task (1:1).'],['DC Tasks','Can share unified tasks table with task_type discriminator.'],['Telegram','Optional integration. API works independently of Telegram.'],['LocalStorage→Server','Seed approach replaced with server-side migration scripts.'],['Budget','Free-text reference field; no FK to budget system.']].map(a=>`<div class="card" style="padding:1rem"><strong>${a[0]}:</strong><span style="font-size:.75rem;color:var(--g6);display:block;margin-top:.25rem">${a[1]}</span></div>`).join('')}</div>`;
+    h+=`<h3>Recommendations (Inferred Missing Requirements)</h3><div class="tw"><table><tr><th>ID</th><th>Recommendation</th></tr>`;
+    [['Password Reset','Implement forgot/reset password flow with email token.'],['Email Verification','Require email verification on user creation.'],['Token Blacklist','Implement JWT deny-list for immediate invalidation.'],['Bulk Operations','Add bulk task assignment, status update, notification mark-read.'],['Project History','Add project_audit table for stage/assignment/status changes.'],['File Versioning','Track file versions for designer phase submissions.'],['Deadline Reminders','Automated notifications when tasks approach deadlines.'],['Designer Portfolio','Aggregate submissions into portfolio view.'],['Export/Reports','PDF/CSV export for performance, finance, audit.'],['API Versioning','Include /api/v1/ prefix for future versioning.'],['Rate Limiting','Per-user rate limiting on all endpoints.'],['CORS','Proper CORS whitelist for Telegram WebView origin.'],['Health Check','GET /api/health returning DB, Redis status, version.'],['Seeding Migration','Convert mockData.ts into DB migration seed files.'],['Soft Delete','All entities should support soft delete for recovery.'],['Notification Prefs','Allow users to configure notification types.'],['Activity Feed','Server-generated activity feed per user.'],['QS Resubmission','Allow QS to resubmit revised evaluation after leadership feedback.'],['Concurrent Phases','Consider allowing parallel submission of all phases.'],['Full-Text Search','PostgreSQL tsvector on task titles, descriptions, project/customer names.']].forEach((r,i)=>h+=`<tr><td><code>REQ-REC-${String(i+1).padStart(3,'0')}</code></td><td style="font-size:.8125rem">${r[1]}</td></tr>`);
+    h+=`</table></div></section>`;
+
+    // Appendices
+    h+=`<section id="appendix"><h2>📎 Appendices</h2>`;
+    h+=`<h3>A: ID Prefix Format</h3><div class="tw"><table><tr><th>Entity</th><th>Prefix</th><th>Example</th></tr>`;
+    [['Projects','proj-','proj-1'],['Tasks','task-','task-1'],['Designer Tasks','dtask-','dtask-2'],['Designer Applications','dapp-','dapp-1'],['Customer Requests','cr-','cr-6'],['Paid Customers','paid-','paid-9'],['Finance Records','pc-fin-','pc-fin-1'],['Job Postings','job-post-','job-post-1'],['Documents','doc-','doc-1'],['Approvals','appr-','appr-1'],['QS Review Tasks','qs-review-','qs-review-1'],['QS Evaluations','qs-eval-','qs-eval-1'],['Performance Reviews','r-{initials}-','r-ec-001'],['Submissions','sub-','sub-10'],['Feedbacks','fb-','fb-3']].forEach(r=>h+=`<tr><td>${r[0]}</td><td><code>${r[1]}</code></td><td><code>${r[2]}</code></td></tr>`);
+    h+=`</table></div>`;
+    h+=`<h3>B: localStorage → Database Table Mapping</h3><div class="tw"><table><tr><th>Frontend localStorage Key</th><th>Backend Database Table</th></tr>`;
+    [['user','users (session → JWT)'],['customer-requests','customer_requests'],['paid-customers','paid_customers + payment_proofs + finance_history + clarification_responses'],['workflow-tasks','tasks'],['designer-tasks','designer_tasks'],['designer-task-applications','designer_applications'],['designer-submission-progress','designer_phase_submissions + designer_phase_reviews'],['designer-task-reviews','designer_performance_reviews'],['quantity-surveyor-review-tasks','quantity_review_tasks'],['quantity-surveyor-evaluations','quantity_review_evaluations'],['quantity-surveyor-notifications','notifications + notification_reads']].forEach(r=>h+=`<tr><td><code>${r[0]}</code></td><td><code>${r[1]}</code></td></tr>`);
+    h+=`</table></div></section>`;
+
+    document.getElementById('content').innerHTML=h;
+  }
+
+  function buildNav(){
+    let nav='';
+    nav+=`<details open><summary>Overview</summary><a href="#overview">Project Overview</a><a href="#roles">User Roles</a><a href="#workflow">Main Workflow</a></details>`;
+    nav+=`<details open><summary>Requirements</summary><a href="#func-reqs">Functional Requirements</a><a href="#biz-rules">Business Rules</a><a href="#notif-rules">Notification Rules</a></details>`;
+    nav+=`<details open><summary>Database</summary><a href="#db">Tables & ERD</a></details>`;
+    nav+=`<details open><summary>API</summary><a href="#api">API Requirements</a><a href="#dto">DTO Definitions</a></details>`;
+    nav+=`<details open><summary>Designer Workflow</summary><a href="#designer-sm">State Machine</a><a href="#sequences">Workflow Sequences</a></details>`;
+    nav+=`<details open><summary>Security</summary><a href="#perm">Permission Matrix</a><a href="#nfr">Non-Functional Requirements</a></details>`;
+    nav+=`<details open><summary>Planning</summary><a href="#assumptions">Assumptions & Recs</a><a href="#appendix">Appendices</a></details>`;
+    document.getElementById('nav').innerHTML=nav;
+  }
+
+  function sch(){
+    const q=document.getElementById('q').value.toLowerCase().trim();
+    document.querySelectorAll('[data-searchable]').forEach(el=>{
+      el.classList.toggle('hid',q?new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i').test(el.textContent)===false:false);
+    });
+    document.querySelectorAll('section[id]').forEach(s=>{
+      if(!q){s.classList.remove('hid');return;}
+      s.classList.toggle('hid',!s.querySelector('[data-searchable]:not(.hid)'));
+      s.querySelector('h2')?.classList.toggle('hid',s.classList.contains('hid'));
+    });
+  }
+
+  function tb(){document.body.classList.toggle('sb-open')}
+  function cl(){document.body.classList.remove('sb-open')}
+  window.addEventListener('scroll',()=>document.getElementById('btt').classList.toggle('v',window.scrollY>400));
+
+  try{build()}catch(e){document.getElementById('content').innerHTML='<div class="callout"><strong>Error building content:</strong> '+e.message+'</div>';console.error(e)}
+  try{buildNav()}catch(e){console.error(e)}
+  
+  // Active nav highlight
+  try{
+    const obs=new IntersectionObserver(e=>{e.forEach(entry=>{if(entry.isIntersecting){document.querySelectorAll('#nav a').forEach(a=>a.classList.remove('active'));const m=document.querySelector('#nav a[href="#'+entry.target.id+'"]');if(m)m.classList.add('active')}})},{rootMargin:'-80px 0px -70% 0px'});
+    document.querySelectorAll('section[id], h3[id]').forEach(el=>obs.observe(el));
+  }catch(e){console.error(e)}
+</script>
+</body>
+</html>

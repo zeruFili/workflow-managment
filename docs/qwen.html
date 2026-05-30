@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Workflow Management System — Backend Architecture</title>
+<style>
+:root {
+  --primary: #10b981;
+  --primary-dark: #047857;
+  --primary-light: #d1fae5;
+  --primary-bg: #ecfdf5;
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --text: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --border: #e2e8f0;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -4px rgba(0,0,0,0.05);
+  --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; font-family: var(--font-sans); background: var(--bg); color: var(--text); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+a { color: var(--primary-dark); text-decoration: none; }
+a:hover { text-decoration: underline; }
+img, svg { display: block; max-width: 100%; }
+button { font-family: inherit; cursor: pointer; }
+
+/* Layout */
+.app-header { position: sticky; top: 0; z-index: 50; background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); padding: 1rem 2rem; display: flex; align-items: center; justify-content: space-between; }
+.logo { font-weight: 700; font-size: 1.25rem; color: var(--text); display: flex; align-items: center; gap: 0.5rem; }
+.logo svg { width: 24px; height: 24px; fill: var(--primary); }
+.search-box { position: relative; max-width: 300px; flex: 1; }
+.search-box input { width: 100%; padding: 0.6rem 1rem 0.6rem 2.5rem; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 0.9rem; background: var(--bg); transition: var(--transition); }
+.search-box input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2); }
+.search-icon { position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; fill: var(--text-muted); pointer-events: none; }
+
+.container { display: grid; grid-template-columns: 260px 1fr; gap: 2rem; max-width: 1400px; margin: 0 auto; padding: 2rem; }
+@media (max-width: 1024px) { .container { grid-template-columns: 1fr; padding: 1rem; } }
+
+/* Sidebar */
+aside { position: sticky; top: 5rem; height: calc(100vh - 6rem); overflow-y: auto; padding-right: 1rem; scrollbar-width: thin; }
+aside::-webkit-scrollbar { width: 4px; }
+aside::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.sidebar-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 1rem; font-weight: 600; }
+.nav-list { list-style: none; padding: 0; margin: 0; }
+.nav-item { margin-bottom: 0.25rem; }
+.nav-link { display: block; padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); font-size: 0.9rem; color: var(--text-secondary); transition: var(--transition); border-left: 2px solid transparent; }
+.nav-link:hover { background: var(--primary-bg); color: var(--primary-dark); text-decoration: none; }
+.nav-link.active { background: var(--primary-light); color: var(--primary-dark); border-left-color: var(--primary); font-weight: 500; }
+.nav-sub { padding-left: 1rem; display: none; }
+.nav-sub.open { display: block; }
+
+/* Hero & Dashboard */
+.hero { background: linear-gradient(135deg, var(--primary-bg) 0%, #ffffff 100%); padding: 3rem 2rem 2rem; text-align: center; border-bottom: 1px solid var(--border); }
+.hero h1 { margin: 0 0 0.5rem; font-size: 2.5rem; color: var(--text); letter-spacing: -0.02em; }
+.hero p { color: var(--text-secondary); max-width: 700px; margin: 0 auto 2rem; font-size: 1.1rem; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; max-width: 900px; margin: 0 auto; }
+.stat-card { background: var(--surface); padding: 1rem; border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--border); text-align: left; }
+.stat-value { font-size: 1.75rem; font-weight: 700; color: var(--primary-dark); margin-bottom: 0.25rem; }
+.stat-label { font-size: 0.85rem; color: var(--text-secondary); }
+
+/* Sections */
+section { margin-bottom: 4rem; scroll-margin-top: 6rem; }
+h2 { font-size: 1.875rem; margin-bottom: 1rem; color: var(--text); border-bottom: 2px solid var(--primary-light); padding-bottom: 0.5rem; }
+h3 { font-size: 1.5rem; margin: 1.5rem 0 1rem; color: var(--text); }
+h4 { font-size: 1.25rem; margin: 1.25rem 0 0.75rem; color: var(--text-secondary); }
+p, ul { color: var(--text-secondary); }
+ul { padding-left: 1.5rem; }
+
+/* Cards */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; box-shadow: var(--shadow); transition: var(--transition); margin-bottom: 1rem; }
+.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); border-color: var(--primary-light); }
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+.badge { display: inline-flex; align-items: center; padding: 0.25rem 0.6rem; font-size: 0.75rem; font-weight: 600; border-radius: 999px; background: var(--primary-light); color: var(--primary-dark); }
+.badge.method { background: #dbeafe; color: #1e40af; }
+.badge.method.post { background: #dcfce7; color: #166534; }
+.badge.method.put { background: #fef3c7; color: #92400e; }
+.badge.method.patch { background: #f3e8ff; color: #6b21a8; }
+.badge.method.delete { background: #fee2e2; color: #991b1b; }
+.badge.role { background: #f1f5f9; color: #475569; }
+
+/* Tables */
+.table-wrapper { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+thead { background: var(--bg); }
+th, td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid var(--border); }
+th { font-weight: 600; color: var(--text); background: #f8fafc; position: sticky; top: 0; }
+tbody tr:hover { background: var(--primary-bg); }
+code { background: #f1f5f9; padding: 0.2em 0.4em; border-radius: 4px; font-family: var(--font-mono); font-size: 0.85em; color: #be185d; }
+
+/* Workflow Timeline */
+.workflow-flow { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1.5rem 0; }
+.wf-step { flex: 1; min-width: 140px; background: var(--surface); border: 1px solid var(--border); padding: 1rem; border-radius: var(--radius-sm); text-align: center; position: relative; }
+.wf-step::after { content: '→'; position: absolute; right: -1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-weight: bold; }
+.wf-step:last-child::after { display: none; }
+.wf-step h5 { margin: 0 0 0.25rem; font-size: 0.9rem; }
+.wf-step p { margin: 0; font-size: 0.8rem; color: var(--text-secondary); }
+@media (max-width: 600px) { .workflow-flow { flex-direction: column; } .wf-step::after { content: '↓'; right: 50%; top: auto; bottom: -1rem; transform: translateX(50%); } }
+
+/* Role Grid */
+.role-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; }
+.role-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; transition: var(--transition); }
+.role-card:hover { border-color: var(--primary); box-shadow: var(--shadow-lg); }
+.role-code { font-family: var(--font-mono); font-size: 0.8rem; background: var(--primary-bg); color: var(--primary-dark); padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; margin-bottom: 0.5rem; }
+.role-card h4 { margin: 0 0 0.5rem; font-size: 1.1rem; }
+.role-card p { margin: 0; font-size: 0.9rem; }
+
+/* Collapsible */
+details { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 0.5rem; overflow: hidden; }
+summary { padding: 1rem; cursor: pointer; font-weight: 500; display: flex; align-items: center; justify-content: space-between; list-style: none; }
+summary::-webkit-details-marker { display: none; }
+summary::after { content: '▼'; font-size: 0.8em; transition: transform 0.2s; }
+details[open] summary::after { transform: rotate(180deg); }
+details .content { padding: 0 1rem 1rem; border-top: 1px solid var(--border); }
+
+/* Utility */
+.hidden { display: none; }
+.text-center { text-align: center; }
+.mt-2 { margin-top: 0.5rem; }
+.mb-4 { margin-bottom: 1rem; }
+.flex { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+/* Animations */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.animate { animation: fadeIn 0.5s ease forwards; }
+
+/* Mobile Nav Toggle */
+.menu-toggle { display: none; background: none; border: none; padding: 0.5rem; }
+@media (max-width: 1024px) { .menu-toggle { display: block; } aside { position: fixed; left: -100%; top: 0; width: 260px; height: 100vh; background: var(--surface); z-index: 100; padding: 1rem; transition: left 0.3s; box-shadow: var(--shadow-lg); } aside.open { left: 0; } .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 90; } .overlay.open { display: block; } }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="logo">
+    <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zm0 9l2.5-1.25L12 15l-2.5-1.25L12 11zm0 3.5l2.5-1.25L12 18.5l-2.5-1.25L12 14.5z"/></svg>
+    WMS Architecture
+  </div>
+  <div class="search-box">
+    <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+    <input type="text" id="globalSearch" placeholder="Search endpoints, rules, tables..." autocomplete="off">
+  </div>
+  <button class="menu-toggle" aria-label="Toggle Menu">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+  </button>
+</header>
+
+<div class="overlay" id="overlay"></div>
+
+<div class="container">
+  <aside id="sidebar">
+    <div class="sidebar-title">Navigation</div>
+    <ul class="nav-list">
+      <li class="nav-item"><a href="#overview" class="nav-link">Project Overview</a></li>
+      <li class="nav-item"><a href="#roles" class="nav-link">User Roles</a></li>
+      <li class="nav-item"><a href="#workflow" class="nav-link">Main Workflow</a></li>
+      <li class="nav-item"><a href="#business-rules" class="nav-link">Business Rules</a></li>
+      <li class="nav-item"><a href="#database" class="nav-link">Database Design</a></li>
+      <li class="nav-item"><a href="#api" class="nav-link">API Endpoints</a></li>
+      <li class="nav-item"><a href="#permissions" class="nav-link">Permission Matrix</a></li>
+      <li class="nav-item"><a href="#notifications" class="nav-link">Notifications & NFRs</a></li>
+      <li class="nav-item"><a href="#recommendations" class="nav-link">Recommendations</a></li>
+    </ul>
+  </aside>
+
+  <main>
+    <section id="overview" class="animate">
+      <div class="hero" style="margin: -2rem -2rem 2rem; padding-top: 0;">
+        <h1>Workflow Management System</h1>
+        <p>Role-based operational platform for construction & design firms. Orchestrates full lifecycle: intake → verification → design → review → execution → evaluation.</p>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-value">8</div><div class="stat-label">User Roles</div></div>
+          <div class="stat-card"><div class="stat-value">12</div><div class="stat-label">Core Modules</div></div>
+          <div class="stat-card"><div class="stat-value">~90</div><div class="stat-label">API Endpoints</div></div>
+          <div class="stat-card"><div class="stat-value">67</div><div class="stat-label">Business Rules</div></div>
+          <div class="stat-card"><div class="stat-value">20+</div><div class="stat-label">Database Tables</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h3 style="margin:0">System Goals</h3></div>
+        <div class="flex">
+          <span class="badge">Single Source of Truth</span>
+          <span class="badge">RBAC at API Layer</span>
+          <span class="badge">Full Audit History</span>
+          <span class="badge">Multi-Role Notifications</span>
+          <span class="badge">Gated Linear Workflow</span>
+          <span class="badge">REST + Telegram Mini App</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="roles" class="animate">
+      <h2>User Roles & Responsibilities</h2>
+      <div class="role-grid">
+        <div class="role-card"><span class="role-code">ceo</span><h4>Chief Executive Officer</h4><p>Full oversight, user management, finance decisions, escalation, final approvals.</p></div>
+        <div class="role-card"><span class="role-code">general_manager</span><h4>General Manager</h4><p>Operational leadership, task assignment, approval review, mirrors CEO without delete/user CRUD.</p></div>
+        <div class="role-card"><span class="role-code">marketing_lead</span><h4>Marketing Lead</h4><p>Customer intake, paid-customer handling, payment proof uploads, clarification responses.</p></div>
+        <div class="role-card"><span class="role-code">finance_officer</span><h4>Finance Officer</h4><p>Payment verification, rejection, clarification requests, finance dashboard metrics.</p></div>
+        <div class="role-card"><span class="role-code">data_collector</span><h4>Data Collector</h4><p>Field data capture, evidence submission, task status updates from site.</p></div>
+        <div class="role-card"><span class="role-code">quantity_surveyor</span><h4>Quantity Surveyor</h4><p>Cost/quality evaluation of design submissions, independent review cycle.</p></div>
+        <div class="role-card"><span class="role-code">designer</span><h4>Designer</h4><p>Job applications, multi-phase design submission, revision handling, portfolio tracking.</p></div>
+        <div class="role-card"><span class="role-code">site_engineer</span><h4>Site Engineer</h4><p>Field task execution, status updates, evidence capture, dashboard visibility.</p></div>
+      </div>
+    </section>
+
+    <section id="workflow" class="animate">
+      <h2>Main Workflow Pipeline</h2>
+      <div class="workflow-flow">
+        <div class="wf-step"><h5>1. Intake</h5><p>Marketing creates request</p></div>
+        <div class="wf-step"><h5>2. Payment</h5><p>Upload proof & transfer</p></div>
+        <div class="wf-step"><h5>3. Finance</h5><p>Verify/Reject/Clarify</p></div>
+        <div class="wf-step"><h5>4. Approval</h5><p>CEO final approval</p></div>
+        <div class="wf-step"><h5>5. Project</h5><p>Create & post jobs</p></div>
+        <div class="wf-step"><h5>6. Design</h5><p>4-Phase submission</p></div>
+        <div class="wf-step"><h5>7. Review</h5><p>Leadership & QS eval</p></div>
+        <div class="wf-step"><h5>8. Execution</h5><p>Site engineer tasks</p></div>
+        <div class="wf-step"><h5>9. Close</h5><p>Performance rating</p></div>
+      </div>
+      <div class="card mt-2">
+        <h4>Designer Multi-Phase State Machine</h4>
+        <p>Strictly sequential: <code>Case Study</code> → <code>Design Stage</code> → <code>Rendering</code> → <code>Final Stage</code>. Cannot skip. Feedback requires revision. Rejection locks task.</p>
+      </div>
+    </section>
+
+    <section id="business-rules" class="animate">
+      <h2>Business Rules</h2>
+      <div class="searchable-list">
+        <details open>
+          <summary>Customer Request & Payment (BR-001 to BR-014)</summary>
+          <div class="content">
+            <ul class="pl-4" style="list-style:none; padding:0;">
+              <li><code>BR-001</code> Request cannot be transferred to paid pipeline >1 time. Archived after transfer.</li>
+              <li><code>BR-002</code> Cannot update/delete transferred request.</li>
+              <li><code>BR-003</code> <code>otherCategoryDescription</code> required if category='other'.</li>
+              <li><code>BR-004</code> Phone format validation required.</li>
+              <li><code>BR-005</code> Proof files mandatory on transfer.</li>
+              <li><code>BR-006</code> Status: <code>pending</code> → <code>verified|rejected|request_clarification</code>; <code>verified</code> → <code>approved</code> (CEO).</li>
+              <li><code>BR-007</code> Only Finance can verify/reject/clarify.</li>
+              <li><code>BR-008</code> Only CEO executes final approval.</li>
+              <li><code>BR-009</code> Clarification requires mandatory message.</li>
+              <li><code>BR-010</code> Rejection requires mandatory message.</li>
+              <li><code>BR-011</code> All decisions logged in <code>finance_history</code>.</li>
+              <li><code>BR-012</code> Clarification response requires description + ≥1 image.</li>
+              <li><code>BR-013</code> Marketing responds only when status=<code>request_clarification</code>.</li>
+              <li><code>BR-014</code> History & responses are immutable audit snapshots.</li>
+            </ul>
+          </div>
+        </details>
+        <details>
+          <summary>Designer Workflow (BR-015 to BR-027)</summary>
+          <div class="content">
+            <ul style="list-style:none; padding:0;">
+              <li><code>BR-015</code> Strictly sequential phases. No skipping.</li>
+              <li><code>BR-016</code> Rejected phase locks task.</li>
+              <li><code>BR-017</code> Feedback requires revision to restart review.</li>
+              <li><code>BR-018</code> Cannot proceed if current phase = feedback.</li>
+              <li><code>BR-019</code> History preserved as immutable snapshots.</li>
+              <li><code>BR-020</code> Latest live data stored separately.</li>
+              <li><code>BR-021</code> Revisions append new snapshots.</li>
+              <li><code>BR-022</code> Phase rejection → task = rejected.</li>
+              <li><code>BR-023</code> All 4 approved → task = completed, approvalStatus = approved.</li>
+              <li><code>BR-024</code> Final Stage screenshot mandatory.</li>
+              <li><code>BR-025</code> Only submit to assigned tasks.</li>
+              <li><code>BR-026</code> Performance reviews only for completed tasks.</li>
+              <li><code>BR-027</code> Ratings 0–5, 1 decimal max.</li>
+            </ul>
+          </div>
+        </details>
+        <details>
+          <summary>Applications, QS, Tasks & Users (BR-028 to BR-067)</summary>
+          <div class="content">
+            <ul style="list-style:none; padding:0;">
+              <li><code>BR-028-033</code> Applications: 1 per posting, assigned → task created, CEO/GM review only.</li>
+              <li><code>BR-034-043</code> QS: <code>pending_review</code> → <code>in_review</code> → <code>record_submitted</code>. Independent read tracking.</li>
+              <li><code>BR-044-051</code> Tasks: <code>pending</code> → <code>in_progress</code> → end states. Approve optional feedback, reject mandatory.</li>
+              <li><code>BR-052-058</code> Users: CEO only CRUD roles. Unique username, min 8 char pass, valid email, 8 allowed roles.</li>
+              <li><code>BR-059-067</code> Projects & Audit: Stages/Status constraints. Every state change appended to audit logs. CEO only view.</li>
+            </ul>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section id="database" class="animate">
+      <h2>Database Schema</h2>
+      <div class="table-wrapper">
+        <table class="searchable-table">
+          <thead><tr><th>Table</th><th>Key Columns</th><th>Relationships</th></tr></thead>
+          <tbody>
+            <tr><td><code>users</code></td><td>id, username, role, status, password_hash</td><td>1:N to tasks, projects, requests</td></tr>
+            <tr><td><code>customer_requests</code></td><td>id, category, status, created_by</td><td>1:1 to paid_customers</td></tr>
+            <tr><td><code>paid_customers</code></td><td>id, source_request_id, payment_verification_status</td><td>1:N proofs, finance_history</td></tr>
+            <tr><td><code>projects</code></td><td>id, stage, status, created_by, assigned_to</td><td>1:N tasks, documents, job_postings</td></tr>
+            <tr><td><code>tasks</code></td><td>id, status, approval_status, task_type</td><td>1:N attachments, submissions, feedbacks</td></tr>
+            <tr><td><code>designer_tasks</code></td><td>id, current_phase, story_points</td><td>1:N phase_submissions, performance_reviews</td></tr>
+            <tr><td><code>quantity_review_tasks</code></td><td>id, status, assigned_to, job_id</td><td>1:N evaluations</td></tr>
+            <tr><td><code>notifications</code></td><td>id, target_roles (GIN), type, message</td><td>1:N notification_reads</td></tr>
+            <tr><td><code>audit_logs</code></td><td>entity_type, action, actor_id, old/new_values</td><td>Append-only, partitioned monthly</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="mt-2" style="font-size:0.9rem; color:var(--text-muted);">All tables use <code>created_at</code>, <code>updated_at</code>. UUIDs preferred internally. Soft deletes supported where applicable. Indexes on all FKs & filter columns.</p>
+    </section>
+
+    <section id="api" class="animate">
+      <h2>API Endpoints</h2>
+      <div class="card mb-4" style="padding:1rem;">
+        <strong>Quick Filter:</strong> <span class="flex mt-2">
+          <button class="api-filter active" data-filter="all">All</button>
+          <button class="api-filter" data-filter="auth">Auth</button>
+          <button class="api-filter" data-filter="user">Users</button>
+          <button class="api-filter" data-filter="project">Projects</button>
+          <button class="api-filter" data-filter="task">Tasks</button>
+          <button class="api-filter" data-filter="designer">Designer</button>
+          <button class="api-filter" data-filter="qs">QS</button>
+        </span>
+      </div>
+      <div class="table-wrapper">
+        <table class="api-table searchable-table">
+          <thead><tr><th>Req</th><th>Method</th><th>URL</th><th>Roles</th></tr></thead>
+          <tbody>
+            <tr data-cat="auth"><td>AUTH-001</td><td><span class="badge method post">POST</span></td><td><code>/api/auth/login</code></td><td>All</td></tr>
+            <tr data-cat="auth"><td>AUTH-002</td><td><span class="badge method post">POST</span></td><td><code>/api/auth/logout</code></td><td>All</td></tr>
+            <tr data-cat="user"><td>USR-001</td><td><span class="badge method">GET</span></td><td><code>/api/users</code></td><td>CEO, GM</td></tr>
+            <tr data-cat="user"><td>USR-002</td><td><span class="badge method post">POST</span></td><td><code>/api/users</code></td><td>CEO</td></tr>
+            <tr data-cat="project"><td>CEO-002</td><td><span class="badge method">GET</span></td><td><code>/api/projects</code></td><td>All (scoped)</td></tr>
+            <tr data-cat="project"><td>CEO-003</td><td><span class="badge method post">POST</span></td><td><code>/api/projects</code></td><td>CEO, GM</td></tr>
+            <tr data-cat="task"><td>CEO-007</td><td><span class="badge method">GET</span></td><td><code>/api/tasks</code></td><td>All (scoped)</td></tr>
+            <tr data-cat="task"><td>CEO-012</td><td><span class="badge method post">POST</span></td><td><code>/api/tasks/:id/approve</code></td><td>CEO, GM</td></tr>
+            <tr data-cat="designer"><td>DES-001</td><td><span class="badge method">GET</span></td><td><code>/api/job-postings</code></td><td>Designer</td></tr>
+            <tr data-cat="designer"><td>DES-005</td><td><span class="badge method post">POST</span></td><td><code>/api/designer-tasks/:id/phases/:phase/submissions</code></td><td>Designer</td></tr>
+            <tr data-cat="qs"><td>QS-001</td><td><span class="badge method">GET</span></td><td><code>/api/quantity-review-tasks</code></td><td>QS</td></tr>
+            <tr data-cat="qs"><td>QS-003</td><td><span class="badge method post">POST</span></td><td><code>/api/quantity-review-evaluations</code></td><td>QS</td></tr>
+            <tr data-cat="auth"><td>AUTH-004</td><td><span class="badge method post">POST</span></td><td><code>/api/auth/refresh</code></td><td>All</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="mt-2" style="font-size:0.9rem; color:var(--text-muted);">Full DTOs & pagination envelopes follow standard REST conventions. 401/403/422 for auth/validation. 15min JWT + 7d hashed refresh.</p>
+    </section>
+
+    <section id="permissions" class="animate">
+      <h2>Permission Matrix</h2>
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>Module</th><th>CEO</th><th>GM</th><th>Marketing</th><th>Finance</th><th>QS</th><th>Designer</th><th>SE</th><th>DC</th></tr></thead>
+          <tbody>
+            <tr><td>Auth / Profile</td><td>CRU</td><td>CRU</td><td>CRU</td><td>CRU</td><td>CRU</td><td>CRU</td><td>CRU</td><td>CRU</td></tr>
+            <tr><td>Users CRUD</td><td>CRUD</td><td>R</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+            <tr><td>Projects</td><td>CRUD</td><td>CRU</td><td>R</td><td>R</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+            <tr><td>Tasks / Approvals</td><td>CRU</td><td>CRU</td><td>R</td><td>R</td><td>—</td><td>—</td><td>RU</td><td>RU</td></tr>
+            <tr><td>Designer Workflow</td><td>CRU</td><td>CRU</td><td>—</td><td>—</td><td>—</td><td>RU</td><td>—</td><td>—</td></tr>
+            <tr><td>QS Reviews</td><td>R</td><td>R</td><td>—</td><td>—</td><td>CRU</td><td>—</td><td>—</td><td>—</td></tr>
+            <tr><td>Notifications</td><td>RU</td><td>RU</td><td>RU</td><td>RU</td><td>RU</td><td>RU</td><td>RU</td><td>RU</td></tr>
+            <tr><td>Audit Logs</td><td>R</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="mt-2" style="font-size:0.9rem; color:var(--text-muted);">C = Create, R = Read, U = Update, D = Delete. Independent read states per user/role. RBAC enforced at API middleware.</p>
+    </section>
+
+    <section id="notifications" class="animate">
+      <h2>Notifications & Non-Functional Requirements</h2>
+      <div class="card">
+        <h3>Notification Principles</h3>
+        <ul>
+          <li>Role-targeted via <code>target_roles</code> array.</li>
+          <li>Read status tracked per-user in <code>notification_reads</code>. User A reading ≠ User B.</li>
+          <li>Counts calculated server-side via aggregate queries.</li>
+          <li>Bulk mark-read & role-specific type filtering supported.</li>
+        </ul>
+      </div>
+      <div class="flex" style="margin-top:1.5rem;">
+        <div class="card" style="flex:1; min-width:250px;">
+          <h4>Security</h4>
+          <ul><li>JWT Bearer, RBAC middleware</li><li>bcrypt/argon2id, hashed refresh</li><li>Input sanitization, rate limiting</li><li>File MIME validation, presigned URLs</li></ul>
+        </div>
+        <div class="card" style="flex:1; min-width:250px;">
+          <h4>Performance</h4>
+          <ul><li>Pagination on all lists</li><li><500ms reads, <1s writes</li><li>Indexes on FKs & filters</li><li>Streaming uploads/downloads</li></ul>
+        </div>
+        <div class="card" style="flex:1; min-width:250px;">
+          <h4>Reliability</h4>
+          <ul><li>Transactional multi-table ops</li><li>Atomic assignment → task</li><li>Soft deletes & audit trails</li><li>Stateless API design</li></ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="recommendations" class="animate">
+      <h2>Recommendations & Assumptions</h2>
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>ID</th><th>Recommendation</th><th>Impact</th></tr></thead>
+          <tbody>
+            <tr><td>REC-001</td><td>Password Reset Flow</td><td>User Recovery</td></tr>
+            <tr><td>REC-003</td><td>JWT Blacklist / Deny-list</td><td>Immediate Token Invalidation</td></tr>
+            <tr><td>REC-004</td><td>Bulk Operations (Tasks/Notifs)</td><td>Admin Efficiency</td></tr>
+            <tr><td>REC-009</td><td>PDF/CSV Export & Reports</td><td>Compliance & Analytics</td></tr>
+            <tr><td>REC-011</td><td>Per-User Rate Limiting</td><td>API Stability</td></tr>
+            <tr><td>REC-014</td><td>Seed Migration Scripts</td><td>Replace localStorage</td></tr>
+            <tr><td>REC-018</td><td>QS Resubmission Cycle</td><td>Iterative Evaluation</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="mt-2" style="font-size:0.9rem; color:var(--text-muted);">Assumes single-tenant, JWT auth, in-app notifications only, and REST polling. Frontend localStorage seed must be migrated to server-side DB seeds.</p>
+    </section>
+  </main>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // Sidebar Generation & Scroll Spy
+  const sidebar = document.getElementById('sidebar');
+  const navLinks = document.querySelectorAll('.nav-link');
+  const sections = document.querySelectorAll('section');
+
+  const handleScroll = () => {
+    let current = '';
+    sections.forEach(section => {
+      const top = section.offsetTop - 100;
+      if (window.scrollY >= top) current = section.getAttribute('id');
+    });
+    navLinks.forEach(link => {
+      link.classList.remove('active');
+      if (link.getAttribute('href') === `#${current}`) link.classList.add('active');
+    });
+  };
+
+  window.addEventListener('scroll', handleScroll);
+
+  // Mobile Menu Toggle
+  const toggle = document.querySelector('.menu-toggle');
+  const aside = document.getElementById('aside');
+  const overlay = document.getElementById('overlay');
+  
+  toggle.addEventListener('click', () => {
+    aside.classList.toggle('open');
+    overlay.classList.toggle('open');
+  });
+  overlay.addEventListener('click', () => {
+    aside.classList.remove('open');
+    overlay.classList.remove('open');
+  });
+
+  // Global Search
+  const searchInput = document.getElementById('globalSearch');
+  searchInput.addEventListener('input', (e) => {
+    const term = e.target.value.toLowerCase();
+    const searchableElements = document.querySelectorAll('.searchable-table tbody tr, .searchable-list li, .searchable-list details');
+    
+    searchableElements.forEach(el => {
+      const text = el.textContent.toLowerCase();
+      if (term === '') {
+        el.style.display = '';
+        if(el.tagName === 'DETAILS') el.open = true;
+      } else {
+        if (el.matches('tr')) {
+          el.style.display = text.includes(term) ? '' : 'none';
+        } else if (el.matches('details')) {
+          el.style.display = text.includes(term) ? '' : 'none';
+          if(text.includes(term)) el.open = true;
+        } else {
+          el.style.display = text.includes(term) ? '' : 'none';
+        }
+      }
+    });
+  });
+
+  // API Filter Buttons
+  const filterBtns = document.querySelectorAll('.api-filter');
+  const apiRows = document.querySelectorAll('.api-table tbody tr');
+  
+  filterBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      filterBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const filter = btn.dataset.filter;
+      apiRows.forEach(row => {
+        if (filter === 'all' || row.dataset.cat === filter) {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+    });
+  });
+
+  // Intersection Observer for Animations
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('animate');
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('section').forEach(sec => observer.observe(sec));
+});
+</script>
+</body>
+</html>
