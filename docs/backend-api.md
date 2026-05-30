@@ -484,3 +484,13 @@ Note: All request/response examples use JSON. Replace `:id` path segments with r
 If you want, I can: create example OpenAPI (Swagger) YAML/JSON from this spec, implement a skeleton Express.js backend with these routes, or refine roles/permissions based on real server-side rules.
 
 File: docs/backend-api.md
+r numeric string)
+  - Dates: ISO 8601 strings
+  - Text fields: max length 255 unless long text
+  - File uploads: max 10MB default, allowed mime types image/*, application/pdf, application/msword, application/vnd.openxmlformats-officedocument.*
+
+---
+
+If you want, I can: create example OpenAPI (Swagger) YAML/JSON from this spec, implement a skeleton Express.js backend with these routes, or refine roles/permissions based on real server-side rules.
+
+File: docs/backend-api.md

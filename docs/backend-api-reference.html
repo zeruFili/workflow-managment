@@ -1,0 +1,1238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Workflow Management — Backend API Specification</title>
+<style>
+:root {
+  --green-50: #f0fdf4;
+  --green-100: #dcfce7;
+  --green-200: #bbf7d0;
+  --green-300: #86efac;
+  --green-400: #4ade80;
+  --green-500: #22c55e;
+  --green-600: #16a34a;
+  --green-700: #15803d;
+  --green-800: #166534;
+  --green-900: #14532d;
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-800: #1f2937;
+  --gray-900: #111827;
+  --white: #ffffff;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
+  --radius: 0.75rem;
+  --radius-sm: 0.5rem;
+  --sidebar-width: 280px;
+  --topbar-height: 60px;
+  --transition: 0.2s ease;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+body {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  background: var(--gray-50);
+  color: var(--gray-800);
+  line-height: 1.6;
+  display: flex;
+  min-height: 100vh;
+}
+a { color: var(--green-600); text-decoration: none; }
+a:hover { color: var(--green-700); }
+
+/* ── Sidebar ── */
+.sidebar {
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  width: var(--sidebar-width);
+  background: var(--white);
+  border-right: 1px solid var(--gray-200);
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  transition: transform var(--transition);
+}
+.sidebar-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--gray-100);
+}
+.sidebar-header h1 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--gray-900);
+  line-height: 1.3;
+}
+.sidebar-header .badge {
+  display: inline-block;
+  margin-top: 0.375rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--green-700);
+  background: var(--green-100);
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+}
+.sidebar-search {
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--gray-100);
+}
+.sidebar-search input {
+  width: 100%;
+  padding: 0.5rem 0.75rem 0.5rem 2.25rem;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
+  background: var(--gray-50);
+  color: var(--gray-800);
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.sidebar-search input:focus {
+  border-color: var(--green-400);
+  box-shadow: 0 0 0 3px var(--green-100);
+}
+.sidebar-search .search-icon {
+  position: absolute;
+  left: 1.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--gray-400);
+  pointer-events: none;
+  width: 14px; height: 14px;
+}
+.sidebar-search { position: relative; }
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem 0;
+}
+.sidebar-nav summary {
+  padding: 0.5rem 1.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--gray-500);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.sidebar-nav summary::-webkit-details-marker { display: none; }
+.sidebar-nav summary::before {
+  content: '';
+  display: inline-block;
+  width: 0; height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--gray-400);
+  transition: transform var(--transition);
+  margin-right: 0.25rem;
+}
+.sidebar-nav details[open] > summary::before { transform: rotate(90deg); }
+.sidebar-nav details[open] > summary { color: var(--green-600); }
+.sidebar-nav a {
+  display: block;
+  padding: 0.375rem 1.5rem 0.375rem 2.25rem;
+  font-size: 0.8125rem;
+  color: var(--gray-600);
+  border-left: 2px solid transparent;
+  transition: all var(--transition);
+}
+.sidebar-nav a:hover, .sidebar-nav a.active {
+  color: var(--green-700);
+  background: var(--green-50);
+  border-left-color: var(--green-500);
+}
+.sidebar-nav a.nav-endpoint {
+  padding-left: 2.75rem;
+  font-size: 0.75rem;
+  color: var(--gray-500);
+}
+.sidebar-nav a.nav-endpoint:hover, .sidebar-nav a.nav-endpoint.active {
+  color: var(--green-600);
+}
+
+/* ── Mobile nav toggle ── */
+.mobile-nav-toggle {
+  display: none;
+  position: fixed;
+  top: 0.75rem; left: 0.75rem;
+  z-index: 200;
+  width: 40px; height: 40px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--gray-200);
+  background: var(--white);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow);
+}
+.mobile-nav-toggle span {
+  display: block;
+  width: 18px; height: 2px;
+  background: var(--gray-700);
+  position: relative;
+}
+.mobile-nav-toggle span::before, .mobile-nav-toggle span::after {
+  content: '';
+  position: absolute;
+  width: 18px; height: 2px;
+  background: var(--gray-700);
+  left: 0;
+  transition: transform var(--transition);
+}
+.mobile-nav-toggle span::before { top: -6px; }
+.mobile-nav-toggle span::after { top: 6px; }
+.sidebar-open .mobile-nav-toggle span { background: transparent; }
+.sidebar-open .mobile-nav-toggle span::before { transform: rotate(45deg); top: 0; }
+.sidebar-open .mobile-nav-toggle span::after { transform: rotate(-45deg); top: 0; }
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.3);
+  z-index: 99;
+}
+.sidebar-open .sidebar-overlay { display: block; }
+
+/* ── Main ── */
+.main {
+  margin-left: var(--sidebar-width);
+  flex: 1;
+  min-width: 0;
+  padding: 2rem 3rem;
+  max-width: 1100px;
+}
+.main h2 {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--gray-900);
+  margin: 2.5rem 0 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--green-200);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.main h2:first-of-type { margin-top: 0; }
+.main h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--gray-800);
+  margin: 2rem 0 0.75rem;
+}
+.main h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--gray-700);
+  margin: 1.25rem 0 0.5rem;
+}
+.main p { margin: 0.5rem 0; color: var(--gray-600); font-size: 0.9375rem; }
+
+/* ── Cards ── */
+.card {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin: 1rem 0;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition);
+}
+.card:hover { box-shadow: var(--shadow-md); }
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+/* ── Endpoint Card ── */
+.endpoint-card {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  margin: 0.75rem 0;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.endpoint-card summary {
+  padding: 1rem 1.25rem;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  font-weight: 600;
+}
+.endpoint-card summary::-webkit-details-marker { display: none; }
+.endpoint-card summary .chevron {
+  margin-left: auto;
+  transition: transform var(--transition);
+  color: var(--gray-400);
+  flex-shrink: 0;
+}
+.endpoint-card[open] > summary .chevron { transform: rotate(180deg); }
+.endpoint-card[open] > summary { background: var(--green-50); border-bottom: 1px solid var(--green-100); }
+.endpoint-card .endpoint-body { padding: 1.25rem; }
+.endpoint-card .endpoint-body section { margin-bottom: 1rem; }
+.endpoint-card .endpoint-body section:last-child { margin-bottom: 0; }
+.endpoint-card .endpoint-body h5 {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--gray-500);
+  margin-bottom: 0.375rem;
+}
+.method {
+  display: inline-block;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.method.get { background: #dbeafe; color: #1d4ed8; }
+.method.post { background: #dcfce7; color: #15803d; }
+.method.put { background: #fef3c7; color: #a16207; }
+.method.patch { background: #ede9fe; color: #6d28d9; }
+.method.delete { background: #fee2e2; color: #b91c1c; }
+
+.badge {
+  display: inline-block;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+.badge-auth { background: var(--green-100); color: var(--green-700); }
+.badge-noauth { background: var(--gray-100); color: var(--gray-600); }
+.badge-role { background: var(--green-50); color: var(--green-700); border: 1px solid var(--green-200); }
+
+pre {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 0.8125rem;
+  overflow-x: auto;
+  line-height: 1.5;
+  color: var(--gray-800);
+}
+
+/* ── Table ── */
+.table-wrap {
+  overflow-x: auto;
+  margin: 1rem 0;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  background: var(--white);
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+th {
+  background: var(--gray-50);
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--gray-600);
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 2px solid var(--gray-200);
+}
+td {
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid var(--gray-100);
+  color: var(--gray-700);
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--green-50); }
+
+/* ── Callout ── */
+.callout {
+  background: var(--green-50);
+  border-left: 4px solid var(--green-500);
+  padding: 1rem 1.25rem;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  margin: 1rem 0;
+  font-size: 0.875rem;
+  color: var(--green-900);
+}
+.callout strong { color: var(--green-700); }
+
+/* ── Module grid ── */
+.module-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+.module-card {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition);
+  cursor: default;
+}
+.module-card:hover {
+  border-color: var(--green-300);
+  box-shadow: var(--shadow-md);
+}
+.module-card h5 {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--gray-800);
+  margin-bottom: 0.25rem;
+}
+.module-card .module-desc {
+  font-size: 0.75rem;
+  color: var(--gray-500);
+  line-height: 1.4;
+}
+
+/* ── Phase Timeline ── */
+.phase-timeline {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.75rem 0;
+}
+.phase-step {
+  background: var(--green-50);
+  border: 1px solid var(--green-200);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--green-700);
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  white-space: nowrap;
+}
+.phase-arrow {
+  display: flex;
+  align-items: center;
+  color: var(--green-400);
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+/* ── Back to top ── */
+.back-to-top {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--green-500);
+  color: var(--white);
+  border: none;
+  cursor: pointer;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all var(--transition);
+  pointer-events: none;
+  z-index: 50;
+}
+.back-to-top.visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
+.back-to-top:hover { background: var(--green-600); }
+
+/* ── Search highlight ── */
+.search-highlight { background: #fde68a; padding: 0 2px; border-radius: 2px; }
+.hidden-by-search { display: none !important; }
+
+/* ── HTTP Status Grid ── */
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.status-code {
+  font-size: 0.8125rem;
+  font-weight: 800;
+  color: var(--green-700);
+  min-width: 2.25rem;
+}
+
+/* ── Responsive ── */
+@media (max-width: 1024px) { .main { padding: 1.5rem 2rem; } }
+@media (max-width: 768px) {
+  .mobile-nav-toggle { display: flex; }
+  .sidebar { transform: translateX(-100%); }
+  .sidebar-open .sidebar { transform: translateX(0); }
+  .main { margin-left: 0; padding: 4rem 1rem 1.5rem; }
+  .main h2 { font-size: 1.375rem; margin-top: 1.5rem; }
+  .main h3 { font-size: 1.125rem; }
+  .card-grid { grid-template-columns: 1fr; }
+  .module-grid { grid-template-columns: 1fr 1fr; }
+  .endpoint-card summary { font-size: 0.875rem; }
+}
+@media (max-width: 480px) {
+  .module-grid { grid-template-columns: 1fr; }
+  .phase-timeline { flex-direction: column; }
+  .phase-arrow { display: none; }
+  pre { font-size: 0.75rem; }
+}
+
+/* ── Footer ── */
+.footer {
+  margin-top: 3rem;
+  padding: 2rem 0;
+  border-top: 1px solid var(--gray-200);
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--gray-500);
+}
+</style>
+</head>
+<body>
+
+<div class="sidebar-overlay" onclick="closeSidebar()"></div>
+<button class="mobile-nav-toggle" onclick="toggleSidebar()" aria-label="Toggle navigation">
+  <span></span>
+</button>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <h1>Workflow Management<br>Backend API</h1>
+    <span class="badge">v1.0 Specification</span>
+  </div>
+  <div class="sidebar-search">
+    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input type="text" id="searchInput" placeholder="Search endpoints..." oninput="handleSearch()" aria-label="Search">
+  </div>
+  <nav class="sidebar-nav" id="sidebarNav"></nav>
+</aside>
+
+<main class="main" id="mainContent"></main>
+
+<button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m18 15-6-6-6 6"/></svg>
+</button>
+
+<script>
+const DOC = {
+  sections: [
+    {
+      id: 'system-overview',
+      title: 'System Overview',
+      icon: '🏗️',
+      content: `
+        <p>This document lists the backend endpoints the frontend expects, grouped by module and role. Authentication model: <strong>JWT Bearer tokens</strong> (<code>Authorization: Bearer &lt;token&gt;</code>). Endpoints that modify data require authentication and role-based authorization.</p>
+        <h3>Modules / Features</h3>
+        <div class="module-grid">
+          ${[
+            ['Authentication','Login, logout, session retrieval'],
+            ['User Management','CRUD users with role & status controls'],
+            ['Projects','CRUD, stage management, assignment'],
+            ['Tasks (Generic)','CRUD, status changes, approval/rejection, attachments'],
+            ['Data Collector Tasks','Task assignments with evidence submissions & feedback'],
+            ['Designer Job Postings','Leadership creates postings; designers browse'],
+            ['Designer Applications','Designers apply; leadership reviews & assigns'],
+            ['Designer Multi-Phase','4-phase gated progression (Case Study → Design Stage → Rendering → Final Stage)'],
+            ['Customer Requests','Intake form, category management, transfer to paid pipeline'],
+            ['Paid Customers','Payment proof, finance verify/reject/clarify, marketing clarification'],
+            ['Approvals','Project-stage approve/reject with feedback'],
+            ['Quantity Surveyor','Forwarding design submissions for cost/quality review, evaluations, decisions'],
+            ['Site Engineer Tasks','Field task board with status updates & evidence'],
+            ['Performance Ratings','Designer performance metrics & review scores'],
+            ['Dashboard / Metrics','Aggregated counts per role'],
+            ['Documents / Uploads','Image/PDF attachments across modules'],
+            ['Notifications','Unread counts, mark-as-read, per-role targeting']
+          ].map(([t,d]) => `<div class="module-card"><h5>${t}</h5><div class="module-desc">${d}</div></div>`).join('')
+        }
+        </div>
+        <h3>User Roles</h3>
+        <div class="table-wrap">
+          <table>
+            <tr><th>Role</th><th>Code</th></tr>
+            ${['CEO|ceo','General Manager|general_manager','Marketing Lead|marketing_lead','Finance Officer|finance_officer','Data Collector|data_collector','Quantity Surveyor|quantity_surveyor','Designer|designer','Site Engineer|site_engineer'].map(r => { const [n,c] = r.split('|'); return `<tr><td>${n}</td><td><code>${c}</code></td></tr>`; }).join('')}
+          </table>
+        </div>
+      `
+    },
+    {
+      id: 'role-endpoints',
+      title: 'Role-Based Endpoint Classification',
+      icon: '👥',
+      content: `
+        <p>Each role has access to a specific set of endpoints. Click a role to expand its endpoint list.</p>
+        ${[
+          {role:'CEO',code:'ceo',eps:['POST /api/auth/login','POST /api/auth/logout','GET /api/auth/me','GET /api/users','POST /api/users','GET /api/users/:id','PUT /api/users/:id','DELETE /api/users/:id','GET /api/projects','POST /api/projects','GET /api/projects/:id','PUT /api/projects/:id','DELETE /api/projects/:id','GET /api/tasks','POST /api/tasks','GET /api/tasks/:id','PUT /api/tasks/:id','PATCH /api/tasks/:id/status','POST /api/tasks/:id/approve','POST /api/tasks/:id/reject','GET /api/dashboard','GET /api/job-postings','POST /api/job-postings','GET /api/job-postings/:id/applications','PUT /api/applications/:id','GET /api/designer-tasks','POST /api/designer-tasks','GET /api/designer-tasks/:id/progress','POST /api/designer-tasks/:id/phases/:phase/review','POST /api/designer-tasks/:id/review','GET /api/designer-performance','GET /api/customer-requests','POST /api/customer-requests','GET /api/paid-customers','POST /api/paid-customers/:id/verify','GET /api/finance/verifications','POST /api/finance/verifications/:id/verify','GET /api/customers','POST /api/customers','GET /api/data-collector-tasks','POST /api/data-collector-tasks','POST /api/tasks/:id/submissions','POST /api/tasks/:id/submissions/:submissionId/approve','POST /api/tasks/:id/feedbacks','GET /api/approvals','POST /api/approvals','POST /api/approvals/:id/review','GET /api/quantity-review-tasks','POST /api/quantity-review-tasks','GET /api/quantity-review-evaluations','POST /api/quantity-review-evaluations/:id/decision','GET /api/notifications','POST /api/notifications/:id/read','POST /api/notifications/read','GET /api/documents','POST /api/uploads','GET /api/uploads/:id','DELETE /api/uploads/:id']},
+          {role:'General Manager',code:'general_manager',eps:['POST /api/auth/login','POST /api/auth/logout','GET /api/auth/me','GET /api/users','GET /api/projects','POST /api/projects','GET /api/projects/:id','PUT /api/projects/:id','GET /api/tasks','POST /api/tasks','GET /api/tasks/:id','PUT /api/tasks/:id','POST /api/tasks/:id/approve','POST /api/tasks/:id/reject','GET /api/dashboard','GET /api/job-postings','POST /api/job-postings','GET /api/job-postings/:id/applications','PUT /api/applications/:id','GET /api/designer-tasks','POST /api/designer-tasks','GET /api/designer-tasks/:id/progress','POST /api/designer-tasks/:id/phases/:phase/review','POST /api/designer-tasks/:id/review','GET /api/designer-performance','GET /api/paid-customers','GET /api/finance/verifications','GET /api/data-collector-tasks','POST /api/data-collector-tasks','POST /api/tasks/:id/submissions','POST /api/tasks/:id/submissions/:submissionId/approve','POST /api/tasks/:id/feedbacks','GET /api/approvals','POST /api/approvals/:id/review','GET /api/quantity-review-tasks','POST /api/quantity-review-tasks','GET /api/quantity-review-evaluations','POST /api/quantity-review-evaluations/:id/decision','GET /api/notifications','GET /api/dashboard/site-engineer']},
+          {role:'Marketing Lead',code:'marketing_lead',eps:['POST /api/auth/login','GET /api/auth/me','GET /api/tasks?assignedTo=me','GET /api/customer-requests','POST /api/customer-requests','POST /api/paid-customers','GET /api/paid-customers','POST /api/paid-customers/:id/clarify','GET /api/approvals','GET /api/dashboard','GET /api/notifications']},
+          {role:'Finance Officer',code:'finance_officer',eps:['POST /api/auth/login','GET /api/auth/me','GET /api/finance/verifications','POST /api/finance/verifications/:id/verify','GET /api/paid-customers','GET /api/notifications']},
+          {role:'Data Collector',code:'data_collector',eps:['POST /api/auth/login','GET /api/auth/me','GET /api/tasks?assignedTo=me','GET /api/data-collector-tasks','POST /api/tasks/:id/submissions','GET /api/notifications']},
+          {role:'Quantity Surveyor',code:'quantity_surveyor',eps:['POST /api/auth/login','GET /api/auth/me','GET /api/quantity-review-tasks','PUT /api/quantity-review-tasks/:id/status','POST /api/quantity-review-evaluations','GET /api/quantity-review-evaluations','GET /api/quantity-review-notifications','POST /api/notifications/read']},
+          {role:'Designer',code:'designer',eps:['POST /api/auth/login','GET /api/auth/me','GET /api/designer-tasks','POST /api/designer-tasks/:id/phases/:phase/submissions','GET /api/designer-tasks/:id/progress','GET /api/job-postings','POST /api/job-postings/:id/applications','GET /api/designer-performance','GET /api/notifications']},
+          {role:'Site Engineer',code:'site_engineer',eps:['POST /api/auth/login','GET /api/auth/me','GET /api/tasks?assignedTo=me','PUT /api/tasks/:id','PATCH /api/tasks/:id/status','POST /api/tasks/:id/attachments','GET /api/dashboard/site-engineer','GET /api/notifications']}
+        ].map(r => `
+          <div class="endpoint-card" style="margin-bottom:0.5rem">
+            <summary style="cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;gap:0.5rem;padding:0.75rem 1.25rem;font-weight:600;">
+              <span style="font-size:1.125rem">${r.role === 'CEO' ? '👑' : r.role === 'General Manager' ? '⭐' : r.role === 'Marketing Lead' ? '📢' : r.role === 'Finance Officer' ? '💰' : r.role === 'Data Collector' ? '📊' : r.role === 'Quantity Surveyor' ? '📐' : r.role === 'Designer' ? '🎨' : '🏗️'}</span>
+              ${r.role}
+              <code style="font-size:0.7rem;color:var(--gray-500);font-weight:400">${r.code}</code>
+              <span style="margin-left:auto;color:var(--gray-400);font-size:0.75rem">${r.eps.length} endpoints</span>
+            </summary>
+            <div style="padding:0.75rem 1.25rem;border-top:1px solid var(--gray-100);display:flex;flex-wrap:wrap;gap:0.375rem;">
+              ${r.eps.map(e => { const m = e.split(' ')[0]; return `<code style="font-size:0.75rem;background:var(--gray-50);padding:0.2rem 0.45rem;border-radius:4px;border:1px solid var(--gray-200)">${e}</code>`; }).join('')}
+            </div>
+          </div>
+        `).join('')}
+      `
+    },
+    {
+      id: 'endpoint-reference',
+      title: 'Endpoint Reference',
+      icon: '📖',
+      subsections: [
+        {
+          id: 'auth',
+          title: 'Authentication',
+          endpoints: [
+            {
+              method:'POST', path:'/api/auth/login', desc:'Authenticate a user and return access/refresh tokens.', auth:false, roles:['N/A'],
+              body:`{ "username": "string", "password": "string" }`,
+              response:`{ "success": true, "message": "Login successful", "data": { "accessToken": "eyJhbGci...", "refreshToken": "...", "user": { "id": "1", "username": "ceo", "name": "Ava", "role": "ceo" } } }`,
+              validation:'username required, password required (min 6 chars)',
+              errors:['401 — Invalid credentials']
+            },
+            {
+              method:'POST', path:'/api/auth/logout', desc:'Invalidate refresh token. Client clears local session.', auth:true, roles:['Any authenticated'],
+              body:`{}`, response:`{ "success": true, "message": "Logged out" }`
+            },
+            {
+              method:'GET', path:'/api/auth/me', desc:'Return authenticated user profile and role.', auth:true, roles:['Any'],
+              response:`{ "success": true, "data": { "id": "1", "username": "ceo", "name": "Ava", "role": "ceo" } }`
+            },
+            {
+              method:'POST', path:'/api/auth/refresh', desc:'Exchange a refresh token for a new access token.', auth:false, roles:['N/A'],
+              body:`{ "refreshToken": "string" }`,
+              response:`{ "success": true, "data": { "accessToken": "eyJhbGci...", "refreshToken": "..." } }`
+            }
+          ]
+        },
+        {
+          id: 'users',
+          title: 'Users',
+          endpoints: [
+            {
+              method:'GET', path:'/api/users', desc:'Paginated list of users with role, status, and search filters.', auth:true, roles:['ceo','general_manager'],
+              query:'page, perPage, role, status, search',
+              response:`{ "success": true, "data": [{ "id": "1", "username": "sarah.j", "name": "Sarah Johnson", "role": "marketing_lead", "email": "sarah@company.com", "phone": "+1 555 1001", "status": "active" }], "meta": { "total": 12, "page": 1, "perPage": 20 } }`
+            },
+            {
+              method:'POST', path:'/api/users', desc:'Create a new user. Password hashed server-side.', auth:true, roles:['ceo'],
+              body:`{ "username": "string", "name": "string", "email": "string", "password": "string", "role": "ceo|general_manager|...", "phone": "string (optional)" }`,
+              response:`{ "success": true, "message": "User created", "data": { "id": "42" } }`,
+              validation:'All fields required except phone; password min 8 chars; email valid format; username unique; role must be allowed value',
+              errors:['409 — Username already exists']
+            },
+            {
+              method:'GET', path:'/api/users/:id', desc:'Retrieve a single user.', auth:true, roles:['ceo','general_manager','or self'],
+              params:'id (string)',
+              response:`{ "success": true, "data": { "id": "3", "username": "emily.c", "name": "Emily Chen", "role": "designer", ... } }`
+            },
+            {
+              method:'PUT', path:'/api/users/:id', desc:'Update user profile, role, status, and optionally password.', auth:true, roles:['ceo (role/status)','self (profile)'],
+              params:'id (string)',
+              body:`{ "name": "string", "email": "string", "phone": "string", "role": "string", "status": "active|inactive", "password": "string (optional)" }`,
+              response:`{ "success": true, "message": "User updated" }`
+            },
+            {
+              method:'DELETE', path:'/api/users/:id', desc:'Soft-delete by setting status: deleted and deletedAt.', auth:true, roles:['ceo'],
+              params:'id (string)',
+              response:`{ "success": true, "message": "User marked deleted" }`
+            }
+          ]
+        },
+        {
+          id: 'projects',
+          title: 'Projects',
+          endpoints: [
+            {
+              method:'GET', path:'/api/projects', desc:'Return projects with optional stage, status, and assignment filters.', auth:true, roles:['Any (scoped)'],
+              query:'stage, status, assignedTo, page, perPage, search',
+              response:`{ "success": true, "data": [{ "id": "proj-1", "name": "City Plaza Renovation", "clientName": "City Corp", "stage": "design", "status": "active", ... }], "meta": { "total": 15 } }`
+            },
+            {
+              method:'POST', path:'/api/projects', desc:'Create a new project record.', auth:true, roles:['ceo','general_manager'],
+              body:`{ "name": "string", "clientName": "string", "description": "string", "stage": "lead|design|approval|execution|completed", "deadline": "ISO8601 (opt)", "assignedTo": "userId (opt)" }`,
+              response:`{ "success": true, "message": "Project created", "data": { "id": "proj-10" } }`,
+              validation:'name and clientName required (max 255)'
+            },
+            { method:'GET', path:'/api/projects/:id', desc:'Retrieve project details including document list and task counts.', auth:true, roles:['Any'], params:'id (string)', response:`{ "success": true, "data": { ...project, "taskCounts": { "total": 8, "pending": 3 } } }` },
+            { method:'PUT', path:'/api/projects/:id', desc:'Update project fields and stage.', auth:true, roles:['ceo','general_manager'], params:'id (string)', body:'partial project fields', response:`{ "success": true, "message": "Project updated" }` },
+            { method:'DELETE', path:'/api/projects/:id', desc:'Soft-delete or archive a project.', auth:true, roles:['ceo'], params:'id (string)' },
+            { method:'GET', path:'/api/projects/:id/tasks', desc:'Return tasks associated with a project.', auth:true, roles:['Any'], params:'id (string)' },
+            { method:'GET', path:'/api/projects/:id/documents', desc:'Return documents attached to a project.', auth:true, roles:['Project members','leadership'] }
+          ]
+        },
+        {
+          id: 'tasks',
+          title: 'Tasks (Generic)',
+          endpoints: [
+            {
+              method:'GET', path:'/api/tasks', desc:'Retrieve tasks with filtering by status, assignedTo, assignedBy, projectId, approvalStatus.', auth:true, roles:['Any (scoped)'],
+              query:'status, assignedTo, assignedBy, projectId, approvalStatus, page, perPage, search, sort',
+              response:`{ "success": true, "data": [{ "id": "task-1", "projectId": "proj-1", "title": "Collect site measurements", "status": "in_progress", ... }], "meta": { "total": 123 } }`
+            },
+            {
+              method:'POST', path:'/api/tasks', desc:'Create a new task for a project.', auth:true, roles:['ceo','general_manager'],
+              body:`{ "projectId": "string", "title": "string", "description": "string", "instruction": "string", "assignedTo": "userId (opt)", "assignedBy": "userId", "deadline": "ISO8601 (opt)" }`,
+              response:`{ "success": true, "message": "Task created successfully", "data": { "id": "task-123" } }`,
+              validation:'title required (max 255), assignedTo must be valid user ID'
+            },
+            { method:'GET', path:'/api/tasks/:id', desc:'Get task details including submissions, feedbacks, and attachments.', auth:true, roles:['Owner','assignee','leadership'], params:'id (string)' },
+            { method:'PUT', path:'/api/tasks/:id', desc:'Update title, description, instruction, deadline, assignedTo.', auth:true, roles:['Owner','assignee (limited)','leadership'], params:'id (string)', body:'partial task object', response:`{ "success": true, "message": "Task updated" }` },
+            {
+              method:'PATCH', path:'/api/tasks/:id/status', desc:'Change task status (pending, in_progress, completed, incomplete, rejected).', auth:true, roles:['assignedTo','leadership'],
+              params:'id (string)', body:`{ "status": "in_progress|completed|incomplete|rejected" }`, response:`{ "success": true, "message": "Status updated" }`
+            },
+            {
+              method:'POST', path:'/api/tasks/:id/approve', desc:'Leadership approves a task; sets approvalStatus=approved.', auth:true, roles:['ceo','general_manager'],
+              params:'id (string)', body:`{ "feedback": "string (optional)" }`, response:`{ "success": true, "message": "Task approved" }`
+            },
+            {
+              method:'POST', path:'/api/tasks/:id/reject', desc:'Leadership rejects a task with mandatory feedback.', auth:true, roles:['ceo','general_manager'],
+              params:'id (string)', body:`{ "feedback": "string" }`, validation:'feedback required', response:`{ "success": true, "message": "Task rejected" }`
+            },
+            {
+              method:'POST', path:'/api/tasks/:id/attachments', desc:'Upload files attached to a task (images, documents).', auth:true, roles:['assignedTo','uploaders'],
+              params:'id (string)', contentType:'multipart/form-data', fields:'file (binary), label (optional)',
+              validation:'Max 10MB; allowed: image/*, application/pdf, .docx, .xlsx',
+              response:`{ "success": true, "data": { "attachmentId": "att-123", "url": "/uploads/att-123.jpg" } }`,
+              errors:['413 — File too large']
+            },
+            { method:'GET', path:'/api/tasks/:id/submissions', desc:'List all submissions for a task.', auth:true, roles:['Owner','assignee','leadership'], params:'id (string)' },
+            {
+              method:'POST', path:'/api/tasks/:id/submissions', desc:'Submit evidence for a task.', auth:true, roles:['assignedTo'],
+              params:'id (string)', contentType:'multipart/form-data', fields:'notes (string, opt), metadata (JSON, opt), attachments (file[], opt)',
+              validation:'Max 10MB per file',
+              response:`{ "success": true, "data": { "id": "sub-10", "submittedBy": "7", ... } }`
+            },
+            {
+              method:'POST', path:'/api/tasks/:id/submissions/:submissionId/approve', desc:'Leadership approves a data collector submission.', auth:true, roles:['ceo','general_manager'],
+              params:'id, submissionId (string)', body:`{ "feedback": "string (optional)" }`, response:`{ "success": true, "message": "Submission approved" }`
+            },
+            {
+              method:'POST', path:'/api/tasks/:id/feedbacks', desc:'Add feedback on a task or submission.', auth:true, roles:['Leadership','task owner'],
+              params:'id (string)', body:`{ "body": "string (rich text/HTML)" }`, validation:'body required, not empty; version auto-increments',
+              response:`{ "success": true, "data": { "id": "fb-3", "senderId": "1", "body": "...", "version": 1 } }`
+            },
+            { method:'PATCH', path:'/api/feedbacks/:id', desc:'Edit a feedback entry.', auth:true, roles:['Author'], params:'id (string)' },
+            { method:'DELETE', path:'/api/feedbacks/:id', desc:'Delete a feedback entry.', auth:true, roles:['Author'], params:'id (string)' }
+          ]
+        },
+        {
+          id: 'designer-job-postings',
+          title: 'Designer / Job Postings & Applications',
+          endpoints: [
+            {
+              method:'GET', path:'/api/job-postings', desc:'List job postings open for application.', auth:true, roles:['Any (browsing may be open)'],
+              query:'status, projectId, page, perPage',
+              response:`{ "success": true, "data": [{ "id": "job-post-1", "title": "Draft Living Room Elevation", "storyPoints": 8, "status": "pending", ... }] }`
+            },
+            {
+              method:'POST', path:'/api/job-postings', desc:'Leadership creates a task posting for designers to apply.', auth:true, roles:['ceo','general_manager'],
+              body:`{ "projectId": "string", "title": "string", "description": "string", "instruction": "string", "storyPoints": "number", "deadline": "ISO8601 (opt)", "telegramScreenshot": "string (opt)" }`,
+              response:`{ "success": true, "data": { "id": "job-post-7" } }`,
+              validation:'title required; storyPoints positive integer'
+            },
+            { method:'PUT', path:'/api/job-postings/:id', desc:'Update a job posting.', auth:true, roles:['ceo','general_manager'], params:'id (string)' },
+            { method:'DELETE', path:'/api/job-postings/:id', desc:'Delete a job posting.', auth:true, roles:['ceo','general_manager'], params:'id (string)' },
+            { method:'GET', path:'/api/job-postings/:id/applications', desc:'Leadership lists all applications for a job posting.', auth:true, roles:['ceo','general_manager'], params:'id (string)' },
+            {
+              method:'POST', path:'/api/job-postings/:id/applications', desc:'Designer applies to a job posting with a message.', auth:true, roles:['designer'],
+              params:'id (string)', body:`{ "message": "string" }`, validation:'message required',
+              response:`{ "success": true, "data": { "applicationId": "app-123" } }`
+            },
+            {
+              method:'PUT', path:'/api/applications/:id', desc:'Leadership accepts (assigns) or rejects a designer application.', auth:true, roles:['ceo','general_manager'],
+              params:'id (string)', body:`{ "status": "assigned|rejected", "reviewedBy": "userId", "reviewNote": "string (opt)" }`,
+              validation:'When assigned, applicant becomes task assignedTo',
+              response:`{ "success": true, "message": "Application status updated" }`
+            }
+          ]
+        },
+        {
+          id: 'designer-tasks-multi',
+          title: 'Designer Tasks (Multi-Phase Workflow)',
+          content: `<div class="callout"><strong>4-Phase Gated Progression:</strong> Designers submit work through four phases, each requiring leadership review before the next unlocks.</div>
+            <div class="phase-timeline">
+              <div class="phase-step">🔍 Case Study</div><span class="phase-arrow">→</span>
+              <div class="phase-step">🎨 Design Stage</div><span class="phase-arrow">→</span>
+              <div class="phase-step">🖼️ Rendering</div><span class="phase-arrow">→</span>
+              <div class="phase-step">✅ Final Stage</div>
+            </div>`,
+          endpoints: [
+            { method:'GET', path:'/api/designer-tasks', desc:'List designer tasks. Designers see assigned; leadership sees all.', auth:true, roles:['ceo','general_manager','designer (scoped)'], query:'assignedTo, status, page, perPage' },
+            {
+              method:'POST', path:'/api/designer-tasks', desc:'Leadership creates a designer task with story points.', auth:true, roles:['ceo','general_manager'],
+              body:`{ "projectId": "string", "title": "string", "description": "string", "instruction": "string", "storyPoints": "number", "assignedTo": "userId (opt)", "telegramScreenshot": "string (opt)", "deadline": "ISO8601 (opt)" }`,
+              response:`{ "success": true, "data": { "id": "dtask-1" } }`,
+              validation:'title required; storyPoints required (positive integer)'
+            },
+            {
+              method:'GET', path:'/api/designer-tasks/:id/progress', desc:'Get multi-phase progress for a designer task (all 4 phases with history).', auth:true, roles:['Assigned designer','ceo','general_manager'],
+              params:'id (string)',
+              response:`{ "success": true, "data": { "caseStudy": { "note": "...", "screenshot": "/uploads/...", "history": [...] }, "designStage": {...}, "rendering": {...}, "finalStage": {...} } }`
+            },
+            {
+              method:'POST', path:'/api/designer-tasks/:id/phases/:phase/submissions', desc:'Designer submits work for a specific phase.', auth:true, roles:['assigned designer'],
+              params:'id (string), phase — caseStudy|designStage|rendering|finalStage',
+              contentType:'multipart/form-data', fields:'note (string, opt), file (binary, opt — image)',
+              validation:'Cannot submit if previous phase not approved; finalStage requires screenshot',
+              response:`{ "success": true, "data": { "phase": "caseStudy", "note": "...", "screenshot": "/uploads/...", "submittedAt": "..." } }`
+            },
+            {
+              method:'POST', path:'/api/designer-tasks/:id/phases/:phase/review', desc:'Leadership reviews a phase submission.', auth:true, roles:['ceo','general_manager'],
+              params:'id (string), phase (string)',
+              body:`{ "action": "approve|feedback|reject", "message": "string" }`,
+              validation:'message required for reject; when approved, next phase unlocks',
+              response:`{ "success": true, "data": { "history": [{ "status": "approved", "message": "...", "timestamp": "..." }] } }`
+            },
+            {
+              method:'POST', path:'/api/designer-tasks/:id/review', desc:'Leadership submits a performance rating for a completed designer task.', auth:true, roles:['ceo','general_manager'],
+              params:'id (string)',
+              body:`{ "creativity": "number (0-5)", "timeliness": "number (0-5)", "clientUnderstanding": "number (0-5)", "rendering": "number (0-5)", "comment": "string (opt)" }`,
+              validation:'All ratings required, 0-5 with one decimal'
+            }
+          ]
+        },
+        {
+          id: 'data-collector',
+          title: 'Data Collector Tasks',
+          endpoints: [
+            { method:'GET', path:'/api/data-collector-tasks', desc:'List data collector tasks with submissions and feedbacks.', auth:true, roles:['ceo','general_manager','data_collector (scoped)'], query:'status, assignedTo, page, perPage' },
+            {
+              method:'POST', path:'/api/data-collector-tasks', desc:'Leadership creates a data collection task.', auth:true, roles:['ceo','general_manager'],
+              body:`{ "projectId": "string", "title": "string", "description": "string", "instruction": "string", "assignedTo": "userId", "deadline": "ISO8601 (opt)" }`,
+              response:`{ "success": true, "data": { "id": "dc-task-6" } }`
+            }
+          ]
+        },
+        {
+          id: 'customer-requests',
+          title: 'Customer Requests',
+          endpoints: [
+            { method:'GET', path:'/api/customer-requests', desc:'List customer service request records.', auth:true, roles:['marketing_lead','ceo','general_manager'], query:'status, category, page, perPage, search' },
+            {
+              method:'POST', path:'/api/customer-requests', desc:'Create a new customer intake record.', auth:true, roles:['marketing_lead'],
+              body:`{ "customerName": "string", "customerPhone": "string", "customerEmail": "string (opt)", "customerAddress": "string", "category": "home_design|finishing_work|hair_salon_design|other", "serviceDescription": "string", "preferredStartDate": "ISO8601 (opt)", "budget": "string (opt)", "notes": "string (opt)", "otherCategoryDescription": "string (req if other)" }`,
+              response:`{ "success": true, "data": { "id": "cr-6" } }`,
+              validation:'customerName, phone, address, category, serviceDescription required; phone format validation'
+            },
+            { method:'GET', path:'/api/customer-requests/:id', desc:'Get a single customer request.', auth:true, roles:['marketing_lead','ceo','general_manager'], params:'id (string)' },
+            { method:'PUT', path:'/api/customer-requests/:id', desc:'Update a customer request.', auth:true, roles:['marketing_lead'], params:'id (string)' },
+            { method:'DELETE', path:'/api/customer-requests/:id', desc:'Delete a customer request record.', auth:true, roles:['marketing_lead','ceo'], params:'id (string)' }
+          ]
+        },
+        {
+          id: 'paid-customers',
+          title: 'Paid Customers',
+          endpoints: [
+            { method:'GET', path:'/api/paid-customers', desc:'List paid customer records (transferred from customer requests).', auth:true, roles:['marketing_lead','finance_officer','ceo','general_manager'], query:'paymentVerificationStatus, page, perPage, search' },
+            {
+              method:'POST', path:'/api/paid-customers', desc:'Marketing Lead transfers a customer request into the paid pipeline with payment proof.', auth:true, roles:['marketing_lead'],
+              contentType:'multipart/form-data',
+              fields:'sourceRequestId (string, required), paymentNote (string, opt), proofFiles (file[], required — payment receipts)',
+              validation:'proofFiles required; accepted: image/*, application/pdf; max 10MB each',
+              response:`{ "success": true, "data": { "id": "paid-9", "paymentVerificationStatus": "pending" } }`
+            },
+            { method:'GET', path:'/api/paid-customers/:id', desc:'Get a single paid customer with full payment verification history.', auth:true, roles:['marketing_lead','finance_officer','ceo','general_manager'], params:'id (string)' },
+            {
+              method:'POST', path:'/api/paid-customers/:id/verify', desc:'Finance Officer verifies, rejects, or requests clarification on a payment.', auth:true, roles:['finance_officer'],
+              params:'id (string)', body:`{ "action": "verify|reject|request_clarification", "message": "string" }`,
+              validation:'action required (one of three); message required',
+              response:`{ "success": true, "data": { "paymentVerificationStatus": "verified", "paymentVerifiedAt": "...", "paymentVerifiedBy": "6" } }`
+            },
+            {
+              method:'POST', path:'/api/paid-customers/:id/clarify', desc:'Marketing Lead responds to a finance clarification request with attachments.', auth:true, roles:['marketing_lead'],
+              params:'id (string)', contentType:'multipart/form-data',
+              fields:'description (string, required), attachments (file[], required — images)',
+              validation:'description required; at least one image attachment',
+              response:`{ "success": true, "data": { "marketingClarificationResponse": { "description": "...", "respondedAt": "...", "respondedBy": "1" } } }`
+            }
+          ]
+        },
+        {
+          id: 'finance-verifications',
+          title: 'Finance Verifications',
+          content: `<div class="callout"><strong>5-Tab Organization:</strong> unapproved-request | verified-records | rejected-records | ceo-approved-requests | request-clarification-task</div>`,
+          endpoints: [
+            {
+              method:'GET', path:'/api/finance/verifications', desc:'List all records needing or having undergone finance verification, organized by tab.', auth:true, roles:['finance_officer','ceo','general_manager'],
+              query:'tab — unapproved-request|verified-records|rejected-records|ceo-approved-requests|request-clarification-task',
+              response:`{ "success": true, "data": [{ "id": "pc-fin-1", "customerName": "Nadia Hassan", "paymentVerificationStatus": "pending", "financeHistory": [...], "proofOfPayment": [...] }] }`
+            },
+            {
+              method:'POST', path:'/api/finance/verifications/:id/verify', desc:'Finance officer makes a decision on a verification record.', auth:true, roles:['finance_officer'],
+              params:'id (string)', body:`{ "action": "verify|reject|clarify", "note": "string" }`, response:`{ "success": true, "message": "Finance decision recorded" }`
+            },
+            {
+              method:'POST', path:'/api/finance/verifications/:id/ceo-approve', desc:'CEO approves a finance record for verification.', auth:true, roles:['ceo'],
+              params:'id (string)', body:`{ "note": "string (optional)" }`
+            }
+          ]
+        },
+        {
+          id: 'approvals',
+          title: 'Approvals',
+          endpoints: [
+            {
+              method:'GET', path:'/api/approvals', desc:'List project-stage approval items awaiting leadership review.', auth:true, roles:['ceo','general_manager'],
+              query:'status, stage, page, perPage',
+              response:`{ "success": true, "data": [{ "id": "appr-1", "projectId": "proj-1", "stage": "design", "status": "pending", ... }] }`
+            },
+            {
+              method:'POST', path:'/api/approvals', desc:'Request approval for a project stage.', auth:true, roles:['Assigned user'],
+              body:`{ "projectId": "string", "stage": "lead|design|approval|execution|completed", "requestedBy": "userId" }`,
+              response:`{ "success": true, "data": { "id": "appr-5" } }`
+            },
+            {
+              method:'POST', path:'/api/approvals/:id/review', desc:'Leadership approves or rejects a project-stage approval request.', auth:true, roles:['ceo','general_manager'],
+              params:'id (string)', body:`{ "action": "approve|reject", "feedback": "string (opt)" }`,
+              response:`{ "success": true, "data": { "status": "approved", "reviewedBy": "2", "reviewedAt": "..." } }`
+            }
+          ]
+        },
+        {
+          id: 'quantity-surveyor',
+          title: 'Quantity Surveyor Workflow',
+          endpoints: [
+            {
+              method:'GET', path:'/api/quantity-review-tasks', desc:'List all design submissions forwarded for quantity/cost review.', auth:true, roles:['quantity_surveyor','ceo','general_manager'],
+              query:'status — pending_review|in_review|record_submitted',
+              response:`{ "success": true, "data": [{ "id": "qs-review-1", "jobId": "JOB-101", "designWorkReference": "DW-501", "status": "pending_review", "assignedTo": "11", ... }] }`
+            },
+            {
+              method:'POST', path:'/api/quantity-review-tasks', desc:'Leadership forwards a design submission for quantity/cost review.', auth:true, roles:['ceo','general_manager'],
+              body:`{ "jobId": "string", "designWorkReference": "string", "telegramScreenshot": "string", "telegramScreenshotDescription": "string", "description": "string", "designerName": "string", "submissionDate": "ISO8601", "budgetExpectationReference": "string (opt)", "assignedTo": "userId" }`,
+              response:`{ "success": true, "data": { "id": "qs-review-6" } }`,
+              sideEffects:'Creates notification for assigned quantity surveyor'
+            },
+            {
+              method:'PATCH', path:'/api/quantity-review-tasks/:id/status', desc:'Quantity surveyor marks a task as in_review.', auth:true, roles:['quantity_surveyor'],
+              params:'id (string)', body:`{ "status": "in_review" }`
+            },
+            { method:'GET', path:'/api/quantity-review-evaluations', desc:'List evaluation records for quantity review tasks.', auth:true, roles:['quantity_surveyor','ceo','general_manager'], query:'taskId, decision' },
+            {
+              method:'POST', path:'/api/quantity-review-evaluations', desc:'Quantity surveyor submits a cost evaluation.', auth:true, roles:['quantity_surveyor'],
+              body:`{ "taskId": "string", "designCostValue": "string", "evaluationNotes": "string", "recommendation": "recommended_for_approval|recommends_revision" }`,
+              response:`{ "success": true, "data": { "id": "qs-eval-3" } }`,
+              sideEffects:'Creates evaluation_submitted notification for leadership'
+            },
+            {
+              method:'POST', path:'/api/quantity-review-evaluations/:id/decision', desc:'Leadership makes final decision on a QS evaluation.', auth:true, roles:['ceo','general_manager'],
+              params:'id (string)', body:`{ "decision": "approved|feedback", "feedback": "string (opt)" }`,
+              response:`{ "success": true, "data": { "decision": "approved", "decidedAt": "..." } }`,
+              sideEffects:'Creates decision_made notification for quantity surveyor'
+            },
+            { method:'GET', path:'/api/quantity-review-notifications', desc:'List role-targeted notifications for QS workflow.', auth:true, roles:['quantity_surveyor','ceo','general_manager'], query:'type — evaluation_submitted|decision_made, unreadOnly' }
+          ]
+        },
+        {
+          id: 'notifications',
+          title: 'Notifications',
+          endpoints: [
+            { method:'GET', path:'/api/notifications', desc:'Return unread counts and recent notification items.', auth:true, roles:['Any'], query:'unreadOnly, limit' },
+            { method:'PATCH', path:'/api/notifications/:id/read', desc:'Mark a single notification as read.', auth:true, roles:['Owner'], params:'id (string)' },
+            { method:'POST', path:'/api/notifications/read', desc:'Mark multiple or all notifications as read.', auth:true, roles:['Any'], body:`{ "ids": ["string[]"] }` },
+            { method:'POST', path:'/api/notifications/read-role', desc:'Mark all notifications of a type as read for a target role.', auth:true, roles:['Any'], body:`{ "role": "string", "type": "string" }` }
+          ]
+        },
+        {
+          id: 'dashboard',
+          title: 'Dashboard / Metrics',
+          endpoints: [
+            {
+              method:'GET', path:'/api/dashboard', desc:'Aggregated counts: tasks by status, projects, approvals, postings, unread notifications.', auth:true, roles:['Any (scoped)'],
+              response:`{ "success": true, "data": { "projectsCount": 12, "tasks": { "total": 120, "pending": 24, "in_progress": 60, "completed": 36 }, "pendingApprovals": 5, "openJobPostings": 8, "unreadNotifications": 3, "unreadPaidCustomerCount": 2 } }`
+            },
+            {
+              method:'GET', path:'/api/designer-performance', desc:'Aggregated designer performance metrics and review scores.', auth:true, roles:['ceo','general_manager','designer (own)'],
+              query:'userId, from, to',
+              response:`{ "success": true, "data": { "tasksCompleted": 15, "averageApprovalTime": "3.2 days", "ratingAverages": { "creativity": 4.2, "timeliness": 3.8, "clientUnderstanding": 4.0, "rendering": 4.5 }, "throughput": 2.1 } }`
+            },
+            { method:'GET', path:'/api/dashboard/site-engineer', desc:'Aggregated counts for the site engineer view.', auth:true, roles:['site_engineer','ceo','general_manager'] }
+          ]
+        },
+        {
+          id: 'documents',
+          title: 'Documents / File Uploads',
+          endpoints: [
+            {
+              method:'POST', path:'/api/uploads', desc:'Generic file upload across tasks, submissions, and paid customers.', auth:true, roles:['Any'],
+              contentType:'multipart/form-data', fields:'file (binary), metadata (JSON — projectId, taskId, purpose)',
+              validation:'Max 10MB; allowed: image/*, application/pdf, .docx, .xlsx',
+              response:`{ "success": true, "data": { "id": "att-123", "url": "/uploads/att-123.jpg", "name": "receipt.jpg", "type": "image/jpeg", "size": "124 KB" } }`,
+              errors:['413 — File too large','422 — Unsupported file type']
+            },
+            { method:'POST', path:'/api/projects/:id/documents', desc:'Attach a document to a project.', auth:true, roles:['Project members','leadership'], params:'id (string)', contentType:'multipart/form-data', fields:'file (binary)' },
+            { method:'GET', path:'/api/uploads/:id', desc:'Retrieve file metadata.', auth:true, roles:['Any'], params:'id (string)' },
+            { method:'GET', path:'/api/uploads/:id/download', desc:'Download the file (signed URL or direct stream).', auth:true, roles:['Any (scoped)'], params:'id (string)' },
+            { method:'DELETE', path:'/api/uploads/:id', desc:'Delete an uploaded file.', auth:true, roles:['Uploader','ceo'], params:'id (string)' }
+          ]
+        },
+        {
+          id: 'audit',
+          title: 'Audit Logs',
+          content: `<p>The backend should automatically record audit entries for login/logout, user CRUD, project CRUD, task lifecycle, submissions, file operations, customer transfers, payment verifications, clarification responses, application changes, phase submissions/reviews, QS evaluations, and QS decisions.</p>`,
+          endpoints: [
+            { method:'GET', path:'/api/audit', desc:'Retrieve audit trail entries.', auth:true, roles:['ceo'], query:'entity, action, from, to, page, perPage' }
+          ]
+        }
+      ]
+    },
+    {
+      id: 'validation-conventions',
+      title: 'Validation & Error Conventions',
+      icon: '🛡️',
+      content: `
+        <h3>Standard Response Envelope</h3>
+        <div class="card-grid">
+          <div class="card">
+            <h4 style="margin:0 0 0.5rem;color:var(--green-600)">✅ Success</h4>
+            <pre>{ "success": true, "data": { ... } }</pre>
+          </div>
+          <div class="card">
+            <h4 style="margin:0 0 0.5rem;color:#dc2626">❌ Error</h4>
+            <pre>{ "success": false, "message": "Human readable", "errors": { "field": "reason" } }</pre>
+          </div>
+        </div>
+        <h3>HTTP Status Codes</h3>
+        <div class="status-grid">
+          ${[
+            ['200','OK (GET, PUT, PATCH)'],['201','Created (POST)'],['204','No Content (DELETE)'],['400','Bad Request'],
+            ['401','Unauthorized'],['403','Forbidden'],['404','Not Found'],['409','Conflict'],
+            ['413','Payload Too Large'],['422','Unprocessable Entity'],['500','Internal Server Error']
+          ].map(([c,d]) => `<div class="status-item"><span class="status-code">${c}</span> ${d}</div>`).join('')}
+        </div>
+        <h3>Common Validation Rules</h3>
+        <div class="table-wrap">
+          <table>
+            <tr><th>Field Type</th><th>Constraint</th></tr>
+            <tr><td>IDs</td><td>String (UUID or server-generated)</td></tr>
+            <tr><td>Dates</td><td>ISO 8601 strings</td></tr>
+            <tr><td>Text fields</td><td>Titles: max 255 chars; Descriptions: max 5000 chars</td></tr>
+            <tr><td>File uploads</td><td>Max 10MB; allowed MIME: image/*, application/pdf, .docx, .xlsx</td></tr>
+            <tr><td>Ratings</td><td>0–5 with one decimal allowed</td></tr>
+            <tr><td>Roles</td><td>Must be one of the 8 allowed values</td></tr>
+            <tr><td>Passwords</td><td>Min 8 characters</td></tr>
+            <tr><td>Emails</td><td>Valid email format</td></tr>
+            <tr><td>Phone numbers</td><td>Accepted format variations</td></tr>
+          </table>
+        </div>
+        <h3>Authentication Errors</h3>
+        <div class="card-grid">
+          <div class="card"><pre>{ "success": false, "message": "Unauthorized" }</pre><p style="margin:0.25rem 0 0;font-size:0.75rem;color:var(--gray-500)">HTTP 401</p></div>
+          <div class="card"><pre>{ "success": false, "message": "Forbidden" }</pre><p style="margin:0.25rem 0 0;font-size:0.75rem;color:var(--gray-500)">HTTP 403</p></div>
+        </div>
+      `
+    },
+    {
+      id: 'route-endpoint-mapping',
+      title: 'Frontend Routes → Required Endpoints',
+      icon: '🔗',
+      content: `
+        <div class="table-wrap">
+          <table>
+            <tr><th>Frontend Route</th><th>Required Endpoints</th></tr>
+            ${[
+              ['/ (Login)','POST /api/auth/login'],
+              ['/dashboard','GET /api/dashboard, GET /api/notifications'],
+              ['/tasks','GET/POST /api/tasks, PUT /api/tasks/:id, PATCH /api/tasks/:id/status, POST /api/tasks/:id/approve, POST /api/tasks/:id/reject, POST /api/tasks/:id/attachments, GET/POST /api/tasks/:id/submissions, POST /api/tasks/:id/feedbacks'],
+              ['/approvals','GET /api/paid-customers, POST /api/paid-customers/:id/verify, POST /api/paid-customers/:id/clarify, GET /api/approvals'],
+              ['/users','GET/POST/PUT/DELETE /api/users'],
+              ['/customer-data','GET/POST /api/customer-requests, GET /api/paid-customers, POST /api/paid-customers'],
+              ['/paid-customers','GET /api/paid-customers'],
+              ['/finance-verifications','GET /api/finance/verifications, POST /api/finance/verifications/:id/verify, POST /api/finance/verifications/:id/ceo-approve'],
+              ['/data-collector-tasks','GET/POST /api/data-collector-tasks, POST /api/tasks/:id/submissions, POST /api/tasks/:id/submissions/:submissionId/approve, POST /api/tasks/:id/feedbacks'],
+              ['/job-postings','GET/POST /api/job-postings'],
+              ['/designer-applications','GET /api/job-postings/:id/applications, PUT /api/applications/:id'],
+              ['/designer-assignments','GET/POST /api/designer-tasks, GET /api/designer-tasks/:id/progress, POST /api/designer-tasks/:id/phases/:phase/review, POST /api/designer-tasks/:id/review'],
+              ['/designer-tasks','GET /api/designer-tasks, POST /api/designer-tasks/:id/phases/:phase/submissions'],
+              ['/open-job-postings','GET /api/job-postings, POST /api/job-postings/:id/applications'],
+              ['/task-applications','Redirects to /designer-applications'],
+              ['/quantity-surveyor-live','GET /api/quantity-review-tasks, POST /api/quantity-review-evaluations'],
+              ['/quantity-surveyor-review','GET /api/quantity-review-evaluations, POST /api/quantity-review-evaluations/:id/decision'],
+              ['/quantity-surveyor-tasks','GET/POST /api/quantity-review-tasks'],
+              ['/site-engineer-tasks','GET /api/tasks, PUT /api/tasks/:id, PATCH /api/tasks/:id/status, POST /api/tasks/:id/attachments'],
+              ['/performance-ratings','GET /api/designer-performance'],
+              ['/designer-performance','GET /api/designer-performance'],
+              ['/projects','Redirects to /dashboard (legacy)'],
+              ['/projects/:id','Redirects to /dashboard (legacy)']
+            ].map(([r,e]) => `<tr><td><code>${r}</code></td><td style="font-size:0.8125rem">${e}</td></tr>`).join('')}
+          </table>
+        </div>
+      `
+    }
+  ]
+};
+
+function methodClass(m) { return m.toLowerCase(); }
+function authBadge(a) { return a ? '<span class="badge badge-auth">Auth Required</span>' : '<span class="badge badge-noauth">Public</span>'; }
+
+function buildEndpointCard(ep) {
+  let html = `<div class="endpoint-card" data-searchable>
+    <summary>
+      <span class="method ${methodClass(ep.method)}">${ep.method}</span>
+      <code style="font-weight:600">${ep.path}</code>
+      ${ep.auth !== undefined ? authBadge(ep.auth) : ''}
+      <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+    </summary>
+    <div class="endpoint-body">
+      ${ep.desc ? `<section><h5>Description</h5><p style="margin:0">${ep.desc}</p></section>` : ''}
+      ${ep.content ? `<section>${ep.content}</section>` : ''}
+      ${ep.roles ? `<section><h5>Required Roles</h5><p style="margin:0">${ep.roles.map(r => `<span class="badge badge-role">${r}</span>`).join(' ')}</p></section>` : ''}
+      ${ep.params ? `<section><h5>Path Parameters</h5><p style="margin:0"><code>${ep.params}</code></p></section>` : ''}
+      ${ep.query ? `<section><h5>Query Parameters</h5><p style="margin:0"><code>${ep.query}</code></p></section>` : ''}
+      ${ep.contentType ? `<section><h5>Content-Type</h5><p style="margin:0"><code>${ep.contentType}</code></p></section>` : ''}
+      ${ep.fields ? `<section><h5>Form Fields</h5><p style="margin:0;font-size:0.8125rem">${ep.fields}</p></section>` : ''}
+      ${ep.body ? `<section><h5>Request Body</h5><pre>${ep.body.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre></section>` : ''}
+      ${ep.response ? `<section><h5>Response Example</h5><pre>${ep.response.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre></section>` : ''}
+      ${ep.validation ? `<section><h5>Validation</h5><p style="margin:0;font-size:0.8125rem">${ep.validation}</p></section>` : ''}
+      ${ep.sideEffects ? `<section><h5>Side Effects</h5><p style="margin:0;font-size:0.8125rem">${ep.sideEffects}</p></section>` : ''}
+      ${ep.errors ? `<section><h5>Error Responses</h5><ul style="margin:0;padding-left:1.25rem;font-size:0.8125rem">${ep.errors.map(e => `<li><code>${e}</code></li>`).join('')}</ul></section>` : ''}
+    </div>
+  </div>`;
+  return html;
+}
+
+function renderMain() {
+  let html = '';
+  DOC.sections.forEach(sec => {
+    html += `<section id="${sec.id}" data-searchable><h2><span>${sec.icon}</span> ${sec.title}</h2>`;
+    if (sec.content) html += sec.content;
+    if (sec.subsections) {
+      sec.subsections.forEach(sub => {
+        html += `<h3 id="${sub.id}">${sub.title}</h3>`;
+        if (sub.content) html += sub.content;
+        if (sub.endpoints) sub.endpoints.forEach(ep => { html += buildEndpointCard(ep); });
+      });
+    }
+    html += `</section>`;
+  });
+  document.getElementById('mainContent').innerHTML = html;
+}
+
+function buildSidebar() {
+  let nav = '';
+  DOC.sections.forEach(sec => {
+    if (sec.subsections) {
+      nav += `<details open><summary>${sec.icon} ${sec.title}</summary>`;
+      sec.subsections.forEach(sub => {
+        nav += `<a href="#${sub.id}" onclick="closeSidebar()">${sub.title}</a>`;
+      });
+      nav += `</details>`;
+    } else {
+      nav += `<a href="#${sec.id}" onclick="closeSidebar()">${sec.icon} ${sec.title}</a>`;
+    }
+  });
+  document.getElementById('sidebarNav').innerHTML = nav;
+}
+
+function handleSearch() {
+  const q = document.getElementById('searchInput').value.toLowerCase().trim();
+  const cards = document.querySelectorAll('[data-searchable]');
+  cards.forEach(el => {
+    if (!q) { el.classList.remove('hidden-by-search'); return; }
+    const text = el.textContent.toLowerCase();
+    el.classList.toggle('hidden-by-search', !text.includes(q));
+  });
+  document.querySelectorAll('section[id]').forEach(sec => {
+    if (!q) { sec.classList.remove('hidden-by-search'); return; }
+    const visible = sec.querySelectorAll('[data-searchable]:not(.hidden-by-search)').length > 0;
+    sec.classList.toggle('hidden-by-search', !visible);
+    const h2 = sec.querySelector('h2');
+    if (h2) h2.classList.toggle('hidden-by-search', !visible);
+  });
+}
+
+function toggleSidebar() {
+  document.body.classList.toggle('sidebar-open');
+}
+function closeSidebar() {
+  document.body.classList.remove('sidebar-open');
+}
+
+function setupActiveNav() {
+  const links = document.querySelectorAll('#sidebarNav a');
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const match = document.querySelector(`#sidebarNav a[href="#${entry.target.id}"]`);
+        if (match) match.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-60px 0px -70% 0px' });
+  document.querySelectorAll('section[id], h3[id]').forEach(el => observer.observe(el));
+}
+
+function setupBackToTop() {
+  const btn = document.getElementById('backToTop');
+  window.addEventListener('scroll', () => {
+    btn.classList.toggle('visible', window.scrollY > 400);
+  });
+}
+
+renderMain();
+buildSidebar();
+setupActiveNav();
+setupBackToTop();
+</script>
+
+<div class="footer">
+  Workflow Management — Backend API Specification &middot; Generated from frontend codebase analysis
+</div>
+
+</body>
+</html>
