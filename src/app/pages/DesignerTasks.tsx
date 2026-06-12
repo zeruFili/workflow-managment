@@ -1055,7 +1055,7 @@ export function DesignerTasks() {
                           const currentStatus = getCurrentStatus(phaseData);
                           const history = phaseData.history || [];
                           const isApproved = currentStatus === 'approved';
-                          const canSubmit = !isApproved && !overallRejected;
+                          const canSubmit = !overallRejected;
                           const noteDraft = draftNotes[taskId]?.[phase.key] ?? '';
                           const newScreenshot = draftScreenshots[taskId]?.[phase.key] ?? null;
                           const existingScreenshot = phaseData.screenshot;
@@ -1099,20 +1099,6 @@ export function DesignerTasks() {
                                         Submit to {phase.label}
                                       </h6>
                                       <div className="space-y-3">
-                                        <div>
-                                          <label className="block text-xs font-medium text-gray-600 mb-1">Stage</label>
-                                          <select
-                                            value={phase.key}
-                                            onChange={() => {}}
-                                            disabled
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-700"
-                                          >
-                                            {PHASES.map((p) => (
-                                              <option key={p.key} value={p.key}>{p.label}</option>
-                                            ))}
-                                          </select>
-                                          <p className="text-xs text-gray-400 mt-1">Submitting to the current phase: {phase.label}</p>
-                                        </div>
                                         <div>
                                           <label className="block text-xs font-medium text-gray-600 mb-1">
                                             Description
@@ -1238,7 +1224,7 @@ export function DesignerTasks() {
                                     </div>
                                   )}
 
-                                  {(isApproved || !canSubmit) && (
+                                  {isApproved && (
                                     <div>
                                       <h6 className="text-sm font-medium text-gray-700 mb-1">Designer's Progress Note</h6>
                                       {phaseData.note ? (
@@ -1251,7 +1237,7 @@ export function DesignerTasks() {
                                     </div>
                                   )}
 
-                                  {(isApproved || !canSubmit) && (
+                                  {isApproved && (
                                     <div>
                                       <h6 className="text-sm font-medium text-gray-700 mb-1">Telegram Screenshot</h6>
                                       {existingScreenshot ? (
