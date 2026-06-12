@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { mockProjects, mockDesignerTasks, mockDesignerTaskPageProgress } from '../data/mockData';
-import {
-  designerRoles,
-  getTaskAssigneeLabel,
-  roleNamesByUserId,
-} from './designerTaskShared';
-import { DesignerTask } from '../types';
+import { designerRoles } from './designerTaskShared';
+import designerApi, {
+  DesignerTaskItem,
+  DesignerTaskListMeta,
+  SubmissionItem,
+  SubmissionsWithReviewsData,
+} from '../../api/designerApi';
 import {
   AlertCircle,
   Calendar,
@@ -17,6 +17,8 @@ import {
   Briefcase,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   MessageSquare,
   ThumbsUp,
   ThumbsDown,
@@ -46,21 +48,20 @@ export interface PhaseData {
 
 type SubmissionProgress = Record<string, Record<PhaseKey, PhaseData>>;
 
-const PHASES: { key: PhaseKey; label: string }[] = [
-  { key: 'caseStudy', label: 'Case Study' },
-  { key: 'designStage', label: 'Design Stage' },
-  { key: 'rendering', label: 'Rendering' },
-  { key: 'finalStage', label: 'Final Stage' },
+const PHASES: { key: PhaseKey; label: string; backendStage: string }[] = [
+  { key: 'caseStudy', label: 'Case Study', backendStage: 'case study' },
+  { key: 'designStage', label: 'Design Stage', backendStage: 'designing' },
+  { key: 'rendering', label: 'Rendering', backendStage: 'rendering' },
+  { key: 'finalStage', label: 'Final Stage', backendStage: 'final stage' },
 ];
 
 const STORAGE_KEY = 'designer-submission-progress';
+const API_TASKS_CACHE_KEY = 'designer-api-tasks-cache';
 
-// ──────────── HIGHLIGHT LOGIC ────────────
+// ──────────── NOTIFICATIONS / HIGHLIGHT ────────────
 export const DESIGNER_TASKS_NOTIFICATIONS_KEY = 'designer-tasks-notifications-updated';
 
 const HIGHLIGHTED_IDS = ['mdt-1', 'mdt-6', 'mdt-3'];
-
-// In‑memory "viewed" set – persists across page visits within the same session
 const viewedDesignerTaskCards = new Set<string>();
 
 function publishDesignerTasksBadgeCount(count: number) {
@@ -78,7 +79,6 @@ export function getUnseenDesignerTaskHighlightedIds() {
 export function getUnseenDesignerTaskCount() {
   return getUnseenDesignerTaskHighlightedIds().size;
 }
-// ─────────────────────────────────────────
 
 // ---------- Helpers ----------
 function loadSubmissionProgress(): SubmissionProgress {
@@ -129,15 +129,9 @@ function normalizeSubmissionProgress(progress: SubmissionProgress): SubmissionPr
   const normalized: SubmissionProgress = {};
   for (const [taskId, taskProgress] of Object.entries(progress)) {
     const mergedProgress = Object.assign(
-      {
-        caseStudy: defaultPhase(),
-        designStage: defaultPhase(),
-        rendering: defaultPhase(),
-        finalStage: defaultPhase(),
-      },
+      { caseStudy: defaultPhase(), designStage: defaultPhase(), rendering: defaultPhase(), finalStage: defaultPhase() },
       taskProgress as Record<PhaseKey, PhaseData>
     );
-
     normalized[taskId] = {
       caseStudy: {
         ...mergedProgress.caseStudy,
@@ -174,6 +168,64 @@ function normalizeSubmissionProgress(progress: SubmissionProgress): SubmissionPr
     };
   }
   return normalized;
+}
+
+// ── Map API submissions-with-reviews → SubmissionProgress ──
+function apiSubmissionsToProgress(data: SubmissionsWithReviewsData): Record<PhaseKey, PhaseData> {
+  const result: Record<string, PhaseData> = {
+    caseStudy: defaultPhase(),
+    designStage: defaultPhase(),
+    rendering: defaultPhase(),
+    finalStage: defaultPhase(),
+  };
+
+  const stageMap: Record<string, PhaseKey> = {
+    caseStudy: 'caseStudy',
+    designing: 'designStage',
+    rendering: 'rendering',
+    finalStage: 'finalStage',
+  };
+
+  for (const [apiStage, phaseKey] of Object.entries(stageMap)) {
+    const submissions: SubmissionItem[] = (data as Record<string, SubmissionItem[]>)[apiStage] || [];
+
+    if (submissions.length === 0) continue;
+
+    const latestSubmission = submissions[submissions.length - 1];
+    const screenshot = latestSubmission.attachment_urls && latestSubmission.attachment_urls.length > 0
+      ? latestSubmission.attachment_urls[0]
+      : null;
+
+    const history: PhaseHistoryEntry[] = [];
+    for (const submission of submissions) {
+      const subScreenshot = submission.attachment_urls && submission.attachment_urls.length > 0
+        ? submission.attachment_urls[0]
+        : null;
+      const subNote = submission.description || '';
+
+      for (const review of submission.reviews) {
+        const reviewOutcome = review.review_outcome as 'approved' | 'rejected' | 'feedback';
+        history.push({
+          status: reviewOutcome,
+          message: review.description || '',
+          timestamp: review.created_at,
+          designerSubmission: {
+            note: subNote,
+            screenshot: subScreenshot ?? createSubmissionScreenshot('Submission'),
+            submittedAt: submission.created_at,
+          },
+        });
+      }
+    }
+
+    result[phaseKey] = {
+      note: latestSubmission.description || '',
+      screenshot,
+      history,
+    };
+  }
+
+  return result as Record<PhaseKey, PhaseData>;
 }
 
 function getCurrentStatus(phase: PhaseData): PhaseHistoryEntry['status'] | 'pending' {
@@ -216,180 +268,195 @@ function isTaskRejected(progress: Record<PhaseKey, PhaseData> | null): boolean {
   for (const phase of PHASES) {
     const data = progress[phase.key];
     if (data && data.history && data.history.length > 0) {
-      if (getCurrentStatus(data) === 'rejected') {
-        return true;
-      }
+      if (getCurrentStatus(data) === 'rejected') return true;
     }
   }
   return false;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Merge mock progress from mockData into localStorage on first load.
-// ─────────────────────────────────────────────────────────────────────────────
-function seedMockProgressIfNeeded(): SubmissionProgress {
-  const stored = loadSubmissionProgress();
-  let changed = false;
-  const merged = { ...stored };
-  for (const [taskId, progress] of Object.entries(mockDesignerTaskPageProgress)) {
-    if (!merged[taskId]) {
-      merged[taskId] = progress as Record<PhaseKey, PhaseData>;
-      changed = true;
-    }
-  }
-  if (changed) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-  }
-  return merged;
+function getAssigneeDisplayName(task: DesignerTaskItem): string {
+  if (task.assigned_to_user?.full_name) return task.assigned_to_user.full_name;
+  if (task.assigned_to_user_id) return `User ${task.assigned_to_user_id.slice(0, 8)}`;
+  return 'Open for application';
 }
+
+function getCreatorDisplayName(task: DesignerTaskItem): string {
+  if (task.assigned_by_user?.full_name) return task.assigned_by_user.full_name;
+  return `User ${task.assigned_by_user_id.slice(0, 8)}`;
+}
+
+const ROWS_PER_DISPLAY = 10;
 
 export function DesignerTasks() {
   const { user } = useAuth();
-  const [selectedTaskDetail, setSelectedTaskDetail] = useState<DesignerTask | null>(null);
+  const [selectedTaskDetail, setSelectedTaskDetail] = useState<DesignerTaskItem | null>(null);
   const [showDetail, setShowDetail] = useState(false);
-  const [tasks, setTasks] = useState<DesignerTask[]>([]);
+  const [tasks, setTasks] = useState<DesignerTaskItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const seededRef = useRef(false);
+  const [error, setError] = useState<string | null>(null);
 
+  // Pagination state
+  const [apiPage, setApiPage] = useState(1);
+  const [meta, setMeta] = useState<DesignerTaskListMeta | null>(null);
+  const [displayOffset, setDisplayOffset] = useState(0);
+
+  // Submission progress (localStorage-backed user input + API submissions)
   const [submissionProgress, setSubmissionProgress] = useState<SubmissionProgress>({});
+  const [submissionsLoading, setSubmissionsLoading] = useState<Record<string, boolean>>({});
 
+  // Modal UI state
   const [expandedPhase, setExpandedPhase] = useState<PhaseKey | null>(null);
   const [expandedHistoryIdx, setExpandedHistoryIdx] = useState<Record<string, Record<PhaseKey, number | null>>>({});
-
   const [draftNotes, setDraftNotes] = useState<Record<string, Record<PhaseKey, string>>>({});
   const [draftScreenshots, setDraftScreenshots] = useState<Record<string, Record<PhaseKey, string | null>>>({});
   const draftFilesRef = useRef<Record<string, Record<PhaseKey, File | null>>>({});
   const [phaseErrors, setPhaseErrors] = useState<Record<string, Record<PhaseKey, string>>>({});
 
-  // ──────────── HIGHLIGHT STATE ────────────
+  // Highlight state
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
   const seenThisSession = useRef<Set<string>>(new Set());
   const observedElements = useRef<Set<string>>(new Set());
   const observerRef = useRef<IntersectionObserver | null>(null);
-  const tasksRef = useRef<DesignerTask[]>([]);
+  const tasksRef = useRef<DesignerTaskItem[]>([]);
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
-  // ──────────────────────────────────────────
 
-  // ── On mount: load tasks from mockData + seed progress ───────────────────
+  // ── Determine role-based limits ──
+  const isLeadership = user?.role === 'ceo' || user?.role === 'general_manager';
+  const apiLimit = isLeadership ? 20 : 10;
+
+  // ── Fetch tasks from API ──
+  const fetchTasks = useCallback(async (page: number) => {
+    if (!user) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await designerApi.getDesignerTasks({ page, limit: apiLimit });
+      if (response.success) {
+        setTasks(response.data);
+        setMeta(response.meta);
+        setDisplayOffset(0);
+      } else {
+        setError(response.message || 'Failed to load tasks');
+      }
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined;
+      setError(msg || 'Unable to connect to server');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user, apiLimit]);
+
   useEffect(() => {
-    if (!user || seededRef.current) return;
-    seededRef.current = true;
+    if (!user) return;
+    fetchTasks(apiPage);
+  }, [user, apiPage, fetchTasks]);
 
-    const storedTasksRaw = localStorage.getItem('designer-tasks');
-    const storedTasks: DesignerTask[] = storedTasksRaw ? JSON.parse(storedTasksRaw) : [];
-    const storedIds = new Set(storedTasks.map((t) => t.id));
-    const merged = [
-      ...storedTasks,
-      ...mockDesignerTasks.filter((t) => !storedIds.has(t.id)),
-    ];
-    localStorage.setItem('designer-tasks', JSON.stringify(merged));
-    setTasks(merged);
+  // ── Load user submission progress from localStorage ──
+  useEffect(() => {
+    setSubmissionProgress(loadSubmissionProgress());
+  }, []);
 
-    // Seed submission progress
-    const progress = seedMockProgressIfNeeded();
-    setSubmissionProgress(progress);
-
-    // Initialise highlighted IDs – only those not yet viewed
-    const unseen = new Set(
-      HIGHLIGHTED_IDS.filter((id) => !viewedDesignerTaskCards.has(id))
-    );
-    setHighlightedIds(unseen);
-    publishDesignerTasksBadgeCount(unseen.size);
-
-    setIsLoading(false);
-  }, [user]);
-
-  // Persist progress on every change
+  // Persist progress on change
   useEffect(() => {
     if (Object.keys(submissionProgress).length > 0) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(submissionProgress));
     }
   }, [submissionProgress]);
 
-  // ──────────── INTERSECTION OBSERVER ────────────
-  // Track visibility but DO NOT update highlights immediately
+  // ── Init highlights ──
+  useEffect(() => {
+    const unseen = new Set(
+      HIGHLIGHTED_IDS.filter((id) => !viewedDesignerTaskCards.has(id))
+    );
+    setHighlightedIds(unseen);
+    publishDesignerTasksBadgeCount(unseen.size);
+  }, []);
+
+  // ── Intersection Observer ──
   useEffect(() => {
     if (observerRef.current) {
       observerRef.current.disconnect();
       observedElements.current.clear();
     }
-
-    if (highlightedIds.size === 0) {
-      return;
-    }
+    if (highlightedIds.size === 0) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           const id = (entry.target as HTMLElement).dataset.highlightedId;
           if (!id || !highlightedIds.has(id)) return;
-
-          // Only mark as "seen this session" when ≥70% visible
           if (entry.isIntersecting && entry.intersectionRatio >= 0.7) {
             if (!observedElements.current.has(id)) {
               observedElements.current.add(id);
               seenThisSession.current.add(id);
-              // ❌ DO NOT update viewedDesignerTaskCards or highlightedIds here
-              // ✅ Changes are committed on unmount only
             }
           }
         });
       },
       { threshold: [0.7] }
     );
-
     observerRef.current = observer;
-
     highlightedIds.forEach((id) => {
       const el = document.querySelector(`[data-highlighted-id="${id}"]`);
-      if (el && !observedElements.current.has(id)) {
-        observer.observe(el);
-      }
+      if (el && !observedElements.current.has(id)) observer.observe(el);
     });
-
     return () => {
       observer.disconnect();
       observedElements.current.clear();
     };
   }, [highlightedIds]);
 
-  // Commit seen session on unmount (when navigating away)
   const commitSeenSession = () => {
     if (seenThisSession.current.size === 0) return;
-    
-    // Add all seen IDs to the persistent viewed set
     seenThisSession.current.forEach((id) => viewedDesignerTaskCards.add(id));
-    
-    // Clear session tracking
     seenThisSession.current.clear();
     observedElements.current.clear();
-
-    // Recalculate remaining unseen highlighted IDs from current tasks
     const currentTasks = tasksRef.current;
     const remainingUnseen = currentTasks
       .filter((t) => HIGHLIGHTED_IDS.includes(t.id) && !viewedDesignerTaskCards.has(t.id))
       .map((t) => t.id);
-    
     setHighlightedIds(new Set(remainingUnseen));
     publishDesignerTasksBadgeCount(remainingUnseen.length);
   };
 
-  useEffect(() => {
-    return () => {
-      commitSeenSession();
-    };
-  }, []);
-  // ──────────────────────────────────────────────
+  useEffect(() => { return () => { commitSeenSession(); }; }, []);
 
   if (!user) return null;
-  if (!designerRoles.has(user.role)) {
+  if (!designerRoles.has(user.role) && user.role !== 'ceo' && user.role !== 'general_manager') {
     return (
       <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
-        <p className="text-gray-500">Access denied. Designers only.</p>
+        <p className="text-gray-500">Access denied.</p>
       </div>
     );
   }
 
+  // ── Pagination logic ──
+  const displayItems = tasks.slice(displayOffset, displayOffset + ROWS_PER_DISPLAY);
+  const totalDisplayPages = Math.ceil(tasks.length / ROWS_PER_DISPLAY);
+  const currentDisplayPage = Math.floor(displayOffset / ROWS_PER_DISPLAY);
+  const canGoPrev = displayOffset > 0 || apiPage > 1;
+  const canGoNext = displayOffset + ROWS_PER_DISPLAY < tasks.length || (meta ? apiPage < meta.totalPages : false);
+
+  const goNext = () => {
+    if (displayOffset + ROWS_PER_DISPLAY < tasks.length) {
+      setDisplayOffset(displayOffset + ROWS_PER_DISPLAY);
+    } else {
+      setApiPage((p) => p + 1);
+    }
+  };
+
+  const goPrev = () => {
+    if (displayOffset - ROWS_PER_DISPLAY >= 0) {
+      setDisplayOffset(displayOffset - ROWS_PER_DISPLAY);
+    } else {
+      setApiPage((p) => Math.max(1, p - 1));
+    }
+  };
+
+  // ── Detail modal ──
   const getDisplayProgress = (taskId: string): Record<PhaseKey, PhaseData> => {
     return submissionProgress[taskId] || {
       caseStudy: defaultPhase(),
@@ -399,7 +466,7 @@ export function DesignerTasks() {
     };
   };
 
-  const openDetail = (task: DesignerTask) => {
+  const openDetail = async (task: DesignerTaskItem) => {
     setSelectedTaskDetail(task);
     const progress = getDisplayProgress(task.id);
     const notesDraft: Record<PhaseKey, string> = {} as Record<PhaseKey, string>;
@@ -418,6 +485,39 @@ export function DesignerTasks() {
       [task.id]: { caseStudy: null, designStage: null, rendering: null, finalStage: null },
     }));
     setShowDetail(true);
+
+    // Fetch submissions-with-reviews from API
+    setSubmissionsLoading((prev) => ({ ...prev, [task.id]: true }));
+    try {
+      const resp = await designerApi.getSubmissionsWithReviews(task.id);
+      if (resp.success && resp.data) {
+        const apiProgress = apiSubmissionsToProgress(resp.data);
+        setSubmissionProgress((prev) => {
+          const existing = prev[task.id] || {
+            caseStudy: defaultPhase(),
+            designStage: defaultPhase(),
+            rendering: defaultPhase(),
+            finalStage: defaultPhase(),
+          };
+          // Merge: API data overwrites history but preserves user notes/screenshots if API has no content
+          const merged: Record<PhaseKey, PhaseData> = {} as Record<PhaseKey, PhaseData>;
+          for (const phase of PHASES) {
+            const apiPhase = apiProgress[phase.key];
+            const existingPhase = existing[phase.key] || defaultPhase();
+            merged[phase.key] = {
+              note: apiPhase?.note || existingPhase.note,
+              screenshot: apiPhase?.screenshot || existingPhase.screenshot,
+              history: apiPhase?.history?.length ? apiPhase.history : existingPhase.history || [],
+            };
+          }
+          return { ...prev, [task.id]: merged };
+        });
+      }
+    } catch {
+      // Keep existing data on fetch failure
+    } finally {
+      setSubmissionsLoading((prev) => ({ ...prev, [task.id]: false }));
+    }
   };
 
   const closeDetail = () => {
@@ -439,7 +539,6 @@ export function DesignerTasks() {
     const note = draftNotes[taskId]?.[phase] ?? '';
     const file = draftFilesRef.current[taskId]?.[phase] ?? null;
     const existingScreenshot = getDisplayProgress(taskId)[phase]?.screenshot;
-
     if (phase === 'finalStage' && !file && !existingScreenshot) {
       setPhaseErrors((prev) => ({
         ...prev,
@@ -447,7 +546,6 @@ export function DesignerTasks() {
       }));
       return;
     }
-
     let newScreenshotDataUrl: string | null = null;
     if (file) {
       newScreenshotDataUrl = await new Promise<string>((resolve, reject) => {
@@ -457,7 +555,6 @@ export function DesignerTasks() {
         reader.readAsDataURL(file);
       });
     }
-
     setSubmissionProgress((prev) => {
       const taskProgress = prev[taskId] ?? getDisplayProgress(taskId);
       const updatedPhase: PhaseData = {
@@ -465,31 +562,13 @@ export function DesignerTasks() {
         note: note.trim(),
         screenshot: newScreenshotDataUrl ?? taskProgress[phase].screenshot,
       };
-      return {
-        ...prev,
-        [taskId]: {
-          ...taskProgress,
-          [phase]: updatedPhase,
-        },
-      };
+      return { ...prev, [taskId]: { ...taskProgress, [phase]: updatedPhase } };
     });
-
     const oldUrl = draftScreenshots[taskId]?.[phase] ?? null;
     if (oldUrl) URL.revokeObjectURL(oldUrl);
-
-    setDraftScreenshots((prev) => ({
-      ...prev,
-      [taskId]: { ...prev[taskId], [phase]: null },
-    }));
-    setDraftNotes((prev) => ({
-      ...prev,
-      [taskId]: { ...prev[taskId], [phase]: '' },
-    }));
-    setPhaseErrors((prev) => ({
-      ...prev,
-      [taskId]: { ...prev[taskId], [phase]: '' },
-    }));
-
+    setDraftScreenshots((prev) => ({ ...prev, [taskId]: { ...prev[taskId], [phase]: null } }));
+    setDraftNotes((prev) => ({ ...prev, [taskId]: { ...prev[taskId], [phase]: '' } }));
+    setPhaseErrors((prev) => ({ ...prev, [taskId]: { ...prev[taskId], [phase]: '' } }));
     draftFilesRef.current = {
       ...draftFilesRef.current,
       [taskId]: { ...draftFilesRef.current[taskId], [phase]: null },
@@ -500,43 +579,22 @@ export function DesignerTasks() {
     if (!file) {
       const oldUrl = draftScreenshots[taskId]?.[phase] ?? null;
       if (oldUrl) URL.revokeObjectURL(oldUrl);
-      setDraftScreenshots((prev) => ({
-        ...prev,
-        [taskId]: { ...prev[taskId], [phase]: null },
-      }));
-      draftFilesRef.current = {
-        ...draftFilesRef.current,
-        [taskId]: { ...draftFilesRef.current[taskId], [phase]: null },
-      };
+      setDraftScreenshots((prev) => ({ ...prev, [taskId]: { ...prev[taskId], [phase]: null } }));
+      draftFilesRef.current = { ...draftFilesRef.current, [taskId]: { ...draftFilesRef.current[taskId], [phase]: null } };
       return;
     }
     const oldUrl = draftScreenshots[taskId]?.[phase] ?? null;
     if (oldUrl) URL.revokeObjectURL(oldUrl);
     const objectUrl = URL.createObjectURL(file);
-    draftFilesRef.current = {
-      ...draftFilesRef.current,
-      [taskId]: { ...draftFilesRef.current[taskId], [phase]: file },
-    };
-    setDraftScreenshots((prev) => ({
-      ...prev,
-      [taskId]: { ...prev[taskId], [phase]: objectUrl },
-    }));
-    setPhaseErrors((prev) => ({
-      ...prev,
-      [taskId]: { ...prev[taskId], [phase]: '' },
-    }));
+    draftFilesRef.current = { ...draftFilesRef.current, [taskId]: { ...draftFilesRef.current[taskId], [phase]: file } };
+    setDraftScreenshots((prev) => ({ ...prev, [taskId]: { ...prev[taskId], [phase]: objectUrl } }));
+    setPhaseErrors((prev) => ({ ...prev, [taskId]: { ...prev[taskId], [phase]: '' } }));
   };
 
   const toggleHistoryEntry = (taskId: string, phase: PhaseKey, idx: number) => {
     setExpandedHistoryIdx((prev) => {
       const taskIdx = prev[taskId] ?? { caseStudy: null, designStage: null, rendering: null, finalStage: null };
-      return {
-        ...prev,
-        [taskId]: {
-          ...taskIdx,
-          [phase]: taskIdx[phase] === idx ? null : idx,
-        },
-      };
+      return { ...prev, [taskId]: { ...taskIdx, [phase]: taskIdx[phase] === idx ? null : idx } };
     });
   };
 
@@ -561,19 +619,34 @@ export function DesignerTasks() {
     return { currentPhaseKey, currentPhaseLabel, currentPhaseStatus };
   };
 
-  // Show tasks assigned to the logged-in user (designer) or all assigned tasks (leader)
-  const assignedTasks = tasks.filter((task) => !!task.assignedTo);
-  const visibleAssignedTasks = user.role === 'designer'
-    ? assignedTasks.filter((task) => task.assignedTo === user.id)
+  // Filter: only assigned tasks
+  const assignedTasks = tasks.filter((task) => !!task.assigned_to_user_id);
+  const visibleTasks = user.role === 'designer'
+    ? assignedTasks.filter((task) => task.assigned_to_user_id === user.id)
     : assignedTasks;
 
-  // Sort: highlighted first, then by createdAt descending
-  const sortedTasks = [...visibleAssignedTasks].sort((a, b) => {
+  // Sort: highlighted first, then by created_at descending
+  const sortedTasks = [...visibleTasks].sort((a, b) => {
     const aHL = highlightedIds.has(a.id) ? 1 : 0;
     const bHL = highlightedIds.has(b.id) ? 1 : 0;
     if (bHL !== aHL) return bHL - aHL;
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
+
+  const statusDisplay = (status: string | null): string => {
+    if (!status) return 'pending';
+    return status.replace('_', ' ');
+  };
+
+  const statusColor = (status: string | null): string => {
+    switch (status) {
+      case 'approved': return 'bg-green-100 text-green-700';
+      case 'rejected': return 'bg-red-100 text-red-700';
+      case 'feedback': return 'bg-yellow-100 text-yellow-700';
+      case 'in_progress': return 'bg-blue-100 text-blue-700';
+      default: return 'bg-gray-100 text-gray-700';
+    }
+  };
 
   if (isLoading) {
     return (
@@ -601,48 +674,51 @@ export function DesignerTasks() {
         </div>
       </div>
 
-      {sortedTasks.length === 0 ? (
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">{error}</div>
+      )}
+
+      {visibleTasks.length === 0 && !isLoading ? (
         <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
           <Briefcase className="w-12 h-12 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500">No assigned designer tasks yet.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {sortedTasks.map((task) => {
-            const project = mockProjects.find((c) => c.id === task.projectId);
-            const isOverdue = task.deadline && new Date(task.deadline) < new Date() && task.status !== 'completed';
-            const { currentPhaseKey, currentPhaseLabel, currentPhaseStatus } = getCurrentPhaseInfo(task.id);
-            const isHighlighted = highlightedIds.has(task.id);
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {sortedTasks.slice(displayOffset, displayOffset + ROWS_PER_DISPLAY).map((task) => {
+              const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'approved';
+              const { currentPhaseKey, currentPhaseLabel, currentPhaseStatus } = getCurrentPhaseInfo(task.id);
+              const isHighlighted = highlightedIds.has(task.id);
 
-            return (
-              <div
-                key={task.id}
-                data-highlighted-id={isHighlighted ? task.id : undefined}
-                className={`bg-white rounded-xl p-6 shadow-sm border transition-all duration-300 hover:shadow-md ${
-                  isHighlighted
-                    ? 'border-2 border-blue-400 ring-4 ring-blue-100 shadow-blue-100'
-                    : 'border-gray-200'
-                }`}
-              >
-                {isHighlighted && (
-                  <div className="mb-3">
-                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full">
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                      New
-                    </span>
-                  </div>
-                )}
+              return (
+                <div
+                  key={task.id}
+                  data-highlighted-id={isHighlighted ? task.id : undefined}
+                  className={`bg-white rounded-xl p-6 shadow-sm border transition-all duration-300 hover:shadow-md ${
+                    isHighlighted
+                      ? 'border-2 border-blue-400 ring-4 ring-blue-100 shadow-blue-100'
+                      : 'border-gray-200'
+                  }`}
+                >
+                  {isHighlighted && (
+                    <div className="mb-3">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                        New
+                      </span>
+                    </div>
+                  )}
 
-                <div className="flex items-start justify-between mb-3 gap-3">
-                  <div>
-                    <h3 className="font-semibold text-lg text-gray-900">{task.title}</h3>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Assigned to: {getTaskAssigneeLabel(task.assignedTo)}
-                    </p>
-                  </div>
-                  {currentPhaseKey ? (
-                    <span
-                      className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
+                  <div className="flex items-start justify-between mb-3 gap-3">
+                    <div>
+                      <h3 className="font-semibold text-lg text-gray-900">{task.title}</h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Assigned to: {getAssigneeDisplayName(task)}
+                      </p>
+                    </div>
+                    {currentPhaseKey ? (
+                      <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
                         currentPhaseStatus === 'approved'
                           ? 'bg-green-100 text-green-700'
                           : currentPhaseStatus === 'feedback'
@@ -650,141 +726,145 @@ export function DesignerTasks() {
                           : currentPhaseStatus === 'rejected'
                           ? 'bg-red-100 text-red-700'
                           : 'bg-blue-100 text-blue-700'
-                      }`}
-                    >
-                      {currentPhaseLabel} -{' '}
-                      {currentPhaseStatus === 'approved'
-                        ? 'Approved'
-                        : currentPhaseStatus === 'feedback'
-                        ? 'Feedback Given'
-                        : currentPhaseStatus === 'rejected'
-                        ? 'Rejected'
-                        : 'Pending Review'}
+                      }`}>
+                        {currentPhaseLabel} -{' '}
+                        {currentPhaseStatus === 'approved'
+                          ? 'Approved'
+                          : currentPhaseStatus === 'feedback'
+                          ? 'Feedback Given'
+                          : currentPhaseStatus === 'rejected'
+                          ? 'Rejected'
+                          : 'Pending Review'}
+                      </span>
+                    ) : (
+                      <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${statusColor(task.status)}`}>
+                        {statusDisplay(task.status)}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    <span className="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium">
+                      Story Points: {task.story_point}
                     </span>
-                  ) : (
-                    <span
-                      className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
-                        task.status === 'completed'
-                          ? 'bg-green-100 text-green-700'
-                          : task.status === 'in_progress'
-                          ? 'bg-blue-100 text-blue-700'
-                          : task.status === 'incomplete'
-                          ? 'bg-orange-100 text-orange-700'
-                          : task.status === 'rejected'
-                          ? 'bg-red-100 text-red-700'
-                          : 'bg-gray-100 text-gray-700'
-                      }`}
-                    >
-                      {task.status.replace('_', ' ')}
+                    <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-medium">
+                      Created by {getCreatorDisplayName(task)}
                     </span>
-                  )}
-                </div>
+                    {task.assigned_to_user_id && (
+                      <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-medium">
+                        Assigned to {getAssigneeDisplayName(task)}
+                      </span>
+                    )}
+                  </div>
 
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <span className="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium">
-                    Story Points: {task.storyPoints}
-                  </span>
-                  <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-medium">
-                    Created by {roleNamesByUserId[task.assignedBy] ?? `User ${task.assignedBy}`}
-                  </span>
-                  {task.assignedTo && (
-                    <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-medium">
-                      Assigned to {getTaskAssigneeLabel(task.assignedTo)}
-                    </span>
-                  )}
-                </div>
+                  <p className="text-sm text-gray-600 mb-3">{task.description}</p>
 
-                <p className="text-sm text-gray-600 mb-3">{task.description}</p>
+                  <button
+                    onClick={() => openDetail(task)}
+                    className="mb-4 text-sm text-blue-600 hover:underline"
+                  >
+                    Open Submission Detail
+                  </button>
 
-                <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                  <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">Work Instruction</p>
-                  <p className="text-sm text-gray-700 mt-1">{task.instruction}</p>
-                </div>
-
-                <button
-                  onClick={() => openDetail(task)}
-                  className="mb-4 text-sm text-blue-600 hover:underline"
-                >
-                  Open Submission Detail
-                </button>
-
-                {/* Last Phase Status Summary */}
-                {(() => {
-                  const progress = getDisplayProgress(task.id);
-                  const stopIdx = findFirstNonApprovedPhaseIndex(PHASES, progress);
-                  const lastPopulated = getLastPopulatedPhaseIndex(progress);
-                  const displayIdx = stopIdx !== -1 ? stopIdx : lastPopulated;
-                  if (displayIdx === -1) return null;
-                  const phaseKey = PHASES[displayIdx].key;
-                  const phaseLabel = PHASES[displayIdx].label;
-                  const phaseData = progress[phaseKey];
-                  if (!phaseData || !phaseData.history || phaseData.history.length === 0) return null;
-                  const latest = phaseData.history[phaseData.history.length - 1];
-                  const status = latest.status;
-                  const message = latest.message;
-                  const isApproved = status === 'approved';
-                  const isRejected = status === 'rejected';
-                  const isFeedback = status === 'feedback';
-                  const BadgeIcon = isApproved ? CheckCircle2 : isRejected ? XCircle : AlertCircle;
-                  const containerColor = isApproved
-                    ? 'bg-green-50 border-green-200'
-                    : isRejected
-                    ? 'bg-red-50 border-red-200'
-                    : 'bg-yellow-50 border-yellow-200';
-                  const textColor = isApproved
-                    ? 'text-green-700'
-                    : isRejected
-                    ? 'text-red-700'
-                    : 'text-yellow-700';
-                  const iconColor = isApproved
-                    ? 'text-green-600'
-                    : isRejected
-                    ? 'text-red-600'
-                    : 'text-yellow-600';
-                  const displayLabel = isApproved
-                    ? `${phaseLabel} - Approved`
-                    : isFeedback
-                    ? 'Feedback'
-                    : `${phaseLabel} - Rejected`;
-                  return (
-                    <div className={`mb-4 p-3 rounded-lg border ${containerColor}`}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <BadgeIcon className={`w-4 h-4 ${iconColor}`} />
-                        <p className={`text-sm font-medium ${textColor}`}>{displayLabel}</p>
+                  {/* Last Phase Status Summary */}
+                  {(() => {
+                    const progress = getDisplayProgress(task.id);
+                    const stopIdx = findFirstNonApprovedPhaseIndex(PHASES, progress);
+                    const lastPopulated = getLastPopulatedPhaseIndex(progress);
+                    const displayIdx = stopIdx !== -1 ? stopIdx : lastPopulated;
+                    if (displayIdx === -1) return null;
+                    const phaseKey = PHASES[displayIdx].key;
+                    const phaseLabel = PHASES[displayIdx].label;
+                    const phaseData = progress[phaseKey];
+                    if (!phaseData || !phaseData.history || phaseData.history.length === 0) return null;
+                    const latest = phaseData.history[phaseData.history.length - 1];
+                    const status = latest.status;
+                    const message = latest.message;
+                    const isApproved = status === 'approved';
+                    const isRejected = status === 'rejected';
+                    const isFeedback = status === 'feedback';
+                    const BadgeIcon = isApproved ? CheckCircle2 : isRejected ? XCircle : AlertCircle;
+                    const containerColor = isApproved
+                      ? 'bg-green-50 border-green-200'
+                      : isRejected
+                      ? 'bg-red-50 border-red-200'
+                      : 'bg-yellow-50 border-yellow-200';
+                    const textColor = isApproved
+                      ? 'text-green-700'
+                      : isRejected
+                      ? 'text-red-700'
+                      : 'text-yellow-700';
+                    const iconColor = isApproved
+                      ? 'text-green-600'
+                      : isRejected
+                      ? 'text-red-600'
+                      : 'text-yellow-600';
+                    const displayLabel = isApproved
+                      ? `${phaseLabel} - Approved`
+                      : isFeedback
+                      ? 'Feedback'
+                      : `${phaseLabel} - Rejected`;
+                    return (
+                      <div className={`mb-4 p-3 rounded-lg border ${containerColor}`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <BadgeIcon className={`w-4 h-4 ${iconColor}`} />
+                          <p className={`text-sm font-medium ${textColor}`}>{displayLabel}</p>
+                        </div>
+                        {message && (
+                          <p className="text-sm text-gray-700 italic">"{message}"</p>
+                        )}
                       </div>
-                      {message && (
-                        <p className="text-sm text-gray-700 italic">"{message}"</p>
-                      )}
-                    </div>
-                  );
-                })()}
+                    );
+                  })()}
 
-                {project && (
-                  <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                    <p className="text-xs text-gray-500">Project</p>
-                    <p className="font-medium text-gray-900 mt-1">{project.name}</p>
-                  </div>
-                )}
-
-                <div className="space-y-2 text-sm">
-                  {task.deadline && (
-                    <div className={`flex items-center gap-2 ${isOverdue ? 'text-red-600' : 'text-gray-500'}`}>
-                      <Calendar className="w-4 h-4" />
-                      <span>Due: {new Date(task.deadline).toLocaleDateString()}{isOverdue && ' (Overdue)'}</span>
+                  <div className="space-y-2 text-sm">
+                    {task.due_date && (
+                      <div className={`flex items-center gap-2 ${isOverdue ? 'text-red-600' : 'text-gray-500'}`}>
+                        <Calendar className="w-4 h-4" />
+                        <span>Due: {new Date(task.due_date).toLocaleDateString()}{isOverdue && ' (Overdue)'}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 text-gray-500">
+                      <Clock className="w-4 h-4" />
+                      <span>Created: {new Date(task.created_at).toLocaleDateString()}</span>
                     </div>
-                  )}
-                  <div className="flex items-center gap-2 text-gray-500">
-                    <Clock className="w-4 h-4" />
-                    <span>Created: {new Date(task.createdAt).toLocaleDateString()}</span>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+
+          {/* Pagination Controls */}
+          {meta && (meta.totalPages > 1 || tasks.length > ROWS_PER_DISPLAY) && (
+            <div className="flex items-center justify-center gap-4 py-4">
+              <button
+                onClick={goPrev}
+                disabled={!canGoPrev}
+                className="flex items-center gap-1 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Previous
+              </button>
+              <span className="text-sm text-gray-600">
+                {isLeadership && tasks.length > ROWS_PER_DISPLAY
+                  ? `Showing ${displayOffset + 1}–${Math.min(displayOffset + ROWS_PER_DISPLAY, tasks.length)} of ${meta.total}`
+                  : `Page ${apiPage} of ${meta.totalPages} (${meta.total} total)`
+                }
+              </span>
+              <button
+                onClick={goNext}
+                disabled={!canGoNext}
+                className="flex items-center gap-1 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Next
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </>
       )}
 
-      {/* Detail Modal – unchanged */}
+      {/* Detail Modal */}
       {showDetail && selectedTaskDetail && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-6 overflow-y-auto">
           <div className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl max-h-[92vh] overflow-y-auto">
@@ -792,6 +872,9 @@ export function DesignerTasks() {
               <div>
                 <h3 className="text-2xl font-semibold text-gray-900">Submission Detail</h3>
                 <p className="mt-1 text-sm text-gray-500">Submit your work and view feedback</p>
+                {submissionsLoading[selectedTaskDetail.id] && (
+                  <p className="text-xs text-blue-600 mt-1">Loading submission data...</p>
+                )}
               </div>
               <button onClick={closeDetail} className="rounded-lg p-2 hover:bg-gray-100">
                 <XCircle className="h-5 w-5 text-gray-500" />
@@ -807,18 +890,18 @@ export function DesignerTasks() {
                       <p className="mt-1 text-sm text-gray-500">ID: {selectedTaskDetail.id}</p>
                     </div>
                     <span className="rounded-full bg-indigo-100 px-2 py-1 text-xs font-medium text-indigo-700">
-                      Story Points: {selectedTaskDetail.storyPoints}
+                      Story Points: {selectedTaskDetail.story_point}
                     </span>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
-                      Created by {roleNamesByUserId[selectedTaskDetail.assignedBy] ?? `User ${selectedTaskDetail.assignedBy}`}
+                      Created by {getCreatorDisplayName(selectedTaskDetail)}
                     </span>
                     <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">
-                      Assigned to {getTaskAssigneeLabel(selectedTaskDetail.assignedTo)}
+                      Assigned to {getAssigneeDisplayName(selectedTaskDetail)}
                     </span>
-                    <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
-                      {selectedTaskDetail.status.replace('_', ' ')}
+                    <span className={`rounded-full px-2 py-1 text-xs font-medium ${statusColor(selectedTaskDetail.status)}`}>
+                      {statusDisplay(selectedTaskDetail.status)}
                     </span>
                   </div>
                 </section>
@@ -826,24 +909,6 @@ export function DesignerTasks() {
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Description</h5>
                   <p className="mt-2 text-sm text-gray-700">{selectedTaskDetail.description}</p>
-                </section>
-
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
-                  <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Work Instruction</h5>
-                  <p className="mt-2 text-sm text-gray-700">{selectedTaskDetail.instruction}</p>
-                </section>
-
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
-                  <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Telegram Evidence</h5>
-                  {(selectedTaskDetail as any).telegramScreenshot ? (
-                    <img
-                      src={(selectedTaskDetail as any).telegramScreenshot}
-                      alt="telegram evidence"
-                      className="mt-3 w-full max-h-72 rounded-lg border object-contain"
-                    />
-                  ) : (
-                    <p className="mt-2 text-sm text-gray-500">No Telegram evidence attached.</p>
-                  )}
                 </section>
 
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
@@ -1164,22 +1229,12 @@ export function DesignerTasks() {
               </div>
 
               <aside className="space-y-4">
-                {selectedTaskDetail.approvalStatus && (
-                  <section className="rounded-xl border border-gray-200 bg-white p-4">
-                    <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Overall Approval</h5>
-                    <p className="mt-2 text-sm text-gray-700">{selectedTaskDetail.approvalStatus}</p>
-                    {selectedTaskDetail.approvalFeedback && (
-                      <p className="mt-2 text-sm text-gray-600 italic">"{selectedTaskDetail.approvalFeedback}"</p>
-                    )}
-                  </section>
-                )}
-
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Timeline</h5>
                   <div className="mt-2 space-y-2 text-sm text-gray-700">
-                    <p>Deadline: {selectedTaskDetail.deadline ? new Date(selectedTaskDetail.deadline).toLocaleDateString() : 'No deadline'}</p>
-                    <p>Created: {new Date(selectedTaskDetail.createdAt).toLocaleDateString()}</p>
-                    <p>Assigned by: {roleNamesByUserId[selectedTaskDetail.assignedBy] ?? `User ${selectedTaskDetail.assignedBy}`}</p>
+                    <p>Deadline: {selectedTaskDetail.due_date ? new Date(selectedTaskDetail.due_date).toLocaleDateString() : 'No deadline'}</p>
+                    <p>Created: {new Date(selectedTaskDetail.created_at).toLocaleDateString()}</p>
+                    <p>Assigned by: {getCreatorDisplayName(selectedTaskDetail)}</p>
                   </div>
                 </section>
               </aside>
