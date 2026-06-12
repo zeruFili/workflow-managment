@@ -326,7 +326,7 @@ export function PaidCustomers() {
               <Users className="w-5 h-5 text-green-600" />
               <div>
                 <p className="text-sm text-gray-500">Viewing as</p>
-                <p className="font-medium text-gray-900">{user.name}</p>
+                <p className="font-medium text-gray-900">{user.full_name}</p>
               </div>
             </div>
           </div>

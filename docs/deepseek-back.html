@@ -1,0 +1,1627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workflow Management System — Technical Specification v1.0</title>
+    <style>
+        :root {
+            --bg: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --bg-tertiary: #f1f3f5;
+            --text: #1a1a2e;
+            --text-secondary: #495057;
+            --text-muted: #6c757d;
+            --border: #dee2e6;
+            --border-light: #e9ecef;
+            --accent: #2563eb;
+            --accent-light: #eff6ff;
+            --accent-dark: #1d4ed8;
+            --code-bg: #1e293b;
+            --code-text: #e2e8f0;
+            --success: #059669;
+            --success-bg: #ecfdf5;
+            --warning: #d97706;
+            --warning-bg: #fffbeb;
+            --danger: #dc2626;
+            --danger-bg: #fef2f2;
+            --info: #0891b2;
+            --info-bg: #ecfeff;
+            --sidebar-width: 280px;
+            --header-height: 60px;
+            --radius: 8px;
+            --radius-sm: 4px;
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+            --shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+            --transition: 150ms ease;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        html {
+            scroll-behavior: smooth;
+            scroll-padding-top: calc(var(--header-height) + 20px);
+        }
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            display: flex;
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: var(--sidebar-width);
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            transition: transform var(--transition);
+        }
+        .sidebar-header {
+            padding: 18px 20px;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg);
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+        .sidebar-header h2 {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text);
+            letter-spacing: -0.01em;
+            line-height: 1.3;
+        }
+        .sidebar-header .version {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 500;
+            display: block;
+            margin-top: 2px;
+        }
+        .sidebar-nav {
+            flex: 1;
+            padding: 8px 0;
+            overflow-y: auto;
+        }
+        .sidebar-nav a {
+            display: block;
+            padding: 7px 20px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            border-left: 3px solid transparent;
+            transition: all var(--transition);
+            line-height: 1.4;
+            font-weight: 450;
+        }
+        .sidebar-nav a:hover {
+            background: var(--bg-tertiary);
+            color: var(--text);
+            border-left-color: var(--border);
+        }
+        .sidebar-nav a.active {
+            background: var(--accent-light);
+            color: var(--accent);
+            border-left-color: var(--accent);
+            font-weight: 600;
+        }
+        .sidebar-nav .nav-section {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            padding: 14px 20px 6px;
+            cursor: default;
+        }
+        .sidebar-nav .nav-sub {
+            padding-left: 8px;
+        }
+        .sidebar-nav .nav-sub a {
+            font-size: 12px;
+            padding: 5px 20px 5px 24px;
+        }
+
+        /* Main */
+        .main {
+            margin-left: var(--sidebar-width);
+            flex: 1;
+            min-width: 0;
+            padding: 0;
+        }
+        .content {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 32px 40px 80px;
+        }
+
+        /* Top bar */
+        .topbar {
+            position: sticky;
+            top: 0;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            height: var(--header-height);
+            display: flex;
+            align-items: center;
+            padding: 0 40px;
+            z-index: 50;
+            gap: 16px;
+        }
+        .topbar .breadcrumb {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+        .topbar .search-wrap {
+            margin-left: auto;
+            position: relative;
+        }
+        .topbar .search-wrap input {
+            padding: 8px 14px 8px 36px;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 13px;
+            width: 220px;
+            background: var(--bg-tertiary);
+            color: var(--text);
+            outline: none;
+            transition: all var(--transition);
+            font-family: var(--font-sans);
+        }
+        .topbar .search-wrap input:focus {
+            border-color: var(--accent);
+            background: var(--bg);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            width: 280px;
+        }
+        .topbar .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 14px;
+            pointer-events: none;
+        }
+        .menu-toggle {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 22px;
+            cursor: pointer;
+            color: var(--text);
+            padding: 4px 8px;
+            border-radius: var(--radius-sm);
+        }
+        .menu-toggle:hover {
+            background: var(--bg-tertiary);
+        }
+
+        /* Typography */
+        h1 {
+            font-size: 2.2rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            margin-bottom: 8px;
+            color: var(--text);
+            line-height: 1.2;
+        }
+        h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin-top: 48px;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--border-light);
+            color: var(--text);
+        }
+        h3 {
+            font-size: 1.2rem;
+            font-weight: 650;
+            margin-top: 32px;
+            margin-bottom: 12px;
+            color: var(--text);
+            letter-spacing: -0.01em;
+        }
+        h4 {
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin-top: 24px;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+        }
+        p {
+            margin-bottom: 14px;
+            color: var(--text-secondary);
+        }
+        a {
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        strong {
+            font-weight: 650;
+            color: var(--text);
+        }
+        hr {
+            border: none;
+            border-top: 1px solid var(--border-light);
+            margin: 32px 0;
+        }
+        .doc-meta {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+        .doc-meta span {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: var(--bg-tertiary);
+            padding: 4px 10px;
+            border-radius: var(--radius-sm);
+            font-weight: 500;
+        }
+
+        /* Tables */
+        .table-wrap {
+            overflow-x: auto;
+            margin: 16px 0 24px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-sm);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            min-width: 600px;
+        }
+        thead th {
+            background: var(--bg-tertiary);
+            padding: 10px 14px;
+            text-align: left;
+            font-weight: 650;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            color: var(--text-secondary);
+            border-bottom: 2px solid var(--border);
+            white-space: nowrap;
+        }
+        tbody td {
+            padding: 9px 14px;
+            border-bottom: 1px solid var(--border-light);
+            color: var(--text-secondary);
+            vertical-align: top;
+        }
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+        tbody tr:hover {
+            background: var(--bg-secondary);
+        }
+        td code,
+        th code {
+            background: var(--bg-tertiary);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+            white-space: nowrap;
+            font-family: var(--font-mono);
+            color: var(--accent-dark);
+            font-weight: 500;
+        }
+
+        /* Code blocks */
+        pre {
+            background: var(--code-bg);
+            color: var(--code-text);
+            padding: 18px 20px;
+            border-radius: var(--radius);
+            overflow-x: auto;
+            font-family: var(--font-mono);
+            font-size: 13px;
+            line-height: 1.6;
+            margin: 14px 0 20px;
+            box-shadow: var(--shadow);
+            position: relative;
+        }
+        pre code {
+            font-family: var(--font-mono);
+            font-size: 13px;
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+        .code-label {
+            position: absolute;
+            top: 8px;
+            right: 12px;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #94a3b8;
+            font-weight: 600;
+            font-family: var(--font-sans);
+        }
+
+        /* Inline code */
+        code {
+            background: var(--bg-tertiary);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 13px;
+            font-family: var(--font-mono);
+            color: var(--accent-dark);
+            font-weight: 500;
+        }
+
+        /* Badges */
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+        }
+        .badge-get {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        .badge-post {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .badge-put {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        .badge-patch {
+            background: #ede9fe;
+            color: #5b21b6;
+        }
+        .badge-delete {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .badge-role {
+            background: var(--info-bg);
+            color: var(--info);
+            font-size: 10px;
+            padding: 2px 7px;
+            border-radius: 10px;
+        }
+
+        /* Callouts */
+        .callout {
+            border-left: 4px solid var(--accent);
+            background: var(--accent-light);
+            padding: 12px 16px;
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+            margin: 16px 0;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        .callout strong {
+            color: var(--accent-dark);
+        }
+        .callout.warning {
+            border-left-color: var(--warning);
+            background: var(--warning-bg);
+        }
+        .callout.warning strong {
+            color: var(--warning);
+        }
+        .callout.success {
+            border-left-color: var(--success);
+            background: var(--success-bg);
+        }
+        .callout.success strong {
+            color: var(--success);
+        }
+
+        /* Function card */
+        .function-card {
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 18px 20px;
+            margin: 16px 0;
+            background: var(--bg);
+            box-shadow: var(--shadow-sm);
+        }
+        .function-card h4 {
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .function-card .endpoint {
+            font-family: var(--font-mono);
+            font-size: 13px;
+            background: var(--bg-tertiary);
+            padding: 3px 10px;
+            border-radius: 4px;
+            color: var(--text);
+            font-weight: 500;
+        }
+
+        /* List */
+        ul,
+        ol {
+            margin: 10px 0 16px 20px;
+            color: var(--text-secondary);
+        }
+        li {
+            margin-bottom: 5px;
+            line-height: 1.6;
+        }
+
+        /* Summary / detail */
+        details {
+            margin: 12px 0;
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius);
+            padding: 10px 14px;
+            background: var(--bg-secondary);
+            cursor: pointer;
+        }
+        details summary {
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--text);
+            cursor: pointer;
+            user-select: none;
+        }
+        details[open] {
+            background: var(--bg);
+            padding-bottom: 14px;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            .sidebar.open {
+                transform: translateX(0);
+            }
+            .main {
+                margin-left: 0;
+            }
+            .menu-toggle {
+                display: block;
+            }
+            .content {
+                padding: 20px 20px 60px;
+            }
+            .topbar {
+                padding: 0 16px;
+            }
+            h1 {
+                font-size: 1.6rem;
+            }
+            h2 {
+                font-size: 1.25rem;
+                margin-top: 32px;
+            }
+            .topbar .search-wrap input {
+                width: 140px;
+            }
+            .topbar .search-wrap input:focus {
+                width: 180px;
+            }
+        }
+        @media (max-width: 640px) {
+            .content {
+                padding: 14px 12px 40px;
+            }
+            pre {
+                font-size: 11px;
+                padding: 12px;
+            }
+            table {
+                font-size: 11px;
+            }
+            .function-card {
+                padding: 12px;
+            }
+            .topbar .search-wrap input {
+                width: 100px;
+                font-size: 12px;
+            }
+            .topbar .search-wrap input:focus {
+                width: 140px;
+            }
+        }
+
+        /* Sidebar overlay */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.35);
+            z-index: 99;
+        }
+        .sidebar-overlay.show {
+            display: block;
+        }
+
+        /* Print */
+        @media print {
+            .sidebar,
+            .topbar,
+            .sidebar-overlay,
+            .menu-toggle {
+                display: none !important;
+            }
+            .main {
+                margin-left: 0;
+            }
+            .content {
+                max-width: 100%;
+                padding: 0;
+            }
+            pre {
+                white-space: pre-wrap;
+                word-break: break-all;
+            }
+        }
+
+        /* Highlight search match */
+        .search-highlight {
+            background: #fef08a;
+            padding: 1px 3px;
+            border-radius: 2px;
+        }
+        .hidden-by-search {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h2>📋 Workflow MS</h2>
+            <span class="version">Technical Spec v1.0</span>
+        </div>
+        <nav class="sidebar-nav" id="sidebarNav">
+            <a href="#section-0">Overview</a>
+            <span class="nav-section">Core</span>
+            <a href="#1-system-architecture">1. System Architecture</a>
+            <div class="nav-sub">
+                <a href="#11-high-level-architecture">1.1 High-Level</a>
+                <a href="#12-technology-stack">1.2 Tech Stack</a>
+                <a href="#13-api-conventions">1.3 API Conventions</a>
+            </div>
+            <a href="#2-data-models">2. Data Models</a>
+            <div class="nav-sub">
+                <a href="#21-postgresql-enumerated-types">2.1 Enums</a>
+                <a href="#22-core-tables">2.2 Core Tables</a>
+                <a href="#23-entity-relationship-summary">2.3 ER Summary</a>
+            </div>
+            <a href="#3-authentication--authorization">3. Auth &amp; Authz</a>
+            <span class="nav-section">Functions</span>
+            <a href="#4-marketing-functions">4. Marketing</a>
+            <a href="#5-finance-functions">5. Finance</a>
+            <a href="#6-ceo-functions">6. CEO</a>
+            <a href="#7-general-manager-functions">7. General Manager</a>
+            <a href="#8-quantity-surveyor-functions">8. QS</a>
+            <a href="#9-designer-functions">9. Designer</a>
+            <a href="#10-site-engineer-functions">10. Site Engineer</a>
+            <a href="#11-data-collector-functions">11. Data Collector</a>
+            <a href="#12-system-administrator-functions">12. System Admin</a>
+            <span class="nav-section">Systems</span>
+            <a href="#13-notification-system">13. Notifications</a>
+            <a href="#14-performance-rating-system">14. Ratings</a>
+            <a href="#15-audit-trail-system">15. Audit Trail</a>
+            <span class="nav-section">Reference</span>
+            <a href="#16-complete-api-endpoint-catalog">16. API Catalog</a>
+            <a href="#17-frontend-requirements-summary">17. Frontend</a>
+        </nav>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+        <!-- Topbar -->
+        <div class="topbar">
+            <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">☰</button>
+            <span class="breadcrumb">Docs / Technical Specification</span>
+            <div class="search-wrap">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="searchInput" placeholder="Search docs...">
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div class="content" id="mainContent">
+
+            <section id="section-0">
+                <h1>Technical Specification — Workflow Management System</h1>
+                <div class="doc-meta">
+                    <span>📄 Version 1.0</span>
+                    <span>📅 2026-05-30</span>
+                    <span>🔗 Base Path: <code>/api/v1</code></span>
+                </div>
+                <p>This document is the complete technical specification for the Workflow Management System. It covers system architecture, data models, all role-based functions, API endpoints, notification system, performance ratings, audit trail, and frontend requirements.</p>
+
+                <details>
+                    <summary>📑 Table of Contents</summary>
+                    <ol style="margin-top:8px;">
+                        <li><a href="#1-system-architecture">System Architecture</a></li>
+                        <li><a href="#2-data-models">Data Models (PostgreSQL Schema)</a></li>
+                        <li><a href="#3-authentication--authorization">Authentication & Authorization</a></li>
+                        <li><a href="#4-marketing-functions">Marketing Functions</a></li>
+                        <li><a href="#5-finance-functions">Finance Functions</a></li>
+                        <li><a href="#6-ceo-functions">CEO Functions</a></li>
+                        <li><a href="#7-general-manager-functions">General Manager Functions</a></li>
+                        <li><a href="#8-quantity-surveyor-functions">Quantity Surveyor Functions</a></li>
+                        <li><a href="#9-designer-functions">Designer Functions</a></li>
+                        <li><a href="#10-site-engineer-functions">Site Engineer Functions</a></li>
+                        <li><a href="#11-data-collector-functions">Data Collector Functions</a></li>
+                        <li><a href="#12-system-administrator-functions">System Administrator Functions</a></li>
+                        <li><a href="#13-notification-system">Notification System</a></li>
+                        <li><a href="#14-performance-rating-system">Performance Rating System</a></li>
+                        <li><a href="#15-audit-trail-system">Audit Trail System</a></li>
+                        <li><a href="#16-complete-api-endpoint-catalog">Complete API Endpoint Catalog</a></li>
+                        <li><a href="#17-frontend-requirements-summary">Frontend Requirements Summary</a></li>
+                    </ol>
+                </details>
+            </section>
+
+            <hr>
+
+            <!-- Section 1 -->
+            <section id="1-system-architecture">
+                <h2>1. System Architecture</h2>
+
+                <h3 id="11-high-level-architecture">1.1 High-Level Architecture</h3>
+                <pre><code>Frontend (React SPA + HashRouter + Vite)
+        |
+        v
+Backend API Gateway (Node.js NestJS or Python FastAPI)
+    - Auth Module (JWT + RBAC Middleware)
+    - Rate Limiter
+    - Business Logic Services
+        |
+    ┌───┼───┐
+    v   v   v
+PostgreSQL  S3/MinIO   Redis
+(Primary)  (Files)    (Cache/Jobs)</code></pre>
+
+                <h3 id="12-technology-stack">1.2 Technology Stack</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Layer</th><th>Technology</th></tr></thead>
+                        <tbody>
+                            <tr><td>Backend</td><td>Node.js 20+ (NestJS) or Python 3.12+ (FastAPI)</td></tr>
+                            <tr><td>Database</td><td>PostgreSQL 16+ with JSONB support</td></tr>
+                            <tr><td>ORM</td><td>TypeORM / Prisma / SQLAlchemy</td></tr>
+                            <tr><td>Cache/Queue</td><td>Redis 7+ with BullMQ / Celery</td></tr>
+                            <tr><td>File Storage</td><td>AWS S3 / MinIO with signed URLs</td></tr>
+                            <tr><td>Auth</td><td>JWT access tokens (15min) + refresh tokens (7 days, httpOnly cookie)</td></tr>
+                            <tr><td>Realtime</td><td>Socket.IO / WebSocket for notifications</td></tr>
+                            <tr><td>Search</td><td>PostgreSQL tsvector or Elasticsearch</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3 id="13-api-conventions">1.3 API Conventions</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Convention</th><th>Detail</th></tr></thead>
+                        <tbody>
+                            <tr><td>Base URL</td><td><code>/api/v1</code></td></tr>
+                            <tr><td>Content Type</td><td><code>application/json</code> (files: <code>multipart/form-data</code>)</td></tr>
+                            <tr><td>Auth Header</td><td><code>Authorization: Bearer &lt;access_token&gt;</code></td></tr>
+                            <tr><td>Refresh Token</td><td><code>httpOnly</code> cookie named <code>refresh_token</code></td></tr>
+                            <tr><td>Pagination</td><td><code>?page=1&amp;limit=20</code> → <code>{ data: [], meta: { total, page, limit, totalPages } }</code></td></tr>
+                            <tr><td>Sorting</td><td><code>?sortBy=field&amp;order=asc|desc</code></td></tr>
+                            <tr><td>Error Format</td><td><code>{ error: { code: string, message: string, details?: any } }</code></td></tr>
+                            <tr><td>HTTP Codes</td><td>200, 201, 204, 400, 401, 403, 404, 409, 422, 429, 500</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <hr>
+
+            <!-- Section 2 -->
+            <section id="2-data-models">
+                <h2>2. Data Models</h2>
+
+                <h3 id="21-postgresql-enumerated-types">2.1 PostgreSQL Enumerated Types</h3>
+                <pre><code><span class="code-label">SQL</span>CREATE TYPE user_role AS ENUM (
+  'ceo','general_manager','marketing_lead','finance_officer',
+  'data_collector','quantity_surveyor','designer','site_engineer','system_administrator'
+);
+
+CREATE TYPE task_status AS ENUM (
+  'pending','in_progress','completed','incomplete','rejected'
+);
+
+CREATE TYPE approval_status AS ENUM ('pending','approved','rejected');
+CREATE TYPE payment_verification_status AS ENUM (
+  'pending','verified','approved','rejected','request_clarification'
+);
+CREATE TYPE designer_task_application_status AS ENUM ('pending','assigned','rejected');
+CREATE TYPE designer_phase AS ENUM ('case_study','design_stage','rendering','final_stage');
+CREATE TYPE review_action AS ENUM ('approved','rejected','feedback','request_clarification');
+CREATE TYPE qs_recommendation AS ENUM ('recommend_approval','recommend_revision');
+CREATE TYPE qs_review_status AS ENUM ('pending_review','in_review','record_submitted');
+CREATE TYPE qs_decision AS ENUM ('pending','approved','feedback');
+CREATE TYPE project_stage AS ENUM ('lead','design','approval','execution','completed');
+CREATE TYPE project_status AS ENUM ('active','on_hold','completed');
+CREATE TYPE customer_request_category AS ENUM ('home_design','finishing_work','hair_salon_design','other');
+CREATE TYPE customer_request_status AS ENUM ('new','in_review','scheduled','closed');
+
+CREATE TYPE notification_type AS ENUM (
+  'customer_created','payment_submitted','payment_reviewed',
+  'payment_clarification_requested','payment_clarification_responded',
+  'task_assigned','task_submitted','task_reviewed',
+  'designer_application','designer_assigned',
+  'designer_phase_submitted','designer_phase_reviewed',
+  'designer_paused','designer_resumed','designer_final_evaluated',
+  'qs_task_assigned','qs_evaluation_submitted','qs_evaluation_reviewed',
+  'data_collector_submitted','data_collector_reviewed',
+  'site_engineer_submitted','site_engineer_reviewed',
+  'user_created','user_updated','user_deleted','system_announcement'
+);</code></pre>
+
+                <h3 id="22-core-tables">2.2 Core Tables</h3>
+
+                <h4>users</h4>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                        <tbody>
+                            <tr><td>id</td><td>UUID PK</td><td>gen_random_uuid()</td></tr>
+                            <tr><td>username</td><td>VARCHAR(100) UNIQUE NOT NULL</td><td></td></tr>
+                            <tr><td>name</td><td>VARCHAR(255) NOT NULL</td><td>Display name</td></tr>
+                            <tr><td>email</td><td>VARCHAR(255)</td><td>Optional, unique</td></tr>
+                            <tr><td>password_hash</td><td>VARCHAR(255) NOT NULL</td><td>bcrypt cost 12</td></tr>
+                            <tr><td>role</td><td>user_role NOT NULL</td><td>RBAC role</td></tr>
+                            <tr><td>is_active</td><td>BOOLEAN DEFAULT TRUE</td><td>Soft delete</td></tr>
+                            <tr><td>avatar_url</td><td>TEXT</td><td></td></tr>
+                            <tr><td>telegram_id</td><td>VARCHAR(100)</td><td>Telegram bridge</td></tr>
+                            <tr><td>force_password_change</td><td>BOOLEAN DEFAULT FALSE</td><td>First login flag</td></tr>
+                            <tr><td>created_at</td><td>TIMESTAMPTZ DEFAULT now()</td><td></td></tr>
+                            <tr><td>updated_at</td><td>TIMESTAMPTZ DEFAULT now()</td><td></td></tr>
+                            <tr><td>last_login_at</td><td>TIMESTAMPTZ</td><td></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h4>tasks <span style="font-weight:400;font-size:12px;color:var(--text-muted);">(parent table for all task types)</span></h4>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+                        <tbody>
+                            <tr><td>id</td><td>UUID PK</td><td></td></tr>
+                            <tr><td>project_id</td><td>UUID FK → projects</td><td>SET NULL on delete</td></tr>
+                            <tr><td>title</td><td>VARCHAR(500) NOT NULL</td><td></td></tr>
+                            <tr><td>description</td><td>TEXT</td><td></td></tr>
+                            <tr><td>instruction</td><td>TEXT</td><td></td></tr>
+                            <tr><td>task_type</td><td>VARCHAR(50) DEFAULT 'generic'</td><td>generic/designer/data_collector/quantity_surveyor</td></tr>
+                            <tr><td>assigned_to</td><td>UUID FK → users</td><td></td></tr>
+                            <tr><td>assigned_by</td><td>UUID FK → users NOT NULL</td><td></td></tr>
+                            <tr><td>assigned_at</td><td>TIMESTAMPTZ</td><td></td></tr>
+                            <tr><td>status</td><td>task_status DEFAULT 'pending'</td><td></td></tr>
+                            <tr><td>deadline</td><td>TIMESTAMPTZ</td><td></td></tr>
+                            <tr><td>approval_status</td><td>approval_status DEFAULT 'pending'</td><td></td></tr>
+                            <tr><td>approval_feedback</td><td>TEXT</td><td></td></tr>
+                            <tr><td>approved_by</td><td>UUID FK → users</td><td></td></tr>
+                            <tr><td>approved_at</td><td>TIMESTAMPTZ</td><td></td></tr>
+                            <tr><td>telegram_screenshot</td><td>TEXT</td><td>URL</td></tr>
+                            <tr><td>is_public</td><td>BOOLEAN DEFAULT FALSE</td><td>Designer job posting flag</td></tr>
+                            <tr><td>story_points</td><td>INTEGER DEFAULT 0</td><td>Designer tasks only</td></tr>
+                            <tr><td>is_paused</td><td>BOOLEAN DEFAULT FALSE</td><td></td></tr>
+                            <tr><td>pause_reason</td><td>TEXT</td><td></td></tr>
+                            <tr><td>pause_resume_date</td><td>TIMESTAMPTZ</td><td></td></tr>
+                            <tr><td>paused_at</td><td>TIMESTAMPTZ</td><td></td></tr>
+                            <tr><td>paused_by</td><td>UUID FK → users</td><td></td></tr>
+                            <tr><td>resumed_at</td><td>TIMESTAMPTZ</td><td></td></tr>
+                            <tr><td>resumed_by</td><td>UUID FK → users</td><td></td></tr>
+                            <tr><td>created_at</td><td>TIMESTAMPTZ DEFAULT now()</td><td></td></tr>
+                            <tr><td>updated_at</td><td>TIMESTAMPTZ DEFAULT now()</td><td></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h4>Additional Core Tables</h4>
+                <p>The schema includes the following additional tables: <strong>refresh_tokens</strong>, <strong>password_reset_tokens</strong>, <strong>projects</strong>, <strong>submissions</strong>, <strong>submission_attachments</strong>, <strong>feedbacks</strong>, <strong>designer_phase_history</strong>, <strong>designer_task_applications</strong>, <strong>designer_ratings</strong>, <strong>customer_requests</strong>, <strong>paid_customers</strong>, <strong>payment_proofs</strong>, <strong>payment_verification_history</strong>, <strong>marketing_clarification_responses</strong>, <strong>quantity_surveyor_evaluations</strong>, <strong>qs_evaluation_review_history</strong>, <strong>qs_review_tasks</strong>, <strong>qs_evaluations</strong>, <strong>qs_notifications</strong>, <strong>documents</strong>, <strong>notifications</strong>, and <strong>audit_logs</strong>. See the full specification above for complete column definitions.</p>
+
+                <h3 id="23-entity-relationship-summary">2.3 Entity Relationship Summary</h3>
+                <pre><code>users ──1:N──> tasks (assignedTo, assignedBy, approvedBy)
+users ──1:N──> submissions
+users ──1:N──> feedbacks
+users ──1:N──> designer_ratings
+users ──1:N──> notifications (ONE per recipient)
+users ──1:N──> audit_logs
+
+tasks ──1:N──> submissions
+tasks ──1:N──> feedbacks
+tasks ──1:N──> designer_phase_history
+tasks ──1:N──> designer_task_applications
+tasks ──1:1──> designer_ratings
+
+customer_requests ──1:1──> paid_customers (source_request_id)
+paid_customers ──1:N──> payment_proofs
+paid_customers ──1:N──> payment_verification_history
+paid_customers ──1:N──> marketing_clarification_responses
+
+qs_review_tasks ──1:1──> qs_evaluations (evaluation_id)
+qs_evaluations ──1:N──> qs_evaluation_review_history
+qs_notifications ──N:1──> qs_review_tasks (task_id)</code></pre>
+            </section>
+
+            <hr>
+
+            <!-- Section 3 -->
+            <section id="3-authentication--authorization">
+                <h2>3. Authentication &amp; Authorization</h2>
+
+                <div class="function-card" id="f-auth-001">
+                    <h4>F-AUTH-001: User Login <span class="badge badge-post">POST</span> <span class="endpoint">/api/v1/auth/login</span></h4>
+                    <p><strong>Roles:</strong> <span class="badge-role">Public</span></p>
+                    <p><strong>Input:</strong> <code>username</code> (3-100 chars), <code>password</code> (8-128 chars)</p>
+                    <p><strong>Output (200):</strong> <code>{ accessToken, refreshToken, user: { id, username, name, role } }</code></p>
+                    <div class="callout">
+                        <strong>Business Rules:</strong> Account must be active. Rate limit: 5 failed attempts per 15 min per IP; 5th failure locks account 30 min. Password hashed with bcrypt (cost 12). If <code>force_password_change = true</code>, response includes <code>forcePasswordChange: true</code>.
+                    </div>
+                    <p><strong>Audit:</strong> <code>login_success</code> / <code>login_failed</code> / <code>account_locked</code>. IP + user agent logged.</p>
+                </div>
+
+                <div class="function-card" id="f-auth-002">
+                    <h4>F-AUTH-002: Token Refresh <span class="badge badge-post">POST</span> <span class="endpoint">/api/v1/auth/refresh</span></h4>
+                    <p><strong>Roles:</strong> <span class="badge-role">Public</span> (cookie-based)</p>
+                    <p><strong>Output:</strong> <code>{ accessToken, refreshToken }</code> (rotated)</p>
+                    <div class="callout"><strong>Business Rules:</strong> Old refresh token revoked on use. Expires after 7 days. If revoked token reused → revoke ALL tokens for that user (fraud detection). Access token claims: <code>{ sub, role, iat, exp }</code>.</div>
+                </div>
+
+                <div class="function-card" id="f-auth-003">
+                    <h4>F-AUTH-003: Logout <span class="badge badge-post">POST</span> <span class="endpoint">/api/v1/auth/logout</span></h4>
+                    <p><strong>Auth:</strong> Bearer token | <strong>Output:</strong> 204 No Content</p>
+                    <p>Revokes specific refresh token. Optional <code>{ allDevices: true }</code> to revoke all user tokens.</p>
+                </div>
+
+                <div class="function-card" id="f-auth-004">
+                    <h4>F-AUTH-004: Forgot Password <span class="badge badge-post">POST</span> <span class="endpoint">/api/v1/auth/forgot-password</span></h4>
+                    <p><strong>Input:</strong> <code>{ email }</code> | <strong>Output:</strong> Always returns success message (prevents enumeration).</p>
+                    <p>Generate unique token (hashed), expire 1 hour, send email with link.</p>
+                </div>
+
+                <div class="function-card" id="f-auth-005">
+                    <h4>F-AUTH-005: Reset Password <span class="badge badge-post">POST</span> <span class="endpoint">/api/v1/auth/reset-password</span></h4>
+                    <p><strong>Input:</strong> <code>{ token, newPassword }</code></p>
+                    <div class="callout"><strong>Business Rules:</strong> New password must differ from last 3. Must include uppercase + lowercase + digit + special char (8-128 chars). Token single-use; all existing refresh tokens revoked. Mark <code>force_password_change = false</code>.</div>
+                </div>
+
+                <div class="function-card" id="f-auth-006">
+                    <h4>F-AUTH-006: RBAC Middleware</h4>
+                    <p>Every endpoint checks JWT role claim against allowed roles. CEO inherits all GM permissions.</p>
+                    <p><strong>Error Responses:</strong> 401 <code>TOKEN_EXPIRED</code> → refresh token; 403 <code>FORBIDDEN</code> → role not permitted; 401 <code>INVALID_TOKEN</code> → re-login required.</p>
+                </div>
+            </section>
+
+            <hr>
+
+            <!-- Section 4 -->
+            <section id="4-marketing-functions">
+                <h2>4. Marketing Functions</h2>
+
+                <div class="function-card" id="f-mkt-001">
+                    <h4>F-MKT-001: Create Customer Request <span class="badge badge-post">POST</span> <span class="endpoint">/api/v1/customer-requests</span></h4>
+                    <p><strong>Roles:</strong> <span class="badge-role">marketing_lead</span> <span class="badge-role">ceo</span></p>
+                    <p><strong>Input:</strong> <code>customerName</code> (1-500), <code>customerPhone</code> (E.164), <code>customerEmail</code> (optional), <code>customerAddress</code> (1-2000), <code>category</code> (enum), <code>serviceDescription</code> (1-5000), <code>preferredStartDate</code> (ISO 8601, not past), <code>budget</code> (positive, max 2 decimals), <code>notes</code> (max 5000).</p>
+                    <p><strong>Output (201):</strong> Full CustomerRequest object with <code>status: "new"</code>.</p>
+                    <div class="callout"><strong>Business Rules:</strong> BR-MKT-001: Status always <code>new</code>. BR-MKT-002: Creator from auth context. BR-MKT-003: Phone validated E.164. BR-MKT-004: preferredStartDate cannot be past.</div>
+                </div>
+
+                <div class="function-card" id="f-mkt-002">
+                    <h4>F-MKT-002: View Customer Requests (List) <span class="badge badge-get">GET</span> <span class="endpoint">/api/v1/customer-requests</span></h4>
+                    <p><strong>Query:</strong> <code>status</code>, <code>category</code>, <code>search</code> (max 200), <code>sortBy</code>, <code>order</code>, <code>page</code>, <code>limit</code> (1-100).</p>
+                    <p>Marketing Lead sees only own requests; CEO sees all. Default sort: newest first.</p>
+                </div>
+
+                <div class="function-card" id="f-mkt-003">
+                    <h4>F-MKT-003: Update Customer Request <span class="badge badge-patch">PATCH</span> <span class="endpoint">/api/v1/customer-requests/{id}</span></h4>
+                    <p>Cannot update if status is <code>scheduled</code> or <code>closed</code> (409). Only creator or CEO. Budget changes >50% flagged.</p>
+                </div>
+
+                <div class="function-card" id="f-mkt-004">
+                    <h4>F-MKT-004: Delete Customer Request <span class="badge badge-delete">DELETE</span> <span class="endpoint">/api/v1/customer-requests/{id}</span></h4>
+                    <p>Cannot delete if transferred to paid customer (409). CEO can force-delete; Marketing Lead only own.</p>
+                </div>
+
+                <div class="function-card" id="f-mkt-005">
+                    <h4>F-MKT-005: Transfer to Paid Customer <span class="badge badge-post">POST</span> <span class="endpoint">/api/v1/paid-customers</span> (multipart/form-data)</h4>
+                    <p><strong>Input:</strong> <code>sourceRequestId</code> (UUID), <code>paymentNote</code> (max 2000), <code>proofFiles</code> (1-5, image/PDF, max 10MB each).</p>
+                    <div class="callout"><strong>Notifications:</strong> ALL <code>finance_officer</code> + ALL <code>ceo</code>. Type: <code>payment_submitted</code>. Title: "New Payment Submitted".</div>
+                </div>
+
+                <div class="function-card" id="f-mkt-006">
+                    <h4>F-MKT-006: Respond to Finance Clarification <span class="badge badge-post">POST</span> <span class="endpoint">/api/v1/paid-customers/{id}/clarify</span></h4>
+                    <p>Only when status = <code>request_clarification</code>. Resets status to <code>pending</code>. Multiple review cycles allowed.</p>
+                </div>
+
+                <div class="function-card" id="f-mkt-007">
+                    <h4>F-MKT-007: View Paid Customers (Marketing View) <span class="badge badge-get">GET</span> <span class="endpoint">/api/v1/paid-customers</span></h4>
+                    <p>Marketing Lead sees only records they transferred (unless CEO).</p>
+                </div>
+            </section>
+
+            <hr>
+
+            <!-- Section 5 -->
+            <section id="5-finance-functions">
+                <h2>5. Finance Functions</h2>
+
+                <div class="function-card" id="f-fin-001">
+                    <h4>F-FIN-001: View Finance Review Queue <span class="badge badge-get">GET</span> <span class="endpoint">/api/v1/paid-customers</span></h4>
+                    <p><strong>Roles:</strong> <span class="badge-role">finance_officer</span> <span class="badge-role">ceo</span> <span class="badge-role">general_manager</span></p>
+                    <p>Tab navigation: Pending | Verified | Rejected | Clarification | CEO-Transferred. Each with count badge.</p>
+                </div>
+
+                <div class="function-card" id="f-fin-002">
+                    <h4>F-FIN-002: Verify Paid Customer Payment <span class="badge badge-post">POST</span> <span class="endpoint">/api/v1/paid-customers/{id}/verify</span></h4>
+                    <p><strong>Input:</strong> <code>action</code> (approve|reject|request_clarification), <code>message</code> (required for reject + clarification, max 5000).</p>
+                    <div class="callout"><strong>Notifications:</strong> Marketing Lead who transferred. Type: <code>payment_reviewed</code>. Title: "Payment {Approved|Rejected|Needs Clarification}".</div>
+                </div>
+
+                <div class="function-card" id="f-fin-003">
+                    <h4>F-FIN-003: View CEO-Transferred Payments <span class="badge badge-get">GET</span> <span class="endpoint">/api/v1/paid-customers?transferredBy={ceo-uuid}&amp;status=pending</span></h4>
+                    <p>Records transferred directly by CEO (no Marketing involvement).</p>
+                </div>
+
+                <div class="function-card" id="f-fin-004">
+                    <h4>F-FIN-004: View Payment Verification History <span class="badge badge-get">GET</span> <span class="endpoint">/api/v1/paid-customers/{id}/verification-history</span></h4>
+                    <p>History immutable. Sorted chronologically ascending.</p>
+                </div>
+            </section>
+
+            <hr>
+
+            <!-- Section 6 -->
+            <section id="6-ceo-functions">
+                <h2>6. CEO Functions</h2>
+                <p>The CEO has full access to all system functions, including those of the General Manager. The CEO is the only role with user management privileges and the ability to override finance decisions.</p>
+
+                <div class="function-card" id="f-ceo-001">
+                    <h4>F-CEO-001: User Management — List Users <span class="badge badge-get">GET</span> <span class="endpoint">/api/v1/users</span></h4>
+                    <p><strong>Query:</strong> <code>role</code>, <code>status</code> (active|inactive|deleted), <code>search</code>, <code>sortBy</code>, <code>order</code>, <code>page</code>, <code>limit</code>.</p>
+                    <p>CEO cannot delete own account. Soft-deleted users excluded by default.</p>
+                </div>
+
+                <div class="function-card" id="f-ceo-002">
+                    <h4>F-CEO-002: User Management — Create User <span class="badge badge-post">POST</span> <span class="endpoint">/api/v1/users</span></h4>
+                    <p><strong>Input:</strong> <code>username</code>, <code>name</code>, <code>email</code>, <code>password</code> (complexity required), <code>role</code> (cannot be <code>ceo</code>), <code>phone</code> (optional, E.164).</p>
+                    <p><code>force_password_change = true</code> for new users.</p>
+                </div>
+
+                <div class="function-card" id="f-ceo-003">
+                    <h4>F-CEO-003: User Management — Update User <span class="badge badge-patch">PATCH</span> <span class="endpoint">/api/v1/users/{id}</span></h4>
+                    <p>Cannot change own role or set own status to inactive/deleted. Role change requires confirmation.</p>
+                </div>
+
+                <div class="function-card" id="f-ceo-004">
+                    <h4>F-CEO-004: User Management — Soft Delete User <span class="badge badge-delete">DELETE</span> <span class="endpoint">/api/v1/users/{id}</span></h4>
+                    <p>Soft delete only — records preserved for audit. All refresh tokens revoked. Assigned tasks remain but show "Deleted User".</p>
+                </div>
+
+                <div class="function-card" id="f-ceo-005">
+                    <h4>F-CEO-005: View Approved Paid Customers <span class="badge badge-get">GET</span> <span class="endpoint">/api/v1/paid-customers</span></h4>
+                    <p>CEO sees ALL records regardless of creator. Full visibility across all statuses.</p>
+                </div>
+
+                <div class="function-card" id="f-ceo-006">
+                    <h4>F-CEO-006: Perform Finance Functions</h4>
+                    <p>CEO inherits all finance officer capabilities. Can override any finance decision including changing already-approved payments.</p>
+                </div>
+
+                <p><strong>F-CEO-007 through F-CEO-022</strong> cover: CRUD Data Collector Tasks, Review Data Collector Tasks, CRUD Designer Tasks/Job Postings, Assign Designer to Task, View Assigned Designers, View Designer Applicants, Review Designer Application, Review Designer Phase Submission, Final Evaluation/Rating, Update Designer Rating, View Designer Performance, View Paused Designer Tasks, CRUD QS Tasks, Assign QS User, Review QS Evaluation, and View QS Review History. <em>See the full specification above for complete details on each function.</em></p>
+            </section>
+
+            <hr>
+
+            <!-- Section 7 -->
+            <section id="7-general-manager-functions">
+                <h2>7. General Manager Functions</h2>
+                <p>The General Manager has all designer management access but is excluded from User Management and Finance override capabilities.</p>
+
+                <div class="function-card" id="f-gm-001">
+                    <h4>F-GM-001: All Designer Management Access</h4>
+                    <p>Inherits F-CEO-009 through F-CEO-022. Excludes User Management and Finance override.</p>
+                    <div class="callout warning"><strong>Route Restrictions:</strong> <code>/users</code> → DENIED (403). Cannot override already-approved finance decisions. Full access to designer assignments, applications, phase reviews, ratings, QS tasks, and Data Collector Tasks.</div>
+                </div>
+            </section>
+
+            <hr>
+
+            <!-- Section 8 -->
+            <section id="8-quantity-surveyor-functions">
+                <h2>8. Quantity Surveyor Functions</h2>
+
+                <div class="function-card" id="f-qs-001">
+                    <h4>F-QS-001: View Assigned QS Review Tasks <span class="badge badge-get">GET</span> <span class="endpoint">/api/v1/qs-review-tasks</span></h4>
+                    <p>QS sees only tasks assigned to them. Tasks highlighted as "New" if <code>status: "pending_review"</code> and not viewed.</p>
+                </div>
+                <div class="function-card" id="f-qs-002">
+                    <h4>F-QS-002: Accept and Begin Review <span class="badge badge-patch">PATCH</span> <span class="endpoint">/api/v1/qs-review-tasks/{id}/status</span></h4>
+                    <p>Transition: <code>pending_review</code> → <code>in_review</code>. Opening detail automatically triggers this.</p>
+                </div>
+                <div class="function-card" id="f-qs-003">
+                    <h4>F-QS-003: Submit QS Evaluation <span class="badge badge-post">POST</span> <span class="endpoint">/api/v1/qs-evaluations</span></h4>
+                    <p><strong>Input:</strong> <code>taskId</code>, <code>costValue</code> (positive, 2 decimals), <code>evaluationNotes</code> (10-5000), <code>recommendation</code> (recommend_approval|recommend_revision).</p>
+                </div>
+                <div class="function-card" id="f-qs-004">
+                    <h4>F-QS-004: View QS Review History and Decisions <span class="badge badge-get">GET</span> <span class="endpoint">/api/v1/qs-evaluations</span></h4>
+                    <p>QS sees own evaluations and decisions. Sorted newest first.</p>
+                </div>
+            </section>
+
+            <hr>
+
+            <!-- Section 9 -->
+            <section id="9-designer-functions">
+                <h2>9. Designer Functions</h2>
+                <p>Designers work through a 4-phase submission workflow: <strong>Case Study → Design Stage → Rendering → Final Stage</strong>. Each phase must be approved before the next unlocks.</p>
+
+                <div class="function-card" id="f-dsgn-001">
+                    <h4>F-DSGN-001: View Assigned Designer Tasks <span class="badge badge-get">GET</span> <span class="endpoint">/api/v1/designer-tasks</span></h4>
+                    <p>Designer sees only tasks assigned to them. Phase progress from <code>designer_phase_history</code>.</p>
+                </div>
+                <div class="function-card" id="f-dsgn-002">
+                    <h4>F-DSGN-002: Submit Case Study Phase <span class="badge badge-post">POST</span> <span class="endpoint">/api/v1/designer-tasks/{id}/phases/case_study/submit</span></h4>
+                    <p>First phase — no prerequisites. Input: <code>note</code> (5-5000), <code>screenshot</code> (optional).</p>
+                </div>
+                <div class="function-card" id="f-dsgn-003">
+                    <h4>F-DSGN-003: Submit Design Stage Phase <span class="badge badge-post">POST</span> — Phase 2</h4>
+                    <p>Requires Case Study <code>approved</code>.</p>
+                </div>
+                <div class="function-card" id="f-dsgn-004">
+                    <h4>F-DSGN-004: Submit Rendering Phase <span class="badge badge-post">POST</span> — Phase 3</h4>
+                    <p>Requires Design Stage <code>approved</code>. Screenshot recommended for 3D render evidence.</p>
+                </div>
+                <div class="function-card" id="f-dsgn-005">
+                    <h4>F-DSGN-005: Submit Final Stage Phase <span class="badge badge-post">POST</span> — Phase 4</h4>
+                    <p>Requires Rendering <code>approved</code>. Screenshot <strong>MANDATORY</strong>. After approval, task <code>completed</code> and eligible for rating.</p>
+                </div>
+                <div class="function-card" id="f-dsgn-007">
+                    <h4>F-DSGN-007: View Open Job Postings <span class="badge badge-get">GET</span> <span class="endpoint">/api/v1/designer-tasks?isPublic=true&amp;assignedTo=null</span></h4>
+                    <p>Designers browse public, unassigned tasks with story points and deadline.</p>
+                </div>
+                <div class="function-card" id="f-dsgn-008">
+                    <h4>F-DSGN-008: Apply for Job Posting <span class="badge badge-post">POST</span> <span class="endpoint">/api/v1/designer-task-applications</span></h4>
+                    <p>Cannot apply twice for same task (409). Status always <code>pending</code> on creation.</p>
+                </div>
+                <p><strong>F-DSGN-006, F-DSGN-009 through F-DSGN-012</strong> cover: View Feedback/Approval History, View Application Status, View Personal Performance Ratings, Upload Telegram Screenshot Evidence, and Update Phase Notes.</p>
+            </section>
+
+            <hr>
+
+            <!-- Section 10 -->
+            <section id="10-site-engineer-functions">
+                <h2>10. Site Engineer Functions</h2>
+                <div class="function-card" id="f-se-001">
+                    <h4>F-SE-001: View Assigned Site Tasks <span class="badge badge-get">GET</span> <span class="endpoint">/api/v1/tasks?taskType=site_engineer</span></h4>
+                    <p>Status filter tabs: All, Pending, In Progress, Completed, Incomplete, Rejected. New tasks highlighted with "New" badge via IntersectionObserver.</p>
+                </div>
+                <div class="function-card" id="f-se-002">
+                    <h4>F-SE-002: Update Task Status <span class="badge badge-patch">PATCH</span> <span class="endpoint">/api/v1/tasks/{id}/status</span></h4>
+                    <p>Valid transitions: pending → in_progress → completed → incomplete. Cannot set <code>rejected</code>.</p>
+                </div>
+                <p><strong>F-SE-003 through F-SE-005</strong> cover: Update Task Description, Upload File Attachments (JPG/PNG/PDF/DOCX/XLSX, max 10MB), and View Task Approval Status.</p>
+            </section>
+
+            <hr>
+
+            <!-- Section 11 -->
+            <section id="11-data-collector-functions">
+                <h2>11. Data Collector Functions</h2>
+                <div class="function-card" id="f-dc-001">
+                    <h4>F-DC-001: View Assigned Data Collection Tasks <span class="badge badge-get">GET</span> <span class="endpoint">/api/v1/data-collector-tasks</span></h4>
+                    <p>Summary stats: Total, Pending, In Progress, Completed. New tasks highlighted until viewed.</p>
+                </div>
+                <div class="function-card" id="f-dc-003">
+                    <h4>F-DC-003: Submit Task Evidence <span class="badge badge-post">POST</span> <span class="endpoint">/api/v1/data-collector-tasks/{id}/submissions</span></h4>
+                    <p>Input: <code>notes</code> (5-5000), <code>attachments</code> (1-5 images, max 10MB), <code>metadata</code> (JSON key-value pairs).</p>
+                </div>
+                <p><strong>F-DC-002 and F-DC-004</strong> cover: View Task Submissions and Update Task Progress (pending → in_progress → completed).</p>
+            </section>
+
+            <hr>
+
+            <!-- Section 12 -->
+            <section id="12-system-administrator-functions">
+                <h2>12. System Administrator Functions</h2>
+                <div class="function-card" id="f-sys-001">
+                    <h4>F-SYS-001: System Configuration Management <span class="badge badge-get">GET</span> / <span class="badge badge-patch">PATCH</span> <span class="endpoint">/api/v1/system/config</span></h4>
+                    <p>Manages: <code>max_file_size_mb</code>, <code>allowed_file_types</code>, <code>rate_limit_per_minute</code>, <code>session_timeout_minutes</code>, <code>refresh_token_days</code>, <code>password_min_length</code>, <code>notification_retention_days</code>, <code>audit_log_retention_days</code>, <code>telegram_bot_token</code>, <code>s3_bucket_name</code>.</p>
+                </div>
+                <div class="function-card" id="f-sys-002">
+                    <h4>F-SYS-002: Audit Log Review and Monitoring <span class="badge badge-get">GET</span> <span class="endpoint">/api/v1/audit-logs</span></h4>
+                    <p>Advanced filtering: <code>action</code>, <code>userId</code>, <code>userRole</code>, <code>entityType</code>, <code>entityId</code>, <code>startDate</code>, <code>endDate</code>, <code>search</code>. Export as CSV/JSON.</p>
+                </div>
+            </section>
+
+            <hr>
+
+            <!-- Section 13 -->
+            <section id="13-notification-system">
+                <h2>13. Notification System</h2>
+                <h3>13.1 System Overview</h3>
+                <p>Two tiers: <strong>Server-side</strong> — PostgreSQL <code>notifications</code> table (one record per recipient per event). <strong>Client-side</strong> — <code>CustomEvent</code> bus via <code>window.dispatchEvent(...)</code> for real-time badge updates.</p>
+
+                <h3>13.2 Notification Lifecycle</h3>
+                <pre><code>Action occurs → Server creates 1 notification per recipient role user
+    → WebSocket push + DB storage
+    → Frontend CustomEvent → badge count update
+    → User views → PATCH /api/v1/notifications/{id}/read
+    → Read notifications persist with readAt timestamp</code></pre>
+
+                <h3>13.6 Notification Types Reference</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Type Constant</th><th>Trigger</th><th>Recipients</th><th>Title Pattern</th></tr></thead>
+                        <tbody>
+                            <tr><td><code>payment_submitted</code></td><td>Marketing transfers to paid</td><td>ALL finance_officer, ALL ceo</td><td>"New Payment Submitted"</td></tr>
+                            <tr><td><code>payment_reviewed</code></td><td>Finance verifies/rejects/clarifies</td><td>Marketing Lead</td><td>"Payment {Approved/Rejected/Needs Clarification}"</td></tr>
+                            <tr><td><code>designer_phase_submitted</code></td><td>Designer submits phase</td><td>ALL ceo, ALL general_manager</td><td>"{Phase} Submission Ready"</td></tr>
+                            <tr><td><code>designer_phase_reviewed</code></td><td>CEO/GM reviews phase</td><td>Assigned designer</td><td>"{Phase} — {Approved/Feedback/Rejected}"</td></tr>
+                            <tr><td><code>designer_final_evaluated</code></td><td>Final rating submitted</td><td>Rated designer</td><td>"Performance Rating Submitted"</td></tr>
+                            <tr><td><code>qs_evaluation_submitted</code></td><td>QS submits evaluation</td><td>ALL ceo, ALL general_manager</td><td>"QS Evaluation Submitted"</td></tr>
+                            <tr><td><code>user_created</code></td><td>CEO creates user</td><td>ALL ceo</td><td>"New User Created"</td></tr>
+                            <tr><td><code>system_announcement</code></td><td>System admin announcement</td><td>Specified roles or all</td><td>Custom title</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3>Notification API</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Method</th><th>Endpoint</th><th>Function ID</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/notifications</code></td><td>F-NOTIF-001</td></tr>
+                            <tr><td><span class="badge badge-patch">PATCH</span></td><td><code>/api/v1/notifications/{id}/read</code></td><td>F-NOTIF-002</td></tr>
+                            <tr><td><span class="badge badge-patch">PATCH</span></td><td><code>/api/v1/notifications/read-all</code></td><td>F-NOTIF-003</td></tr>
+                            <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/notifications/unread-count</code></td><td>F-NOTIF-004</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <hr>
+
+            <!-- Section 14 -->
+            <section id="14-performance-rating-system">
+                <h2>14. Performance Rating System</h2>
+                <h3>14.1 Rating Model</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Dimension</th><th>Scale</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td><code>overallRating</code></td><td>0.0 – 5.0</td><td>Composite overall performance</td></tr>
+                            <tr><td><code>renderingQuality</code></td><td>0.0 – 5.0</td><td>Quality of 3D rendering/viz output</td></tr>
+                            <tr><td><code>timeliness</code></td><td>0.0 – 5.0</td><td>On-time delivery</td></tr>
+                            <tr><td><code>creativity</code></td><td>0.0 – 5.0</td><td>Creative approach and innovation</td></tr>
+                            <tr><td><code>clientUnderstanding</code></td><td>0.0 – 5.0</td><td>Adherence to client requirements</td></tr>
+                            <tr><td><code>revisionEfficiency</code></td><td>0.0 – 5.0</td><td>Efficiency in handling revisions</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <h3>14.2 Rating Statuses</h3>
+                <p><span class="badge badge-get">approved</span> — Finalized, visible to designer. <span class="badge badge-patch">in_review</span> — Under review, not yet visible. <span class="badge badge-delete">rejected</span> — Error in evaluation.</p>
+                <div class="callout success"><strong>Key Rules:</strong> Rating only after all 4 phases approved. One rating per task (one-to-one). <code>revisionCount</code> auto-computed. 48-hour lock after creation for CEO-only changes.</div>
+            </section>
+
+            <hr>
+
+            <!-- Section 15 -->
+            <section id="15-audit-trail-system">
+                <h2>15. Audit Trail System</h2>
+                <h3>15.1 Overview</h3>
+                <p>Every state-changing operation creates an immutable audit log entry capturing who did what, to which entity, at what time, with a JSON diff of changes.</p>
+                <h3>15.3 Audited Actions</h3>
+                <p><strong>Auth:</strong> login_success, login_failed, account_locked, logout, token_refresh, password_reset<br>
+                    <strong>Users:</strong> user_created, user_updated, user_deleted, user_role_changed, user_status_changed<br>
+                <strong>Finance:</strong> payment_submitted, payment_verified, payment_rejected, payment_clarification_requested, payment_override<br>
+            <strong>Tasks:</strong> task_created, task_updated, task_deleted, task_status_changed, task_assigned, task_reviewed<br>
+        <strong>Designer:</strong> designer_task_created, designer_phase_submitted, designer_phase_reviewed, designer_rating_created<br>
+    <strong>System:</strong> system_config_updated, audit_log_exported</p>
+    <h3>15.6 Retention &amp; Compliance</h3>
+    <div class="callout"><strong>Default retention:</strong> 365 days (configurable). Archive to S3 Glacier after retention. GDPR: PII masked in changes diff. Chain of custody via sequential IDs and timestamps. Periodic hash verification for integrity.</div>
+</section>
+
+<hr>
+
+<!-- Section 16 -->
+<section id="16-complete-api-endpoint-catalog">
+    <h2>16. Complete API Endpoint Catalog</h2>
+
+    <h3>16.1 Authentication</h3>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Method</th><th>Endpoint</th><th>Auth</th><th>Roles</th><th>Function ID</th></tr></thead>
+            <tbody>
+                <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/auth/login</code></td><td>No</td><td>Public</td><td>F-AUTH-001</td></tr>
+                <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/auth/refresh</code></td><td>No (cookie)</td><td>Public</td><td>F-AUTH-002</td></tr>
+                <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/auth/logout</code></td><td>Bearer</td><td>Any</td><td>F-AUTH-003</td></tr>
+                <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/auth/forgot-password</code></td><td>No</td><td>Public</td><td>F-AUTH-004</td></tr>
+                <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/auth/reset-password</code></td><td>No</td><td>Public</td><td>F-AUTH-005</td></tr>
+                <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/auth/me</code></td><td>Bearer</td><td>Any</td><td>-</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h3>16.2 Users</h3>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Method</th><th>Endpoint</th><th>Auth</th><th>Roles</th><th>Function ID</th></tr></thead>
+            <tbody>
+                <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/users</code></td><td>Bearer</td><td>ceo</td><td>F-CEO-001</td></tr>
+                <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/users</code></td><td>Bearer</td><td>ceo</td><td>F-CEO-002</td></tr>
+                <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/users/{id}</code></td><td>Bearer</td><td>ceo</td><td>F-CEO-001</td></tr>
+                <tr><td><span class="badge badge-patch">PATCH</span></td><td><code>/api/v1/users/{id}</code></td><td>Bearer</td><td>ceo</td><td>F-CEO-003</td></tr>
+                <tr><td><span class="badge badge-delete">DELETE</span></td><td><code>/api/v1/users/{id}</code></td><td>Bearer</td><td>ceo</td><td>F-CEO-004</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h3>16.4 – 16.14: Remaining Endpoints</h3>
+    <p>The complete API catalog includes endpoints for: <strong>Projects</strong> (CRUD + documents), <strong>Customer Requests</strong> (CRUD), <strong>Paid Customers</strong> (transfer, verify, clarify, history), <strong>Designer Tasks &amp; Job Postings</strong> (CRUD + assign + phases + pause/resume), <strong>Designer Task Applications</strong> (CRUD), <strong>Designer Ratings</strong> (CRUD + summary + leaderboard), <strong>Quantity Surveyor</strong> (review tasks + evaluations + decide + notifications), <strong>Tasks</strong> (generic/site engineer/data collector — CRUD + status + attachments + approval), <strong>Data Collector Tasks</strong> (CRUD + submissions + review), <strong>Notifications</strong> (list + read + read-all + unread-count), <strong>Dashboard &amp; Audit</strong> (dashboard + audit logs + export + summary), and <strong>Documents &amp; System</strong> (documents + system config).</p>
+    <p><em>See sections 16.3 through 16.14 in the full specification for the complete endpoint reference with all methods, paths, auth requirements, roles, and function IDs.</em></p>
+</section>
+
+<hr>
+
+<!-- Section 17 -->
+<section id="17-frontend-requirements-summary">
+    <h2>17. Frontend Requirements Summary</h2>
+
+    <h3>17.1 Technology Stack</h3>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Layer</th><th>Technology</th></tr></thead>
+            <tbody>
+                <tr><td>Framework</td><td>React 18 (TypeScript)</td></tr>
+                <tr><td>Build Tool</td><td>Vite</td></tr>
+                <tr><td>Routing</td><td><code>react-router-dom</code> HashRouter</td></tr>
+                <tr><td>Styling</td><td>Tailwind CSS v4 + shadcn/ui + CSS variables theme</td></tr>
+                <tr><td>UI Components</td><td>Radix UI primitives, MUI, Lucide React icons, Framer Motion</td></tr>
+                <tr><td>Charts</td><td>Recharts (LineChart, AreaChart, RadarChart, PieChart)</td></tr>
+                <tr><td>Persistence</td><td><code>localStorage</code> (15 storage keys) + seed/mock data</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h3>17.2 Pages &amp; Routes</h3>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Route</th><th>Page Component</th><th>Accessible Roles</th></tr></thead>
+            <tbody>
+                <tr><td><code>/</code></td><td>Login</td><td>Public</td></tr>
+                <tr><td><code>/dashboard</code></td><td>Dashboard</td><td>All (role-redirected)</td></tr>
+                <tr><td><code>/customers</code></td><td>CustomerData</td><td>ceo, marketing_lead</td></tr>
+                <tr><td><code>/paid-customers</code></td><td>PaidCustomers</td><td>ceo, general_manager, marketing_lead</td></tr>
+                <tr><td><code>/finance-verifications</code></td><td>FinanceVerifications</td><td>finance_officer, ceo, general_manager</td></tr>
+                <tr><td><code>/users</code></td><td>UserManagement</td><td>ceo (exclusive)</td></tr>
+                <tr><td><code>/site-engineer-tasks</code></td><td>SiteEngineerTasks</td><td>site_engineer</td></tr>
+                <tr><td><code>/designer-tasks</code></td><td>DesignerTasks</td><td>designer</td></tr>
+                <tr><td><code>/performance-ratings</code></td><td>DesignerPerformanceDashboard</td><td>ceo, general_manager, designer</td></tr>
+                <tr><td><code>/quantity-surveyor-live</code></td><td>QuantitySurveyorDashboard</td><td>quantity_surveyor</td></tr>
+                <tr><td><code>/job-postings</code></td><td>JobPostings</td><td>ceo, general_manager</td></tr>
+                <tr><td><code>/open-job-postings</code></td><td>DesignerOpenJobPostings</td><td>designer, ceo, general_manager</td></tr>
+                <tr><td><code>/designer-applications</code></td><td>DesignerApplications</td><td>ceo, general_manager</td></tr>
+                <tr><td><code>/designer-assignments</code></td><td>DesignerAssignments</td><td>ceo, general_manager</td></tr>
+                <tr><td><code>/data-collector-tasks</code></td><td>DataCollectorTasks</td><td>ceo, general_manager</td></tr>
+                <tr><td><code>/quantity-surveyor-tasks</code></td><td>QuantitySurveyorTasks</td><td>ceo, general_manager</td></tr>
+                <tr><td><code>/approvals</code></td><td>Approvals</td><td>ceo, general_manager</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h3>17.5 localStorage Keys</h3>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Key</th><th>Purpose</th></tr></thead>
+            <tbody>
+                <tr><td><code>user</code></td><td>Current authenticated user session</td></tr>
+                <tr><td><code>customer-requests</code></td><td>Customer intake records</td></tr>
+                <tr><td><code>paid-customers</code></td><td>Paid customer and finance workflow records</td></tr>
+                <tr><td><code>workflow-tasks</code></td><td>Site engineer / general tasks</td></tr>
+                <tr><td><code>designer-tasks</code></td><td>Designer task catalog and assignments</td></tr>
+                <tr><td><code>designer-task-applications</code></td><td>Designer job applications</td></tr>
+                <tr><td><code>designer-submission-progress</code></td><td>Phase-by-phase designer progress</td></tr>
+                <tr><td><code>data-collector-tasks-v2</code></td><td>Data collector task board</td></tr>
+                <tr><td><code>quantity-surveyor-review-tasks</code></td><td>QS review queue items</td></tr>
+                <tr><td><code>quantity-surveyor-evaluations</code></td><td>QS evaluation records</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h3>17.8 Development Commands</h3>
+    <pre><code>npm run dev    # Start Vite dev server
+npm run build  # Production build
+npm ci         # Clean install (CI)</code></pre>
+
+    <h3>17.9 Deployment</h3>
+    <div class="callout">
+        <strong>Base path:</strong> <code>/workflow-managment/</code> (config in <code>vite.config.ts</code>)<br>
+        <strong>CI:</strong> GitHub Actions deploys to GitHub Pages on push to <code>main</code><br>
+        <strong>Node version:</strong> 20 | <strong>Package manager:</strong> npm
+    </div>
+</section>
+
+<hr>
+<footer style="text-align:center;padding:32px 0;color:var(--text-muted);font-size:13px;">
+    <p>Workflow Management System — Technical Specification v1.0 — Last Updated 2026-05-30</p>
+    <p>Base Path: <code>/api/v1</code> | All rights reserved.</p>
+</footer>
+
+</div><!-- /content -->
+</div><!-- /main -->
+
+<script>
+    (function() {
+        // Sidebar toggle
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        const menuToggle = document.getElementById('menuToggle');
+
+        function openSidebar() {
+            sidebar.classList.add('open');
+            overlay.classList.add('show');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeSidebar() {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('show');
+            document.body.style.overflow = '';
+        }
+
+        menuToggle.addEventListener('click', () => {
+            if (sidebar.classList.contains('open')) closeSidebar();
+            else openSidebar();
+        });
+        overlay.addEventListener('click', closeSidebar);
+
+        // Close sidebar on nav click (mobile)
+        document.querySelectorAll('#sidebarNav a').forEach(link => {
+            link.addEventListener('click', () => {
+                if (window.innerWidth <= 1024) closeSidebar();
+            });
+        });
+
+        // Active nav tracking via IntersectionObserver
+        const sections = document.querySelectorAll('section[id]');
+        const navLinks = document.querySelectorAll('#sidebarNav a[href^="#"]');
+
+        const observer = new IntersectionObserver((entries) => {
+            let activeId = null;
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    activeId = entry.target.id;
+                }
+            });
+            if (activeId) {
+                navLinks.forEach(link => {
+                    link.classList.toggle('active', link.getAttribute('href') === '#' + activeId);
+                });
+                // Also check parent sections
+                const activeSection = document.getElementById(activeId);
+                if (activeSection) {
+                    const parentSection = activeSection.closest('section[id]');
+                    if (parentSection && parentSection.id !== activeId) {
+                        navLinks.forEach(link => {
+                            if (link.getAttribute('href') === '#' + parentSection.id) {
+                                link.classList.add('active');
+                            }
+                        });
+                    }
+                }
+            }
+        }, { rootMargin: '-80px 0px -60% 0px', threshold: 0.1 });
+
+        sections.forEach(section => observer.observe(section));
+
+        // Search functionality
+        const searchInput = document.getElementById('searchInput');
+        const mainContent = document.getElementById('mainContent');
+
+        searchInput.addEventListener('input', function() {
+            const query = this.value.trim().toLowerCase();
+            const allSearchable = mainContent.querySelectorAll(
+                'h1, h2, h3, h4, p, li, td, th, code, pre, .function-card, .callout, details, .doc-meta span'
+            );
+
+            // Remove old highlights
+            mainContent.querySelectorAll('.search-highlight').forEach(el => {
+                el.replaceWith(el.textContent);
+            });
+            mainContent.querySelectorAll('.hidden-by-search').forEach(el => {
+                el.classList.remove('hidden-by-search');
+            });
+
+            if (query.length < 2) return;
+
+            // Collect sections that match
+            const matchingSectionIds = new Set();
+            const allSections = mainContent.querySelectorAll('section[id]');
+            const allFunctionCards = mainContent.querySelectorAll('.function-card');
+            const allDetails = mainContent.querySelectorAll('details');
+            const allTables = mainContent.querySelectorAll('.table-wrap');
+
+            // Search in text nodes
+            function searchInElement(el) {
+                if (el.classList.contains('search-highlight')) return;
+                const text = el.textContent.toLowerCase();
+                if (text.includes(query)) {
+                    return true;
+                }
+                return false;
+            }
+
+            // Check sections
+            allSections.forEach(section => {
+                if (searchInElement(section)) {
+                    matchingSectionIds.add(section.id);
+                }
+            });
+
+            // Check function cards
+            allFunctionCards.forEach(card => {
+                const match = searchInElement(card);
+                if (!match) {
+                    card.classList.add('hidden-by-search');
+                } else {
+                    card.classList.remove('hidden-by-search');
+                    const parentSection = card.closest('section[id]');
+                    if (parentSection) matchingSectionIds.add(parentSection.id);
+                }
+            });
+
+            // Check details
+            allDetails.forEach(detail => {
+                const match = searchInElement(detail);
+                if (!match && query.length > 2) {
+                    detail.classList.add('hidden-by-search');
+                } else {
+                    detail.classList.remove('hidden-by-search');
+                }
+            });
+
+            // Check tables
+            allTables.forEach(table => {
+                const match = searchInElement(table);
+                if (!match && query.length > 2) {
+                    table.classList.add('hidden-by-search');
+                } else {
+                    table.classList.remove('hidden-by-search');
+                }
+            });
+
+            // Hide non-matching sections entirely
+            allSections.forEach(section => {
+                if (!matchingSectionIds.has(section.id) && query.length > 2) {
+                    // Check if any child function cards still match
+                    const childCards = section.querySelectorAll('.function-card');
+                    let anyChildVisible = false;
+                    childCards.forEach(card => {
+                        if (!card.classList.contains('hidden-by-search')) {
+                            anyChildVisible = true;
+                        }
+                    });
+                    if (!anyChildVisible) {
+                        section.classList.add('hidden-by-search');
+                    } else {
+                        section.classList.remove('hidden-by-search');
+                    }
+                } else {
+                    section.classList.remove('hidden-by-search');
+                }
+            });
+
+            // Highlight matching text in visible elements
+            if (query.length >= 3) {
+                highlightText(mainContent, query);
+            }
+        });
+
+        function highlightText(container, query) {
+            const walker = document.createTreeWalker(
+                container,
+                NodeFilter.SHOW_TEXT,
+                null,
+                false
+            );
+            const textNodes = [];
+            while (walker.nextNode()) {
+                const node = walker.currentNode;
+                if (node.parentElement &&
+                    !['SCRIPT', 'STYLE', 'INPUT', 'TEXTAREA', 'CODE', 'PRE'].includes(node.parentElement
+                        .tagName) &&
+                    !node.parentElement.classList.contains('search-highlight') &&
+                    !node.parentElement.closest('.sidebar') &&
+                    !node.parentElement.closest('.topbar')) {
+                    textNodes.push(node);
+                }
+            }
+
+            textNodes.forEach(node => {
+                const text = node.textContent;
+                const lower = text.toLowerCase();
+                const idx = lower.indexOf(query.toLowerCase());
+                if (idx >= 0) {
+                    const span = document.createElement('span');
+                    span.className = 'search-highlight';
+                    const before = text.substring(0, idx);
+                    const match = text.substring(idx, idx + query.length);
+                    const after = text.substring(idx + query.length);
+                    span.textContent = match;
+                    const fragment = document.createDocumentFragment();
+                    if (before) fragment.appendChild(document.createTextNode(before));
+                    fragment.appendChild(span);
+                    if (after) fragment.appendChild(document.createTextNode(after));
+                    node.parentNode.replaceChild(fragment, node);
+                }
+            });
+        }
+
+        // Keyboard shortcut for search
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                searchInput.focus();
+                searchInput.select();
+            }
+            if (e.key === 'Escape' && document.activeElement === searchInput) {
+                searchInput.value = '';
+                searchInput.dispatchEvent(new Event('input'));
+                searchInput.blur();
+            }
+        });
+
+        console.log('📋 Workflow Management System — Technical Specification v1.0');
+        console.log('   Press Ctrl+K to search • Click sidebar to navigate');
+    })();
+</script>
+</body>
+</html>

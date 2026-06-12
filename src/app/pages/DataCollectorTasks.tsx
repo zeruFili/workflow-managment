@@ -370,7 +370,7 @@ export function DataCollectorTasks() {
       text: feedbackText.trim(),
       createdAt: new Date().toISOString(),
       createdBy: user.id,
-      createdByName: user.name,
+      createdByName: user.full_name,
     };
 
     const updated = tasks.map((t) =>

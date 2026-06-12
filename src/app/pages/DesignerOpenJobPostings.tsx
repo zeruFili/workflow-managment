@@ -195,7 +195,7 @@ export function DesignerOpenJobPostings() {
       id: `app-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       taskId: posting.id,
       applicantId: user.id,
-      applicantName: user.name ?? 'Unknown Designer',
+      applicantName: user.full_name ?? 'Unknown Designer',
       applicantRole: 'designer',
       status: 'pending',
       message: applyMessage.trim(),

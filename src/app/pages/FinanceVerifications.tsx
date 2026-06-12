@@ -669,7 +669,7 @@ export function FinanceVerifications() {
 
   if (!user) return null;
 
-  const financeMemberName = user.name;
+  const financeMemberName = user.full_name;
 
   const summary = useMemo(
     () => ({
@@ -957,7 +957,7 @@ export function FinanceVerifications() {
           </div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm min-w-[240px]">
             <p className="text-xs uppercase tracking-wide text-slate-500">Viewing as</p>
-            <p className="mt-1 font-medium text-slate-900">{user.name}</p>
+            <p className="mt-1 font-medium text-slate-900">{user.full_name}</p>
             <p className="text-sm text-slate-500">{categoryLabel}</p>
           </div>
         </div>

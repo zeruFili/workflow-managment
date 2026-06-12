@@ -1,0 +1,3322 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Technical Specification — Workflow Management System</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+:root {
+  --sidebar-width: 300px;
+  --sidebar-bg: #0f1117;
+  --sidebar-text: #b4bcc9;
+  --sidebar-active: #ffffff;
+  --sidebar-hover-bg: #1a1d2e;
+  --content-bg: #ffffff;
+  --text-primary: #1a1a2e;
+  --text-secondary: #4a5568;
+  --accent: #3b82f6;
+  --accent-light: #eff6ff;
+  --border: #e2e8f0;
+  --code-bg: #1e293b;
+  --code-text: #e2e8f0;
+  --table-stripe: #f8fafc;
+  --table-border: #e2e8f0;
+  --header-bg: #f1f5f9;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; font-size: 16px; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: var(--text-primary);
+  background: var(--content-bg);
+  line-height: 1.7;
+  display: flex;
+  min-height: 100vh;
+}
+.sidebar {
+  position: fixed; top: 0; left: 0; bottom: 0;
+  width: var(--sidebar-width);
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text);
+  z-index: 100;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  transition: transform 0.3s ease;
+}
+.sidebar-header {
+  padding: 24px 20px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+.sidebar-header h2 {
+  font-size: 1rem; font-weight: 700; color: #fff;
+  letter-spacing: -0.01em; line-height: 1.3;
+}
+.sidebar-header .subtitle {
+  font-size: 0.7rem; color: #64748b; margin-top: 4px;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.sidebar-nav {
+  flex: 1; overflow-y: auto; overflow-x: hidden; padding: 12px 0;
+}
+.sidebar-nav::-webkit-scrollbar { width: 4px; }
+.sidebar-nav::-webkit-scrollbar-track { background: transparent; }
+.sidebar-nav::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
+.toc-list { list-style: none; }
+.toc-link {
+  display: block; padding: 6px 20px;
+  color: var(--sidebar-text); text-decoration: none;
+  font-size: 0.8rem; line-height: 1.4;
+  border-left: 3px solid transparent;
+  transition: all 0.15s ease;
+}
+.toc-link:hover { color: #fff; background: var(--sidebar-hover-bg); border-left-color: rgba(255,255,255,0.2); }
+.toc-link.active { color: var(--accent); background: rgba(59,130,246,0.1); border-left-color: var(--accent); font-weight: 600; }
+.toc-link.toc-h2 { font-weight: 600; font-size: 0.82rem; color: #e2e8f0; padding-top: 8px; padding-bottom: 6px; }
+.toc-link.toc-h3 { padding-left: 36px; font-size: 0.75rem; }
+.toc-link.toc-h2:hover { color: #fff; }
+.main {
+  margin-left: var(--sidebar-width);
+  flex: 1; min-width: 0;
+  padding: 48px 56px 96px;
+  max-width: 960px;
+}
+.mobile-header {
+  display: none; position: fixed;
+  top: 0; left: 0; right: 0; height: 56px;
+  background: var(--sidebar-bg); color: #fff;
+  z-index: 110; align-items: center; padding: 0 16px; gap: 12px;
+}
+.hamburger {
+  background: none; border: none; color: #fff;
+  font-size: 1.5rem; cursor: pointer; padding: 4px; line-height: 1; display: flex;
+}
+.mobile-header-title { font-size: 0.85rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99; }
+.content h1 {
+  font-size: 2.2rem; font-weight: 800; letter-spacing: -0.03em;
+  margin-bottom: 0.5rem; color: #0f1117; line-height: 1.2;
+}
+.content h2 {
+  font-size: 1.6rem; font-weight: 700; margin-top: 3rem; margin-bottom: 1rem;
+  padding-bottom: 0.5rem; border-bottom: 1px solid var(--border);
+  color: #1a1a2e; letter-spacing: -0.02em;
+}
+.content h3 { font-size: 1.2rem; font-weight: 600; margin-top: 2rem; margin-bottom: 0.75rem; color: #2d3748; }
+.content h4 { font-size: 1rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.5rem; color: #4a5568; }
+.content p { margin-bottom: 1rem; color: var(--text-secondary); line-height: 1.75; }
+.content a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 0.2s; }
+.content a:hover { border-bottom-color: var(--accent); }
+.content strong { color: #1a1a2e; font-weight: 600; }
+.content em { color: #64748b; }
+.content table {
+  width: 100%; border-collapse: collapse;
+  margin: 1.25rem 0 1.75rem; font-size: 0.875rem;
+  border-radius: 8px; overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.content thead th {
+  background: var(--header-bg); color: #475569; font-weight: 600;
+  text-align: left; padding: 10px 14px; font-size: 0.8rem;
+  text-transform: uppercase; letter-spacing: 0.03em;
+  border-bottom: 2px solid var(--table-border);
+}
+.content tbody td {
+  padding: 10px 14px; border-bottom: 1px solid var(--table-border);
+  color: var(--text-secondary); vertical-align: top; line-height: 1.5;
+}
+.content tbody tr:nth-child(even) { background: var(--table-stripe); }
+.content tbody tr:hover { background: #f0f4ff; }
+.content tbody td:first-child { font-weight: 500; color: #1e293b; font-family: 'SF Mono','Fira Code','Fira Mono',Menlo,Consolas,monospace; font-size: 0.8rem; white-space: nowrap; }
+.content pre {
+  background: var(--code-bg); color: var(--code-text);
+  padding: 18px 22px; border-radius: 10px; overflow-x: auto;
+  margin: 1.25rem 0 1.75rem; font-size: 0.82rem; line-height: 1.6;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.05);
+}
+.content pre code { font-family: 'SF Mono','Fira Code','Fira Mono',Menlo,Consolas,monospace; background: none; padding: 0; font-size: inherit; color: inherit; }
+.content code {
+  font-family: 'SF Mono','Fira Code','Fira Mono',Menlo,Consolas,monospace;
+  background: #f1f5f9; color: #334155;
+  padding: 2px 6px; border-radius: 4px; font-size: 0.85em; font-weight: 500;
+}
+.content ul, .content ol { margin: 0.75rem 0 1.25rem 1.5rem; color: var(--text-secondary); }
+.content li { margin-bottom: 0.35rem; line-height: 1.65; }
+.content blockquote {
+  border-left: 4px solid var(--accent); background: var(--accent-light);
+  margin: 1.25rem 0; padding: 14px 20px; border-radius: 0 8px 8px 0; color: #1e40af;
+}
+.content blockquote p { margin-bottom: 0; color: inherit; }
+.content hr { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+.back-to-top {
+  position: fixed; bottom: 24px; right: 24px; z-index: 50;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--accent); color: #fff; border: none;
+  cursor: pointer; font-size: 1.2rem;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transform: translateY(10px);
+  transition: all 0.25s ease; pointer-events: none;
+  box-shadow: 0 4px 12px rgba(59,130,246,0.3);
+}
+.back-to-top.visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
+.back-to-top:hover { background: #2563eb; transform: translateY(-2px); }
+@media (max-width: 860px) {
+  .sidebar { transform: translateX(-100%); box-shadow: 4px 0 20px rgba(0,0,0,0.3); }
+  .sidebar.open { transform: translateX(0); }
+  .sidebar-overlay.open { display: block; }
+  .main { margin-left: 0; padding: 72px 20px 48px; max-width: 100%; }
+  .mobile-header { display: flex; }
+  .content h1 { font-size: 1.6rem; }
+  .content h2 { font-size: 1.3rem; margin-top: 2rem; }
+  .content h3 { font-size: 1.05rem; }
+  .content table { font-size: 0.75rem; }
+  .content thead th, .content tbody td { padding: 8px 10px; }
+  .content pre { font-size: 0.72rem; padding: 14px 16px; }
+}
+@media print {
+  .sidebar, .mobile-header, .back-to-top, .sidebar-overlay { display: none !important; }
+  .main { margin-left: 0; padding: 20px 0; max-width: 100%; }
+  .content pre { border: 1px solid #ccc; box-shadow: none; background: #f8f8f8; color: #000; }
+}
+</style>
+</head>
+<body>
+
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <h2>Workflow Management<br>System</h2>
+    <div class="subtitle">Technical Specification v1.0</div>
+  </div>
+  <nav class="sidebar-nav" id="sidebar-nav">
+    <ul class="toc-list" id="toc-list"></ul>
+  </nav>
+</div>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+<div class="mobile-header">
+  <button class="hamburger" id="hamburger" aria-label="Toggle menu">&#9776;</button>
+  <span class="mobile-header-title">Technical Specification</span>
+</div>
+
+<main class="main">
+  <div class="content" id="content"></div>
+</main>
+
+<button class="back-to-top" id="back-to-top" title="Back to top">&#8593;</button>
+
+<script type="text/markdown" id="markdown-content">
+# Technical Specification — Workflow Management System
+
+**Document Version:** 1.0
+**Last Updated:** 2026-05-30
+**Base Path:** `/api/v1`
+
+---
+
+## Table of Contents
+
+1. [System Architecture](#1-system-architecture)
+2. [Data Models (PostgreSQL Schema)](#2-data-models)
+3. [Authentication & Authorization](#3-authentication--authorization)
+4. [Marketing Functions](#4-marketing-functions)
+5. [Finance Functions](#5-finance-functions)
+6. [CEO Functions](#6-ceo-functions)
+7. [General Manager Functions](#7-general-manager-functions)
+8. [Quantity Surveyor Functions](#8-quantity-surveyor-functions)
+9. [Designer Functions](#9-designer-functions)
+10. [Site Engineer Functions](#10-site-engineer-functions)
+11. [Data Collector Functions](#11-data-collector-functions)
+12. [System Administrator Functions](#12-system-administrator-functions)
+13. [Notification System](#13-notification-system)
+14. [Performance Rating System](#14-performance-rating-system)
+15. [Audit Trail System](#15-audit-trail-system)
+16. [Complete API Endpoint Catalog](#16-complete-api-endpoint-catalog)
+17. [Frontend Requirements Summary](#17-frontend-requirements-summary)
+
+---
+
+
+## 1. System Architecture
+
+### 1.1 High-Level Architecture
+
+```
+Frontend (React SPA + HashRouter + Vite)
+        |
+        v
+Backend API Gateway (Node.js NestJS or Python FastAPI)
+    - Auth Module (JWT + RBAC Middleware)
+    - Rate Limiter
+    - Business Logic Services
+        |
+    ┌───┼───┐
+    v   v   v
+PostgreSQL  S3/MinIO   Redis
+(Primary)  (Files)    (Cache/Jobs)
+```
+
+### 1.2 Technology Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Backend | Node.js 20+ (NestJS) or Python 3.12+ (FastAPI) |
+| Database | PostgreSQL 16+ with JSONB support |
+| ORM | TypeORM / Prisma / SQLAlchemy |
+| Cache/Queue | Redis 7+ with BullMQ / Celery |
+| File Storage | AWS S3 / MinIO with signed URLs |
+| Auth | JWT access tokens (15min) + refresh tokens (7 days, httpOnly cookie) |
+| Realtime | Socket.IO / WebSocket for notifications |
+| Search | PostgreSQL tsvector or Elasticsearch |
+
+### 1.3 API Conventions
+
+| Convention | Detail |
+|------------|--------|
+| Base URL | `/api/v1` |
+| Content Type | `application/json` (files: `multipart/form-data`) |
+| Auth Header | `Authorization: Bearer <access_token>` |
+| Refresh Token | `httpOnly` cookie named `refresh_token` |
+| Pagination | `?page=1&limit=20` → `{ data: [], meta: { total, page, limit, totalPages } }` |
+| Sorting | `?sortBy=field&order=asc|desc` |
+| Error Format | `{ error: { code: string, message: string, details?: any } }` |
+| HTTP Codes | 200, 201, 204, 400, 401, 403, 404, 409, 422, 429, 500 |
+
+---
+
+## 2. Data Models
+
+### 2.1 PostgreSQL Enumerated Types
+
+```sql
+CREATE TYPE user_role AS ENUM (
+  'ceo','general_manager','marketing_lead','finance_officer',
+  'data_collector','quantity_surveyor','designer','site_engineer','system_administrator'
+);
+
+CREATE TYPE task_status AS ENUM (
+  'pending','in_progress','completed','incomplete','rejected'
+);
+
+CREATE TYPE approval_status AS ENUM ('pending','approved','rejected');
+CREATE TYPE payment_verification_status AS ENUM (
+  'pending','verified','approved','rejected','request_clarification'
+);
+CREATE TYPE designer_task_application_status AS ENUM ('pending','assigned','rejected');
+CREATE TYPE designer_phase AS ENUM ('case_study','design_stage','rendering','final_stage');
+CREATE TYPE review_action AS ENUM ('approved','rejected','feedback','request_clarification');
+CREATE TYPE qs_recommendation AS ENUM ('recommend_approval','recommend_revision');
+CREATE TYPE qs_review_status AS ENUM ('pending_review','in_review','record_submitted');
+CREATE TYPE qs_decision AS ENUM ('pending','approved','feedback');
+CREATE TYPE project_stage AS ENUM ('lead','design','approval','execution','completed');
+CREATE TYPE project_status AS ENUM ('active','on_hold','completed');
+CREATE TYPE customer_request_category AS ENUM ('home_design','finishing_work','hair_salon_design','other');
+CREATE TYPE customer_request_status AS ENUM ('new','in_review','scheduled','closed');
+
+CREATE TYPE notification_type AS ENUM (
+  'customer_created','payment_submitted','payment_reviewed',
+  'payment_clarification_requested','payment_clarification_responded',
+  'task_assigned','task_submitted','task_reviewed',
+  'designer_application','designer_assigned',
+  'designer_phase_submitted','designer_phase_reviewed',
+  'designer_paused','designer_resumed','designer_final_evaluated',
+  'qs_task_assigned','qs_evaluation_submitted','qs_evaluation_reviewed',
+  'data_collector_submitted','data_collector_reviewed',
+  'site_engineer_submitted','site_engineer_reviewed',
+  'user_created','user_updated','user_deleted','system_announcement'
+);
+```
+
+### 2.2 Core Tables
+
+**users**
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | gen_random_uuid() |
+| username | VARCHAR(100) UNIQUE NOT NULL | |
+| name | VARCHAR(255) NOT NULL | Display name |
+| email | VARCHAR(255) | Optional, unique |
+| password_hash | VARCHAR(255) NOT NULL | bcrypt cost 12 |
+| role | user_role NOT NULL | RBAC role |
+| is_active | BOOLEAN DEFAULT TRUE | Soft delete |
+| avatar_url | TEXT | |
+| telegram_id | VARCHAR(100) | Telegram bridge |
+| force_password_change | BOOLEAN DEFAULT FALSE | First login flag |
+| created_at | TIMESTAMPTZ DEFAULT now() | |
+| updated_at | TIMESTAMPTZ DEFAULT now() | |
+| last_login_at | TIMESTAMPTZ | |
+
+**refresh_tokens**
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| user_id | UUID FK → users | CASCADE delete |
+| token_hash | VARCHAR(255) UNIQUE | Hashed refresh token |
+| expires_at | TIMESTAMPTZ NOT NULL | 7 days |
+| revoked | BOOLEAN DEFAULT FALSE | |
+| created_at | TIMESTAMPTZ | |
+
+**password_reset_tokens**
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| user_id | UUID FK → users | CASCADE |
+| token_hash | VARCHAR(255) UNIQUE | |
+| expires_at | TIMESTAMPTZ NOT NULL | 1 hour |
+| used | BOOLEAN DEFAULT FALSE | |
+
+**projects**
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| name | VARCHAR(500) NOT NULL | |
+| client_name | VARCHAR(500) | |
+| description | TEXT | |
+| stage | project_stage DEFAULT 'lead' | lead/design/approval/execution/completed |
+| status | project_status DEFAULT 'active' | active/on_hold/completed |
+| deadline | TIMESTAMPTZ | |
+| created_by | UUID FK → users NOT NULL | |
+| assigned_to | UUID FK → users | |
+| created_at | TIMESTAMPTZ DEFAULT now() | |
+| updated_at | TIMESTAMPTZ DEFAULT now() | |
+
+**tasks** (parent table for all task types)
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| project_id | UUID FK → projects | SET NULL on delete |
+| title | VARCHAR(500) NOT NULL | |
+| description | TEXT | |
+| instruction | TEXT | |
+| task_type | VARCHAR(50) DEFAULT 'generic' | generic/designer/data_collector/quantity_surveyor |
+| assigned_to | UUID FK → users | |
+| assigned_by | UUID FK → users NOT NULL | |
+| assigned_at | TIMESTAMPTZ | |
+| status | task_status DEFAULT 'pending' | |
+| deadline | TIMESTAMPTZ | |
+| approval_status | approval_status DEFAULT 'pending' | |
+| approval_feedback | TEXT | |
+| approved_by | UUID FK → users | |
+| approved_at | TIMESTAMPTZ | |
+| telegram_screenshot | TEXT | URL |
+| is_public | BOOLEAN DEFAULT FALSE | Designer job posting flag |
+| story_points | INTEGER DEFAULT 0 | Designer tasks only |
+| is_paused | BOOLEAN DEFAULT FALSE | |
+| pause_reason | TEXT | |
+| pause_resume_date | TIMESTAMPTZ | |
+| paused_at | TIMESTAMPTZ | |
+| paused_by | UUID FK → users | |
+| resumed_at | TIMESTAMPTZ | |
+| resumed_by | UUID FK → users | |
+| created_at | TIMESTAMPTZ DEFAULT now() | |
+| updated_at | TIMESTAMPTZ DEFAULT now() | |
+
+**submissions**
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| task_id | UUID FK → tasks NOT NULL | CASCADE delete |
+| submitted_by | UUID FK → users NOT NULL | |
+| submitted_by_name | VARCHAR(255) | Denormalized |
+| notes | TEXT | |
+| metadata | JSONB DEFAULT '{}' | Flexible metadata |
+| submitted_at | TIMESTAMPTZ DEFAULT now() | |
+
+**submission_attachments**
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| submission_id | UUID FK → submissions | CASCADE |
+| file_url | TEXT NOT NULL | |
+| file_name | VARCHAR(500) NOT NULL | |
+| file_type | VARCHAR(100) NOT NULL | MIME type |
+| file_size | BIGINT NOT NULL | Bytes |
+| is_screenshot | BOOLEAN DEFAULT FALSE | |
+| uploaded_at | TIMESTAMPTZ | |
+
+**feedbacks**
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| task_id | UUID FK → tasks NOT NULL | CASCADE |
+| sender_id | UUID FK → users NOT NULL | |
+| sender_name | VARCHAR(255) | |
+| body | TEXT NOT NULL | Rich text (HTML) |
+| version | INTEGER DEFAULT 1 | Increments on edit |
+| sent_at | TIMESTAMPTZ DEFAULT now() | |
+
+**designer_phase_history**
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| task_id | UUID FK → tasks NOT NULL | CASCADE |
+| phase | designer_phase NOT NULL | case_study/design_stage/rendering/final_stage |
+| action | review_action NOT NULL | approved/rejected/feedback |
+| reviewer_id | UUID FK → users NOT NULL | CEO/GM reviewer |
+| reviewer_name | VARCHAR(255) | Denormalized |
+| message | TEXT | Review feedback |
+| designer_note | TEXT | Designer submission note snapshot |
+| designer_screenshot | TEXT | Designer screenshot snapshot (URL) |
+| designer_submission_id | UUID FK → submissions | |
+| reviewed_at | TIMESTAMPTZ DEFAULT now() | |
+| created_at | TIMESTAMPTZ DEFAULT now() | |
+
+**designer_task_applications**
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| task_id | UUID FK → tasks NOT NULL | CASCADE |
+| applicant_id | UUID FK → users NOT NULL | Designer |
+| applicant_name | VARCHAR(255) NOT NULL | |
+| message | TEXT | Application message |
+| status | designer_task_application_status DEFAULT 'pending' | |
+| reviewed_by | UUID FK → users | |
+| reviewed_by_name | VARCHAR(255) | |
+| reviewed_at | TIMESTAMPTZ | |
+| review_note | TEXT | |
+| applied_at | TIMESTAMPTZ DEFAULT now() | |
+
+**designer_ratings**
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| designer_id | UUID FK → users NOT NULL | |
+| task_id | UUID FK → tasks NOT NULL | |
+| story_points | INTEGER NOT NULL | |
+| overall_rating | NUMERIC(3,1) NOT NULL CHECK (>=0 AND <=5) | |
+| rendering_quality | NUMERIC(3,1) NOT NULL CHECK (>=0 AND <=5) | |
+| timeliness | NUMERIC(3,1) NOT NULL CHECK (>=0 AND <=5) | |
+| creativity | NUMERIC(3,1) NOT NULL CHECK (>=0 AND <=5) | |
+| client_understanding | NUMERIC(3,1) NOT NULL CHECK (>=0 AND <=5) | |
+| revision_efficiency | NUMERIC(3,1) CHECK (>=0 AND <=5) | |
+| revision_count | INTEGER DEFAULT 0 | Auto-computed |
+| feedback | TEXT | |
+| status | VARCHAR(20) DEFAULT 'approved' | approved/rejected/in_review |
+| rated_by | UUID FK → users NOT NULL | |
+| rated_at | TIMESTAMPTZ DEFAULT now() | |
+| created_at | TIMESTAMPTZ DEFAULT now() | |
+| updated_at | TIMESTAMPTZ DEFAULT now() | |
+
+**customer_requests**
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| customer_name | VARCHAR(500) NOT NULL | |
+| customer_phone | VARCHAR(50) NOT NULL | E.164 format |
+| customer_email | VARCHAR(255) | |
+| customer_address | TEXT | |
+| category | customer_request_category DEFAULT 'other' | |
+| service_description | TEXT | |
+| preferred_start_date | DATE | |
+| budget | NUMERIC(15,2) | |
+| notes | TEXT | |
+| status | customer_request_status DEFAULT 'new' | |
+| created_by | UUID FK → users NOT NULL | |
+| created_by_name | VARCHAR(255) NOT NULL | |
+| created_at | TIMESTAMPTZ DEFAULT now() | |
+| updated_at | TIMESTAMPTZ DEFAULT now() | |
+
+**paid_customers**
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| source_request_id | UUID FK → customer_requests NOT NULL | One-to-one |
+| customer_name | VARCHAR(500) NOT NULL | Copied from source |
+| customer_phone | VARCHAR(50) NOT NULL | |
+| customer_email | VARCHAR(255) | |
+| customer_address | TEXT | |
+| category | customer_request_category | |
+| service_description | TEXT | |
+| preferred_start_date | DATE | |
+| budget | NUMERIC(15,2) | |
+| notes | TEXT | |
+| transferred_at | TIMESTAMPTZ DEFAULT now() | |
+| transferred_by | UUID FK → users NOT NULL | |
+| transferred_by_name | VARCHAR(255) NOT NULL | |
+| payment_note | TEXT | |
+| payment_verification_status | payment_verification_status DEFAULT 'pending' | |
+| payment_verification_message | TEXT | |
+| payment_verified_at | TIMESTAMPTZ | |
+| payment_verified_by | UUID FK → users | |
+| payment_verified_by_name | VARCHAR(255) | |
+| created_at | TIMESTAMPTZ DEFAULT now() | |
+| updated_at | TIMESTAMPTZ DEFAULT now() | |
+
+**payment_proofs** (1:N to paid_customers)
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| paid_customer_id | UUID FK → paid_customers NOT NULL | CASCADE |
+| file_url | TEXT NOT NULL | |
+| file_name | VARCHAR(500) | |
+| file_type | VARCHAR(100) | MIME type |
+| file_size | BIGINT | Bytes |
+
+**payment_verification_history** (1:N to paid_customers)
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| paid_customer_id | UUID FK → paid_customers NOT NULL | CASCADE |
+| action | review_action NOT NULL | |
+| reviewer_id | UUID FK → users NOT NULL | |
+| reviewer_name | VARCHAR(255) NOT NULL | |
+| message | TEXT | |
+| reviewed_at | TIMESTAMPTZ DEFAULT now() | |
+
+**marketing_clarification_responses** (1:N to paid_customers)
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| paid_customer_id | UUID FK → paid_customers NOT NULL | CASCADE |
+| description | TEXT NOT NULL | |
+| responded_by | UUID FK → users NOT NULL | |
+| responded_by_name | VARCHAR(255) NOT NULL | |
+| responded_at | TIMESTAMPTZ DEFAULT now() | |
+
+**quantity_surveyor_evaluations**
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| task_id | UUID FK → tasks NOT NULL | CASCADE |
+| qs_id | UUID FK → users NOT NULL | |
+| qs_name | VARCHAR(255) NOT NULL | |
+| recommendation | qs_recommendation NOT NULL | |
+| cost_analysis | TEXT NOT NULL | |
+| telegram_screenshot | TEXT | Required |
+| decision_status | qs_decision DEFAULT 'pending' | |
+| decision_message | TEXT | |
+| decided_by | UUID FK → users | |
+| decided_by_name | VARCHAR(255) | |
+| decided_at | TIMESTAMPTZ | |
+| submitted_at | TIMESTAMPTZ DEFAULT now() | |
+| updated_at | TIMESTAMPTZ DEFAULT now() | |
+
+**qs_evaluation_review_history** (1:N to evaluations)
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| evaluation_id | UUID FK → evaluations NOT NULL | CASCADE |
+| action | review_action NOT NULL | |
+| reviewer_id | UUID FK → users NOT NULL | |
+| reviewer_name | VARCHAR(255) NOT NULL | |
+| message | TEXT | |
+| reviewed_at | TIMESTAMPTZ DEFAULT now() | |
+
+**qs_review_tasks**
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| job_id | VARCHAR(50) NOT NULL | JOB-XXXXX |
+| design_work_reference | VARCHAR(50) NOT NULL | DW-XXXXX-X |
+| telegram_screenshot | TEXT NOT NULL | URL |
+| telegram_screenshot_description | TEXT | |
+| description | TEXT NOT NULL | |
+| designer_name | VARCHAR(255) NOT NULL | |
+| submission_date | TIMESTAMPTZ NOT NULL | |
+| budget_expectation_reference | VARCHAR(50) | |
+| submission_history | JSONB DEFAULT '[]' | Array of status text |
+| status | qs_review_status DEFAULT 'pending_review' | |
+| created_by | UUID FK → users NOT NULL | |
+| assigned_to | UUID FK → users NOT NULL | QS user |
+| evaluation_id | UUID FK → qs_evaluations | |
+| created_at | TIMESTAMPTZ DEFAULT now() | |
+| updated_at | TIMESTAMPTZ DEFAULT now() | |
+
+**qs_evaluations**
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| task_id | UUID FK → qs_review_tasks NOT NULL | CASCADE |
+| job_id | VARCHAR(50) NOT NULL | |
+| surveyor_id | UUID FK → users NOT NULL | |
+| surveyor_name | VARCHAR(255) NOT NULL | |
+| cost_value | NUMERIC(15,2) NOT NULL | |
+| budget_expectation_reference | VARCHAR(50) | |
+| evaluation_notes | TEXT NOT NULL | |
+| recommendation | qs_recommendation NOT NULL | |
+| submitted_at | TIMESTAMPTZ DEFAULT now() | |
+| decision_status | qs_decision DEFAULT 'pending' | |
+| decision_notes | TEXT | |
+| decided_by | UUID FK → users | |
+| decided_by_name | VARCHAR(255) | |
+| decided_at | TIMESTAMPTZ | |
+
+**qs_notifications**
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| type | VARCHAR(30) NOT NULL | task_assigned/evaluation_submitted/decision_made |
+| task_id | UUID FK → qs_review_tasks NOT NULL | |
+| evaluation_id | UUID FK → qs_evaluations | |
+| job_id | VARCHAR(50) NOT NULL | |
+| message | VARCHAR(500) NOT NULL | |
+| description | TEXT NOT NULL | |
+| telegram_screenshot | TEXT | |
+| created_at | TIMESTAMPTZ DEFAULT now() | |
+| target_roles | JSONB DEFAULT '[]' | user_role[] |
+| read_by_roles | JSONB DEFAULT '[]' | user_role[] |
+
+**documents** (general file uploads)
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| project_id | UUID FK → projects | SET NULL |
+| task_id | UUID FK → tasks | SET NULL |
+| name | VARCHAR(500) NOT NULL | |
+| type | VARCHAR(100) NOT NULL | MIME |
+| file_url | TEXT NOT NULL | |
+| file_size | BIGINT NOT NULL | |
+| uploaded_by | UUID FK → users NOT NULL | |
+| uploaded_at | TIMESTAMPTZ DEFAULT now() | |
+
+**notifications**
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| user_id | UUID FK → users NOT NULL | CASCADE — ONE record PER recipient |
+| type | notification_type NOT NULL | |
+| title | VARCHAR(500) NOT NULL | |
+| body | TEXT | |
+| entity_type | VARCHAR(50) | e.g., 'task', 'paid_customers' |
+| entity_id | UUID | FK reference |
+| is_read | BOOLEAN DEFAULT FALSE | Independent per recipient |
+| read_at | TIMESTAMPTZ | |
+| created_at | TIMESTAMPTZ DEFAULT now() | |
+
+**audit_logs**
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID PK | |
+| user_id | UUID FK → users | SET NULL on user delete |
+| user_name | VARCHAR(255) NOT NULL | |
+| user_role | user_role NOT NULL | |
+| action | VARCHAR(100) NOT NULL | e.g., 'task_created', 'payment_verified' |
+| entity_type | VARCHAR(50) NOT NULL | Table/model name |
+| entity_id | UUID | |
+| changes | JSONB | Diff of old/new values |
+| ip_address | VARCHAR(45) | |
+| user_agent | TEXT | |
+| created_at | TIMESTAMPTZ DEFAULT now() | |
+
+### 2.3 Entity Relationship Summary
+
+```
+users ──1:N──> tasks (assignedTo, assignedBy, approvedBy)
+users ──1:N──> submissions
+users ──1:N──> feedbacks
+users ──1:N──> designer_ratings
+users ──1:N──> notifications (ONE per recipient)
+users ──1:N──> audit_logs
+
+tasks ──1:N──> submissions
+tasks ──1:N──> feedbacks
+tasks ──1:N──> designer_phase_history
+tasks ──1:N──> designer_task_applications
+tasks ──1:1──> designer_ratings
+
+customer_requests ──1:1──> paid_customers (source_request_id)
+paid_customers ──1:N──> payment_proofs
+paid_customers ──1:N──> payment_verification_history
+paid_customers ──1:N──> marketing_clarification_responses
+
+qs_review_tasks ──1:1──> qs_evaluations (evaluation_id)
+qs_evaluations ──1:N──> qs_evaluation_review_history
+qs_notifications ──N:1──> qs_review_tasks (task_id)
+```
+
+---
+
+## 3. Authentication & Authorization
+
+### F-AUTH-001: User Login
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-AUTH-001 |
+| **Description** | Authenticate user with username+password. Returns JWT access + refresh tokens. |
+| **Roles** | Public |
+| **Endpoint** | `POST /api/v1/auth/login` |
+
+**Input:**
+
+| Field | Type | Required | Validation | Example |
+|-------|------|----------|------------|---------|
+| username | String | Yes | 3-100 chars, alphanumeric + _ . - | `john_doe` |
+| password | String | Yes | 8-128 chars | `P@ssw0rd!2026` |
+
+**Output (200):**
+```json
+{
+  "accessToken": "eyJhbGciOi...",
+  "refreshToken": "dGhpcyBp...",
+  "user": { "id": "uuid", "username": "john_doe", "name": "John Doe", "role": "designer" }
+}
+```
+
+**Business Rules:**
+- Account must be active (`is_active = true`)
+- Rate limit: 5 failed attempts per 15 min per IP; 5th failure locks account 30 min
+- Password hashed with bcrypt (cost factor 12)
+- Last login timestamp updated on success
+- If `force_password_change = true`, response includes `forcePasswordChange: true`
+
+**Audit:** Action `login_success` / `login_failed` / `account_locked`. IP + user agent logged.
+
+**Frontend:** Username field, Password field (masked), Login button, Loading state, Error display.
+
+---
+
+### F-AUTH-002: Token Refresh
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-AUTH-002 |
+| **Endpoint** | `POST /api/v1/auth/refresh` |
+
+**Input:** `{ refreshToken: string }` (also accepted from httpOnly cookie)
+
+**Output:** `{ accessToken: string, refreshToken: string }` (rotated)
+
+**Business Rules:**
+- Old refresh token revoked on use
+- Refresh tokens expire after 7 days
+- If a revoked refresh token is used → revoke ALL tokens for that user (fraud detection)
+- Access token claims: `{ sub: userId, role: userRole, iat, exp }`
+
+---
+
+### F-AUTH-003: Logout
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-AUTH-003 |
+| **Endpoint** | `POST /api/v1/auth/logout` |
+| **Auth** | Bearer token |
+
+**Output:** 204 No Content
+
+**Business Rules:** Revokes specific refresh token. Optional `{ allDevices: true }` to revoke all user tokens.
+
+---
+
+### F-AUTH-004: Forgot Password
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-AUTH-004 |
+| **Endpoint** | `POST /api/v1/auth/forgot-password` |
+| **Input** | `{ email: string }` |
+
+**Output:** Always `{ message: "If the email exists, a reset link has been sent." }` (prevents enumeration)
+
+**Business Rules:** Generate unique token (hashed), expire 1 hour, send email with link.
+
+---
+
+### F-AUTH-005: Reset Password
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-AUTH-005 |
+| **Endpoint** | `POST /api/v1/auth/reset-password` |
+| **Input** | `{ token: string, newPassword: string }` |
+
+**Output:** `{ message: "Password reset successfully." }`
+
+**Business Rules:**
+- New password must differ from last 3 passwords
+- Must include uppercase + lowercase + digit + special char (8-128 chars)
+- Token single-use; all existing refresh tokens revoked after reset
+- Mark `force_password_change = false`
+
+---
+
+### F-AUTH-006: RBAC Middleware
+
+Every endpoint checks JWT role claim against allowed roles. CEO inherits all GM permissions.
+
+**Error Responses:**
+- 401 `TOKEN_EXPIRED` → frontend should refresh token
+- 403 `FORBIDDEN` → role not permitted
+- 401 `INVALID_TOKEN` → re-login required
+
+---
+
+## 4. Marketing Functions
+
+### F-MKT-001: Create Customer Request
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-MKT-001 |
+| **Description** | Marketing Lead creates a new customer inquiry/lead record. |
+| **Roles** | `marketing_lead`, `ceo` |
+| **Endpoint** | `POST /api/v1/customer-requests` |
+
+**Input:**
+
+| Field | Type | Required | Validation | Example |
+|-------|------|----------|------------|---------|
+| customerName | String | Yes | 1-500 chars, trimmed | `Acme Corporation` |
+| customerPhone | String | Yes | E.164 format | `+251911234567` |
+| customerEmail | String | No | Valid email, max 255 | `contact@acme.com` |
+| customerAddress | String | Yes | 1-2000 chars | `Bole Sub City, Addis Ababa` |
+| category | Enum | Yes | home_design|finishing_work|hair_salon_design|other | `home_design` |
+| serviceDescription | String | Yes | 1-5000 chars | `Complete home interior design` |
+| preferredStartDate | Date | No | ISO 8601, not in past | `2026-07-01` |
+| budget | Number | No | Positive, max 2 decimals | `1500000.00` |
+| notes | String | No | Max 5000 chars | `Client prefers modern style` |
+
+**Output (201):** Full CustomerRequest object with `id`, `status: "new"`, `createdBy`, `createdByName`, `createdAt`.
+
+**Business Rules:**
+- BR-MKT-001: Status always `new` on creation
+- BR-MKT-002: Creator from auth context, not request body
+- BR-MKT-003: Phone validated as E.164
+- BR-MKT-004: preferredStartDate cannot be in past
+
+**Audit:** Action `customer_request_created`. Entity `customer_requests`. Full payload snapshot.
+
+**Frontend:** Form with all fields, Category dropdown, Date picker, Submit/Cancel buttons, Validation per field.
+
+---
+
+### F-MKT-002: View Customer Requests (List)
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-MKT-002 |
+| **Roles** | `marketing_lead`, `ceo` |
+| **Endpoint** | `GET /api/v1/customer-requests?status=new&category=home_design&search=Acme&sortBy=createdAt&order=desc&page=1&limit=20` |
+
+**Query Parameters:**
+
+| Field | Type | Required | Default | Validation |
+|-------|------|----------|---------|------------|
+| status | Enum | No | - | new|in_review|scheduled|closed |
+| category | Enum | No | - | home_design|finishing_work|hair_salon_design|other |
+| search | String | No | - | Max 200 chars, searches name/phone/address |
+| sortBy | String | No | createdAt | customerName|createdAt|status|category |
+| order | String | No | desc | asc|desc |
+| page | Integer | No | 1 | >= 1 |
+| limit | Integer | No | 20 | 1-100 |
+
+**Output:** `{ data: CustomerRequest[], meta: { total, page, limit, totalPages } }`
+
+**Business Rules:**
+- Marketing Lead sees only own requests; CEO sees all
+- Default sort: newest first
+
+**Frontend:** Sortable table (Name, Phone, Category, Status, Date). Filters: Status dropdown, Category dropdown, Search input. Pagination. Row click → detail. Action buttons: Edit, Delete, Transfer to Paid.
+
+---
+
+### F-MKT-003: Update Customer Request
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-MKT-003 |
+| **Roles** | `marketing_lead`, `ceo` |
+| **Endpoint** | `PATCH /api/v1/customer-requests/{id}` |
+
+**Input:** All fields from F-MKT-001, all optional.
+
+**Business Rules:**
+- Cannot update if status is `scheduled` or `closed` (409)
+- Only creator (marketing_lead) or CEO can update
+- Budget changes >50% flagged for review
+
+**Audit:** Action `customer_request_updated`. Changes: JSON diff old vs new.
+
+**Frontend:** Edit form pre-populated. Same validations. Save/Cancel.
+
+---
+
+### F-MKT-004: Delete Customer Request
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-MKT-004 |
+| **Roles** | `marketing_lead`, `ceo` |
+| **Endpoint** | `DELETE /api/v1/customer-requests/{id}` |
+
+**Business Rules:**
+- Cannot delete if transferred to paid customer (409)
+- CEO can force-delete; Marketing Lead only own
+
+**Audit:** Action `customer_request_deleted`. Full snapshot.
+
+**Frontend:** Delete button + confirmation modal.
+
+---
+
+### F-MKT-005: Transfer to Paid Customer (Upload Payment)
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-MKT-005 |
+| **Description** | Transfer a customer request into the paid customer pipeline with payment proof. |
+| **Roles** | `marketing_lead`, `ceo` |
+| **Endpoint** | `POST /api/v1/paid-customers` (multipart/form-data) |
+
+**Input:**
+
+| Field | Type | Required | Validation | Example |
+|-------|------|----------|------------|---------|
+| sourceRequestId | UUID | Yes | Must exist, not already transferred | `cr-uuid` |
+| paymentNote | String | No | Max 2000 chars | `Bank transfer receipt attached` |
+| proofFiles | File[] | Yes (1-5) | Image/PDF only, max 10MB each | `receipt.jpg` |
+
+**Output (201):** PaidCustomer object with payment proofs, `paymentVerificationStatus: "pending"`, transfer metadata.
+
+**Business Rules:**
+- Customer request can only be transferred once
+- At least 1 proof file required (marketing_lead); CEO can transfer without proof
+- Source request status → `closed`
+- Files stored in S3, virus-scanned
+
+**Notifications:**
+- Notify ALL `finance_officer` users (one notification per finance user)
+- Notify ALL `ceo` users
+- Type: `payment_submitted`
+- Title: "New Payment Submitted"
+- Body: "Payment for {customerName} submitted by {transferredByName}. Awaiting verification."
+
+**Audit:** Action `customer_request_transferred_to_paid`.
+
+**Frontend:** Source Request dropdown (pre-selected). Payment Note textarea. File upload zone (drag-drop). Submit with loading. Success redirect.
+
+---
+
+### F-MKT-006: Respond to Finance Clarification (Resubmit Payment)
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-MKT-006 |
+| **Description** | Marketing updates payment info after Finance requests clarification. |
+| **Roles** | `marketing_lead`, `ceo` |
+| **Endpoint** | `POST /api/v1/paid-customers/{id}/clarify` (multipart/form-data) |
+
+**Input:**
+
+| Field | Type | Required | Validation | Example |
+|-------|------|----------|------------|---------|
+| description | String | Yes | 10-5000 chars | `Updated receipt with correct amount` |
+| additionalProofFiles | File[] | No (0-5) | Same as F-MKT-005 | `updated_receipt.pdf` |
+
+**Business Rules:**
+- Only allowed when status = `request_clarification`
+- Each response creates new `marketing_clarification_response` record
+- Status resets to `pending` after resubmission
+- Previous verification history preserved
+- Multiple review cycles allowed — no limit
+
+**Notifications:**
+- Notify ALL finance officers
+- Type: `payment_clarification_responded`
+- Title: "Payment Resubmitted"
+- Body: "{transferredByName} has updated payment for {customerName}. Please re-review."
+
+**Audit:** Action `payment_clarification_responded`.
+
+**Frontend:** Description textarea (required). Previous finance feedback displayed. Additional proof upload. All review history shown as timeline.
+
+---
+
+### F-MKT-007: View Paid Customers (Marketing View)
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-MKT-007 |
+| **Roles** | `marketing_lead`, `ceo`, `general_manager` |
+| **Endpoint** | `GET /api/v1/paid-customers?status=pending&page=1&limit=20` |
+
+**Query:** `status`, `search`, `sortBy`, `order`, `page`, `limit` (same pattern as F-MKT-002).
+
+**Business Rules:** Marketing Lead sees only records they transferred (unless CEO).
+
+**Frontend:** Table with Customer Name, Amount, Transfer Date, Verification Status, Actions. Status filter tabs. Click row → detail with proofs, verification timeline.
+
+---
+
+## 5. Finance Functions
+
+### F-FIN-001: View Finance Review Queue
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-FIN-001 |
+| **Description** | Finance Officer views all paid customers needing verification. Organized by status tabs. |
+| **Roles** | `finance_officer`, `ceo`, `general_manager` |
+| **Endpoint** | `GET /api/v1/paid-customers?status=pending&sortBy=transferredAt&order=desc&page=1&limit=20` |
+
+**Additional Query:** `transferredBy` (filter by marketing user ID)
+
+**Frontend:** Tab navigation: Pending | Verified | Rejected | Clarification | CEO-Transferred. Each with count badge. Table: Customer Name, Proof Count, Transfer Date, Transferred By, Status.
+
+---
+
+### F-FIN-002: Verify Paid Customer Payment
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-FIN-002 |
+| **Description** | Finance reviews payment proof and sets verification status. One payment can have many reviews. |
+| **Roles** | `finance_officer`, `ceo` |
+| **Endpoint** | `POST /api/v1/paid-customers/{id}/verify` |
+
+**Input:**
+
+| Field | Type | Required | Validation | Example |
+|-------|------|----------|------------|---------|
+| action | Enum | Yes | approve|reject|request_clarification | `approve` |
+| message | String | Cond. | Required for reject + clarification. Max 5000 | `Payment verified` |
+
+**Output (200):**
+```json
+{
+  "id": "pc-uuid",
+  "paymentVerificationStatus": "approved",
+  "paymentVerifiedBy": "uuid",
+  "paymentVerifiedByName": "Lisa Martinez",
+  "paymentVerifiedAt": "2026-05-30T14:00:00Z",
+  "verificationHistory": [
+    { "action": "approved", "reviewerName": "Lisa Martinez", "message": "...", "reviewedAt": "..." }
+  ]
+}
+```
+
+**Business Rules:**
+- `approve` → status `approved`; `reject` → status `rejected` (message required); `request_clarification` → status `request_clarification` (message required)
+- Each verification creates a history record (one-to-many: one payment, many reviews)
+- History is append-only — never overwrite
+- CEO can override any finance decision
+- If already `approved`, only CEO can change
+
+**Notifications:**
+- Notify the Marketing Lead who transferred the record
+- Type: `payment_reviewed`
+- Title: "Payment {Approved|Rejected|Needs Clarification}"
+- Body: "{reviewerName} has {action} the payment for {customerName}. {message}"
+
+**Audit:** Action `payment_verified` / `payment_rejected` / `payment_clarification_requested`.
+
+**Frontend:** Detail view showing proofs (image preview, download), verification history timeline. Action form: radio (Approve/Reject/Clarification), conditional message textarea, Submit. Confirmation modal. Disable if already approved (CEO override toggle).
+
+---
+
+### F-FIN-003: View CEO-Transferred Payments
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-FIN-003 |
+| **Roles** | `finance_officer`, `ceo`, `general_manager` |
+| **Endpoint** | `GET /api/v1/paid-customers?transferredBy={ceo-uuid}&status=pending&page=1&limit=20` |
+
+Shows records transferred directly by CEO (no Marketing involvement). Same verification flow as F-FIN-002.
+
+---
+
+### F-FIN-004: View Payment Verification History
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-FIN-004 |
+| **Roles** | `finance_officer`, `ceo`, `general_manager`, `marketing_lead` (own only) |
+| **Endpoint** | `GET /api/v1/paid-customers/{id}/verification-history` |
+
+**Output:**
+```json
+{
+  "verificationHistory": [{ "action", "reviewerName", "message", "reviewedAt" }],
+  "clarificationResponses": [{ "description", "respondedByName", "respondedAt", "attachments" }],
+  "paymentProofs": [{ "id", "fileName", "fileUrl", "fileType", "fileSize" }]
+}
+```
+
+**Business Rules:** History immutable. Sorted chronologically ascending.
+
+---
+
+## 6. CEO Functions
+
+The CEO has full access to all system functions, including those of the General Manager. The CEO is the only role with user management privileges and the ability to override finance decisions.
+
+---
+
+### F-CEO-001: User Management — List Users
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-CEO-001 |
+| **Description** | CEO views paginated list of all system users with filtering by role, status, and search. |
+| **Roles** | `ceo` |
+| **Endpoint** | `GET /api/v1/users?role=designer&status=active&search=Emily&sortBy=name&order=asc&page=1&limit=20` |
+
+**Query Parameters:**
+
+| Field | Type | Required | Default | Validation |
+|-------|------|----------|---------|------------|
+| role | Enum | No | - | Any user_role value |
+| status | Enum | No | - | active|inactive|deleted |
+| search | String | No | - | Max 200 chars, searches name/username/email |
+| sortBy | String | No | name | name|createdAt|role|status |
+| order | String | No | asc | asc|desc |
+| page | Integer | No | 1 | >= 1 |
+| limit | Integer | No | 20 | 1-100 |
+
+**Output:** `{ data: User[], meta: { total, page, limit, totalPages } }`
+
+**Business Rules:**
+- BR-CEO-001: CEO cannot delete their own account
+- BR-CEO-002: Soft-deleted users excluded by default (use `?status=deleted` to view)
+- BR-CEO-003: CEO role not visible in role filter for self-demotion prevention
+
+**Frontend:** User management page at `/users`. Search input, role filter chips, active/inactive status filter. Card grid with user avatar, name, role badge, status badge. Edit button, Delete button. "Add User" button in header.
+
+---
+
+### F-CEO-002: User Management — Create User
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-CEO-002 |
+| **Description** | CEO creates a new user account with initial password and role assignment. |
+| **Roles** | `ceo` |
+| **Endpoint** | `POST /api/v1/users` |
+
+**Input:**
+
+| Field | Type | Required | Validation | Example |
+|-------|------|----------|------------|---------|
+| username | String | Yes | 3-100 chars, unique | `sarah.j` |
+| name | String | Yes | 1-255 chars | `Sarah Johnson` |
+| email | String | Yes | Valid email, unique, max 255 | `sarah@company.com` |
+| password | String | Yes | 8-128 chars, must meet complexity | `TempP@ss1` |
+| role | Enum | Yes | Any user_role except ceo | `marketing_lead` |
+| phone | String | No | E.164 format | `+15551001` |
+
+**Output (201):** Full User object. `force_password_change = true` for new users.
+
+**Business Rules:**
+- BR-CEO-004: Username and email must be unique
+- BR-CEO-005: `force_password_change` forced to `true` on creation
+- BR-CEO-006: Password complexity: uppercase + lowercase + digit + special char
+- BR-CEO-007: Role cannot be `ceo` (prevent privilege escalation)
+
+**Notifications:**
+- Notify ALL `ceo` users
+- Type: `user_created`
+- Title: "New User Created"
+- Body: "CEO created user account for {name} with role {role}."
+
+**Audit:** Action `user_created`. Entity `users`. Full payload (excluding password).
+
+**Frontend:** Add User modal. Fields: Full Name, Username, Email, Phone, Role (dropdown), Password (with show/hide toggle). Submit/Cancel buttons.
+
+---
+
+### F-CEO-003: User Management — Update User
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-CEO-003 |
+| **Description** | CEO updates user profile, role, status, or resets password. |
+| **Roles** | `ceo` |
+| **Endpoint** | `PATCH /api/v1/users/{id}` |
+
+**Input:**
+
+| Field | Type | Required | Validation | Example |
+|-------|------|----------|------------|---------|
+| name | String | No | 1-255 chars | `Sarah J.` |
+| email | String | No | Valid email, unique | `sarahj@company.com` |
+| role | Enum | No | Valid user_role | `general_manager` |
+| status | Enum | No | active|inactive | `inactive` |
+| password | String | No | If provided, 8-128 chars complexity | `NewP@ss1` |
+| phone | String | No | E.164 | `+15551099` |
+
+**Output (200):** Updated User object.
+
+**Business Rules:**
+- BR-CEO-008: Cannot change own role
+- BR-CEO-009: Cannot set own status to `inactive` or `deleted`
+- BR-CEO-010: Password change forces `force_password_change = true`
+- BR-CEO-011: Role change requires confirmation
+
+**Notifications:**
+- Notify the affected user (if active)
+- Notify ALL `ceo` users
+- Type: `user_updated`
+- Title: "User Updated"
+- Body: "CEO updated {name}'s account. Changes: {changedFields}."
+
+**Audit:** Action `user_updated`. Entity `users`. JSON diff of changes (excluding password).
+
+**Frontend:** Edit User bottom sheet/modal. Full Name, Email, Phone fields. Role dropdown. Status dropdown (active/inactive). Password field (optional). Save/Cancel buttons.
+
+---
+
+### F-CEO-004: User Management — Soft Delete User
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-CEO-004 |
+| **Description** | CEO soft-deletes a user by marking `is_active = false`. The user cannot log in. |
+| **Roles** | `ceo` |
+| **Endpoint** | `DELETE /api/v1/users/{id}` |
+
+**Output (200):** `{ message: "User marked deleted." }`
+
+**Business Rules:**
+- BR-CEO-012: Cannot delete own account
+- BR-CEO-013: Soft delete only — records preserved for audit
+- BR-CEO-014: All refresh tokens for deleted user revoked
+- BR-CEO-015: Assigned tasks remain but show user as "Deleted User"
+
+**Notifications:**
+- Notify ALL `ceo` users
+- Type: `user_deleted`
+- Title: "User Deleted"
+- Body: "{name} ({role}) was deleted by CEO."
+
+**Audit:** Action `user_deleted`. Entity `users`. Snapshot of deleted user (excluding password).
+
+**Frontend:** Delete confirmation modal with user name. Cancel/Delete buttons. Cannot delete self.
+
+---
+
+### F-CEO-005: View Approved Paid Customers
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-CEO-005 |
+| **Description** | CEO views all paid customer records with full visibility across all statuses. |
+| **Roles** | `ceo` |
+| **Endpoint** | `GET /api/v1/paid-customers?status=approved&sortBy=transferredAt&order=desc&page=1&limit=20` |
+
+**Query Parameters:** Same as F-MKT-007 plus `transferredBy`, `verifiedBy` filters.
+
+**Business Rules:**
+- BR-CEO-016: CEO sees ALL records regardless of creator
+- BR-CEO-017: CEO can view payment proofs and verification history for any record
+
+**Frontend:** Paid Customers page at `/paid-customers`. Full table with all statuses visible. Click row → detail with proofs, verification timeline.
+
+---
+
+### F-CEO-006: Perform Finance Functions
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-CEO-006 |
+| **Description** | CEO inherits all finance officer capabilities. CEO can override any finance decision. |
+| **Roles** | `ceo` |
+| **Endpoint** | Same endpoints as F-FIN-001 through F-FIN-004 |
+
+**Business Rules:**
+- BR-CEO-018: CEO can change a payment already marked as `approved`
+- BR-CEO-019: CEO's verification action creates history entry like any finance officer
+- BR-CEO-020: CEO-transferred records appear in separate "CEO-Transferred" tab for finance
+
+**Frontend:** Finance Verifications page at `/finance-verifications`. Full tab navigation. CEO Override toggle on approved records.
+
+---
+
+### F-CEO-007: CRUD Data Collector Tasks
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-CEO-007 |
+| **Description** | CEO creates, views, updates, and deletes data collection tasks with screenshot evidence. |
+| **Roles** | `ceo`, `general_manager` |
+| **Endpoint** | `POST/GET/PATCH/DELETE /api/v1/data-collector-tasks` |
+
+**Input (Create):**
+
+| Field | Type | Required | Validation | Example |
+|-------|------|----------|------------|---------|
+| title | String | Yes | 1-500 chars | `Collect site measurements` |
+| description | String | Yes | 1-5000 chars | `Measure the assigned site...` |
+| instruction | String | Yes | 1-5000 chars | `Capture wall lengths...` |
+| deadline | Date | No | ISO 8601, not in past | `2026-05-25T23:59:59Z` |
+| status | Enum | No | pending|in_progress|completed | `pending` |
+| telegramScreenshot | File | No | Image, max 10MB | `evidence.jpg` |
+
+**Output (201):** Full Task object with `task_type: "data_collector"`, `assignedBy: ceo_id`, `createdAt`.
+
+**Business Rules:**
+- BR-CEO-021: Created with `status: "pending"` by default
+- BR-CEO-022: `telegramScreenshot` stored as S3 URL
+- BR-CEO-023: `assignedBy` set from auth context
+
+**Audit:** Action `data_collector_task_created`. Entity `tasks`.
+
+**Frontend:** Data Collector Tasks page at `/data-collector-tasks`. "Create Data Task" modal: Title, Description, Instruction, Deadline, Status, Telegram Screenshot upload.
+
+---
+
+### F-CEO-008: Review Data Collector Tasks (Approve/Feedback)
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-CEO-008 |
+| **Description** | CEO reviews data collector task submissions and provides approval or feedback. |
+| **Roles** | `ceo`, `general_manager` |
+| **Endpoint** | `POST /api/v1/data-collector-tasks/{id}/review` |
+
+**Input:**
+
+| Field | Type | Required | Validation | Example |
+|-------|------|----------|------------|---------|
+| action | Enum | Yes | approve|feedback | `approve` |
+| message | String | Cond. | Required for feedback. Max 5000 | `Excellent coverage` |
+
+**Output (200):**
+```json
+{
+  "id": "task-uuid",
+  "approvalStatus": "approved",
+  "approvedBy": "ceo-uuid",
+  "approvedAt": "2026-05-30T14:00:00Z",
+  "feedbacks": [{ "id", "senderName", "body", "sentAt" }]
+}
+```
+
+**Business Rules:**
+- BR-CEO-024: Approval transitions status to `approved`
+- BR-CEO-025: Feedback creates a feedback record visible to data collector
+- BR-CEO-026: Review action creates audit trail entry
+
+**Notifications:**
+- Notify the data collector
+- Type: `data_collector_reviewed`
+- Title: "Task {Approved|Needs Feedback}"
+- Body: "{reviewerName} reviewed your task '{taskTitle}'. {message}"
+
+**Audit:** Action `data_collector_task_reviewed`. Entity `tasks`.
+
+**Frontend:** Detail modal with "Approve" button (green) and "Provide Feedback" button. Feedback modal with textarea.
+
+---
+
+### F-CEO-009: CRUD Designer Tasks / Job Postings
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-CEO-009 |
+| **Description** | CEO creates and manages designer tasks/job postings with story points and Telegram evidence. Can publish as public jobs for designer applications. |
+| **Roles** | `ceo`, `general_manager` |
+| **Endpoint** | `POST/GET/PATCH/DELETE /api/v1/designer-tasks` |
+
+**Input (Create):**
+
+| Field | Type | Required | Validation | Example |
+|-------|------|----------|------------|---------|
+| title | String | Yes | 1-500 chars | `Draft Living Room Elevation` |
+| description | String | Yes | 1-5000 chars | `Prepare the initial elevation...` |
+| instruction | String | Yes | 1-5000 chars | `Measure the wall width...` |
+| projectId | String | No | Valid project UUID | `proj-1` |
+| storyPoints | Integer | Yes | 1-100 (Fibonacci: 1,2,3,5,8,13,21) | `8` |
+| isPublic | Boolean | No | Default `true` | `true` |
+| deadline | Date | No | ISO 8601 | `2026-05-28T23:59:59Z` |
+| telegramScreenshot | File | No | Image, max 10MB | `screenshot.jpg` |
+
+**Output (201):** Full DesignerTask object with `assignedBy`, `status: "pending"`, `createdAt`.
+
+**Business Rules:**
+- BR-CEO-027: `isPublic: true` makes task visible in Open Job Postings for designers
+- BR-CEO-028: Story points use Fibonacci-like scale (1, 2, 3, 5, 8, 13, 21)
+- BR-CEO-029: `task_type` automatically set to `designer`
+- BR-CEO-030: Can be created unassigned (open for application) or pre-assigned
+
+**Notifications:**
+- When `isPublic: true`: Notify ALL `designer` users
+- Type: `designer_application`
+- Title: "New Job Posting Available"
+- Body: "A new design task '{title}' ({storyPoints} pts) is open for applications."
+
+**Audit:** Action `designer_task_created`. Entity `tasks`.
+
+**Frontend:** Job Postings page at `/job-postings` and Designer Assignments page at `/designer-assignments`. Create task modal with all fields plus project selector. RoleTaskBoard component.
+
+---
+
+### F-CEO-010: Assign Designer to Task
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-CEO-010 |
+| **Description** | CEO assigns a specific designer to a task, either from applicants or manually. Auto-rejects other applicants. |
+| **Roles** | `ceo`, `general_manager` |
+| **Endpoint** | `POST /api/v1/designer-tasks/{id}/assign` |
+
+**Input:**
+
+| Field | Type | Required | Validation | Example |
+|-------|------|----------|------------|---------|
+| designerId | UUID | Yes | Must be `designer` role | `uuid-design` |
+| reviewNote | String | No | Max 2000 chars | `Assigned based on portfolio` |
+
+**Output (200):**
+```json
+{
+  "task": { "id", "assignedTo", "status": "in_progress" },
+  "applicationsUpdated": [
+    { "applicantId": "assigned", "status": "assigned" },
+    { "applicantId": "other", "status": "rejected" }
+  ]
+}
+```
+
+**Business Rules:**
+- BR-CEO-031: Task status → `in_progress` on assignment
+- BR-CEO-032: All pending applications for this task auto-rejected
+- BR-CEO-033: If selected designer didn't apply, synthetic application record created
+- BR-CEO-034: `assignedTo` can be changed later (re-assignment)
+
+**Notifications:**
+- Notify assigned designer
+- Type: `designer_assigned`
+- Title: "You've Been Assigned a Task"
+- Body: "You have been assigned to '{title}'. Please begin work."
+
+**Audit:** Action `designer_task_assigned`. Entity `tasks` + `designer_task_applications`.
+
+**Frontend:** Designer Applications page at `/designer-applications`. Assign dropdown with all designers. "Assign Selected Designer" button. "Edit Assigned User" for re-assignment.
+
+---
+
+### F-CEO-011: View Assigned Designers
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-CEO-011 |
+| **Description** | CEO views all designer tasks by assignment status. |
+| **Roles** | `ceo`, `general_manager` |
+| **Endpoint** | `GET /api/v1/designer-tasks?assignedTo=*&status=in_progress&sortBy=createdAt&order=desc&page=1&limit=50` |
+
+**Query Parameters:** `status`, `assignedTo`, `assignedBy`, `isPublic`, `isPaused`, `search`, `sortBy`, `order`, `page`, `limit`.
+
+**Business Rules:**
+- BR-CEO-035: CEO sees all tasks regardless of assignment
+- BR-CEO-036: Unassigned tasks filterable with `assignedTo=null`
+
+**Frontend:** Designer Assignments page card grid. Task title, assigned designer, story points, status badge, phase progress. "Pending Review" highlighted cards.
+
+---
+
+### F-CEO-012: View Designer Applicants
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-CEO-012 |
+| **Description** | CEO views all designer applications for job postings. |
+| **Roles** | `ceo`, `general_manager` |
+| **Endpoint** | `GET /api/v1/designer-task-applications?taskId={id}&status=pending&page=1&limit=50` |
+
+**Query Parameters:** `taskId`, `applicantId`, `status`, `sortBy` (appliedAt), `page`, `limit`.
+
+**Output:** `{ data: DesignerTaskApplication[], meta: { total, page, limit, totalPages } }`
+
+**Business Rules:**
+- BR-CEO-037: Only CEO/GM can view all applications
+- BR-CEO-038: Application records permanent and immutable
+
+**Frontend:** Designer Applications page. Each task card groups its applications. Applicant name, applied date, message, status badge.
+
+---
+
+### F-CEO-013: Review Designer Application (Assign/Reject)
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-CEO-013 |
+| **Description** | CEO reviews individual designer applications and sets their status. |
+| **Roles** | `ceo`, `general_manager` |
+| **Endpoint** | `PATCH /api/v1/designer-task-applications/{id}` |
+
+**Input:**
+
+| Field | Type | Required | Validation | Example |
+|-------|------|----------|------------|---------|
+| status | Enum | Yes | assigned|rejected | `assigned` |
+| reviewNote | String | No | Max 2000 chars | `Approved based on portfolio` |
+
+**Business Rules:**
+- BR-CEO-039: Application status cannot change once `assigned`
+- BR-CEO-040: Reviewer identity and timestamp recorded
+- BR-CEO-041: Rejecting doesn't assign another; use F-CEO-010 for that
+
+**Notifications:**
+- Notify applicant designer
+- Type: `designer_application`
+- Title: "Application {Accepted|Rejected}"
+- Body: "Your application for '{taskTitle}' was {status}. {reviewNote}"
+
+**Frontend:** Individual application card in Designer Applications. Status badge. Assignment via task-level UI.
+
+---
+
+### F-CEO-014: Review Designer Phase Submission
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-CEO-014 |
+| **Description** | CEO reviews a designer's phase submission (Case Study, Design Stage, Rendering, Final Stage) and provides approval, feedback, or rejection. Each review creates an immutable history snapshot. |
+| **Roles** | `ceo`, `general_manager` |
+| **Endpoint** | `POST /api/v1/designer-tasks/{id}/phases/{phase}/review` |
+
+**Input:**
+
+| Field | Type | Required | Validation | Example |
+|-------|------|----------|------------|---------|
+| action | Enum | Yes | approved|feedback|rejected | `approved` |
+| message | String | Yes | 5-5000 chars | `Looks good, proceed` |
+
+**Output (200):**
+```json
+{
+  "phase": "design_stage",
+  "action": "approved",
+  "reviewerName": "Ava Reynolds (CEO)",
+  "message": "Looks good, proceed to next phase",
+  "reviewedAt": "2026-05-30T14:00:00Z",
+  "designerSubmission": {
+    "note": "Designer's note snapshot",
+    "screenshot": "s3://evidence.jpg",
+    "submittedAt": "2026-05-28T10:00:00Z"
+  }
+}
+```
+
+**Business Rules:**
+- BR-CEO-042: Phase action creates immutable history entry with designer submission snapshot
+- BR-CEO-043: Phases must be reviewed sequentially (Case Study → Design Stage → Rendering → Final Stage)
+- BR-CEO-044: `rejected` locks entire task — no further submissions
+- BR-CEO-045: `feedback` blocks progression to next phase until resolved
+- BR-CEO-046: `approved` unlocks next phase for designer
+- BR-CEO-047: Final Stage `approved` marks task as `completed`
+- BR-CEO-048: Designer's note/screenshot snapshotted at review time (prevents retroactive editing)
+
+**Notifications:**
+- Notify assigned designer
+- Type: `designer_phase_reviewed`
+- Title: "{phase} — {Approved|Feedback|Rejected}"
+- Body: "{reviewerName} reviewed your {phase} submission for '{taskTitle}'. {message}"
+
+**Audit:** Action `designer_phase_reviewed`. Entity `designer_phase_history`.
+
+**Frontend:** Designer Assignments detail modal. Phase accordion. Each phase shows designer submission. Three action buttons: Approve (green), Provide Feedback (amber), Reject (red). Message textarea. History timeline.
+
+---
+
+### F-CEO-015: Final Evaluation / Rating of Designer Task
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-CEO-015 |
+| **Description** | After all 4 phases approved, CEO provides final performance rating across 5 dimensions. Creates a designer_ratings record. |
+| **Roles** | `ceo`, `general_manager` |
+| **Endpoint** | `POST /api/v1/designer-ratings` |
+
+**Input:**
+
+| Field | Type | Required | Validation | Example |
+|-------|------|----------|------------|---------|
+| taskId | UUID | Yes | Task with all phases approved | `dtask-18` |
+| overallRating | Number | Yes | 0.0-5.0, 1 decimal | `4.7` |
+| renderingQuality | Number | Yes | 0.0-5.0 | `4.8` |
+| timeliness | Number | Yes | 0.0-5.0 | `4.5` |
+| creativity | Number | Yes | 0.0-5.0 | `4.9` |
+| clientUnderstanding | Number | Yes | 0.0-5.0 | `4.7` |
+| revisionEfficiency | Number | No | 0.0-5.0 | `4.6` |
+| feedback | String | Yes | 10-5000 chars | `Excellent material choices.` |
+
+**Output (201):**
+```json
+{
+  "id": "r-mb-001",
+  "designerId": "uuid",
+  "taskId": "dtask-18",
+  "overallRating": 4.7,
+  "storyPoints": 8,
+  "status": "approved",
+  "ratedBy": "ceo-uuid",
+  "ratedAt": "2026-05-30T14:00:00Z"
+}
+```
+
+**Business Rules:**
+- BR-CEO-049: Rating cannot be created until all 4 phases `approved`
+- BR-CEO-050: Each task receives exactly ONE final rating
+- BR-CEO-051: `revisionCount` auto-computed from phase history feedback entries
+- BR-CEO-052: Rating `status` defaults to `approved`
+- BR-CEO-053: 5+1 rating dimensions (overallRating, renderingQuality, timeliness, creativity, clientUnderstanding, revisionEfficiency)
+
+**Notifications:**
+- Notify rated designer
+- Type: `designer_final_evaluated`
+- Title: "Performance Rating Submitted"
+- Body: "Your work on '{taskTitle}' has been rated {overallRating}/5."
+
+**Audit:** Action `designer_rating_created`. Entity `designer_ratings`.
+
+**Frontend:** After Final Stage approval, "Rate & Review" section with star rating selectors for 4-6 dimensions. Feedback textarea.
+
+---
+
+### F-CEO-016: Update Designer Rating (Review Maintenance)
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-CEO-016 |
+| **Description** | CEO updates an existing designer rating (status change, score adjustment, feedback update). |
+| **Roles** | `ceo`, `general_manager` |
+| **Endpoint** | `PATCH /api/v1/designer-ratings/{id}` |
+
+**Input:** All rating fields from F-CEO-015, all optional.
+
+**Business Rules:**
+- BR-CEO-054: Status transitions: `approved` → `in_review`, `in_review` → `approved`/`rejected`
+- BR-CEO-055: Rating history versioned (previous values in audit log)
+- BR-CEO-056: Only CEO can change ratings after 48 hours
+
+**Notifications:** Notify rated designer if status or scores change significantly.
+
+**Audit:** Action `designer_rating_updated`. Entity `designer_ratings`. Full diff.
+
+**Frontend:** Performance Ratings page. Rating cards editable by CEO. Score adjustment inputs. Status selector.
+
+---
+
+### F-CEO-017: View Designer Performance
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-CEO-017 |
+| **Description** | CEO views comprehensive designer performance dashboard with aggregated statistics, charts, and rating history. |
+| **Roles** | `ceo`, `general_manager`, `designer` (own only) |
+| **Endpoint** | `GET /api/v1/designer-ratings?designerId={id}&sortBy=ratedAt&order=desc&page=1&limit=50` |
+
+**Query Parameters:** `designerId`, `status`, `year`, `quarter`, `month`, `week`, `sortBy`, `order`, `page`, `limit`.
+
+**Output:** `{ data: DesignerRating[], meta: {...}, aggregates: { averageOverall, averageRendering, averageTimeliness, averageCreativity, averageClientUnderstanding, totalStoryPoints, totalTasksCompleted } }`
+
+**Business Rules:**
+- BR-CEO-057: CEO sees all designers; designers see only own
+- BR-CEO-058: Aggregate stats computed server-side
+
+**Frontend:** Performance Ratings dashboard at `/performance-ratings`. Designer selector. Metrics summary. Charts: LineChart (rating over time), AreaChart (story points), RadarChart (skill dimensions), PieChart (status distribution). Weekly/Monthly/Quarterly/Yearly filters.
+
+---
+
+### F-CEO-018: View All Paused Designer Tasks
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-CEO-018 |
+| **Description** | CEO views all paused designer tasks with reasons, dates, and resume eligibility. |
+| **Roles** | `ceo`, `general_manager` |
+| **Endpoint** | `GET /api/v1/designer-tasks?isPaused=true&sortBy=pausedAt&order=desc&page=1&limit=50` |
+
+**Business Rules:**
+- BR-CEO-060: Paused tasks cannot accept new phase submissions
+- BR-CEO-061: CEO/GM must manually resume
+- BR-CEO-062: Tasks with past `pauseResumeDate` flagged for review
+
+**Frontend:** "Paused Tasks" filter on Designer Assignments. Pause icon, reason, date. "Resume" button.
+
+---
+
+### F-CEO-019: CRUD QS Tasks (Forward Design Submissions)
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-CEO-019 |
+| **Description** | CEO forwards design submissions to Quantity Surveyors for cost evaluation. Creates QS review task with evidence. |
+| **Roles** | `ceo`, `general_manager` |
+| **Endpoint** | `POST /api/v1/qs-review-tasks` (multipart/form-data) |
+
+**Input:**
+
+| Field | Type | Required | Validation | Example |
+|-------|------|----------|------------|---------|
+| description | String | Yes | 1-5000 chars | `Two-storey residential extension...` |
+| assignedTo | UUID | Yes | Must be `quantity_surveyor` role | `uuid-qs` |
+| telegramScreenshot | File | Yes | Image, max 10MB | `screenshot.jpg` |
+| telegramScreenshotDescription | String | No | Max 500 chars | `Initial sketch` |
+| budgetExpectationReference | String | No | Max 50 chars | `BUD-2026-18` |
+
+**Output (201):** QuantityReviewTask with `jobId`, `designWorkReference`, `status: "pending_review"`, submission history.
+
+**Business Rules:**
+- BR-CEO-063: `jobId` = `JOB-{timestamp}`
+- BR-CEO-064: `designWorkReference` = `DW-{timestamp}`
+- BR-CEO-065: Submission history: "Designer submission received..." + "{Role} forwarded..."
+- BR-CEO-066: `status` = `pending_review`
+
+**Notifications:**
+- Notify assigned QS
+- Type: `qs_task_assigned`
+- Title: "New QS Review Task"
+- Body: "A new design submission '{jobId}' is ready for quality review."
+
+**Audit:** Action `qs_review_task_created`. Entity `qs_review_tasks`.
+
+**Frontend:** QS Tasks page at `/quantity-surveyor-tasks`. "Forward Design Task" modal: Assign QS dropdown, Description, Screenshot upload, Budget reference.
+
+---
+
+### F-CEO-020: Assign QS User to Review Task
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-CEO-020 |
+| **Description** | CEO assigns or reassigns a quantity surveyor to a review task. |
+| **Roles** | `ceo`, `general_manager` |
+| **Endpoint** | `PATCH /api/v1/qs-review-tasks/{id}/assign` |
+
+**Input:** `{ assignedTo: UUID }` — must be `quantity_surveyor` role.
+
+**Business Rules:**
+- BR-CEO-067: Can only reassign tasks with `pending_review` or `in_review` status
+- BR-CEO-068: Reassignment notifies new QS
+
+**Frontend:** QS Tasks page. Assign dropdown per task row. Confirmation on reassignment.
+
+---
+
+### F-CEO-021: Review QS Evaluation
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-CEO-021 |
+| **Description** | CEO reviews QS evaluation and makes final decision: approve or provide feedback. |
+| **Roles** | `ceo`, `general_manager` |
+| **Endpoint** | `POST /api/v1/qs-evaluations/{id}/decide` |
+
+**Input:**
+
+| Field | Type | Required | Validation | Example |
+|-------|------|----------|------------|---------|
+| decision | Enum | Yes | approved|feedback | `approved` |
+| notes | String | Cond. | Required for feedback. Max 5000 | `Return with tighter ceiling allowance` |
+
+**Output (200):**
+```json
+{
+  "evaluation": {
+    "id": "qs-eval-1",
+    "decisionStatus": "approved",
+    "decisionNotes": "Approved by CEO.",
+    "decidedByName": "Ava Reynolds (CEO)",
+    "decidedAt": "2026-05-30T14:00:00Z"
+  }
+}
+```
+
+**Business Rules:**
+- BR-CEO-069: Can only decide on `decisionStatus: "pending"` evaluations
+- BR-CEO-070: `approved` finalizes — no further edits
+- BR-CEO-071: `feedback` returns to QS for revision
+- BR-CEO-072: Decision creates immutable history record
+
+**Notifications:**
+- Notify QS who submitted
+- Type: `qs_evaluation_reviewed`
+- Title: "QS Evaluation {Approved|Needs Feedback}"
+- Body: "{decidedByName} {approved|provided feedback on} your evaluation for '{jobId}'."
+
+**Audit:** Action `qs_evaluation_decided`. Entity `qs_evaluations`.
+
+**Frontend:** QS Dashboard Approval panel. Pending decision cards with evaluation details. Decision form: Approve (green), Provide Feedback (blue). Feedback textarea.
+
+---
+
+### F-CEO-022: View QS Review History
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-CEO-022 |
+| **Description** | CEO views complete QS review history: all tasks, evaluations, and decisions chronologically. |
+| **Roles** | `ceo`, `general_manager`, `quantity_surveyor` (own only) |
+| **Endpoint** | `GET /api/v1/qs-review-tasks?status=all&sortBy=createdAt&order=desc&page=1&limit=50` |
+
+**Query Parameters:** `status` (pending_review|in_review|record_submitted|all), `assignedTo`, `createdBy`, `sortBy`, `order`, `page`, `limit`.
+
+**Business Rules:**
+- BR-CEO-073: CEO sees full history across all QS users
+- BR-CEO-074: QS users see only tasks assigned to them
+
+**Frontend:** QS Dashboard with Live (active tasks) and Review/Approval (evaluations) panels.
+
+---
+
+## 7. General Manager Functions
+
+The General Manager has all designer management access but is excluded from User Management and Finance override capabilities.
+
+---
+
+### F-GM-001: All Designer Management Access
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-GM-001 |
+| **Description** | General Manager inherits all designer task management functions (F-CEO-009 through F-CEO-022) including CRUD designer tasks, application review, phase review, designer ratings, QS task forwarding, and QS evaluation review. Excludes User Management and Finance override. |
+| **Roles** | `general_manager` |
+| **Endpoints** | Same endpoints as F-CEO-009 through F-CEO-022 |
+
+**Business Rules:**
+- BR-GM-001: Cannot access `/users` page (403 Forbidden)
+- BR-GM-002: Cannot override already-approved finance decisions (only CEO can)
+- BR-GM-003: Can view finance verification queue but cannot change approved records
+- BR-GM-004: Can view customer requests and paid customers (read-only for non-owned)
+- BR-GM-005: Full access to designer assignments, applications, phase reviews, ratings
+- BR-GM-006: Full access to Data Collector Tasks and QS Tasks creation/review
+- BR-GM-007: Can create projects and tasks
+- BR-GM-008: Can approve/reject tasks and provide feedback
+
+**Route Access:**
+
+| Route | GM Access |
+|-------|-----------|
+| `/users` | DENIED (403) |
+| `/dashboard` | YES |
+| `/customer-data` | YES (view all) |
+| `/paid-customers` | YES (view all) |
+| `/finance-verifications` | YES (verify pending, cannot override approved) |
+| `/data-collector-tasks` | YES (full CRUD + review) |
+| `/job-postings` | YES (full CRUD) |
+| `/designer-applications` | YES (review + assign) |
+| `/designer-assignments` | YES (full CRUD + phase review + ratings) |
+| `/quantity-surveyor-tasks` | YES (forward + review) |
+| `/performance-ratings` | YES (view all designers) |
+| `/approvals` | YES |
+
+**Audit:** All GM actions logged under `general_manager` role in `audit_logs.user_role`.
+
+**Frontend:** Layout sidebar adjusted to exclude User Management link. Finance page disables "Override" on approved records.
+
+---
+
+## 8. Quantity Surveyor Functions
+
+---
+
+### F-QS-001: View Assigned QS Review Tasks
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-QS-001 |
+| **Description** | QS views all design submissions forwarded for their review, organized by status. |
+| **Roles** | `quantity_surveyor`, `ceo`, `general_manager` |
+| **Endpoint** | `GET /api/v1/qs-review-tasks?assignedTo={userId}&sortBy=createdAt&order=desc&page=1&limit=50` |
+
+**Query Parameters:** `status`, `assignedTo`, `sortBy`, `order`, `page`, `limit`.
+
+**Output:** `{ data: QuantityReviewTask[], meta: { total, page, limit, totalPages } }`
+
+**Business Rules:**
+- BR-QS-001: QS sees only tasks assigned to them (unless CEO/GM)
+- BR-QS-002: Tasks highlighted as "New" if `status: "pending_review"` and not viewed
+- BR-QS-003: Badge count via `quantity-surveyor-notifications-updated` event
+
+**Frontend:** QS Dashboard at `/quantity-surveyor-live`. Summary cards: Active, Live, Approval counts. Table: Job ID, Screenshot, Description, Designer, Date, Status/Actions. "New" badge on unseen tasks. "Details" opens evaluation form.
+
+---
+
+### F-QS-002: Accept and Begin Review (Status Change)
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-QS-002 |
+| **Description** | QS accepts a pending review task, transitioning status from `pending_review` to `in_review`. |
+| **Roles** | `quantity_surveyor` |
+| **Endpoint** | `PATCH /api/v1/qs-review-tasks/{id}/status` |
+
+**Input:** `{ status: "in_review" }`
+
+**Business Rules:**
+- BR-QS-004: Only `pending_review` → `in_review`
+- BR-QS-005: Opening detail automatically triggers this
+- BR-QS-006: Marks task as "viewed" in notification system
+
+**Audit:** Action `qs_task_accepted_for_review`. Entity `qs_review_tasks`.
+
+**Frontend:** Detail modal opens with status change. Status badge updates from amber "pending review" to blue "in review".
+
+---
+
+### F-QS-003: Submit QS Evaluation
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-QS-003 |
+| **Description** | QS submits a cost evaluation with cost value, notes, budget comparison, and recommendation. |
+| **Roles** | `quantity_surveyor` |
+| **Endpoint** | `POST /api/v1/qs-evaluations` or `PUT /api/v1/qs-evaluations/{id}` |
+
+**Input:**
+
+| Field | Type | Required | Validation | Example |
+|-------|------|----------|------------|---------|
+| taskId | UUID | Yes | Must exist, not `record_submitted` | `qs-review-1` |
+| costValue | Number | Yes | Positive, max 2 decimals | `148500` |
+| evaluationNotes | String | Yes | 10-5000 chars | `Cost is within expected envelope...` |
+| recommendation | Enum | Yes | recommend_approval|recommend_revision | `recommend_approval` |
+
+**Output (201):**
+```json
+{
+  "id": "qs-eval-1",
+  "taskId": "qs-review-1",
+  "surveyorName": "Oliver Grant",
+  "costValue": 148500,
+  "recommendation": "recommend_approval",
+  "decisionStatus": "pending",
+  "submittedAt": "2026-05-30T14:00:00Z"
+}
+```
+
+**Business Rules:**
+- BR-QS-007: Can create/update evaluation while `decisionStatus: "pending"`
+- BR-QS-008: Submitting → task status → `record_submitted`
+- BR-QS-009: `recommend_approval` = within budget; `recommend_revision` = needs adjustment
+- BR-QS-010: Budget expectation reference carried from task
+
+**Notifications:**
+- Notify ALL `ceo` and `general_manager`
+- Type: `qs_evaluation_submitted`
+- Title: "QS Evaluation Submitted"
+- Body: "{surveyorName} submitted a cost evaluation for {jobId}. Awaiting review."
+
+**Frontend:** Evaluation form: Design Cost Value (number), Budget Expectation Reference (read-only), Evaluation Notes (textarea), Recommendation (radio buttons). Submit button.
+
+---
+
+### F-QS-004: View QS Review History and Decisions
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-QS-004 |
+| **Description** | QS views history of submitted evaluations including leadership decisions. |
+| **Roles** | `quantity_surveyor`, `ceo`, `general_manager` |
+| **Endpoint** | `GET /api/v1/qs-evaluations?surveyorId={userId}&sortBy=submittedAt&order=desc&page=1&limit=50` |
+
+**Query Parameters:** `surveyorId`, `decisionStatus`, `recommendation`, `sortBy`, `order`, `page`, `limit`.
+
+**Business Rules:**
+- BR-QS-011: QS sees own evaluations and decisions
+- BR-QS-012: Decision status displayed with reviewer name and timestamp
+- BR-QS-013: Sorted newest first
+
+**Frontend:** QS Dashboard Approval panel. Pending Decisions, Approved cards (green), Feedback cards (amber). Each shows: Job ID, Designer, Cost, Notes, Decision Status, Decided By, Date.
+
+---
+
+## 9. Designer Functions
+
+---
+
+### F-DSGN-001: View Assigned Designer Tasks
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-DSGN-001 |
+| **Description** | Designer views all tasks assigned to them, including phase progress, submission status, and feedback history. |
+| **Roles** | `designer` |
+| **Endpoint** | `GET /api/v1/designer-tasks?assignedTo={userId}&sortBy=createdAt&order=desc&page=1&limit=50` |
+
+**Query Parameters:** `assignedTo`, `status`, `isPaused`, `search`, `sortBy`, `order`, `page`, `limit`.
+
+**Output:** `{ data: DesignerTask[], meta: {...} }` — each task includes phase progress summary.
+
+**Business Rules:**
+- BR-DSGN-001: Designer sees only tasks assigned to them
+- BR-DSGN-002: Phase progress from `designer_phase_history`
+- BR-DSGN-003: Current phase highlighted based on progression
+- BR-DSGN-004: Rejected tasks are locked
+
+**Frontend:** Designer Tasks page at `/designer-tasks`. Card grid: task title, story points, assigned by, current phase status, instruction block, project context, deadline. "New" badge via IntersectionObserver.
+
+---
+
+### F-DSGN-002: Submit Case Study Phase
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-DSGN-002 |
+| **Description** | Designer submits progress for the Case Study phase (Phase 1 of 4). No prerequisites. |
+| **Roles** | `designer` |
+| **Endpoint** | `POST /api/v1/designer-tasks/{id}/phases/case_study/submit` (multipart/form-data) |
+
+**Input:**
+
+| Field | Type | Required | Validation | Example |
+|-------|------|----------|------------|---------|
+| note | String | Yes | 5-5000 chars | `Measured all site dimensions...` |
+| screenshot | File | No | Image, max 10MB | `evidence.jpg` |
+
+**Output (201):** Phase snapshot with note, screenshot URL, submittedAt, status.
+
+**Business Rules:**
+- BR-DSGN-005: First phase — no prerequisites
+- BR-DSGN-006: Saves to `submissionProgress` (localStorage key)
+- BR-DSGN-007: Previous submissions overwritten (non-versioned until reviewed)
+- BR-DSGN-008: Status becomes "Pending Review" for CEO/GM
+
+**Notifications:** Notify ALL `ceo` and `general_manager`. Type: `designer_phase_submitted`. Title: "Case Study Submission Ready".
+
+**Frontend:** Task detail modal. Phase accordion for "Case Study". Progress Note textarea, Upload Screenshot (optional), "Save Progress" button.
+
+---
+
+### F-DSGN-003: Submit Design Stage Phase
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-DSGN-003 |
+| **Description** | Designer submits Design Stage (Phase 2). Requires Case Study approved. |
+| **Roles** | `designer` |
+| **Endpoint** | `POST /api/v1/designer-tasks/{id}/phases/design_stage/submit` |
+
+**Input:** Same as F-DSGN-002.
+
+**Business Rules:**
+- BR-DSGN-009: Case Study must be `approved`
+- BR-DSGN-010: Feedback on Case Study → must resubmit Case Study first
+- BR-DSGN-011: Rejected Case Study → task locked
+
+**Frontend:** Phase accordion enabled only when Case Study approved. Same submission UI.
+
+---
+
+### F-DSGN-004: Submit Rendering Phase
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-DSGN-004 |
+| **Description** | Designer submits Rendering (Phase 3). Requires Design Stage approved. |
+| **Roles** | `designer` |
+| **Endpoint** | `POST /api/v1/designer-tasks/{id}/phases/rendering/submit` |
+
+**Input:** Same as F-DSGN-002.
+
+**Business Rules:**
+- BR-DSGN-012: Design Stage must be `approved`
+- BR-DSGN-013: Screenshot recommended for 3D render evidence
+
+**Frontend:** Same UI pattern. Screenshot strongly recommended.
+
+---
+
+### F-DSGN-005: Submit Final Stage Phase
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-DSGN-005 |
+| **Description** | Designer submits Final Stage (Phase 4). Requires Rendering approved. Screenshot REQUIRED. |
+| **Roles** | `designer` |
+| **Endpoint** | `POST /api/v1/designer-tasks/{id}/phases/final_stage/submit` |
+
+**Input:**
+
+| Field | Type | Required | Validation | Example |
+|-------|------|----------|------------|---------|
+| note | String | Yes | 5-5000 chars | `Final 3D perspective ready` |
+| screenshot | File | **Yes** | Image, max 10MB | `final_render.jpg` |
+
+**Business Rules:**
+- BR-DSGN-014: Rendering must be `approved`
+- BR-DSGN-015: Screenshot MANDATORY (UI shows "(required)" label)
+- BR-DSGN-016: After approval, task `completed` and eligible for rating
+
+**Frontend:** Screenshot upload marked "(required)" in red. Submit disabled until screenshot provided.
+
+---
+
+### F-DSGN-006: View Feedback and Approval History
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-DSGN-006 |
+| **Description** | Designer views all feedback, approvals, and rejections across all phases, with submission snapshots. |
+| **Roles** | `designer` |
+| **Endpoint** | `GET /api/v1/designer-tasks/{id}/phases` |
+
+**Output:** All 4 phases with history arrays containing status, message, timestamp, and designerSubmission snapshot.
+
+**Business Rules:**
+- BR-DSGN-017: History entries immutable — submission snapshotted at review time
+- BR-DSGN-018: Feedback entries show exactly what was submitted at that time
+- BR-DSGN-019: History sorted chronologically per phase
+
+**Frontend:** Phase accordions with "Prior Feedback Messages" section. Expandable history entries showing reviewer message, status badge, and "Designer's Submission at this point" snapshot.
+
+---
+
+### F-DSGN-007: View Open Job Postings
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-DSGN-007 |
+| **Description** | Designer browses open job postings (public, unassigned designer tasks). |
+| **Roles** | `designer`, `ceo`, `general_manager` |
+| **Endpoint** | `GET /api/v1/designer-tasks?isPublic=true&assignedTo=null&sortBy=createdAt&order=desc` |
+
+**Business Rules:**
+- BR-DSGN-020: Designers see only public, unassigned tasks
+- BR-DSGN-021: Tasks displayed with story points and deadline
+
+**Frontend:** Open Job Postings page at `/open-job-postings`. Card list with title, description, instruction, story points, deadline. "Apply" button.
+
+---
+
+### F-DSGN-008: Apply for Job Posting
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-DSGN-008 |
+| **Description** | Designer submits application for an open job posting with qualifying message. |
+| **Roles** | `designer` |
+| **Endpoint** | `POST /api/v1/designer-task-applications` |
+
+**Input:**
+
+| Field | Type | Required | Validation | Example |
+|-------|------|----------|------------|---------|
+| taskId | UUID | Yes | Must be open (isPublic, unassigned) | `dtask-9` |
+| message | String | Yes | 10-2000 chars | `I can prepare the lounge concept...` |
+
+**Output (201):** Application with `id`, `status: "pending"`, `appliedAt`.
+
+**Business Rules:**
+- BR-DSGN-023: Cannot apply twice for same task (409)
+- BR-DSGN-024: Cannot apply to already-assigned task
+- BR-DSGN-025: `appliedAt` server-side
+- BR-DSGN-026: Status always `pending` on creation
+
+**Notifications:** Notify ALL `ceo` and `general_manager`. Type: `designer_application`.
+
+**Frontend:** Apply form on job posting card. Message textarea. "Submit Application" button.
+
+---
+
+### F-DSGN-009: View Application Status
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-DSGN-009 |
+| **Description** | Designer views status of all submitted applications (pending, assigned, rejected). |
+| **Roles** | `designer` |
+| **Endpoint** | `GET /api/v1/designer-task-applications?applicantId={userId}&sortBy=appliedAt&order=desc` |
+
+**Business Rules:**
+- BR-DSGN-027: Designer sees only own applications
+- BR-DSGN-028: Each includes task title, status, review note, reviewer
+
+**Frontend:** Application status badges: pending (yellow), assigned (green), rejected (red). Review notes visible.
+
+---
+
+### F-DSGN-010: View Personal Performance Ratings
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-DSGN-010 |
+| **Description** | Designer views own performance ratings with aggregate statistics and trend charts. |
+| **Roles** | `designer`, `ceo`, `general_manager` |
+| **Endpoint** | `GET /api/v1/designer-ratings?designerId={userId}&sortBy=ratedAt&order=desc` |
+
+**Business Rules:**
+- BR-DSGN-029: Designer sees only own ratings
+- BR-DSGN-030: Aggregates: averages per dimension, total story points, tasks completed
+
+**Frontend:** Performance Ratings page filtered to self. Charts: rating over time, skill radar, task distribution. Rating cards with detailed score breakdowns.
+
+---
+
+### F-DSGN-011: Upload Telegram Screenshot Evidence
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-DSGN-011 |
+| **Description** | Designer uploads Telegram screenshot as evidence for phase submissions. |
+| **Roles** | `designer` |
+| **Endpoint** | `POST /api/v1/tasks/{id}/attachments` (multipart/form-data) |
+
+**Input:**
+
+| Field | Type | Required | Validation | Example |
+|-------|------|----------|------------|---------|
+| file | File | Yes | Image, max 10MB, jpg/png | `telegram-evidence.jpg` |
+| isScreenshot | Boolean | No | Default `true` | `true` |
+| phase | Enum | No | case_study|design_stage|rendering|final_stage | `case_study` |
+
+**Business Rules:**
+- BR-DSGN-031: Image-only (jpg, png, webp)
+- BR-DSGN-032: Max 10MB
+- BR-DSGN-033: Stored in S3 with signed URL
+
+**Frontend:** "Upload Screenshot" button on phase forms. File picker with preview. "Change/Remove" when image exists.
+
+---
+
+### F-DSGN-012: Update Phase Notes
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-DSGN-012 |
+| **Description** | Designer updates progress notes for a phase before review by leadership. |
+| **Roles** | `designer` |
+| **Endpoint** | `PATCH /api/v1/designer-tasks/{id}/phases/{phase}/notes` |
+
+**Input:** `{ note: string }` — 1-5000 chars.
+
+**Business Rules:**
+- BR-DSGN-034: Only for unreviewed phases (pending or feedback)
+- BR-DSGN-035: Approved phases cannot be changed
+- BR-DSGN-036: Stored in submissionProgress data
+
+**Frontend:** "Progress Note" textarea pre-populated. "Save Progress" button.
+
+---
+
+## 10. Site Engineer Functions
+
+---
+
+### F-SE-001: View Assigned Site Tasks
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-SE-001 |
+| **Description** | Site Engineer views all field tasks assigned to them with status filters, project context, and approval visibility. |
+| **Roles** | `site_engineer` |
+| **Endpoint** | `GET /api/v1/tasks?taskType=site_engineer&assignedTo={userId}&sortBy=createdAt&order=desc&page=1&limit=50` |
+
+**Query Parameters:** `assignedTo`, `status`, `projectId`, `approvalStatus`, `search`, `sortBy`, `order`, `page`, `limit`.
+
+**Output:** `{ data: Task[], meta: { total, page, limit, totalPages } }`
+
+**Business Rules:**
+- BR-SE-001: Site Engineer sees only tasks assigned to them
+- BR-SE-002: Tasks from `workflow-tasks` localStorage key
+- BR-SE-003: Status filter tabs: All, Pending, In Progress, Completed, Incomplete, Rejected
+- BR-SE-004: New tasks highlighted with "New" badge until viewed via IntersectionObserver
+
+**Frontend:** Site Engineer Tasks page at `/site-engineer-tasks`. Status filter button bar with counts. Card grid: title, status badge, description, instruction block (blue), project name, approval status, deadline, attachments. "New" badge on highlighted cards.
+
+---
+
+### F-SE-002: Update Task Status
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-SE-002 |
+| **Description** | Site Engineer updates task status (pending → in_progress → completed → incomplete). |
+| **Roles** | `site_engineer` |
+| **Endpoint** | `PATCH /api/v1/tasks/{id}/status` |
+
+**Input:** `{ status: "pending"|"in_progress"|"completed"|"incomplete" }`
+
+**Business Rules:**
+- BR-SE-005: Only tasks assigned to self
+- BR-SE-006: Cannot set `rejected` (only leadership)
+- BR-SE-007: Persisted to localStorage `workflow-tasks`
+
+**Audit:** Action `site_engineer_task_status_updated`. Entity `tasks`. Previous → new status diff.
+
+**Notifications:**
+- Notify task assigner (CEO/GM)
+- Type: `site_engineer_submitted`
+- Title: "Task Status Updated"
+- Body: "{engineerName} updated '{taskTitle}' status to {status}."
+
+**Frontend:** Edit mode on task card. Status dropdown with available transitions. "Save Changes" button.
+
+---
+
+### F-SE-003: Update Task Description
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-SE-003 |
+| **Description** | Site Engineer updates task description with field observations or progress notes. |
+| **Roles** | `site_engineer` |
+| **Endpoint** | `PATCH /api/v1/tasks/{id}/description` |
+
+**Input:** `{ description: string }` — 1-5000 chars.
+
+**Frontend:** Edit mode. Description textarea pre-populated. "Save Changes".
+
+---
+
+### F-SE-004: Upload File Attachments
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-SE-004 |
+| **Description** | Site Engineer uploads documents, photos, or measurement files. |
+| **Roles** | `site_engineer` |
+| **Endpoint** | `POST /api/v1/tasks/{id}/attachments` (multipart/form-data) |
+
+**Input:**
+
+| Field | Type | Required | Validation | Example |
+|-------|------|----------|------------|---------|
+| file | File | Yes | JPG/PNG/PDF/DOCX/XLSX, max 10MB | `measurements.pdf` |
+| label | String | No | Max 200 chars | `Ceiling heights` |
+
+**Business Rules:**
+- BR-SE-010: Allowed: jpg, png, pdf, docx, xlsx
+- BR-SE-011: Max 10MB
+- BR-SE-012: Stored in S3/MinIO
+
+**Frontend:** "Upload File" button. File picker. Attachments shown as file icons.
+
+---
+
+### F-SE-005: View Task Approval Status
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-SE-005 |
+| **Description** | Site Engineer views approval status of submitted tasks, including feedback. |
+| **Roles** | `site_engineer` |
+| **Endpoint** | `GET /api/v1/tasks/{id}/approval` |
+
+**Output:** `{ approvalStatus, approvalFeedback, approvedBy, approvedAt }`
+
+**Frontend:** Task card shows approval block: green=approved, red=rejected, yellow=pending. Feedback in italics. Approver name and date.
+
+---
+
+## 11. Data Collector Functions
+
+---
+
+### F-DC-001: View Assigned Data Collection Tasks
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-DC-001 |
+| **Description** | Data Collector views field data collection tasks including submissions, evidence, and feedback. |
+| **Roles** | `data_collector`, `ceo`, `general_manager` |
+| **Endpoint** | `GET /api/v1/data-collector-tasks?sortBy=createdAt&order=desc&page=1&limit=50` |
+
+**Business Rules:**
+- BR-DC-001: CEO/GM see all; Data Collector sees all from shared store
+- BR-DC-002: Summary stats: Total, Pending, In Progress, Completed
+- BR-DC-003: New tasks highlighted until viewed
+
+**Frontend:** Data Collector Tasks page at `/data-collector-tasks`. Summary stat cards. Task queue sorted with "New" at top. Cards: Title, Description, Status, Approval, Feedback indicators, Deadline. "Open Submission Detail" button.
+
+---
+
+### F-DC-002: View Task Submissions
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-DC-002 |
+| **Description** | View detailed submissions for a task: submitted by, notes, metadata, attached evidence images. |
+| **Roles** | `data_collector`, `ceo`, `general_manager` |
+| **Endpoint** | `GET /api/v1/data-collector-tasks/{id}/submissions` |
+
+**Output:**
+```json
+{
+  "submissions": [{
+    "id": "sub-1",
+    "submittedBy": "Robert Taylor",
+    "submittedAt": "2026-05-18T12:10:00Z",
+    "notes": "Captured telegram preview...",
+    "attachments": ["s3://evidence.jpg"],
+    "metadata": { "telegramHandle": "@site_updates" }
+  }]
+}
+```
+
+**Frontend:** Task detail modal. Submissions section: Submitted by + timestamp, Notes, Metadata tags, Attachment gallery with click-to-zoom.
+
+---
+
+### F-DC-003: Submit Task Evidence
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-DC-003 |
+| **Description** | Data Collector submits evidence for a task with progress notes and Telegram screenshot. |
+| **Roles** | `data_collector` |
+| **Endpoint** | `POST /api/v1/data-collector-tasks/{id}/submissions` (multipart/form-data) |
+
+**Input:**
+
+| Field | Type | Required | Validation | Example |
+|-------|------|----------|------------|---------|
+| notes | String | Yes | 5-5000 chars | `Captured measurements and preview` |
+| attachments | File[] | No (1-5) | Images, max 10MB each | `measurements.jpg` |
+| metadata | JSON | No | Key-value pairs | `{ "telegramHandle": "@site_updates" }` |
+
+**Business Rules:**
+- BR-DC-006: At least one note or attachment required
+- BR-DC-007: Metadata stored as JSONB
+- BR-DC-008: Multiple submissions per task allowed
+
+**Notifications:**
+- Notify ALL `ceo` and `general_manager`
+- Type: `data_collector_submitted`
+- Title: "Data Collection Submission"
+- Body: "{submittedByName} submitted evidence for '{taskTitle}'."
+
+**Frontend:** Detail modal with submission form. Notes textarea. File upload. Metadata fields. Submit button.
+
+---
+
+### F-DC-004: Update Task Progress
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-DC-004 |
+| **Description** | Data Collector updates task progress status. |
+| **Roles** | `data_collector` |
+| **Endpoint** | `PATCH /api/v1/data-collector-tasks/{id}/status` |
+
+**Input:** `{ status: "pending"|"in_progress"|"completed" }`
+
+**Business Rules:**
+- BR-DC-009: Valid transitions: pending → in_progress → completed
+- BR-DC-010: Cannot re-open completed tasks
+
+**Frontend:** Status selector on task card or detail view.
+
+---
+
+## 12. System Administrator Functions
+
+The System Administrator role is defined in the type system and RBAC but is not seeded in the demo login set. These functions handle system-level configuration and monitoring.
+
+---
+
+### F-SYS-001: System Configuration Management
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-SYS-001 |
+| **Description** | System Administrator manages global system configuration: file types, rate limits, notification settings, integrations. |
+| **Roles** | `system_administrator` |
+| **Endpoint** | `GET/PATCH /api/v1/system/config` |
+
+**Configuration Keys:**
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `max_file_size_mb` | Integer | 10 | Maximum upload size |
+| `allowed_file_types` | String[] | ['jpg','png','pdf','docx','xlsx'] | Allowed MIME types |
+| `rate_limit_per_minute` | Integer | 60 | Global API rate limit |
+| `session_timeout_minutes` | Integer | 15 | JWT access token TTL |
+| `refresh_token_days` | Integer | 7 | Refresh token TTL |
+| `password_min_length` | Integer | 8 | Minimum password length |
+| `notification_retention_days` | Integer | 90 | Auto-delete after N days |
+| `audit_log_retention_days` | Integer | 365 | Auto-archive after N days |
+| `telegram_bot_token` | String | - | Encrypted Telegram bot token |
+| `s3_bucket_name` | String | - | File storage bucket |
+
+**Business Rules:**
+- BR-SYS-001: Only `system_administrator` can modify config
+- BR-SYS-002: Config changes require confirmation
+- BR-SYS-003: Sensitive values (tokens) encrypted at rest
+
+**Audit:** Action `system_config_updated`. Entity `system_config`. Full diff.
+
+**Frontend:** Admin config page. Categorized settings. Form fields. Save with confirmation. Sensitive fields masked.
+
+---
+
+### F-SYS-002: Audit Log Review and Monitoring
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-SYS-002 |
+| **Description** | System Administrator reviews audit logs with advanced filtering, date ranges, export, and anomaly detection. |
+| **Roles** | `system_administrator`, `ceo` |
+| **Endpoint** | `GET /api/v1/audit-logs?action=user_deleted&userId={id}&startDate=2026-01-01&endDate=2026-05-30&page=1&limit=100` |
+
+**Query Parameters:**
+
+| Field | Type | Required | Default | Validation |
+|-------|------|----------|---------|------------|
+| action | String | No | - | Any audit action string |
+| userId | UUID | No | - | Filter by actor |
+| userRole | Enum | No | - | Filter by actor role |
+| entityType | String | No | - | Table name |
+| entityId | UUID | No | - | Affected record |
+| startDate | Date | No | 30 days ago | ISO 8601 |
+| endDate | Date | No | Today | ISO 8601 |
+| search | String | No | - | Free-text search |
+| sortBy | String | No | createdAt | createdAt|action|entityType |
+| order | String | No | desc | asc|desc |
+| page | Integer | No | 1 | >= 1 |
+| limit | Integer | No | 50 | 1-200 |
+
+**Output:** `{ data: AuditLog[], meta: {...}, summary: { totalActions, uniqueUsers, actionBreakdown } }`
+
+**Business Rules:**
+- BR-SYS-004: CEO can view; System Admin has full access including export
+- BR-SYS-005: Audit logs immutable — no update or delete
+- BR-SYS-006: Export available as CSV or JSON
+- BR-SYS-007: Auto-archived after retention period
+
+**Frontend:** Audit log page with advanced filter bar. Sortable/paginated table. Export button. Summary cards.
+
+---
+
+## 13. Notification System
+
+### 13.1 System Overview
+
+The notification system operates on two tiers:
+1. **Server-side**: PostgreSQL `notifications` table — one record per recipient per event
+2. **Client-side**: `CustomEvent` bus via `window.dispatchEvent(...)` for real-time badge updates
+
+### 13.2 Notification Lifecycle
+
+```
+Action occurs (e.g., payment_submitted)
+    |
+    v
+Server creates 1 notification record PER recipient role user
+    |
+    v
+WebSocket push to connected clients AND stored in DB
+    |
+    v
+Frontend receives CustomEvent → updates badge count
+    |
+    v
+User views notification → PATCH /api/v1/notifications/{id}/read
+    |
+    v
+Read notifications persist but show readAt timestamp
+```
+
+### 13.3 Client-Side Notification Bus
+
+Pages publish badge counts via `window.dispatchEvent(new CustomEvent(...))`. The Layout component listens and updates sidebar badges.
+
+**Published Events:**
+
+| Event Name | Publisher | Payload |
+|------------|-----------|---------|
+| `paid-customers-notifications-updated` | PaidCustomers page | `{ detail: number }` |
+| `data-collector-notifications-updated` | DataCollectorTasks page | `{ detail: number }` |
+| `quantity-surveyor-notifications-updated` | QS Dashboard / QS Tasks | `{ detail: number }` |
+| `finance-verifications-notifications-updated` | FinanceVerifications page | `{ detail: number }` |
+| `approvals-notifications-updated` | Approvals page | `{ detail: number }` |
+| `open-job-postings-notifications-updated` | DesignerOpenJobPostings page | `{ detail: number }` |
+| `designer-assignments-notifications-updated` | DesignerAssignments page | `{ detail: number }` |
+| `designer-tasks-notifications-updated` | DesignerTasks page | `{ detail: number }` |
+| `site-engineer-notifications-v2` | SiteEngineerTasks page | `{ detail: number }` |
+
+### 13.4 Read/Unread Behavior
+
+- **IntersectionObserver**: Cards marked "viewed" only when >=70% visible in viewport
+- **In-memory tracking**: `Set<string>` tracks seen card IDs within session
+- **On unmount**: Seen IDs persist to viewed set; badge count recalculated
+- **Badge counts**: Published on mount and unmount via CustomEvent
+
+### 13.5 Server-Side Notification API
+
+#### F-NOTIF-001: Get User Notifications
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-NOTIF-001 |
+| **Roles** | Any authenticated user |
+| **Endpoint** | `GET /api/v1/notifications?isRead=false&type=payment_submitted&sortBy=createdAt&order=desc&page=1&limit=50` |
+
+**Query Parameters:** `isRead`, `type`, `entityType`, `sortBy`, `order`, `page`, `limit`.
+
+**Output:** `{ data: Notification[], meta: { ... }, unreadCount: number }`
+
+#### F-NOTIF-002: Mark Notification Read
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-NOTIF-002 |
+| **Roles** | Notification recipient |
+| **Endpoint** | `PATCH /api/v1/notifications/{id}/read` |
+
+**Output (200):** `{ id, isRead: true, readAt: "2026-05-30T14:00:00Z" }`
+
+#### F-NOTIF-003: Mark All Notifications Read
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-NOTIF-003 |
+| **Roles** | Any authenticated user |
+| **Endpoint** | `PATCH /api/v1/notifications/read-all` |
+
+**Input:** `{ types?: string[] }` — optional filter by notification type.
+
+**Output (200):** `{ markedCount: 15 }`
+
+#### F-NOTIF-004: Get Unread Notification Count
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-NOTIF-004 |
+| **Roles** | Any authenticated user |
+| **Endpoint** | `GET /api/v1/notifications/unread-count` |
+
+**Output:** `{ total: 8, byType: { payment_submitted: 3, task_reviewed: 5 } }`
+
+### 13.6 Notification Types Reference
+
+| Type Constant | Trigger Action | Recipients | Title Pattern |
+|---------------|---------------|------------|---------------|
+| `customer_created` | New customer request | ALL ceo | "New Customer Request" |
+| `payment_submitted` | Marketing transfers to paid | ALL finance_officer, ALL ceo | "New Payment Submitted" |
+| `payment_reviewed` | Finance verifies/rejects/clarifies | Marketing Lead (transferredBy) | "Payment {Approved/Rejected/Needs Clarification}" |
+| `payment_clarification_requested` | Finance requests clarification | Marketing Lead | "Payment Needs Clarification" |
+| `payment_clarification_responded` | Marketing resubmits | ALL finance_officer | "Payment Resubmitted" |
+| `task_assigned` | Task assigned to user | Assigned user | "New Task Assigned" |
+| `task_submitted` | Task submission created | ALL ceo, ALL general_manager | "Task Submission Received" |
+| `task_reviewed` | Task reviewed (approve/feedback) | Task assignee | "Task {Approved/Needs Feedback}" |
+| `designer_application` | Designer applies | ALL ceo, ALL general_manager | "New Designer Application" |
+| `designer_assigned` | Designer assigned to task | Assigned designer | "You've Been Assigned a Task" |
+| `designer_phase_submitted` | Designer submits phase | ALL ceo, ALL general_manager | "{Phase} Submission Ready" |
+| `designer_phase_reviewed` | CEO/GM reviews phase | Assigned designer | "{Phase} — {Approved/Feedback/Rejected}" |
+| `designer_paused` | Task paused | Assigned designer | "Task Paused" |
+| `designer_resumed` | Task resumed | Assigned designer | "Task Resumed" |
+| `designer_final_evaluated` | Final rating submitted | Rated designer | "Performance Rating Submitted" |
+| `qs_task_assigned` | QS review task created | Assigned quantity_surveyor | "New QS Review Task" |
+| `qs_evaluation_submitted` | QS submits evaluation | ALL ceo, ALL general_manager | "QS Evaluation Submitted" |
+| `qs_evaluation_reviewed` | CEO/GM decides | Submitting quantity_surveyor | "QS Evaluation {Approved/Needs Feedback}" |
+| `data_collector_submitted` | Data collector submits | ALL ceo, ALL general_manager | "Data Collection Submission" |
+| `data_collector_reviewed` | CEO/GM reviews | Data collector | "Task {Approved/Needs Feedback}" |
+| `site_engineer_submitted` | Site engineer updates status | Task assigner (CEO/GM) | "Task Status Updated" |
+| `site_engineer_reviewed` | CEO/GM reviews | Site engineer | "Task {Approved/Needs Feedback}" |
+| `user_created` | CEO creates user | ALL ceo | "New User Created" |
+| `user_updated` | CEO updates user | Affected user, ALL ceo | "User Updated" |
+| `user_deleted` | CEO soft-deletes user | ALL ceo | "User Deleted" |
+| `system_announcement` | System admin announcement | Specified roles or all | Custom title |
+
+### 13.7 QS-Specific Notification System
+
+The QS module has its own notification subsystem (`qs_notifications` table) with role-based read tracking:
+
+| Notification Type | Target Roles | Read Tracking |
+|-------------------|-------------|---------------|
+| `task_assigned` | `quantity_surveyor` | `readByRoles: []` initially |
+| `evaluation_submitted` | `general_manager`, `ceo` | Each role tracked independently |
+| `decision_made` | `quantity_surveyor` | Clears when QS views |
+
+**API:**
+- `GET /api/v1/qs-notifications?role={role}&isUnread=true`
+- `PATCH /api/v1/qs-notifications/read-all` — `{ role, type? }`
+
+---
+
+## 14. Performance Rating System
+
+### 14.1 Rating Model
+
+Each completed designer task receives one rating with scores across 5+1 dimensions:
+
+| Dimension | Scale | Description |
+|-----------|-------|-------------|
+| `overallRating` | 0.0 – 5.0 | Composite overall performance |
+| `renderingQuality` | 0.0 – 5.0 | Quality of 3D rendering/viz output |
+| `timeliness` | 0.0 – 5.0 | On-time delivery |
+| `creativity` | 0.0 – 5.0 | Creative approach and innovation |
+| `clientUnderstanding` | 0.0 – 5.0 | Adherence to client requirements |
+| `revisionEfficiency` | 0.0 – 5.0 | Efficiency in handling revisions (inverse of revisionCount) |
+
+### 14.2 Rating Statuses
+
+| Status | Meaning |
+|--------|---------|
+| `approved` | Rating finalized, visible to designer |
+| `rejected` | Rating rejected (error in evaluation) |
+| `in_review` | Rating under review, not yet visible |
+
+### 14.3 F-RATE-001: Get Designer Performance Summary
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-RATE-001 |
+| **Roles** | `ceo`, `general_manager`, `designer` (own only) |
+| **Endpoint** | `GET /api/v1/designer-ratings/summary?designerId={id}&year=2026` |
+
+**Output:**
+```json
+{
+  "designerId": "uuid",
+  "displayName": "Emily Chen",
+  "periodStats": {
+    "currentQuarter": {
+      "avgOverallRating": 4.4,
+      "totalStoryPoints": 21,
+      "tasksCompleted": 4,
+      "avgRevisionCount": 1.2
+    },
+    "currentYear": {
+      "avgOverallRating": 4.3,
+      "totalStoryPoints": 76,
+      "tasksCompleted": 14
+    }
+  },
+  "dimensionAverages": {
+    "renderingQuality": 4.5,
+    "timeliness": 4.2,
+    "creativity": 4.6,
+    "clientUnderstanding": 4.4,
+    "revisionEfficiency": 4.1
+  },
+  "trend": [
+    { "month": "2026-01", "avgRating": 4.1, "storyPoints": 8 },
+    { "month": "2026-02", "avgRating": 4.3, "storyPoints": 21 }
+  ]
+}
+```
+
+### 14.4 F-RATE-002: Get Leaderboard
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-RATE-002 |
+| **Roles** | `ceo`, `general_manager` |
+| **Endpoint** | `GET /api/v1/designer-ratings/leaderboard?period=quarter&year=2026&quarter=2` |
+
+**Output:** Ranked list of designers by average rating, story points, tasks completed.
+
+**Frontend:** Performance Ratings page at `/performance-ratings`. Designer selector dropdown. Metrics summary. Charts: LineChart (rating over time), AreaChart (story points), RadarChart (skill dimensions), PieChart (status distribution). Leaderboard table. Rating cards with score breakdowns and feedback.
+
+### 14.5 Business Rules
+
+- BR-RATE-001: Rating can only be created after all 4 phases `approved`
+- BR-RATE-002: One rating per task (one-to-one)
+- BR-RATE-003: `revisionCount` auto-computed from phase history feedback entries
+- BR-RATE-004: All dimensions NUMERIC(3,1) with CHECK 0-5
+- BR-RATE-005: Rating history versioned — previous values in audit log
+- BR-RATE-006: Status transitions: approved ↔ in_review, in_review → approved/rejected
+- BR-RATE-007: 48-hour lock after creation for CEO-only changes
+
+---
+
+## 15. Audit Trail System
+
+### 15.1 Overview
+
+Every state-changing operation creates an immutable audit log entry. The `audit_logs` table captures who did what, to which entity, at what time, with a JSON diff of changes.
+
+### 15.2 Audit Log Schema
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `id` | UUID PK | Unique identifier |
+| `user_id` | UUID FK → users | Actor (SET NULL on delete) |
+| `user_name` | VARCHAR(255) | Denormalized actor name |
+| `user_role` | user_role | Actor's role at time of action |
+| `action` | VARCHAR(100) | Action name (e.g., `task_created`, `payment_verified`) |
+| `entity_type` | VARCHAR(50) | Affected table/model |
+| `entity_id` | UUID | Affected record ID |
+| `changes` | JSONB | Diff of old vs new values |
+| `ip_address` | VARCHAR(45) | Client IP |
+| `user_agent` | TEXT | HTTP User-Agent |
+| `created_at` | TIMESTAMPTZ | When action occurred |
+
+### 15.3 Audited Actions
+
+| Category | Actions |
+|----------|---------|
+| Auth | `login_success`, `login_failed`, `account_locked`, `logout`, `token_refresh`, `password_reset` |
+| Users | `user_created`, `user_updated`, `user_deleted`, `user_role_changed`, `user_status_changed` |
+| Customers | `customer_request_created`, `customer_request_updated`, `customer_request_deleted`, `customer_request_transferred_to_paid` |
+| Finance | `payment_submitted`, `payment_verified`, `payment_rejected`, `payment_clarification_requested`, `payment_clarification_responded`, `payment_override` |
+| Tasks | `task_created`, `task_updated`, `task_deleted`, `task_status_changed`, `task_assigned`, `task_reviewed` |
+| Designer | `designer_task_created`, `designer_task_assigned`, `designer_phase_submitted`, `designer_phase_reviewed`, `designer_task_paused`, `designer_task_resumed` |
+| Ratings | `designer_rating_created`, `designer_rating_updated`, `designer_rating_status_changed` |
+| QS | `qs_review_task_created`, `qs_task_accepted_for_review`, `qs_evaluation_submitted`, `qs_evaluation_updated`, `qs_evaluation_decided` |
+| Data Collector | `data_collector_task_created`, `data_collector_task_reviewed`, `data_collector_submission_created` |
+| Site Engineer | `site_engineer_task_status_updated`, `site_engineer_task_description_updated`, `site_engineer_attachment_uploaded` |
+| System | `system_config_updated`, `audit_log_exported`, `system_announcement_created` |
+
+### 15.4 API Endpoints
+
+#### F-AUDIT-001: Query Audit Logs
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-AUDIT-001 |
+| **Roles** | `system_administrator`, `ceo` |
+| **Endpoint** | `GET /api/v1/audit-logs` |
+
+**Query Parameters:** Same as F-SYS-002.
+
+**Output:** `{ data: AuditLog[], meta: { total, page, limit, totalPages }, summary: {...} }`
+
+#### F-AUDIT-002: Export Audit Logs
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-AUDIT-002 |
+| **Roles** | `system_administrator` |
+| **Endpoint** | `GET /api/v1/audit-logs/export?format=csv&startDate=2026-01-01&endDate=2026-05-30` |
+
+**Output:** CSV or JSON file download.
+
+#### F-AUDIT-003: Get Audit Log Summary
+
+| Aspect | Detail |
+|--------|--------|
+| **Function ID** | F-AUDIT-003 |
+| **Roles** | `system_administrator`, `ceo` |
+| **Endpoint** | `GET /api/v1/audit-logs/summary?period=month` |
+
+**Output:**
+```json
+{
+  "totalActions": 1253,
+  "uniqueUsers": 12,
+  "uniqueEntities": 89,
+  "actionBreakdown": { "task_created": 340, "payment_verified": 85, ... },
+  "userBreakdown": [{ "userName": "Ava Reynolds", "actionCount": 245 }, ...]
+}
+```
+
+### 15.5 Business Rules
+
+- BR-AUDIT-001: All audit entries immutable — no update or delete operations
+- BR-AUDIT-002: `changes` column stores JSON diff (deep object comparison)
+- BR-AUDIT-003: Passwords and tokens NEVER stored in audit log
+- BR-AUDIT-004: Audit logs auto-archived to cold storage after retention period (configurable, default 365 days)
+- BR-AUDIT-005: Audit log queries rate-limited (30 req/min for CEO, 120 req/min for sysadmin)
+- BR-AUDIT-006: All export operations themselves are audited
+
+### 15.6 Retention & Compliance
+
+- Default retention: 365 days (configurable via System Config)
+- Archive to S3 cold storage (Glacier) after retention period
+- GDPR/Data protection: audit logs exclude PII from changes diff (mask customer_name, email, phone)
+- Chain of custody preserved via sequential IDs and timestamps
+- Audit log integrity check via periodic hash verification
+
+---
+
+## 16. Complete API Endpoint Catalog
+
+### 16.1 Authentication
+
+| Method | Endpoint | Auth | Roles | Function ID |
+|--------|----------|------|-------|-------------|
+| POST | `/api/v1/auth/login` | No | Public | F-AUTH-001 |
+| POST | `/api/v1/auth/refresh` | No (cookie) | Public | F-AUTH-002 |
+| POST | `/api/v1/auth/logout` | Bearer | Any | F-AUTH-003 |
+| POST | `/api/v1/auth/forgot-password` | No | Public | F-AUTH-004 |
+| POST | `/api/v1/auth/reset-password` | No | Public | F-AUTH-005 |
+| GET | `/api/v1/auth/me` | Bearer | Any | - |
+
+### 16.2 Users
+
+| Method | Endpoint | Auth | Roles | Function ID |
+|--------|----------|------|-------|-------------|
+| GET | `/api/v1/users` | Bearer | ceo | F-CEO-001 |
+| POST | `/api/v1/users` | Bearer | ceo | F-CEO-002 |
+| GET | `/api/v1/users/{id}` | Bearer | ceo | F-CEO-001 |
+| PATCH | `/api/v1/users/{id}` | Bearer | ceo | F-CEO-003 |
+| DELETE | `/api/v1/users/{id}` | Bearer | ceo | F-CEO-004 |
+
+### 16.3 Projects
+
+| Method | Endpoint | Auth | Roles | Function ID |
+|--------|----------|------|-------|-------------|
+| GET | `/api/v1/projects` | Bearer | Any | - |
+| POST | `/api/v1/projects` | Bearer | ceo, general_manager | - |
+| GET | `/api/v1/projects/{id}` | Bearer | Any | - |
+| PUT | `/api/v1/projects/{id}` | Bearer | ceo, general_manager | - |
+| DELETE | `/api/v1/projects/{id}` | Bearer | ceo | - |
+| GET | `/api/v1/projects/{id}/tasks` | Bearer | Any | - |
+| POST | `/api/v1/projects/{id}/documents` | Bearer | Any | - |
+
+### 16.4 Customer Requests
+
+| Method | Endpoint | Auth | Roles | Function ID |
+|--------|----------|------|-------|-------------|
+| GET | `/api/v1/customer-requests` | Bearer | marketing_lead, ceo | F-MKT-002 |
+| POST | `/api/v1/customer-requests` | Bearer | marketing_lead, ceo | F-MKT-001 |
+| PATCH | `/api/v1/customer-requests/{id}` | Bearer | marketing_lead, ceo | F-MKT-003 |
+| DELETE | `/api/v1/customer-requests/{id}` | Bearer | marketing_lead, ceo | F-MKT-004 |
+
+### 16.5 Paid Customers (Finance & Marketing)
+
+| Method | Endpoint | Auth | Roles | Function ID |
+|--------|----------|------|-------|-------------|
+| GET | `/api/v1/paid-customers` | Bearer | ceo, general_manager, marketing_lead, finance_officer | F-MKT-007, F-FIN-001 |
+| POST | `/api/v1/paid-customers` | Bearer | marketing_lead, ceo | F-MKT-005 |
+| POST | `/api/v1/paid-customers/{id}/verify` | Bearer | finance_officer, ceo | F-FIN-002 |
+| POST | `/api/v1/paid-customers/{id}/clarify` | Bearer | marketing_lead, ceo | F-MKT-006 |
+| GET | `/api/v1/paid-customers/{id}/verification-history` | Bearer | finance_officer, ceo, general_manager, marketing_lead (own) | F-FIN-004 |
+
+### 16.6 Designer Tasks & Job Postings
+
+| Method | Endpoint | Auth | Roles | Function ID |
+|--------|----------|------|-------|-------------|
+| GET | `/api/v1/designer-tasks` | Bearer | Any | F-CEO-009, F-DSGN-001, F-DSGN-007 |
+| POST | `/api/v1/designer-tasks` | Bearer | ceo, general_manager | F-CEO-009 |
+| GET | `/api/v1/designer-tasks/{id}` | Bearer | ceo, general_manager, designer (assigned) | F-DSGN-001 |
+| PATCH | `/api/v1/designer-tasks/{id}` | Bearer | ceo, general_manager | F-CEO-009 |
+| DELETE | `/api/v1/designer-tasks/{id}` | Bearer | ceo | F-CEO-009 |
+| POST | `/api/v1/designer-tasks/{id}/assign` | Bearer | ceo, general_manager | F-CEO-010 |
+| GET | `/api/v1/designer-tasks/{id}/phases` | Bearer | ceo, general_manager, designer (assigned) | F-DSGN-006 |
+| POST | `/api/v1/designer-tasks/{id}/phases/{phase}/submit` | Bearer | designer (assigned) | F-DSGN-002–005 |
+| POST | `/api/v1/designer-tasks/{id}/phases/{phase}/review` | Bearer | ceo, general_manager | F-CEO-014 |
+| PATCH | `/api/v1/designer-tasks/{id}/phases/{phase}/notes` | Bearer | designer (assigned) | F-DSGN-012 |
+| PATCH | `/api/v1/designer-tasks/{id}/pause` | Bearer | ceo, general_manager | - |
+| PATCH | `/api/v1/designer-tasks/{id}/resume` | Bearer | ceo, general_manager | - |
+
+### 16.7 Designer Task Applications
+
+| Method | Endpoint | Auth | Roles | Function ID |
+|--------|----------|------|-------|-------------|
+| GET | `/api/v1/designer-task-applications` | Bearer | ceo, general_manager, designer (own) | F-CEO-012, F-DSGN-009 |
+| POST | `/api/v1/designer-task-applications` | Bearer | designer | F-DSGN-008 |
+| PATCH | `/api/v1/designer-task-applications/{id}` | Bearer | ceo, general_manager | F-CEO-013 |
+
+### 16.8 Designer Ratings
+
+| Method | Endpoint | Auth | Roles | Function ID |
+|--------|----------|------|-------|-------------|
+| GET | `/api/v1/designer-ratings` | Bearer | ceo, general_manager, designer (own) | F-CEO-017, F-DSGN-010 |
+| POST | `/api/v1/designer-ratings` | Bearer | ceo, general_manager | F-CEO-015 |
+| PATCH | `/api/v1/designer-ratings/{id}` | Bearer | ceo, general_manager | F-CEO-016 |
+| GET | `/api/v1/designer-ratings/summary` | Bearer | ceo, general_manager, designer (own) | F-RATE-001 |
+| GET | `/api/v1/designer-ratings/leaderboard` | Bearer | ceo, general_manager | F-RATE-002 |
+
+### 16.9 Quantity Surveyor
+
+| Method | Endpoint | Auth | Roles | Function ID |
+|--------|----------|------|-------|-------------|
+| GET | `/api/v1/qs-review-tasks` | Bearer | ceo, general_manager, quantity_surveyor (assigned) | F-CEO-019, F-QS-001 |
+| POST | `/api/v1/qs-review-tasks` | Bearer | ceo, general_manager | F-CEO-019 |
+| PATCH | `/api/v1/qs-review-tasks/{id}/status` | Bearer | quantity_surveyor (assigned) | F-QS-002 |
+| PATCH | `/api/v1/qs-review-tasks/{id}/assign` | Bearer | ceo, general_manager | F-CEO-020 |
+| GET | `/api/v1/qs-evaluations` | Bearer | ceo, general_manager, quantity_surveyor (own) | F-QS-004 |
+| POST | `/api/v1/qs-evaluations` | Bearer | quantity_surveyor | F-QS-003 |
+| PUT | `/api/v1/qs-evaluations/{id}` | Bearer | quantity_surveyor (own, pending) | F-QS-003 |
+| POST | `/api/v1/qs-evaluations/{id}/decide` | Bearer | ceo, general_manager | F-CEO-021 |
+| GET | `/api/v1/qs-notifications` | Bearer | ceo, general_manager, quantity_surveyor | F-NOTIF-001 |
+| PATCH | `/api/v1/qs-notifications/read-all` | Bearer | ceo, general_manager, quantity_surveyor | F-NOTIF-003 |
+
+### 16.10 Tasks (Generic / Site Engineer / Data Collector)
+
+| Method | Endpoint | Auth | Roles | Function ID |
+|--------|----------|------|-------|-------------|
+| GET | `/api/v1/tasks` | Bearer | Any | F-SE-001 |
+| POST | `/api/v1/tasks` | Bearer | ceo, general_manager | - |
+| GET | `/api/v1/tasks/{id}` | Bearer | ceo, general_manager, assigned user | - |
+| PUT | `/api/v1/tasks/{id}` | Bearer | ceo, general_manager, assigned user (limited) | - |
+| PATCH | `/api/v1/tasks/{id}/status` | Bearer | assigned user | F-SE-002, F-DC-002 |
+| PATCH | `/api/v1/tasks/{id}/description` | Bearer | assigned user | F-SE-003 |
+| POST | `/api/v1/tasks/{id}/attachments` | Bearer | assigned user | F-SE-004, F-DSGN-011 |
+| GET | `/api/v1/tasks/{id}/approval` | Bearer | ceo, general_manager, assigned user | F-SE-005 |
+| POST | `/api/v1/tasks/{id}/approve` | Bearer | ceo, general_manager | - |
+| POST | `/api/v1/tasks/{id}/reject` | Bearer | ceo, general_manager | - |
+
+### 16.11 Data Collector Tasks
+
+| Method | Endpoint | Auth | Roles | Function ID |
+|--------|----------|------|-------|-------------|
+| GET | `/api/v1/data-collector-tasks` | Bearer | ceo, general_manager, data_collector | F-CEO-007, F-DC-001 |
+| POST | `/api/v1/data-collector-tasks` | Bearer | ceo, general_manager | F-CEO-007 |
+| PATCH | `/api/v1/data-collector-tasks/{id}` | Bearer | ceo, general_manager | F-CEO-007 |
+| DELETE | `/api/v1/data-collector-tasks/{id}` | Bearer | ceo | F-CEO-007 |
+| GET | `/api/v1/data-collector-tasks/{id}/submissions` | Bearer | ceo, general_manager, data_collector | F-DC-002 |
+| POST | `/api/v1/data-collector-tasks/{id}/submissions` | Bearer | data_collector | F-DC-003 |
+| POST | `/api/v1/data-collector-tasks/{id}/review` | Bearer | ceo, general_manager | F-CEO-008 |
+
+### 16.12 Notifications
+
+| Method | Endpoint | Auth | Roles | Function ID |
+|--------|----------|------|-------|-------------|
+| GET | `/api/v1/notifications` | Bearer | Any | F-NOTIF-001 |
+| PATCH | `/api/v1/notifications/{id}/read` | Bearer | Notification recipient | F-NOTIF-002 |
+| PATCH | `/api/v1/notifications/read-all` | Bearer | Any | F-NOTIF-003 |
+| GET | `/api/v1/notifications/unread-count` | Bearer | Any | F-NOTIF-004 |
+
+### 16.13 Dashboard & Audit
+
+| Method | Endpoint | Auth | Roles | Function ID |
+|--------|----------|------|-------|-------------|
+| GET | `/api/v1/dashboard` | Bearer | Any | - |
+| GET | `/api/v1/audit-logs` | Bearer | system_administrator, ceo | F-SYS-002, F-AUDIT-001 |
+| GET | `/api/v1/audit-logs/export` | Bearer | system_administrator | F-AUDIT-002 |
+| GET | `/api/v1/audit-logs/summary` | Bearer | system_administrator, ceo | F-AUDIT-003 |
+
+### 16.14 Documents & System
+
+| Method | Endpoint | Auth | Roles | Function ID |
+|--------|----------|------|-------|-------------|
+| GET | `/api/v1/documents/{id}` | Bearer | Any (with access) | - |
+| GET | `/api/v1/system/config` | Bearer | system_administrator | F-SYS-001 |
+| PATCH | `/api/v1/system/config` | Bearer | system_administrator | F-SYS-001 |
+
+---
+
+## 17. Frontend Requirements Summary
+
+### 17.1 Technology Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | React 18 (TypeScript) |
+| Build Tool | Vite |
+| Routing | `react-router-dom` HashRouter (required for Telegram WebView) |
+| Styling | Tailwind CSS v4 (via `@tailwindcss/vite` plugin) + shadcn/ui + CSS variables theme |
+| UI Components | Radix UI primitives, MUI (Material UI), Lucide React icons, Framer Motion |
+| State Management | Page-local state + localStorage + CustomEvent bus |
+| Charts | Recharts (LineChart, AreaChart, RadarChart, PieChart) |
+| Persistence | `localStorage` (15 storage keys) + seed/mock data bootstrapping |
+| Telegram SDK | `window.Telegram.WebApp` bridge via `useTelegram` hook |
+
+### 17.2 Pages & Routes
+
+| Route | Page Component | Accessible Roles | Description |
+|-------|---------------|------------------|-------------|
+| `/` | `Login` | Public | Mock login against seeded user list |
+| `/dashboard` | `Dashboard` | All (role-redirected) | Role-specific landing; Finance→FinanceVerifications, QS→QuantitySurveyorDashboard, SE→SiteEngineerTasks, others→main Dashboard |
+| `/customers` | `CustomerData` | ceo, marketing_lead | Customer request intake and management |
+| `/paid-customers` | `PaidCustomers` | ceo, general_manager, marketing_lead | Paid customer records and status |
+| `/finance-verifications` | `FinanceVerifications` | finance_officer, ceo, general_manager | Finance review queue (5 status tabs) |
+| `/approvals` | `Approvals` | ceo, general_manager | Payment-related approval workspace |
+| `/users` | `UserManagement` | ceo (exclusive) | User CRUD, role/status management |
+| `/tasks` | `Tasks` | marketing_lead, designer, finance_officer, data_collector, quantity_surveyor | Shared task workspace |
+| `/site-engineer-tasks` | `SiteEngineerTasks` | site_engineer | Site engineer field task board |
+| `/data-collector-tasks` | `DataCollectorTasks` | ceo, general_manager | Data collector task management |
+| `/job-postings` | `JobPostings` | ceo, general_manager | Interior design task board (RoleTaskBoard) |
+| `/open-job-postings` | `DesignerOpenJobPostings` | designer, ceo, general_manager | Public job postings for designer applications |
+| `/designer-applications` | `DesignerApplications` | ceo, general_manager | Application review and designer assignment |
+| `/designer-assignments` | `DesignerAssignments` | ceo, general_manager | Designer task CRUD + phase review + ratings |
+| `/designer-tasks` | `DesignerTasks` | designer | Designer-facing 4-phase submission workflow |
+| `/performance-ratings` | `DesignerPerformanceDashboard` | ceo, general_manager, designer | Charts, leaderboard, rating cards |
+| `/designer-performance` | `DesignerPerformanceDashboard` (redirect) | ceo, general_manager, designer | Same as above |
+| `/quantity-surveyor-tasks` | `QuantitySurveyorTasks` | ceo, general_manager | Forward design submissions to QS |
+| `/quantity-surveyor-live` | `QuantitySurveyorDashboard` (live mode) | quantity_surveyor | Active QS review queue |
+| `/quantity-surveyor-review` | `QuantitySurveyorDashboard` (review mode) | quantity_surveyor | QS approval/review panel |
+| `/task-applications` | Redirect → `/designer-applications` | ceo, general_manager | Legacy redirect |
+| `/projects`, `/projects/:id` | Redirect → `/dashboard` | All | Not implemented — redirects |
+
+### 17.3 Key UI Components
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `Layout` | `src/app/components/Layout.tsx` | Shell with role-based sidebar navigation and badge counters |
+| `RoleTaskBoard` | `src/app/components/RoleTaskBoard.tsx` | Reusable task board component (used by JobPostings) |
+| `Button` | `src/app/components/ui/button.tsx` | shadcn/ui button wrapper |
+| `Badge` | `src/app/components/ui/badge.tsx` | Status badges |
+| `Dialog` | `src/app/components/ui/dialog.tsx` | Modal dialogs |
+| `IntersectionObserver` | Used per-page | Read/unread card tracking at 70% visibility threshold |
+
+### 17.4 Notification Badge System
+
+Each page tracks "unseen" items via a `Set<string>` and publishes badge counts via `window.dispatchEvent(new CustomEvent(...))`. The Layout component listens to these events and updates sidebar badge counters.
+
+**Pattern per page:**
+1. Define `HIGHLIGHTED_IDS` constant
+2. Track seen IDs in in-memory `Set` (persists across route changes, resets on refresh)
+3. Use `IntersectionObserver` (threshold 0.7) to detect when cards enter viewport
+4. On component unmount, persist seen IDs and publish updated badge count
+5. Highlighted cards get blue border, ring, and "New" badge
+
+### 17.5 localStorage Keys
+
+| Key | Purpose | Data Type |
+|-----|---------|-----------|
+| `user` | Current authenticated user session | `User` |
+| `customer-requests` | Customer intake records | `CustomerRequest[]` |
+| `paid-customers` | Paid customer and finance workflow records | `PaidCustomer[]` |
+| `workflow-tasks` | Site engineer / general tasks | `Task[]` |
+| `designer-tasks` | Designer task catalog and assignments | `DesignerTask[]` |
+| `designer-task-applications` | Designer job applications | `DesignerTaskApplication[]` |
+| `designer-submission-progress` | Phase-by-phase designer progress | `SubmissionProgress` |
+| `designer-task-reviews` | Leadership review and rating history | `Record<string, ReviewData>` |
+| `data-collector-tasks-v2` | Data collector task board | `Task[]` |
+| `designer-job-postings` | Interior design job posting board | `JobPostingTask[]` |
+| `quantity-surveyor-review-tasks` | QS review queue items | `QuantityReviewTask[]` |
+| `quantity-surveyor-evaluations` | QS evaluation records | `QuantityReviewEvaluation[]` |
+| `quantity-surveyor-notifications` | QS notification feed | `QuantityReviewNotification[]` |
+| `designer_applications_page_tasks` | Designer applications page task cache | `DesignerTask[]` |
+| `designer_applications_page_applications` | Designer applications page application cache | `DesignerTaskApplication[]` |
+
+### 17.6 Entity ID Prefixes
+
+| Prefix | Entity Type |
+|--------|------------|
+| `proj-` | Projects |
+| `task-` | Generic / Site Engineer Tasks |
+| `dtask-` | Designer Tasks |
+| `job-post-` | Job Postings |
+| `dc-task-` | Data Collector Tasks |
+| `dapp-` | Designer Task Applications |
+| `qs-review-` | QS Review Tasks |
+| `qs-eval-` | QS Evaluations |
+| `qs-notify-` | QS Notifications |
+| `r-ec-` / `r-mb-` / `r-sa-` / `r-dr-` | Designer Ratings (per designer initial) |
+| `pc-` | Paid Customers |
+| `cr-` | Customer Requests |
+
+### 17.7 Seed Data Bootstrapping
+
+On first load (localStorage key missing), seed data from `src/app/data/mockData.ts` and page-specific seed arrays are written to localStorage. On subsequent loads, existing records are merged with seed data so user changes are preserved while new seed entries are picked up. Pattern:
+
+```typescript
+const saved = localStorage.getItem(KEY);
+const parsed = saved ? JSON.parse(saved) : null;
+const merged = parsed
+  ? [...parsed.map(item => ({ ...seedItem, ...item })), ...seedOnlyInSeed]
+  : seedData;
+localStorage.setItem(KEY, JSON.stringify(merged));
+```
+
+### 17.8 Development Commands
+
+| Command | Purpose |
+|---------|---------|
+| `npm run dev` | Start Vite dev server |
+| `npm run build` | Production build |
+| `npm ci` | Clean install (CI) |
+
+### 17.9 Deployment
+
+- **Base path**: `/workflow-managment/` (config in `vite.config.ts`)
+- **CI**: GitHub Actions (`.github/workflows/deploy.yml`) deploys to GitHub Pages on push to `main`
+- **Node version**: 20
+- **Package manager**: npm (lockfile: `package-lock.json`)
+
+---
+
+</script>
+<script>
+(function() {
+  const md = document.getElementById('markdown-content').textContent;
+  const content = document.getElementById('content');
+  const tocList = document.getElementById('toc-list');
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  const hamburger = document.getElementById('hamburger');
+  const backToTop = document.getElementById('back-to-top');
+
+  marked.setOptions({ breaks: false, gfm: true });
+
+  let html = marked.parse(md);
+
+  content.innerHTML = html;
+
+  // Build TOC
+  const headings = content.querySelectorAll('h1, h2, h3');
+  let tocItems = [];
+  headings.forEach((h, i) => {
+    const id = h.id || ('section-' + i);
+    h.id = id;
+    const level = h.tagName.toLowerCase();
+    tocItems.push({ id, text: h.textContent.trim(), level });
+  });
+
+  tocItems.forEach(item => {
+    const li = document.createElement('li');
+    li.className = 'toc-item';
+    const a = document.createElement('a');
+    a.href = '#' + item.id;
+    a.className = 'toc-link ' + (item.level === 'h2' ? 'toc-h2' : item.level === 'h3' ? 'toc-h3' : 'toc-h1');
+    a.textContent = item.text;
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      const target = document.getElementById(item.id);
+      if (target) { target.scrollIntoView({ behavior: 'smooth' }); }
+      if (window.innerWidth <= 860) { sidebar.classList.remove('open'); overlay.classList.remove('open'); }
+    });
+    li.appendChild(a);
+    tocList.appendChild(li);
+  });
+
+  // Scroll spy
+  const tocLinks = tocList.querySelectorAll('.toc-link');
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        tocLinks.forEach(link => link.classList.remove('active'));
+        const match = tocList.querySelector('a[href="#' + entry.target.id + '"]');
+        if (match) match.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-80px 0px -70% 0px' });
+  headings.forEach(h => observer.observe(h));
+
+  // Mobile
+  hamburger.addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('open');
+  });
+  overlay.addEventListener('click', () => {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('open');
+  });
+
+  // Back to top
+  window.addEventListener('scroll', () => {
+    backToTop.classList.toggle('visible', window.scrollY > 400);
+  });
+  backToTop.addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  // Style inner content
+  content.querySelectorAll('pre code').forEach(block => {
+    if (block.parentElement.tagName === 'PRE') {
+      const lang = block.className ? block.className.replace('language-','') : '';
+      if (lang === 'sql') {
+        block.innerHTML = block.innerHTML
+          .replace(/\b(CREATE|TABLE|TYPE|ENUM|AS|DEFAULT|NOT|NULL|PRIMARY|KEY|FK|REFERENCES|CASCADE|SET|ON|DELETE|UPDATE|VARCHAR|TEXT|BOOLEAN|INTEGER|BIGINT|NUMERIC|JSONB|TIMESTAMPTZ|CHECK|UNIQUE|now|gen_random_uuid)\b/g,'<span style="color:#93c5fd">$1</span>')
+          .replace(/'([^']*)'/g,"<span style='color:#86efac'>'$1'</span>")
+          .replace(/--.*$/gm,"<span style='color:#6b7280'>$&</span>");
+      } else if (lang === 'json') {
+        block.innerHTML = block.innerHTML
+          .replace(/"([^"]+)":/g,'<span style="color:#93c5fd">"$1"</span>:')
+          .replace(/: "([^"]*)"/g,': <span style="color:#86efac">"$1"</span>')
+          .replace(/: (\d+\.?\d*)/g,': <span style="color:#fbbf24">$1</span>')
+          .replace(/: (true|false)/g,': <span style="color:#c084fc">$1</span>');
+      }
+    }
+  });
+
+})();
+</script>
+</body>
+</html>

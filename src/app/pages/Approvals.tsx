@@ -431,7 +431,7 @@ export function Approvals() {
         paymentVerificationMessage: form.message.trim(),
         paymentVerifiedAt: new Date().toISOString(),
         paymentVerifiedBy: currentUser.id,
-        paymentVerifiedByName: currentUser.name,
+        paymentVerifiedByName: currentUser.full_name,
       };
     });
 
@@ -531,7 +531,7 @@ export function Approvals() {
           attachments,
           respondedAt: new Date().toISOString(),
           respondedBy: currentUser.id,
-          respondedByName: currentUser.name,
+          respondedByName: currentUser.full_name,
         },
       };
     });

@@ -258,6 +258,8 @@ export function DesignerTasks() {
 
   const [draftNotes, setDraftNotes] = useState<Record<string, Record<PhaseKey, string>>>({});
   const [draftScreenshots, setDraftScreenshots] = useState<Record<string, Record<PhaseKey, string | null>>>({});
+  const draftFilesRef = useRef<Record<string, Record<PhaseKey, File | null>>>({});
+  const [phaseErrors, setPhaseErrors] = useState<Record<string, Record<PhaseKey, string>>>({});
 
   // ──────────── HIGHLIGHT STATE ────────────
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
@@ -408,6 +410,8 @@ export function DesignerTasks() {
     });
     setDraftNotes((prev) => ({ ...prev, [task.id]: notesDraft }));
     setDraftScreenshots((prev) => ({ ...prev, [task.id]: screenshotsDraft }));
+    setPhaseErrors((prev) => ({ ...prev, [task.id]: {} as Record<PhaseKey, string> }));
+    draftFilesRef.current = { ...draftFilesRef.current, [task.id]: { caseStudy: null, designStage: null, rendering: null, finalStage: null } };
     setExpandedPhase('caseStudy');
     setExpandedHistoryIdx((prev) => ({
       ...prev,
@@ -417,21 +421,49 @@ export function DesignerTasks() {
   };
 
   const closeDetail = () => {
+    const taskId = selectedTaskDetail?.id;
+    if (taskId && draftFilesRef.current[taskId]) {
+      const taskDrafts = draftScreenshots[taskId];
+      if (taskDrafts) {
+        Object.values(taskDrafts).forEach((url) => {
+          if (url) URL.revokeObjectURL(url);
+        });
+      }
+    }
     setSelectedTaskDetail(null);
     setShowDetail(false);
     setExpandedPhase(null);
   };
 
-  const handleSubmitPhaseProgress = (taskId: string, phase: PhaseKey) => {
+  const handleSubmitPhaseProgress = async (taskId: string, phase: PhaseKey) => {
     const note = draftNotes[taskId]?.[phase] ?? '';
-    const newScreenshot = draftScreenshots[taskId]?.[phase] ?? null;
+    const file = draftFilesRef.current[taskId]?.[phase] ?? null;
+    const existingScreenshot = getDisplayProgress(taskId)[phase]?.screenshot;
+
+    if (phase === 'finalStage' && !file && !existingScreenshot) {
+      setPhaseErrors((prev) => ({
+        ...prev,
+        [taskId]: { ...prev[taskId], [phase]: 'A screenshot is required for the Final Stage.' },
+      }));
+      return;
+    }
+
+    let newScreenshotDataUrl: string | null = null;
+    if (file) {
+      newScreenshotDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('Unable to read screenshot'));
+        reader.readAsDataURL(file);
+      });
+    }
 
     setSubmissionProgress((prev) => {
       const taskProgress = prev[taskId] ?? getDisplayProgress(taskId);
       const updatedPhase: PhaseData = {
         ...taskProgress[phase],
         note: note.trim(),
-        screenshot: newScreenshot ?? taskProgress[phase].screenshot,
+        screenshot: newScreenshotDataUrl ?? taskProgress[phase].screenshot,
       };
       return {
         ...prev,
@@ -442,28 +474,57 @@ export function DesignerTasks() {
       };
     });
 
+    const oldUrl = draftScreenshots[taskId]?.[phase] ?? null;
+    if (oldUrl) URL.revokeObjectURL(oldUrl);
+
     setDraftScreenshots((prev) => ({
       ...prev,
       [taskId]: { ...prev[taskId], [phase]: null },
     }));
+    setDraftNotes((prev) => ({
+      ...prev,
+      [taskId]: { ...prev[taskId], [phase]: '' },
+    }));
+    setPhaseErrors((prev) => ({
+      ...prev,
+      [taskId]: { ...prev[taskId], [phase]: '' },
+    }));
+
+    draftFilesRef.current = {
+      ...draftFilesRef.current,
+      [taskId]: { ...draftFilesRef.current[taskId], [phase]: null },
+    };
   };
 
   const handleFileChange = (taskId: string, phase: PhaseKey, file: File | undefined) => {
     if (!file) {
+      const oldUrl = draftScreenshots[taskId]?.[phase] ?? null;
+      if (oldUrl) URL.revokeObjectURL(oldUrl);
       setDraftScreenshots((prev) => ({
         ...prev,
         [taskId]: { ...prev[taskId], [phase]: null },
       }));
+      draftFilesRef.current = {
+        ...draftFilesRef.current,
+        [taskId]: { ...draftFilesRef.current[taskId], [phase]: null },
+      };
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setDraftScreenshots((prev) => ({
-        ...prev,
-        [taskId]: { ...prev[taskId], [phase]: reader.result as string },
-      }));
+    const oldUrl = draftScreenshots[taskId]?.[phase] ?? null;
+    if (oldUrl) URL.revokeObjectURL(oldUrl);
+    const objectUrl = URL.createObjectURL(file);
+    draftFilesRef.current = {
+      ...draftFilesRef.current,
+      [taskId]: { ...draftFilesRef.current[taskId], [phase]: file },
     };
-    reader.readAsDataURL(file);
+    setDraftScreenshots((prev) => ({
+      ...prev,
+      [taskId]: { ...prev[taskId], [phase]: objectUrl },
+    }));
+    setPhaseErrors((prev) => ({
+      ...prev,
+      [taskId]: { ...prev[taskId], [phase]: '' },
+    }));
   };
 
   const toggleHistoryEntry = (taskId: string, phase: PhaseKey, idx: number) => {
@@ -829,6 +890,7 @@ export function DesignerTasks() {
                           const noteDraft = draftNotes[taskId]?.[phase.key] ?? '';
                           const newScreenshot = draftScreenshots[taskId]?.[phase.key] ?? null;
                           const existingScreenshot = phaseData.screenshot;
+                          const phaseError = phaseErrors[taskId]?.[phase.key] ?? '';
                           const taskHistoryIdx = expandedHistoryIdx[taskId]?.[phase.key];
 
                           const statusBadge = {
@@ -912,10 +974,16 @@ export function DesignerTasks() {
                                               <button
                                                 type="button"
                                                 onClick={() => {
+                                                  const oldUrl = draftScreenshots[taskId]?.[phase.key] ?? null;
+                                                  if (oldUrl) URL.revokeObjectURL(oldUrl);
                                                   setDraftScreenshots((prev) => ({
                                                     ...prev,
                                                     [taskId]: { ...prev[taskId], [phase.key]: null },
                                                   }));
+                                                  draftFilesRef.current = {
+                                                    ...draftFilesRef.current,
+                                                    [taskId]: { ...draftFilesRef.current[taskId], [phase.key]: null },
+                                                  };
                                                 }}
                                                 className="text-sm text-red-600 hover:underline"
                                               >
@@ -923,6 +991,9 @@ export function DesignerTasks() {
                                               </button>
                                             )}
                                           </div>
+                                          {phaseError && (
+                                            <p className="mt-1 text-xs text-red-600">{phaseError}</p>
+                                          )}
                                           {newScreenshot && (
                                             <img
                                               src={newScreenshot}
@@ -950,6 +1021,8 @@ export function DesignerTasks() {
                                           </button>
                                           <button
                                             onClick={() => {
+                                              const oldUrl = draftScreenshots[taskId]?.[phase.key] ?? null;
+                                              if (oldUrl) URL.revokeObjectURL(oldUrl);
                                               setDraftNotes((prev) => ({
                                                 ...prev,
                                                 [taskId]: { ...prev[taskId], [phase.key]: '' },
@@ -958,6 +1031,10 @@ export function DesignerTasks() {
                                                 ...prev,
                                                 [taskId]: { ...prev[taskId], [phase.key]: null },
                                               }));
+                                              draftFilesRef.current = {
+                                                ...draftFilesRef.current,
+                                                [taskId]: { ...draftFilesRef.current[taskId], [phase.key]: null },
+                                              };
                                             }}
                                             className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition-colors"
                                           >

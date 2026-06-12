@@ -252,7 +252,7 @@ export function QuantitySurveyorDashboard() {
       decisionStatus: decision,
       decisionNotes: notes,
       decidedBy: user.id,
-      decidedByName: user.name,
+      decidedByName: user.full_name,
       decidedAt: new Date().toISOString(),
     };
 
@@ -280,7 +280,7 @@ export function QuantitySurveyorDashboard() {
       taskId: selectedTask.id,
       jobId: selectedTask.jobId,
       surveyorId: user.id,
-      surveyorName: user.name,
+      surveyorName: user.full_name,
       costValue: Number(form.designCostValue),
       budgetExpectationReference: selectedTask.budgetExpectationReference,
       evaluationNotes: form.evaluationNotes.trim(),

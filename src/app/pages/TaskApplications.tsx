@@ -130,7 +130,7 @@ export function TaskApplications() {
           ...candidate,
           status: 'assigned' as const,
           reviewedBy: user.id,
-          reviewedByName: user.name,
+          reviewedByName: user.full_name,
           reviewedAt: now,
           reviewNote: `Assigned to ${assignedDesignerName}.`,
         };
@@ -141,7 +141,7 @@ export function TaskApplications() {
           ...candidate,
           status: 'rejected' as const,
           reviewedBy: user.id,
-          reviewedByName: user.name,
+          reviewedByName: user.full_name,
           reviewedAt: now,
           reviewNote: selectedApplicant
             ? `Assigned to ${assignedDesignerName}.`

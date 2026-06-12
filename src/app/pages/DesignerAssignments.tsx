@@ -331,6 +331,8 @@ export function DesignerAssignments() {
   const [applications, setApplications] = useState<DesignerTaskApplication[]>(loadDesignerApplications);
   const [newTask, setNewTask] = useState(emptyNewTask);
   const [newTaskImagePreview, setNewTaskImagePreview] = useState<string | null>(null);
+  const newTaskImageFileRef = useRef<File | null>(null);
+  const [newTaskError, setNewTaskError] = useState('');
 
   const [submissionProgress, setSubmissionProgress] = useState<SubmissionProgress>(loadSubmissionProgress);
   const [expandedPhase, setExpandedPhase] = useState<PhaseKey | null>(null);
@@ -552,25 +554,42 @@ export function DesignerAssignments() {
   const handleNewTaskImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      setNewTask({ ...newTask, telegramScreenshot: reader.result as string });
-      setNewTaskImagePreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    if (newTaskImagePreview) URL.revokeObjectURL(newTaskImagePreview);
+    newTaskImageFileRef.current = file;
+    const objectUrl = URL.createObjectURL(file);
+    setNewTaskImagePreview(objectUrl);
+    setNewTask((prev) => ({ ...prev, telegramScreenshot: '' }));
   };
 
-  const createTask = (event: React.FormEvent) => {
+  const createTask = async (event: React.FormEvent) => {
     event.preventDefault();
+
+    const title = newTask.title.trim();
+    const description = newTask.description.trim();
+    if (!title || !description) {
+      setNewTaskError('Title and Description are required.');
+      return;
+    }
+
+    let telegramScreenshot: string | undefined;
+    const file = newTaskImageFileRef.current;
+    if (file) {
+      telegramScreenshot = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('Unable to read file'));
+        reader.readAsDataURL(file);
+      });
+    }
 
     const nextTask: DesignerTask = {
       id: `dtask-${Date.now()}`,
       projectId: newTask.projectId,
-      title: newTask.title.trim(),
-      description: newTask.description.trim(),
+      title,
+      description,
       instruction: newTask.instruction.trim(),
       storyPoints: Number(newTask.storyPoints),
-      telegramScreenshot: newTask.telegramScreenshot || undefined,
+      telegramScreenshot,
       assignedBy: user.id,
       status: 'pending',
       deadline: newTask.deadline,
@@ -578,8 +597,11 @@ export function DesignerAssignments() {
     };
 
     persistTasks([nextTask, ...tasks]);
+    if (newTaskImagePreview) URL.revokeObjectURL(newTaskImagePreview);
     setNewTask(emptyNewTask);
     setNewTaskImagePreview(null);
+    newTaskImageFileRef.current = null;
+    setNewTaskError('');
     setShowCreateTask(false);
   };
 
@@ -796,7 +818,7 @@ export function DesignerAssignments() {
     const comment = reviewComments[taskId]?.trim() || '';
     if (!ratings) return;
 
-    const reviewerName = user?.name || user?.email || 'CEO';
+    const reviewerName = user?.full_name || 'CEO';
     const newReview: ReviewData = {
       reviewerName,
       reviewText: comment,
@@ -1770,6 +1792,9 @@ export function DesignerAssignments() {
               This task will be visible to designers so they can apply for it.
             </p>
             <form className="space-y-4" onSubmit={createTask}>
+              {newTaskError && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{newTaskError}</p>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Task Title
@@ -1834,8 +1859,10 @@ export function DesignerAssignments() {
                     <button
                       type="button"
                       onClick={() => {
+                        URL.revokeObjectURL(newTaskImagePreview);
                         setNewTask({ ...newTask, telegramScreenshot: '' });
                         setNewTaskImagePreview(null);
+                        newTaskImageFileRef.current = null;
                       }}
                       className="text-sm text-red-600 hover:underline"
                     >
@@ -1902,7 +1929,14 @@ export function DesignerAssignments() {
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => setShowCreateTask(false)}
+                  onClick={() => {
+                    if (newTaskImagePreview) URL.revokeObjectURL(newTaskImagePreview);
+                    setNewTask(emptyNewTask);
+                    setNewTaskImagePreview(null);
+                    newTaskImageFileRef.current = null;
+                    setNewTaskError('');
+                    setShowCreateTask(false);
+                  }}
                   className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   Cancel

@@ -302,7 +302,7 @@ export function Layout({ children }: LayoutProps) {
             )}
             <div>
               <h1 className="font-semibold">Workflow Manager</h1>
-              <p className="text-xs text-gray-500">{user.name}</p>
+              <p className="text-xs text-gray-500">{user.full_name}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">

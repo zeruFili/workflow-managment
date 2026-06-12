@@ -159,6 +159,8 @@ export function QuantitySurveyorTasks() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const imageFileRef = useRef<File | null>(null);
+  const [formError, setFormError] = useState('');
 
   // ── Highlight state ──────────────────────────────────────────────
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
@@ -250,26 +252,48 @@ export function QuantitySurveyorTasks() {
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      setForm((c) => ({ ...c, telegramScreenshot: dataUrl }));
-      setImagePreview(dataUrl);
-    };
-    reader.readAsDataURL(file);
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    imageFileRef.current = file;
+    const objectUrl = URL.createObjectURL(file);
+    setImagePreview(objectUrl);
+    setForm((c) => ({ ...c, telegramScreenshot: '' }));
+    setFormError('');
   };
 
-  const handleForwardTask = (event: React.FormEvent) => {
+  const handleForwardTask = async (event: React.FormEvent) => {
     event.preventDefault();
+
+    const description = form.description.trim();
+    const file = imageFileRef.current;
+
+    if (!description) {
+      setFormError('Description is required.');
+      return;
+    }
+    if (!file && !form.telegramScreenshot) {
+      setFormError('A Telegram screenshot is required.');
+      return;
+    }
+
     setIsSubmitting(true);
+
+    let telegramScreenshotDataUrl = form.telegramScreenshot;
+    if (file) {
+      telegramScreenshotDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('Unable to read file'));
+        reader.readAsDataURL(file);
+      });
+    }
 
     const nextTask: QuantityReviewTask = {
       id: createQuantityReviewTaskId(),
       jobId: `JOB-${Date.now()}`,
       designWorkReference: `DW-${Date.now()}`,
-      telegramScreenshot: form.telegramScreenshot.trim(),
+      telegramScreenshot: telegramScreenshotDataUrl,
       telegramScreenshotDescription: form.telegramScreenshotDescription.trim() || undefined,
-      description: form.description.trim(),
+      description,
       designerName: '',
       submissionDate: new Date().toISOString(),
       budgetExpectationReference: form.budgetExpectationReference.trim() || undefined,
@@ -290,8 +314,11 @@ export function QuantitySurveyorTasks() {
     const notifications = loadQuantityReviewNotifications();
     saveQuantityReviewNotifications([createTaskAssignedNotification(nextTask), ...notifications]);
 
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
     setForm(emptyForm);
     setImagePreview(null);
+    imageFileRef.current = null;
+    setFormError('');
     setIsSubmitting(false);
     setShowForm(false);
   };
@@ -326,8 +353,8 @@ export function QuantitySurveyorTasks() {
   const handleApprove = (task: QuantityReviewTask | null) => {
     if (!canManage || !task) return;
     const existing = evaluations.find((e) => e.taskId === task.id);
-    const decisionEvaluation = existing ? { ...existing, decisionStatus: 'approved', decisionNotes: 'Approved by leadership', decidedBy: user.id, decidedByName: user.name, decidedAt: new Date().toISOString() } : {
-      id: createQuantityReviewEvaluationId(), taskId: task.id, jobId: task.jobId, surveyorId: task.assignedTo, surveyorName: '', costValue: 0, evaluationNotes: '', recommendation: 'recommended_for_approval', submittedAt: new Date().toISOString(), decisionStatus: 'approved', decisionNotes: 'Approved by leadership', decidedBy: user.id, decidedByName: user.name, decidedAt: new Date().toISOString(),
+    const decisionEvaluation = existing ? { ...existing, decisionStatus: 'approved', decisionNotes: 'Approved by leadership', decidedBy: user.id, decidedByName: user.full_name, decidedAt: new Date().toISOString() } : {
+      id: createQuantityReviewEvaluationId(), taskId: task.id, jobId: task.jobId, surveyorId: task.assignedTo, surveyorName: '', costValue: 0, evaluationNotes: '', recommendation: 'recommended_for_approval', submittedAt: new Date().toISOString(), decisionStatus: 'approved', decisionNotes: 'Approved by leadership', decidedBy: user.id, decidedByName: user.full_name, decidedAt: new Date().toISOString(),
     };
     const nextEvaluations = existing ? evaluations.map((e) => e.id === decisionEvaluation.id ? decisionEvaluation : e) : [decisionEvaluation, ...evaluations];
     persistEvaluations(nextEvaluations);
@@ -342,8 +369,8 @@ export function QuantitySurveyorTasks() {
     if (!feedbackText.trim()) return;
     const task = selectedTask;
     const existing = evaluations.find((e) => e.taskId === task.id);
-    const decisionEvaluation = existing ? { ...existing, decisionStatus: 'feedback', decisionNotes: feedbackText.trim(), decidedBy: user.id, decidedByName: user.name, decidedAt: new Date().toISOString() } : {
-      id: createQuantityReviewEvaluationId(), taskId: task.id, jobId: task.jobId, surveyorId: task.assignedTo, surveyorName: '', costValue: 0, evaluationNotes: '', recommendation: 'recommends_revision', submittedAt: new Date().toISOString(), decisionStatus: 'feedback', decisionNotes: feedbackText.trim(), decidedBy: user.id, decidedByName: user.name, decidedAt: new Date().toISOString(),
+    const decisionEvaluation = existing ? { ...existing, decisionStatus: 'feedback', decisionNotes: feedbackText.trim(), decidedBy: user.id, decidedByName: user.full_name, decidedAt: new Date().toISOString() } : {
+      id: createQuantityReviewEvaluationId(), taskId: task.id, jobId: task.jobId, surveyorId: task.assignedTo, surveyorName: '', costValue: 0, evaluationNotes: '', recommendation: 'recommends_revision', submittedAt: new Date().toISOString(), decisionStatus: 'feedback', decisionNotes: feedbackText.trim(), decidedBy: user.id, decidedByName: user.full_name, decidedAt: new Date().toISOString(),
     };
     const nextEvaluations = existing ? evaluations.map((e) => e.id === decisionEvaluation.id ? decisionEvaluation : e) : [decisionEvaluation, ...evaluations];
     persistEvaluations(nextEvaluations);

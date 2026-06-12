@@ -1,0 +1,1288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Database Schema Documentation — v1.0</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0f1a;
+    --bg2: #111827;
+    --bg3: #1a2236;
+    --border: #1e2d45;
+    --accent: #00d4ff;
+    --accent2: #7c3aed;
+    --accent3: #10b981;
+    --accent4: #f59e0b;
+    --accent5: #ef4444;
+    --text: #e2e8f0;
+    --text-muted: #64748b;
+    --text-dim: #94a3b8;
+    --pk: #f59e0b;
+    --fk: #a78bfa;
+    --enum: #34d399;
+    --type: #60a5fa;
+    --null: #6b7280;
+    --notnull: #f87171;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: linear-gradient(135deg, #0b0f1a 0%, #0f1e35 50%, #0b0f1a 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 60px 0 50px;
+    position: relative;
+    overflow: hidden;
+  }
+  header::before {
+    content: '';
+    position: absolute;
+    top: -80px; left: -80px;
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(0,212,255,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  header::after {
+    content: '';
+    position: absolute;
+    bottom: -60px; right: -60px;
+    width: 350px; height: 350px;
+    background: radial-gradient(circle, rgba(124,58,237,0.07) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .header-inner {
+    max-width: 1300px;
+    margin: 0 auto;
+    padding: 0 40px;
+    position: relative;
+    z-index: 1;
+  }
+  .header-badge {
+    display: inline-block;
+    background: rgba(0,212,255,0.1);
+    border: 1px solid rgba(0,212,255,0.3);
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 20px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+  h1 {
+    font-size: clamp(28px, 4vw, 48px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #fff;
+    line-height: 1.1;
+    margin-bottom: 16px;
+  }
+  h1 span { color: var(--accent); }
+  .header-meta {
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+    margin-top: 24px;
+  }
+  .meta-item {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .meta-item strong { color: var(--text-dim); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); display: inline-block; }
+
+  /* ── LAYOUT ── */
+  .container {
+    max-width: 1300px;
+    margin: 0 auto;
+    padding: 48px 40px;
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 48px;
+    align-items: start;
+  }
+
+  /* ── SIDEBAR NAV ── */
+  .sidebar {
+    position: sticky;
+    top: 24px;
+  }
+  .nav-group { margin-bottom: 28px; }
+  .nav-group-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+    padding-left: 12px;
+    border-left: 2px solid var(--border);
+  }
+  .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    text-decoration: none;
+    color: var(--text-dim);
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.15s;
+    margin-bottom: 2px;
+    border-left: 2px solid transparent;
+  }
+  .nav-link:hover {
+    color: var(--accent);
+    background: rgba(0,212,255,0.06);
+    border-left-color: var(--accent);
+  }
+  .nav-link .nav-icon {
+    width: 16px;
+    font-size: 10px;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-muted);
+  }
+
+  /* ── MAIN CONTENT ── */
+  .main { min-width: 0; }
+
+  /* ── SECTION ── */
+  .section {
+    margin-bottom: 64px;
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 32px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: 600;
+    background: rgba(0,212,255,0.1);
+    border: 1px solid rgba(0,212,255,0.2);
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+  h2 {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.01em;
+  }
+
+  /* ── INFO BOX ── */
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .info-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+  }
+  .info-card-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .info-card-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  /* ── TABLE BLOCK ── */
+  .table-block {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 32px;
+  }
+  .table-block-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg3);
+  }
+  .table-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .table-name::before {
+    content: '⬡';
+    font-size: 12px;
+    color: var(--accent2);
+  }
+  .table-purpose {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    max-width: 600px;
+  }
+  .table-wrap { overflow-x: auto; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  thead th {
+    background: rgba(0,0,0,0.3);
+    padding: 10px 14px;
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody tr {
+    border-bottom: 1px solid rgba(30,45,69,0.5);
+    transition: background 0.1s;
+  }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: rgba(0,212,255,0.03); }
+  td {
+    padding: 10px 14px;
+    vertical-align: top;
+    line-height: 1.5;
+  }
+  .col-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    color: #e2e8f0;
+    white-space: nowrap;
+  }
+  .col-type {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--type);
+    white-space: nowrap;
+  }
+  .badge {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 3px;
+    letter-spacing: 0.06em;
+  }
+  .badge-pk { background: rgba(245,158,11,0.15); color: var(--pk); border: 1px solid rgba(245,158,11,0.3); }
+  .badge-fk { background: rgba(167,139,250,0.15); color: var(--fk); border: 1px solid rgba(167,139,250,0.3); }
+  .badge-no { background: rgba(107,114,128,0.1); color: var(--null); border: 1px solid rgba(107,114,128,0.2); }
+  .badge-yes { background: rgba(107,114,128,0.08); color: var(--null); border: 1px solid rgba(107,114,128,0.15); font-style: italic; }
+  .constraint-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .desc-text { font-size: 12px; color: var(--text-dim); }
+
+  /* ── INDEX BLOCK ── */
+  .index-block {
+    background: rgba(0,0,0,0.2);
+    border-top: 1px solid var(--border);
+    padding: 14px 24px;
+  }
+  .index-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+  .index-sql {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent3);
+    background: rgba(16,185,129,0.06);
+    border: 1px solid rgba(16,185,129,0.15);
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 6px;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  /* ── NOTIFICATION SECTION ── */
+  .notif-section {
+    background: linear-gradient(135deg, rgba(124,58,237,0.08), rgba(0,212,255,0.05));
+    border: 1px solid rgba(124,58,237,0.25);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .notif-header {
+    background: rgba(124,58,237,0.12);
+    padding: 20px 24px;
+    border-bottom: 1px solid rgba(124,58,237,0.2);
+  }
+  .notif-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 15px;
+    font-weight: 700;
+    color: #a78bfa;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .notif-purpose { font-size: 13px; color: var(--text-dim); }
+  .notif-body { padding: 0; }
+  .notif-body .table-wrap { overflow-x: auto; }
+  .notif-body table thead th { background: rgba(124,58,237,0.08); }
+
+  /* ── CODE SQL BLOCK ── */
+  .sql-block {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+  .sql-block-header {
+    background: rgba(255,255,255,0.03);
+    padding: 8px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+  }
+  .sql-code {
+    padding: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #a5f3fc;
+    white-space: pre;
+    overflow-x: auto;
+    line-height: 1.8;
+  }
+  .sql-kw { color: #c084fc; font-weight: 600; }
+  .sql-tbl { color: #34d399; }
+  .sql-col { color: #93c5fd; }
+  .sql-val { color: #f59e0b; }
+  .sql-cmt { color: #4b5563; font-style: italic; }
+
+  /* ── ASSUMPTIONS LIST ── */
+  .assumptions-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .assumptions-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    font-size: 14px;
+    color: var(--text-dim);
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+  }
+  .assumptions-list li::before {
+    content: '→';
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent);
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .assumptions-list strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  /* ── DOMAIN BADGES ── */
+  .domain-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 32px;
+  }
+  .domain-tag {
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    border: 1px solid;
+  }
+  .d-marketing { background: rgba(0,212,255,0.08); color: #00d4ff; border-color: rgba(0,212,255,0.25); }
+  .d-finance   { background: rgba(245,158,11,0.08); color: #f59e0b; border-color: rgba(245,158,11,0.25); }
+  .d-ceo       { background: rgba(124,58,237,0.08); color: #a78bfa; border-color: rgba(124,58,237,0.25); }
+  .d-design    { background: rgba(16,185,129,0.08); color: #34d399; border-color: rgba(16,185,129,0.25); }
+  .d-qs        { background: rgba(239,68,68,0.08);  color: #f87171; border-color: rgba(239,68,68,0.25); }
+
+  /* ── SUB-HEADING ── */
+  h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h3::before {
+    content: '';
+    display: inline-block;
+    width: 3px;
+    height: 16px;
+    background: var(--accent);
+    border-radius: 2px;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 900px) {
+    .container { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .header-inner { padding: 0 20px; }
+    .container { padding: 32px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════ HEADER ═══════════════════ -->
+<header>
+  <div class="header-inner">
+    <div class="header-badge">Production-Ready · PostgreSQL 15+</div>
+    <h1>Database Schema <span>Documentation</span></h1>
+    <p style="color:var(--text-dim);font-size:15px;max-width:600px;">Complete relational database schema for the business management platform — covering the full lifecycle of customer acquisition, payment tracking, task assignment, submission, and review across all departments.</p>
+    <div class="header-meta">
+      <div class="meta-item"><span class="dot"></span> <strong>Version</strong> 1.0</div>
+      <div class="meta-item"><span class="dot"></span> <strong>Date</strong> June 2026</div>
+      <div class="meta-item"><span class="dot"></span> <strong>Prepared by</strong> Senior Database Architect</div>
+      <div class="meta-item"><span class="dot"></span> <strong>Engine</strong> PostgreSQL 15+</div>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════════════ LAYOUT ═══════════════════ -->
+<div class="container">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="nav-group">
+      <div class="nav-group-label">Overview</div>
+      <a class="nav-link" href="#overview"><span class="nav-icon">1</span>System Overview</a>
+      <a class="nav-link" href="#assumptions"><span class="nav-icon">↗</span>Tech Assumptions</a>
+      <a class="nav-link" href="#attachments"><span class="nav-icon">⊕</span>File Attachments</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Core</div>
+      <a class="nav-link" href="#user"><span class="nav-icon">◈</span>user</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Marketing</div>
+      <a class="nav-link" href="#customer"><span class="nav-icon">◈</span>customer</a>
+      <a class="nav-link" href="#paid_customer"><span class="nav-icon">◈</span>paid_customer</a>
+      <a class="nav-link" href="#marketing_submission"><span class="nav-icon">◈</span>marketing_submission</a>
+      <a class="nav-link" href="#marketing_review"><span class="nav-icon">◈</span>marketing_review</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Finance</div>
+      <a class="nav-link" href="#ceo_transfer"><span class="nav-icon">◈</span>ceo_transfer</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Data Collector</div>
+      <a class="nav-link" href="#dc_task"><span class="nav-icon">◈</span>data_collector_task</a>
+      <a class="nav-link" href="#dc_submission"><span class="nav-icon">◈</span>data_collector_submission</a>
+      <a class="nav-link" href="#dc_review"><span class="nav-icon">◈</span>data_collector_review</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Designer</div>
+      <a class="nav-link" href="#designer_task"><span class="nav-icon">◈</span>designer_task</a>
+      <a class="nav-link" href="#designer_task_removal"><span class="nav-icon">◈</span>designer_task_removal</a>
+      <a class="nav-link" href="#designer_application"><span class="nav-icon">◈</span>designer_application</a>
+      <a class="nav-link" href="#designer_submission"><span class="nav-icon">◈</span>designer_submission</a>
+      <a class="nav-link" href="#designer_submission_review"><span class="nav-icon">◈</span>designer_submission_review</a>
+      <a class="nav-link" href="#designer_task_review"><span class="nav-icon">◈</span>designer_task_review</a>
+      <a class="nav-link" href="#paused_task"><span class="nav-icon">◈</span>paused_task</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Quantity Surveyor</div>
+      <a class="nav-link" href="#qs_task"><span class="nav-icon">◈</span>qs_task</a>
+      <a class="nav-link" href="#qs_submission"><span class="nav-icon">◈</span>qs_submission</a>
+      <a class="nav-link" href="#qs_review"><span class="nav-icon">◈</span>qs_review</a>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">System</div>
+      <a class="nav-link" href="#notification"><span class="nav-icon">◈</span>notification</a>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- ── 1. SYSTEM OVERVIEW ── -->
+    <section class="section" id="overview">
+      <div class="section-header">
+        <span class="section-num">§ 1</span>
+        <h2>System Overview</h2>
+      </div>
+      <p style="color:var(--text-dim);font-size:14px;margin-bottom:20px;">This document defines the complete relational database schema for the business management platform. The system supports five operational domains:</p>
+      <div class="domain-tags">
+        <span class="domain-tag d-marketing">Marketing</span>
+        <span class="domain-tag d-finance">Finance</span>
+        <span class="domain-tag d-ceo">CEO Administration</span>
+        <span class="domain-tag d-design">Design</span>
+        <span class="domain-tag d-qs">Quantity Surveying</span>
+      </div>
+      <p style="color:var(--text-dim);font-size:14px;">It models the full lifecycle of customer acquisition, payment tracking, task assignment, submission, and review across all departments.</p>
+    </section>
+
+    <!-- ── 1.1 TECH ASSUMPTIONS ── -->
+    <section class="section" id="assumptions">
+      <div class="section-header">
+        <span class="section-num">§ 1.1</span>
+        <h2>Database Technology Assumptions</h2>
+      </div>
+      <ul class="assumptions-list">
+        <li><strong>Primary Database:</strong> PostgreSQL 15+</li>
+        <li><strong>UUID generation:</strong> <code style="font-family:JetBrains Mono,monospace;color:var(--accent);font-size:12px;">gen_random_uuid()</code> (pgcrypto extension)</li>
+        <li><strong>Array columns:</strong> Native PostgreSQL <code style="font-family:JetBrains Mono,monospace;color:var(--accent);font-size:12px;">TEXT[]</code> for file attachment URL arrays</li>
+        <li><strong>Timezone:</strong> All timestamps stored as <code style="font-family:JetBrains Mono,monospace;color:var(--accent);font-size:12px;">TIMESTAMPTZ</code> (UTC), displayed in EAT/UTC+3</li>
+        <li><strong>Character Encoding:</strong> UTF-8</li>
+      </ul>
+    </section>
+
+    <!-- ── 1.2 FILE ATTACHMENTS ── -->
+    <section class="section" id="attachments">
+      <div class="section-header">
+        <span class="section-num">§ 1.2</span>
+        <h2>File Attachment Strategy</h2>
+      </div>
+      <p style="color:var(--text-dim);font-size:14px;line-height:1.7;">All file attachments are stored as arrays of strings. In this schema, this is implemented using the PostgreSQL <code style="font-family:JetBrains Mono,monospace;color:var(--accent);font-size:12px;">TEXT[]</code> (text array) column type. Each element in the array is a fully-qualified URL pointing to a file stored in an external object storage service (e.g., AWS S3, Azure Blob Storage, or Google Cloud Storage).</p>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════ -->
+    <!-- 2. TABLE SCHEMA DEFINITIONS                        -->
+    <!-- ══════════════════════════════════════════════════ -->
+
+    <!-- ── 2.1 CORE / IDENTITY ── -->
+    <section class="section" id="user">
+      <div class="section-header">
+        <span class="section-num">§ 2.1</span>
+        <h2>Core / Identity</h2>
+      </div>
+
+      <div class="table-block">
+        <div class="table-block-header">
+          <div>
+            <div class="table-name">user</div>
+            <div class="table-purpose">Central user registry. Every actor in the system (marketing staff, finance, CEO, designers, quantity surveyors, data collectors, reviewers) is represented here. Role-based access is derived from the <code style="font-family:JetBrains Mono,monospace;font-size:11px;color:var(--accent);">role</code> column.</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Column Name</th><th>Data Type</th><th>Key</th><th>Nullable</th><th>Constraints</th><th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">UUID</td><td><span class="badge badge-pk">PK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">PRIMARY KEY, DEFAULT gen_random_uuid()</td><td class="desc-text">Unique user identifier</td></tr>
+              <tr><td class="col-name">full_name</td><td class="col-type">VARCHAR(255)</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Display name of the user</td></tr>
+              <tr><td class="col-name">email</td><td class="col-type">VARCHAR(255)</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">UNIQUE, NOT NULL</td><td class="desc-text">Login email; must be unique system-wide</td></tr>
+              <tr><td class="col-name">phone</td><td class="col-type">VARCHAR(20)</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">E.164 format</td><td class="desc-text">Optional contact phone</td></tr>
+              <tr><td class="col-name">role</td><td class="col-type">ENUM('marketing','finance','ceo','designer','quantity_surveyor','data_collector','general_manager')</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">System role governing access permissions</td></tr>
+              <tr><td class="col-name">is_active</td><td class="col-type">BOOLEAN</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT TRUE</td><td class="desc-text">Soft-disable without deleting the record</td></tr>
+              <tr><td class="col-name">password_hash</td><td class="col-type">VARCHAR(255)</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Bcrypt/Argon2 hashed password</td></tr>
+              <tr><td class="col-name">last_login_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text"></td><td class="desc-text">Timestamp of most recent successful login</td></tr>
+              <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of record creation (UTC)</td></tr>
+              <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of last update (UTC)</td></tr>
+              <tr><td class="col-name">created_by</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → user.id</td><td class="desc-text">User who created this record</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="index-block">
+          <div class="index-label">Indexes</div>
+          <div class="index-sql">CREATE INDEX idx_user_name_role ON "user" (role);</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 2.2 MARKETING ── -->
+    <section class="section" id="customer">
+      <div class="section-header">
+        <span class="section-num">§ 2.2</span>
+        <h2>Marketing</h2>
+      </div>
+
+      <!-- customer -->
+      <div class="table-block">
+        <div class="table-block-header">
+          <div>
+            <div class="table-name">customer</div>
+            <div class="table-purpose">Stores prospective and active customer enquiries. Each row represents one customer contact/lead captured by the marketing team.</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Column Name</th><th>Data Type</th><th>Key</th><th>Nullable</th><th>Constraints</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">UUID</td><td><span class="badge badge-pk">PK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">PRIMARY KEY</td><td class="desc-text">Unique customer record identifier</td></tr>
+              <tr><td class="col-name">marketing_user_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → user.id (role=marketing)</td><td class="desc-text">Marketing staff member who captured this lead</td></tr>
+              <tr><td class="col-name">customer_name</td><td class="col-type">VARCHAR(500)</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">1–500 chars, trimmed</td><td class="desc-text">Full name or company name of the customer</td></tr>
+              <tr><td class="col-name">customer_phone</td><td class="col-type">VARCHAR(20)</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">E.164 format</td><td class="desc-text">Primary contact phone in E.164 format</td></tr>
+              <tr><td class="col-name">customer_email</td><td class="col-type">VARCHAR(255)</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">Valid email format</td><td class="desc-text">Contact email address (optional)</td></tr>
+              <tr><td class="col-name">customer_address</td><td class="col-type">VARCHAR(2000)</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">1–2000 chars</td><td class="desc-text">Full physical address of the customer</td></tr>
+              <tr><td class="col-name">category</td><td class="col-type">String</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Service category the customer is interested in</td></tr>
+              <tr><td class="col-name">service_description</td><td class="col-type">TEXT</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">1–5000 chars</td><td class="desc-text">Detailed description of the services requested</td></tr>
+              <tr><td class="col-name">preferred_start_date</td><td class="col-type">DATE</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">ISO 8601, must not be in the past</td><td class="desc-text">Customer's preferred project start date</td></tr>
+              <tr><td class="col-name">budget</td><td class="col-type">NUMERIC(15,2)</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">Positive, max 2 decimals</td><td class="desc-text">Estimated budget in local currency</td></tr>
+              <tr><td class="col-name">notes</td><td class="col-type">TEXT</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">Max 5000 chars</td><td class="desc-text">Additional notes about the customer or request</td></tr>
+              <tr><td class="col-name">paid</td><td class="col-type">BOOLEAN</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT false</td><td class="desc-text"></td></tr>
+              <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of record creation (UTC)</td></tr>
+              <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of last update (UTC)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="index-block">
+          <div class="index-label">Indexes</div>
+          <div class="index-sql">CREATE INDEX idx_customer_marketing_user_id ON customer (marketing_user_id);</div>
+        </div>
+      </div>
+
+      <!-- paid_customer -->
+      <div class="table-block" id="paid_customer">
+        <div class="table-block-header">
+          <div>
+            <div class="table-name">paid_customer</div>
+            <div class="table-purpose">Records confirmed payment intent or received payment linked to a customer enquiry. Tracks the lifecycle status of each payment from pending through to acceptance or rejection.</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Column Name</th><th>Data Type</th><th>Key</th><th>Nullable</th><th>Constraints</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">UUID</td><td><span class="badge badge-pk">PK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">PRIMARY KEY</td><td class="desc-text">Unique paid customer record</td></tr>
+              <tr><td class="col-name">customer_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → customer.id</td><td class="desc-text">The originating customer enquiry</td></tr>
+              <tr><td class="col-name">description</td><td class="col-type">TEXT</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Description of the payment or agreement</td></tr>
+              <tr><td class="col-name">status</td><td class="col-type">ENUM('approved','rejected','feedback','pending')</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT pending</td><td class="desc-text">Current lifecycle status of the payment</td></tr>
+              <tr><td class="col-name">attachment_urls</td><td class="col-type">TEXT[]</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">Array of valid URLs</td><td class="desc-text">File attachment URLs (payment proofs, contracts). Stored as PostgreSQL text array.</td></tr>
+              <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of record creation (UTC)</td></tr>
+              <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of last update (UTC)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="index-block">
+          <div class="index-label">Indexes</div>
+          <div class="index-sql">CREATE INDEX idx_paid_customer_customer_status ON paid_customer (customer_id, status);</div>
+        </div>
+      </div>
+
+      <!-- marketing_submission -->
+      <div class="table-block" id="marketing_submission">
+        <div class="table-block-header">
+          <div>
+            <div class="table-name">marketing_submission</div>
+            <div class="table-purpose">Captures each submission event made by the marketing team for a paid customer record. A new submission updates the parent paid_customer status. Supports iterative submission cycles (e.g., resubmit after feedback).</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Column Name</th><th>Data Type</th><th>Key</th><th>Nullable</th><th>Constraints</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">UUID</td><td><span class="badge badge-pk">PK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">PRIMARY KEY</td><td class="desc-text">Unique submission identifier</td></tr>
+              <tr><td class="col-name">paid_customer_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → paid_customer.id</td><td class="desc-text">The paid customer record being submitted</td></tr>
+              <tr><td class="col-name">description</td><td class="col-type">TEXT</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Details of what is being submitted in this cycle</td></tr>
+              <tr><td class="col-name">attachment_urls</td><td class="col-type">TEXT[]</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">Array of valid URLs</td><td class="desc-text">Supporting documents for this submission round</td></tr>
+              <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of record creation (UTC)</td></tr>
+              <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of last update (UTC)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="index-block">
+          <div class="index-label">Indexes</div>
+          <div class="index-sql">CREATE INDEX idx_marketing_submission_paid_customer_created_at
+ON marketing_submission (paid_customer_id, created_at);</div>
+        </div>
+      </div>
+
+      <!-- marketing_review -->
+      <div class="table-block" id="marketing_review">
+        <div class="table-block-header">
+          <div>
+            <div class="table-name">marketing_review</div>
+            <div class="table-purpose">Stores reviewer decisions on marketing submissions. Each review is tied to a paid_customer record and records the outcome (approved, rejected, or feedback required) along with the reviewer's identity.</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Column Name</th><th>Data Type</th><th>Key</th><th>Nullable</th><th>Constraints</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">UUID</td><td><span class="badge badge-pk">PK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">PRIMARY KEY</td><td class="desc-text">Unique review record</td></tr>
+              <tr><td class="col-name">marketing_submission_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → paid_customer.id</td><td class="desc-text">The marketing submission record under review</td></tr>
+              <tr><td class="col-name">reviewer_user_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → user.id</td><td class="desc-text">The user performing the review</td></tr>
+              <tr><td class="col-name">description</td><td class="col-type">TEXT</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Reviewer's comments and observations</td></tr>
+              <tr><td class="col-name">review_outcome</td><td class="col-type">ENUM('approved','rejected','feedback','pending')</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Final decision of this review cycle</td></tr>
+              <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of record creation (UTC)</td></tr>
+              <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of last update (UTC)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="index-block">
+          <div class="index-label">Indexes</div>
+          <div class="index-sql">CREATE INDEX idx_marketing_review_submission_id ON marketing_review (marketing_submission_id);</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 2.3 FINANCE ── -->
+    <section class="section" id="ceo_transfer">
+      <div class="section-header">
+        <span class="section-num">§ 2.3</span>
+        <h2>Finance</h2>
+      </div>
+
+      <div class="table-block">
+        <div class="table-block-header">
+          <div>
+            <div class="table-name">ceo_transfer</div>
+            <div class="table-purpose">Records financial transfer instructions or approvals initiated by the Finance department and directed to the CEO for authorization. Attachments hold supporting financial documents.</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Column Name</th><th>Data Type</th><th>Key</th><th>Nullable</th><th>Constraints</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">UUID</td><td><span class="badge badge-pk">PK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">PRIMARY KEY</td><td class="desc-text">Unique transfer record</td></tr>
+              <tr><td class="col-name">finance_user_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → user.id (role=finance)</td><td class="desc-text">Finance team member initiating the transfer</td></tr>
+              <tr><td class="col-name">ceo_user_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → user.id (role=ceo)</td><td class="desc-text">CEO user receiving the transfer request</td></tr>
+              <tr><td class="col-name">description</td><td class="col-type">TEXT</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Description of the financial transfer or its purpose</td></tr>
+              <tr><td class="col-name">amount</td><td class="col-type">NUMERIC(15,2)</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">Positive</td><td class="desc-text">Transfer amount (assumed based on finance context)</td></tr>
+              <tr><td class="col-name">attachment_urls</td><td class="col-type">TEXT[]</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">Array of valid URLs</td><td class="desc-text">Supporting financial documents as URL array</td></tr>
+              <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of record creation (UTC)</td></tr>
+              <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of last update (UTC)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 2.4 CEO / DATA COLLECTOR ── -->
+    <section class="section" id="dc_task">
+      <div class="section-header">
+        <span class="section-num">§ 2.4</span>
+        <h2>CEO / Data Collector</h2>
+      </div>
+
+      <!-- data_collector_task -->
+      <div class="table-block">
+        <div class="table-block-header">
+          <div>
+            <div class="table-name">data_collector_task</div>
+            <div class="table-purpose">Tasks assigned by the CEO to data collectors. Represents a unit of work with defined scope, deadline, and expected deliverables.</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Column Name</th><th>Data Type</th><th>Key</th><th>Nullable</th><th>Constraints</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">UUID</td><td><span class="badge badge-pk">PK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">PRIMARY KEY</td><td class="desc-text">Unique task identifier</td></tr>
+              <tr><td class="col-name">assigned_to_user_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">FK → user.id (role=data_collector)</td><td class="desc-text">Data collector assigned to this task</td></tr>
+              <tr><td class="col-name">assigned_by_user_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → user.id (role=ceo)</td><td class="desc-text">CEO who assigned the task</td></tr>
+              <tr><td class="col-name">title</td><td class="col-type">VARCHAR(500)</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Short descriptive title of the task</td></tr>
+              <tr><td class="col-name">description</td><td class="col-type">TEXT</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Detailed task instructions</td></tr>
+              <tr><td class="col-name">status</td><td class="col-type">ENUM('approve','feedback','rejected','pending')</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">DEFAULT open</td><td class="desc-text">Current progress status of the task</td></tr>
+              <tr><td class="col-name">task_state</td><td class="col-type">ENUM('active','deactive')</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT active</td><td class="desc-text">The current task is not rejected — it is deactivated because of many reasons</td></tr>
+              <tr><td class="col-name">due_date</td><td class="col-type">DATE</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text"></td><td class="desc-text">Target completion date</td></tr>
+              <tr><td class="col-name">attachment_urls</td><td class="col-type">TEXT[]</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">Array of valid URLs</td><td class="desc-text">Reference documents attached to the task</td></tr>
+              <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of record creation (UTC)</td></tr>
+              <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of last update (UTC)</td></tr>
+              <tr><td class="col-name">updated_by</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">FK → user.id</td><td class="desc-text">User who last modified this record</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="index-block">
+          <div class="index-label">Indexes</div>
+          <div class="index-sql">CREATE INDEX idx_data_collector_task_assigned_status ON data_collector_task (assigned_to_user_id, status);</div>
+        </div>
+      </div>
+
+      <!-- data_collector_submission -->
+      <div class="table-block" id="dc_submission">
+        <div class="table-block-header">
+          <div>
+            <div class="table-name">data_collector_submission</div>
+            <div class="table-purpose">Submissions made by data collectors against an assigned task. A task may have multiple submission cycles if feedback is returned.</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Column Name</th><th>Data Type</th><th>Key</th><th>Nullable</th><th>Constraints</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">UUID</td><td><span class="badge badge-pk">PK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">PRIMARY KEY</td><td class="desc-text">Unique submission identifier</td></tr>
+              <tr><td class="col-name">data_collector_task_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → data_collector_task.id</td><td class="desc-text">The task this submission belongs to</td></tr>
+              <tr><td class="col-name">description</td><td class="col-type">TEXT</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Summary of work completed in this submission</td></tr>
+              <tr><td class="col-name">attachment_urls</td><td class="col-type">TEXT[]</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">Array of valid URLs</td><td class="desc-text">Submitted data files or reports</td></tr>
+              <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of record creation (UTC)</td></tr>
+              <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of last update (UTC)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="index-block">
+          <div class="index-label">Indexes</div>
+          <div class="index-sql">CREATE INDEX idx_data_collector_submission_task_id ON data_collector_submission (data_collector_task_id);</div>
+        </div>
+      </div>
+
+      <!-- data_collector_review -->
+      <div class="table-block" id="dc_review">
+        <div class="table-block-header">
+          <div>
+            <div class="table-name">data_collector_review</div>
+            <div class="table-purpose">CEO review of a data collector submission. Records the approval decision and feedback for quality control.</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Column Name</th><th>Data Type</th><th>Key</th><th>Nullable</th><th>Constraints</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">UUID</td><td><span class="badge badge-pk">PK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">PRIMARY KEY</td><td class="desc-text">Unique review record</td></tr>
+              <tr><td class="col-name">data_collector_submission_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → data_collector_submission.id</td><td class="desc-text">The submission being reviewed</td></tr>
+              <tr><td class="col-name">reviewer_user_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → user.id (role=ceo)</td><td class="desc-text">User performing the review</td></tr>
+              <tr><td class="col-name">description</td><td class="col-type">TEXT</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Review comments and guidance</td></tr>
+              <tr><td class="col-name">review_outcome</td><td class="col-type">ENUM('approved','rejected','feedback','pending')</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Decision on the submission</td></tr>
+              <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of record creation (UTC)</td></tr>
+              <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of last update (UTC)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="index-block">
+          <div class="index-label">Indexes</div>
+          <div class="index-sql">CREATE INDEX idx_data_collector_review_submission_id ON data_collector_review (data_collector_submission_id);
+CREATE INDEX idx_data_collector_review_reviewer_user_id ON data_collector_review (reviewer_user_id);</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 2.5 CEO / DESIGNER ── -->
+    <section class="section" id="designer_task">
+      <div class="section-header">
+        <span class="section-num">§ 2.5</span>
+        <h2>CEO / Designer</h2>
+      </div>
+
+      <!-- designer_task -->
+      <div class="table-block">
+        <div class="table-block-header">
+          <div>
+            <div class="table-name">designer_task</div>
+            <div class="table-purpose">Design tasks assigned by the CEO to designer users. Tracks task lifecycle from assignment through completion.</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Column Name</th><th>Data Type</th><th>Key</th><th>Nullable</th><th>Constraints</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">UUID</td><td><span class="badge badge-pk">PK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">PRIMARY KEY</td><td class="desc-text">Unique designer task identifier</td></tr>
+              <tr><td class="col-name">assigned_to_user_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">FK → user.id (role=designer)</td><td class="desc-text">Designer assigned to this task</td></tr>
+              <tr><td class="col-name">assigned_by_user_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → user.id (role=ceo, general_manager)</td><td class="desc-text">CEO who assigned the task</td></tr>
+              <tr><td class="col-name">title</td><td class="col-type">VARCHAR(500)</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Short task title</td></tr>
+              <tr><td class="col-name">description</td><td class="col-type">TEXT</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Detailed design brief</td></tr>
+              <tr><td class="col-name">status</td><td class="col-type">ENUM('approved','rejected','feedback','pending')</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">DEFAULT open</td><td class="desc-text">Current task status</td></tr>
+              <tr><td class="col-name">stage</td><td class="col-type">ENUM('case study','designing','rendering','final stage')</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text"></td><td class="desc-text">The current stage that design task is in</td></tr>
+              <tr><td class="col-name">is_paused</td><td class="col-type">BOOLEAN</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text"></td><td class="desc-text">If the current task is active or paused</td></tr>
+              <tr><td class="col-name">is_public</td><td class="col-type">BOOLEAN</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text"></td><td class="desc-text">If the current task is available for all users</td></tr>
+              <tr><td class="col-name">task_state</td><td class="col-type">ENUM('active','deactive')</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text"></td><td class="desc-text">The current task is not rejected — it is deactivated because of many reasons</td></tr>
+              <tr><td class="col-name">story_point</td><td class="col-type">INT</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text"></td><td class="desc-text"></td></tr>
+              <tr><td class="col-name">due_date</td><td class="col-type">DATE</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text"></td><td class="desc-text">Expected delivery date</td></tr>
+              <tr><td class="col-name">attachment_urls</td><td class="col-type">TEXT[]</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">Array of valid URLs</td><td class="desc-text">Reference assets or brief documents</td></tr>
+              <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of record creation (UTC)</td></tr>
+              <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of last update (UTC)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="index-block">
+          <div class="index-label">Indexes</div>
+          <div class="index-sql">CREATE INDEX idx_designer_task_assigned_to_user_id ON designer_task (assigned_to_user_id);</div>
+        </div>
+      </div>
+
+      <!-- designer_task_removal -->
+      <div class="table-block" id="designer_task_removal">
+        <div class="table-block-header">
+          <div>
+            <div class="table-name">designer_task_removal</div>
+            <div class="table-purpose">Audit log for designer task removals. Rather than hard-deleting tasks, removals are recorded here with a reason, preserving historical accountability.</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Column Name</th><th>Data Type</th><th>Key</th><th>Nullable</th><th>Constraints</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">UUID</td><td><span class="badge badge-pk">PK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">PRIMARY KEY</td><td class="desc-text">Unique removal record</td></tr>
+              <tr><td class="col-name">designer_task_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → designer_task.id</td><td class="desc-text">The task that was removed</td></tr>
+              <tr><td class="col-name">removed_by_user_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → user.id</td><td class="desc-text">User who initiated the removal</td></tr>
+              <tr><td class="col-name">removed_user_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → user.id</td><td class="desc-text">User who created this record</td></tr>
+              <tr><td class="col-name">reason</td><td class="col-type">TEXT</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Justification for removing the task</td></tr>
+              <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of record creation (UTC)</td></tr>
+              <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of last update (UTC)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- designer_application -->
+      <div class="table-block" id="designer_application">
+        <div class="table-block-header">
+          <div>
+            <div class="table-name">designer_application</div>
+            <div class="table-purpose">Designer applications for available tasks or projects. A designer may apply to be assigned work; CEO reviews and assigns accordingly.</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Column Name</th><th>Data Type</th><th>Key</th><th>Nullable</th><th>Constraints</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">UUID</td><td><span class="badge badge-pk">PK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">PRIMARY KEY</td><td class="desc-text">Unique application record</td></tr>
+              <tr><td class="col-name">designer_task_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → designer_task.id</td><td class="desc-text">Task being applied for</td></tr>
+              <tr><td class="col-name">applicant_user_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → user.id (role=designer)</td><td class="desc-text">Designer submitting the application</td></tr>
+              <tr><td class="col-name">cover_note</td><td class="col-type">TEXT</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text"></td><td class="desc-text">Optional message from designer to CEO</td></tr>
+              <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of record creation (UTC)</td></tr>
+              <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of last update (UTC)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="index-block">
+          <div class="index-label">Indexes</div>
+          <div class="index-sql">CREATE INDEX idx_designer_application_task_applicant ON designer_application (designer_task_id, applicant_user_id);</div>
+        </div>
+      </div>
+
+      <!-- designer_submission -->
+      <div class="table-block" id="designer_submission">
+        <div class="table-block-header">
+          <div>
+            <div class="table-name">designer_submission</div>
+            <div class="table-purpose">Work submissions by designers for their assigned tasks. Multiple submissions per task are allowed (e.g., revisions after feedback).</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Column Name</th><th>Data Type</th><th>Key</th><th>Nullable</th><th>Constraints</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">UUID</td><td><span class="badge badge-pk">PK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">PRIMARY KEY</td><td class="desc-text">Unique submission identifier</td></tr>
+              <tr><td class="col-name">designer_task_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → designer_task.id</td><td class="desc-text">The task this submission is for</td></tr>
+              <tr><td class="col-name">stage</td><td class="col-type">ENUM('case study','designing','rendering','final stage')</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text"></td><td class="desc-text">The current stage that design task is in</td></tr>
+              <tr><td class="col-name">description</td><td class="col-type">TEXT</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Submission notes or change summary</td></tr>
+              <tr><td class="col-name">attachment_urls</td><td class="col-type">TEXT[]</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">Array of valid URLs</td><td class="desc-text">Design files and deliverables</td></tr>
+              <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of record creation (UTC)</td></tr>
+              <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of last update (UTC)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="index-block">
+          <div class="index-label">Indexes</div>
+          <div class="index-sql">CREATE INDEX idx_designer_submission_task_id ON designer_submission (designer_task_id);</div>
+        </div>
+      </div>
+
+      <!-- designer_submission_review -->
+      <div class="table-block" id="designer_submission_review">
+        <div class="table-block-header">
+          <div>
+            <div class="table-name">designer_submission_review</div>
+            <div class="table-purpose">CEO review of a designer submission. Captures the review decision and feedback for each submission cycle.</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Column Name</th><th>Data Type</th><th>Key</th><th>Nullable</th><th>Constraints</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">UUID</td><td><span class="badge badge-pk">PK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">PRIMARY KEY</td><td class="desc-text">Unique review record</td></tr>
+              <tr><td class="col-name">designer_submission_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → designer_submission.id</td><td class="desc-text">The designer submission being reviewed</td></tr>
+              <tr><td class="col-name">reviewer_user_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → user.id</td><td class="desc-text">CEO user performing the review</td></tr>
+              <tr><td class="col-name">description</td><td class="col-type">TEXT</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Review feedback and notes</td></tr>
+              <tr><td class="col-name">review_outcome</td><td class="col-type">ENUM('approved','rejected','feedback','pending')</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Decision for this submission cycle</td></tr>
+              <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of record creation (UTC)</td></tr>
+              <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of last update (UTC)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="index-block">
+          <div class="index-label">Indexes</div>
+          <div class="index-sql">CREATE INDEX idx_designer_submission_review_submission_id ON designer_submission_review (designer_submission_id);</div>
+        </div>
+      </div>
+
+      <!-- designer_task_review -->
+      <div class="table-block" id="designer_task_review">
+        <div class="table-block-header">
+          <div>
+            <div class="table-name">designer_task_review</div>
+            <div class="table-purpose">Performance review of a designer's overall work on a completed task. Distinct from submission review — this evaluates the designer's quality, timeliness, and professionalism at task level.</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Column Name</th><th>Data Type</th><th>Key</th><th>Nullable</th><th>Constraints</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">UUID</td><td><span class="badge badge-pk">PK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">PRIMARY KEY</td><td class="desc-text">Unique performance review record</td></tr>
+              <tr><td class="col-name">designer_task_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → designer_task.id</td><td class="desc-text">The completed task being evaluated</td></tr>
+              <tr><td class="col-name">reviewer_user_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → user.id</td><td class="desc-text">CEO reviewing performance</td></tr>
+              <tr><td class="col-name">description</td><td class="col-type">TEXT</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">NULL</td><td class="desc-text">Performance evaluation narrative</td></tr>
+              <tr><td class="col-name">Creativity</td><td class="col-type">SMALLINT</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">CHECK (rating BETWEEN 1 AND 5)</td><td class="desc-text">Numeric performance score (1–5)</td></tr>
+              <tr><td class="col-name">Timeliness</td><td class="col-type">SMALLINT</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">CHECK (rating BETWEEN 1 AND 5)</td><td class="desc-text">Numeric performance score (1–5)</td></tr>
+              <tr><td class="col-name">Rendering_quality</td><td class="col-type">SMALLINT</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">CHECK (rating BETWEEN 1 AND 5)</td><td class="desc-text">Numeric performance score (1–5)</td></tr>
+              <tr><td class="col-name">Client_understanding</td><td class="col-type">SMALLINT</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">CHECK (rating BETWEEN 1 AND 5)</td><td class="desc-text">Numeric performance score (1–5)</td></tr>
+              <tr><td class="col-name">review_outcome</td><td class="col-type">SMALLINT</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">Average of the 4 values</td><td class="desc-text">Overall performance verdict</td></tr>
+              <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of record creation (UTC)</td></tr>
+              <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of last update (UTC)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="index-block">
+          <div class="index-label">Indexes</div>
+          <div class="index-sql">CREATE INDEX idx_designer_task_review_task_id ON designer_task_review (designer_task_id);</div>
+        </div>
+      </div>
+
+      <!-- paused_task -->
+      <div class="table-block" id="paused_task">
+        <div class="table-block-header">
+          <div>
+            <div class="table-name">paused_task</div>
+            <div class="table-purpose">Records task pause events for designer tasks. When a task is paused (e.g., waiting on materials or client decisions), the reason and timing are logged here for reporting and SLA tracking.</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Column Name</th><th>Data Type</th><th>Key</th><th>Nullable</th><th>Constraints</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">UUID</td><td><span class="badge badge-pk">PK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">PRIMARY KEY</td><td class="desc-text">Unique pause event record</td></tr>
+              <tr><td class="col-name">designer_task_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → designer_task.id</td><td class="desc-text">The task being paused</td></tr>
+              <tr><td class="col-name">reason</td><td class="col-type">TEXT</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Reason the task was paused</td></tr>
+              <tr><td class="col-name">paused_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Exact time the task was paused</td></tr>
+              <tr><td class="col-name">resumed_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text"></td><td class="desc-text">Time the task was resumed (null if still paused)</td></tr>
+              <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of record creation (UTC)</td></tr>
+              <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of last update (UTC)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 2.6 CEO / QUANTITY SURVEYOR ── -->
+    <section class="section" id="qs_task">
+      <div class="section-header">
+        <span class="section-num">§ 2.6</span>
+        <h2>CEO / Quantity Surveyor</h2>
+      </div>
+
+      <!-- quantity_surveyor_task -->
+      <div class="table-block">
+        <div class="table-block-header">
+          <div>
+            <div class="table-name">quantity_surveyor_task</div>
+            <div class="table-purpose">Tasks assigned to quantity surveyors by the CEO for site measurement, costing, or bill of quantities preparation.</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Column Name</th><th>Data Type</th><th>Key</th><th>Nullable</th><th>Constraints</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">UUID</td><td><span class="badge badge-pk">PK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">PRIMARY KEY</td><td class="desc-text">Unique QS task identifier</td></tr>
+              <tr><td class="col-name">assigned_to_user_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → user.id (role=quantity_surveyor)</td><td class="desc-text">Quantity surveyor assigned</td></tr>
+              <tr><td class="col-name">assigned_by_user_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → user.id (role=ceo)</td><td class="desc-text">CEO who assigned the task</td></tr>
+              <tr><td class="col-name">title</td><td class="col-type">VARCHAR(500)</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Short descriptive title</td></tr>
+              <tr><td class="col-name">description</td><td class="col-type">TEXT</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Detailed scope of QS work required</td></tr>
+              <tr><td class="col-name">status</td><td class="col-type">ENUM('approved','rejected','feedback','pending')</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">DEFAULT open</td><td class="desc-text">Task lifecycle status</td></tr>
+              <tr><td class="col-name">task_state</td><td class="col-type">ENUM('active','deactive')</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text"></td><td class="desc-text">The current task is not rejected — it is deactivated because of many reasons</td></tr>
+              <tr><td class="col-name">due_date</td><td class="col-type">DATE</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text"></td><td class="desc-text">Expected completion date</td></tr>
+              <tr><td class="col-name">attachment_urls</td><td class="col-type">TEXT[]</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">Array of valid URLs</td><td class="desc-text">Site plans or reference documents</td></tr>
+              <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of record creation (UTC)</td></tr>
+              <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of last update (UTC)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="index-block">
+          <div class="index-label">Indexes</div>
+          <div class="index-sql">CREATE INDEX idx_quantity_surveyor_task_assigned_to ON quantity_surveyor_task (assigned_to_user_id);</div>
+        </div>
+      </div>
+
+      <!-- quantity_surveyor_submission -->
+      <div class="table-block" id="qs_submission">
+        <div class="table-block-header">
+          <div>
+            <div class="table-name">quantity_surveyor_submission</div>
+            <div class="table-purpose">Work submissions by quantity surveyors for their assigned tasks, such as BOQ documents, cost estimates, or measurement reports.</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Column Name</th><th>Data Type</th><th>Key</th><th>Nullable</th><th>Constraints</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">UUID</td><td><span class="badge badge-pk">PK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">PRIMARY KEY</td><td class="desc-text">Unique submission record</td></tr>
+              <tr><td class="col-name">quantity_surveyor_task_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → quantity_surveyor_task.id</td><td class="desc-text">The QS task this submission belongs to</td></tr>
+              <tr><td class="col-name">description</td><td class="col-type">TEXT</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Summary of submitted work</td></tr>
+              <tr><td class="col-name">attachment_urls</td><td class="col-type">TEXT[]</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">Array of valid URLs</td><td class="desc-text">BOQ files, reports, spreadsheets</td></tr>
+              <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of record creation (UTC)</td></tr>
+              <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of last update (UTC)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="index-block">
+          <div class="index-label">Indexes</div>
+          <div class="index-sql">CREATE INDEX idx_qs_submission_task_id ON quantity_surveyor_submission (quantity_surveyor_task_id);</div>
+        </div>
+      </div>
+
+      <!-- quantity_surveyor_review -->
+      <div class="table-block" id="qs_review">
+        <div class="table-block-header">
+          <div>
+            <div class="table-name">quantity_surveyor_review</div>
+            <div class="table-purpose">CEO review of quantity surveyor submissions. Records decisions and feedback to guide revisions or mark completion.</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Column Name</th><th>Data Type</th><th>Key</th><th>Nullable</th><th>Constraints</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">UUID</td><td><span class="badge badge-pk">PK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">PRIMARY KEY</td><td class="desc-text">Unique review record</td></tr>
+              <tr><td class="col-name">quantity_surveyor_submission_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → quantity_surveyor_submission.id</td><td class="desc-text">The QS submission being reviewed</td></tr>
+              <tr><td class="col-name">reviewer_user_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">FK → user.id (role=ceo)</td><td class="desc-text">CEO user reviewing the submission</td></tr>
+              <tr><td class="col-name">description</td><td class="col-type">TEXT</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Review notes and feedback</td></tr>
+              <tr><td class="col-name">review_outcome</td><td class="col-type">ENUM('approved','rejected','feedback','pending')</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Outcome of the review</td></tr>
+              <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of record creation (UTC)</td></tr>
+              <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">DEFAULT NOW()</td><td class="desc-text">Timestamp of last update (UTC)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="index-block">
+          <div class="index-label">Indexes</div>
+          <div class="index-sql">CREATE INDEX idx_quantity_surveyor_review_submission_id ON quantity_surveyor_review (quantity_surveyor_submission_id);</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── NOTIFICATION ── -->
+    <section class="section" id="notification">
+      <div class="section-header">
+        <span class="section-num">§ 3</span>
+        <h2>Notification &amp; Unread Activity Tracking</h2>
+      </div>
+
+      <p style="color:var(--text-dim);font-size:14px;line-height:1.7;margin-bottom:24px;">A notification system must be implemented to inform users whenever a task, submission, or review is created.</p>
+
+      <div class="notif-section">
+        <div class="notif-header">
+          <div class="notif-title">⬡ notification</div>
+          <div class="notif-purpose">Each notification record informs a specific user of an event triggered by another user. Tracks viewed status for badge counts and activity feeds.</div>
+        </div>
+        <div class="notif-body">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Column Name</th><th>Data Type</th><th>Key</th><th>Nullable</th><th>Constraints</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr><td class="col-name">id</td><td class="col-type">UUID</td><td><span class="badge badge-pk">PK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">PRIMARY KEY DEFAULT gen_random_uuid()</td><td class="desc-text">Unique notification identifier</td></tr>
+                <tr><td class="col-name">user_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL REFERENCES user(id)</td><td class="desc-text">Recipient — user who should receive the notification</td></tr>
+                <tr><td class="col-name">from_user_id</td><td class="col-type">UUID</td><td><span class="badge badge-fk">FK</span></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL REFERENCES user(id)</td><td class="desc-text">Actor — user who triggered the notification</td></tr>
+                <tr><td class="col-name">resource_id</td><td class="col-type">UUID</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Related resource ID (task, submission, review, etc.)</td></tr>
+                <tr><td class="col-name">resource_type</td><td class="col-type">VARCHAR(50)</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">'task_assigned' | 'submission' | 'review' | 'posted job' | 'apply' | 'paused' | 'rate'</td></tr>
+                <tr><td class="col-name">parent_id</td><td class="col-type">UUID</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Always the ROOT task/card id</td></tr>
+                <tr><td class="col-name">parent_type</td><td class="col-type">VARCHAR(50)</td><td></td><td><span class="badge badge-yes">YES</span></td><td class="constraint-text">NULL</td><td class="desc-text">'data_collector_task' | 'designer_task' | 'quantity_surveyor_task' | 'marketing_task'</td></tr>
+                <tr><td class="col-name">type</td><td class="col-type">VARCHAR(255)</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL</td><td class="desc-text">Human-readable label for the notification category</td></tr>
+                <tr><td class="col-name">viewed</td><td class="col-type">BOOLEAN</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL DEFAULT FALSE</td><td class="desc-text">Indicates whether the notification has been viewed</td></tr>
+                <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMPTZ</td><td></td><td><span class="badge badge-no">NO</span></td><td class="constraint-text">NOT NULL DEFAULT NOW()</td><td class="desc-text">Date and time the notification was created</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="index-block">
+            <div class="index-label">Indexes</div>
+            <div class="index-sql">CREATE INDEX idx_notif_user_parent ON notification(user_id, parent_id, viewed);
+CREATE INDEX idx_notif_user_resource ON notification(user_id, resource_id, viewed);
+CREATE INDEX idx_notif_user_resource_type ON notification(user_id, resource_type, viewed);
+CREATE INDEX idx_notif_user_parent_type ON notification(user_id, parent_type, viewed);</div>
+          </div>
+
+          <!-- Full DDL -->
+          <div style="padding:20px 24px;">
+            <div class="sql-block">
+              <div class="sql-block-header">Full DDL — notification table</div>
+              <div class="sql-code"><span class="sql-kw">CREATE TABLE</span> <span class="sql-tbl">notification</span> (
+  <span class="sql-col">id</span>            UUID         <span class="sql-kw">PRIMARY KEY DEFAULT</span> gen_random_uuid(),
+  <span class="sql-col">user_id</span>       UUID         <span class="sql-kw">NOT NULL REFERENCES</span> <span class="sql-tbl">"user"</span>(id), <span class="sql-cmt">-- recipient</span>
+  <span class="sql-col">from_user_id</span>  UUID         <span class="sql-kw">NOT NULL REFERENCES</span> <span class="sql-tbl">"user"</span>(id), <span class="sql-cmt">-- actor (who triggered it)</span>
+  <span class="sql-col">resource_id</span>   UUID         <span class="sql-kw">NOT NULL</span>,              <span class="sql-cmt">-- submission_id, review_id, task_id</span>
+  <span class="sql-col">resource_type</span> VARCHAR(50)  <span class="sql-kw">NOT NULL</span>,              <span class="sql-cmt">-- 'task_assigned'|'submission'|'review'|'posted job'|'apply'|'paused'|'rate'</span>
+  <span class="sql-col">parent_id</span>     UUID         <span class="sql-kw">NOT NULL</span>,              <span class="sql-cmt">-- always the ROOT task/card id</span>
+  <span class="sql-col">parent_type</span>   VARCHAR(50)  <span class="sql-kw">NULL</span>,                  <span class="sql-cmt">-- 'data_collector_task'|'designer_task'|'quantity_surveyor_task'|'marketing_task'</span>
+  <span class="sql-col">type</span>          VARCHAR(255) <span class="sql-kw">NOT NULL</span>,              <span class="sql-cmt">-- human-readable label</span>
+  <span class="sql-col">viewed</span>        BOOLEAN      <span class="sql-kw">NOT NULL DEFAULT</span> <span class="sql-val">FALSE</span>,
+  <span class="sql-col">created_at</span>    TIMESTAMPTZ  <span class="sql-kw">NOT NULL DEFAULT</span> NOW()
+);</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FOOTER -->
+    <div style="margin-top:48px;padding-top:24px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted);">Database Schema Documentation · v1.0 · June 2026</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted);">Prepared by: Senior Database Architect</div>
+    </div>
+
+  </main>
+</div>
+
+</body>
+</html>

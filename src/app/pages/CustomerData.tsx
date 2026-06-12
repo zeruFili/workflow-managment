@@ -257,7 +257,7 @@ export function CustomerData() {
       sourceRequestId: selectedRequest.id,
       transferredAt: new Date().toISOString(),
       transferredBy: currentUser.id,
-      transferredByName: currentUser.name,
+      transferredByName: currentUser.full_name,
       paymentNote: paymentNote.trim() || undefined,
       proofOfPayment: proofOfPaymentArray.length > 0 ? proofOfPaymentArray : undefined,
       paymentVerificationStatus: 'pending',
@@ -291,7 +291,7 @@ export function CustomerData() {
       status: 'new' as CustomerRequestStatus,
       createdAt: new Date().toISOString(),
       createdBy: currentUser.id,
-      createdByName: currentUser.name,
+      createdByName: currentUser.full_name,
       otherCategoryDescription:
         formData.category === 'other' ? formData.otherCategoryDescription.trim() : undefined,
     } as CustomerRequest & { otherCategoryDescription?: string };
@@ -334,7 +334,7 @@ export function CustomerData() {
               <Users className="w-5 h-5 text-blue-600" />
               <div>
                 <p className="text-sm text-gray-500">Viewing as</p>
-                <p className="font-medium text-gray-900">{currentUser.name}</p>
+                <p className="font-medium text-gray-900">{currentUser.full_name}</p>
               </div>
             </div>
           </div>

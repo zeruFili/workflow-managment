@@ -136,7 +136,7 @@ export function DesignerApplications() {
           ...app,
           status: 'assigned' as const,
           reviewedBy: user.id,
-          reviewedByName: user.name,
+          reviewedByName: user.full_name,
           reviewedAt: now,
           reviewNote: `Assigned to ${assignedDesignerName}.`,
         };
@@ -146,7 +146,7 @@ export function DesignerApplications() {
         ...app,
         status: 'rejected' as const,
         reviewedBy: user.id,
-        reviewedByName: user.name,
+        reviewedByName: user.full_name,
         reviewedAt: now,
         reviewNote: `Assigned to ${assignedDesignerName} instead.`,
       };
@@ -164,7 +164,7 @@ export function DesignerApplications() {
         appliedAt: now,
         status: 'assigned',
         reviewedBy: user.id,
-        reviewedByName: user.name,
+        reviewedByName: user.full_name,
         reviewedAt: now,
         reviewNote: `Manually assigned to ${assignedDesignerName}.`,
       };

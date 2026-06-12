@@ -11,8 +11,7 @@ export type UserRole =
 
 export interface User {
   id: string;
-  username: string;
-  name: string;
+  full_name: string;
   role: UserRole;
 }
 

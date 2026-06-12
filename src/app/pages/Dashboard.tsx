@@ -392,7 +392,7 @@ export function Dashboard() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
-        <p className="text-gray-600 mt-1">Welcome back, {user.name}</p>
+        <p className="text-gray-600 mt-1">Welcome back, {user.full_name}</p>
         <p className="text-sm text-gray-500">{getRoleName(user.role)}</p>
       </div>
 
