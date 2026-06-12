@@ -248,7 +248,7 @@ function AppContent() {
         <Route
           path="/designer-assignments"
           element={
-            <ProtectedRoute allowedRoles={['ceo', 'general_manager']}>
+            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'designer']}>
               <Layout>
                 <DesignerAssignments />
               </Layout>
