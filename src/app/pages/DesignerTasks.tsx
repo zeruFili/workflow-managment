@@ -295,6 +295,12 @@ function getCreatorDisplayName(task: DesignerTaskItem): string {
 
 const ROWS_PER_DISPLAY = 10;
 
+// Module-level cache — survives HashRouter navigation but resets on full page refresh
+let cachedTasks: DesignerTaskItem[] | null = null;
+let cachedMeta: DesignerTaskListMeta | null = null;
+let cachedRawData: Record<string, SubmissionsWithReviewsData> | null = null;
+let cachedProgress: SubmissionProgress | null = null;
+
 export function DesignerTasks() {
   const { user } = useAuth();
   const [selectedTaskDetail, setSelectedTaskDetail] = useState<DesignerTaskItem | null>(null);
@@ -339,8 +345,16 @@ export function DesignerTasks() {
   const apiLimit = isLeadership ? 20 : 10;
 
   // ── Fetch tasks from API ──
-  const fetchTasks = useCallback(async (page: number) => {
+  const fetchTasks = useCallback(async (page: number, force = false) => {
     if (!user) return;
+    if (!force && cachedTasks && cachedMeta) {
+      setTasks(cachedTasks);
+      setMeta(cachedMeta);
+      if (cachedRawData) setSubmissionsRawData(cachedRawData);
+      if (cachedProgress) setSubmissionProgress(cachedProgress);
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
@@ -348,6 +362,8 @@ export function DesignerTasks() {
       if (response.success) {
         setTasks(response.data);
         setMeta(response.meta);
+        cachedTasks = response.data;
+        cachedMeta = response.meta;
         setDisplayOffset(0);
 
         // Pre-fetch submissions for all loaded tasks so feedback shows immediately
@@ -365,6 +381,8 @@ export function DesignerTasks() {
             progressUpdates[taskId] = apiSubmissionsToProgress(resp.data);
           }
         }
+        cachedRawData = rawDataUpdates;
+        cachedProgress = { ...progressUpdates };
         setSubmissionsRawData((prev) => ({ ...prev, ...rawDataUpdates }));
         setSubmissionProgress((prev) => ({ ...prev, ...progressUpdates }));
       } else {
@@ -386,9 +404,15 @@ export function DesignerTasks() {
     fetchTasks(apiPage);
   }, [user, apiPage, fetchTasks]);
 
-  // ── Load user submission progress from localStorage ──
+  // ── Load user submission progress from localStorage as fallback ──
   useEffect(() => {
-    setSubmissionProgress(loadSubmissionProgress());
+    // Only use localStorage if no API data has been loaded yet
+    if (Object.keys(submissionProgress).length === 0) {
+      const stored = loadSubmissionProgress();
+      if (Object.keys(stored).length > 0) {
+        setSubmissionProgress(stored);
+      }
+    }
   }, []);
 
   // Persist progress on change
@@ -476,6 +500,10 @@ export function DesignerTasks() {
     if (displayOffset + ROWS_PER_DISPLAY < tasks.length) {
       setDisplayOffset(displayOffset + ROWS_PER_DISPLAY);
     } else {
+      cachedTasks = null;
+      cachedMeta = null;
+      cachedRawData = null;
+      cachedProgress = null;
       setApiPage((p) => p + 1);
     }
   };
@@ -484,6 +512,10 @@ export function DesignerTasks() {
     if (displayOffset - ROWS_PER_DISPLAY >= 0) {
       setDisplayOffset(displayOffset - ROWS_PER_DISPLAY);
     } else {
+      cachedTasks = null;
+      cachedMeta = null;
+      cachedRawData = null;
+      cachedProgress = null;
       setApiPage((p) => Math.max(1, p - 1));
     }
   };
@@ -629,13 +661,15 @@ export function DesignerTasks() {
 
       if (response.success && response.data) {
         // Update the task card immediately with new status/stage from backend
-        setTasks((prev) =>
-          prev.map((t) =>
+        setTasks((prev) => {
+          const updated = prev.map((t) =>
             t.id === taskId
               ? { ...t, status: 'pending', stage: phaseToBackendStage(phase), updated_at: new Date().toISOString() }
               : t
-          )
-        );
+          );
+          cachedTasks = updated;
+          return updated;
+        });
 
         // Save note/screenshot locally for UI display
         const screenshotUrl = files.length > 0
@@ -657,6 +691,7 @@ export function DesignerTasks() {
         try {
           const resp = await designerApi.getSubmissionsWithReviews(taskId);
           if (resp.success && resp.data) {
+            cachedRawData = { ...cachedRawData, [taskId]: resp.data };
             setSubmissionsRawData((prev) => ({ ...prev, [taskId]: resp.data }));
             const apiProgress = apiSubmissionsToProgress(resp.data);
             setSubmissionProgress((prev) => {
@@ -676,7 +711,9 @@ export function DesignerTasks() {
                   history: apiPhase?.history?.length ? apiPhase.history : existingPhase.history || [],
                 };
               }
-              return { ...prev, [taskId]: merged };
+              const result = { ...prev, [taskId]: merged };
+              cachedProgress = { ...cachedProgress, [taskId]: merged };
+              return result;
             });
           }
         } catch {
