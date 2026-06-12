@@ -90,6 +90,24 @@ export interface SubmissionsWithReviewsResponse {
   message?: string;
 }
 
+// ── Create Submission ──
+
+export interface CreatedSubmission {
+  id: string;
+  designer_task_id: string;
+  stage: string;
+  description: string;
+  attachment_urls: string[] | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface CreateSubmissionResponse {
+  success: boolean;
+  data?: CreatedSubmission;
+  message?: string;
+}
+
 // ── Query params ──
 
 export interface TaskListParams {
@@ -120,6 +138,17 @@ const designerApi = {
   ): Promise<SubmissionsWithReviewsResponse> => {
     const response = await api.get<SubmissionsWithReviewsResponse>(
       `/designer-tasks/${taskId}/submissions-with-reviews`
+    );
+    return response.data;
+  },
+
+  createSubmission: async (
+    taskId: string,
+    data: FormData
+  ): Promise<CreateSubmissionResponse> => {
+    const response = await api.post<CreateSubmissionResponse>(
+      `/designer-tasks/${taskId}/submissions`,
+      data
     );
     return response.data;
   },

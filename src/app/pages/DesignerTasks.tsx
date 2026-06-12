@@ -6,13 +6,14 @@ import designerApi, {
   DesignerTaskListMeta,
   SubmissionItem,
   SubmissionsWithReviewsData,
+  CreateSubmissionResponse,
 } from '../../api/designerApi';
 import {
   AlertCircle,
   Calendar,
   CheckCircle2,
   Clock,
-  Image,
+  Upload,
   XCircle,
   Briefcase,
   ChevronDown,
@@ -54,6 +55,12 @@ const PHASES: { key: PhaseKey; label: string; backendStage: string }[] = [
   { key: 'rendering', label: 'Rendering', backendStage: 'rendering' },
   { key: 'finalStage', label: 'Final Stage', backendStage: 'final stage' },
 ];
+
+function phaseToBackendStage(phase: PhaseKey): string {
+  return PHASES.find((p) => p.key === phase)?.backendStage ?? phase;
+}
+
+const REQUIRED_ATTACHMENT_STAGES: Set<PhaseKey> = new Set(['rendering', 'finalStage']);
 
 const STORAGE_KEY = 'designer-submission-progress';
 const API_TASKS_CACHE_KEY = 'designer-api-tasks-cache';
@@ -309,8 +316,10 @@ export function DesignerTasks() {
   const [expandedHistoryIdx, setExpandedHistoryIdx] = useState<Record<string, Record<PhaseKey, number | null>>>({});
   const [draftNotes, setDraftNotes] = useState<Record<string, Record<PhaseKey, string>>>({});
   const [draftScreenshots, setDraftScreenshots] = useState<Record<string, Record<PhaseKey, string | null>>>({});
-  const draftFilesRef = useRef<Record<string, Record<PhaseKey, File | null>>>({});
+  const draftFilesRef = useRef<Record<string, Record<PhaseKey, File[]>>>({});
+  const uploadInputRef = useRef<Record<string, Record<PhaseKey, HTMLInputElement | null>>>({});
   const [phaseErrors, setPhaseErrors] = useState<Record<string, Record<PhaseKey, string>>>({});
+  const [submissionDraftLoading, setSubmissionDraftLoading] = useState<Record<string, Record<PhaseKey, boolean>>>({});
 
   // Highlight state
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
@@ -478,7 +487,7 @@ export function DesignerTasks() {
     setDraftNotes((prev) => ({ ...prev, [task.id]: notesDraft }));
     setDraftScreenshots((prev) => ({ ...prev, [task.id]: screenshotsDraft }));
     setPhaseErrors((prev) => ({ ...prev, [task.id]: {} as Record<PhaseKey, string> }));
-    draftFilesRef.current = { ...draftFilesRef.current, [task.id]: { caseStudy: null, designStage: null, rendering: null, finalStage: null } };
+    draftFilesRef.current = { ...draftFilesRef.current, [task.id]: { caseStudy: [], designStage: [], rendering: [], finalStage: [] } };
     setExpandedPhase('caseStudy');
     setExpandedHistoryIdx((prev) => ({
       ...prev,
@@ -537,33 +546,105 @@ export function DesignerTasks() {
 
   const handleSubmitPhaseProgress = async (taskId: string, phase: PhaseKey) => {
     const note = draftNotes[taskId]?.[phase] ?? '';
-    const file = draftFilesRef.current[taskId]?.[phase] ?? null;
-    const existingScreenshot = getDisplayProgress(taskId)[phase]?.screenshot;
-    if (phase === 'finalStage' && !file && !existingScreenshot) {
+    const files = draftFilesRef.current[taskId]?.[phase] ?? [];
+
+    // Validate required attachments for rendering and final stage
+    if (REQUIRED_ATTACHMENT_STAGES.has(phase) && files.length === 0) {
       setPhaseErrors((prev) => ({
         ...prev,
-        [taskId]: { ...prev[taskId], [phase]: 'A screenshot is required for the Final Stage.' },
+        [taskId]: { ...prev[taskId], [phase]: 'At least one file attachment is required for this stage.' },
       }));
       return;
     }
-    let newScreenshotDataUrl: string | null = null;
-    if (file) {
-      newScreenshotDataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = () => reject(new Error('Unable to read screenshot'));
-        reader.readAsDataURL(file);
-      });
+
+    setSubmissionDraftLoading((prev) => ({
+      ...prev,
+      [taskId]: { ...prev[taskId], [phase]: true },
+    }));
+
+    try {
+      const formData = new FormData();
+      formData.append('stage', phaseToBackendStage(phase));
+      formData.append('description', note.trim() || `Submission for ${phaseToBackendStage(phase)}`);
+
+      for (const file of files) {
+        formData.append('attachmentFiles', file);
+      }
+
+      const response = await designerApi.createSubmission(taskId, formData);
+
+      if (response.success && response.data) {
+        // Save note/screenshot locally for UI display
+        const screenshotUrl = files.length > 0
+          ? URL.createObjectURL(files[0])
+          : null;
+
+        setSubmissionProgress((prev) => {
+          const taskProgress = prev[taskId] ?? getDisplayProgress(taskId);
+          const updatedPhase: PhaseData = {
+            ...taskProgress[phase],
+            note: note.trim(),
+            screenshot: screenshotUrl ?? taskProgress[phase].screenshot,
+          };
+          return { ...prev, [taskId]: { ...taskProgress, [phase]: updatedPhase } };
+        });
+
+        // Refresh submissions from API
+        setSubmissionsLoading((prev) => ({ ...prev, [taskId]: true }));
+        try {
+          const resp = await designerApi.getSubmissionsWithReviews(taskId);
+          if (resp.success && resp.data) {
+            const apiProgress = apiSubmissionsToProgress(resp.data);
+            setSubmissionProgress((prev) => {
+              const existing = prev[taskId] || {
+                caseStudy: defaultPhase(),
+                designStage: defaultPhase(),
+                rendering: defaultPhase(),
+                finalStage: defaultPhase(),
+              };
+              const merged: Record<PhaseKey, PhaseData> = {} as Record<PhaseKey, PhaseData>;
+              for (const p of PHASES) {
+                const apiPhase = apiProgress[p.key];
+                const existingPhase = existing[p.key] || defaultPhase();
+                merged[p.key] = {
+                  note: apiPhase?.note || existingPhase.note,
+                  screenshot: apiPhase?.screenshot || existingPhase.screenshot,
+                  history: apiPhase?.history?.length ? apiPhase.history : existingPhase.history || [],
+                };
+              }
+              return { ...prev, [taskId]: merged };
+            });
+          }
+        } catch {
+          // Keep local data on refresh failure
+        } finally {
+          setSubmissionsLoading((prev) => ({ ...prev, [taskId]: false }));
+        }
+      } else {
+        setPhaseErrors((prev) => ({
+          ...prev,
+          [taskId]: { ...prev[taskId], [phase]: response.message || 'Submission failed' },
+        }));
+        return;
+      }
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined;
+      setPhaseErrors((prev) => ({
+        ...prev,
+        [taskId]: { ...prev[taskId], [phase]: msg || 'Unable to connect to server' },
+      }));
+      return;
+    } finally {
+      setSubmissionDraftLoading((prev) => ({
+        ...prev,
+        [taskId]: { ...prev[taskId], [phase]: false },
+      }));
     }
-    setSubmissionProgress((prev) => {
-      const taskProgress = prev[taskId] ?? getDisplayProgress(taskId);
-      const updatedPhase: PhaseData = {
-        ...taskProgress[phase],
-        note: note.trim(),
-        screenshot: newScreenshotDataUrl ?? taskProgress[phase].screenshot,
-      };
-      return { ...prev, [taskId]: { ...taskProgress, [phase]: updatedPhase } };
-    });
+
+    // Clear form on success
     const oldUrl = draftScreenshots[taskId]?.[phase] ?? null;
     if (oldUrl) URL.revokeObjectURL(oldUrl);
     setDraftScreenshots((prev) => ({ ...prev, [taskId]: { ...prev[taskId], [phase]: null } }));
@@ -571,24 +652,43 @@ export function DesignerTasks() {
     setPhaseErrors((prev) => ({ ...prev, [taskId]: { ...prev[taskId], [phase]: '' } }));
     draftFilesRef.current = {
       ...draftFilesRef.current,
-      [taskId]: { ...draftFilesRef.current[taskId], [phase]: null },
+      [taskId]: { ...draftFilesRef.current[taskId], [phase]: [] },
     };
   };
 
-  const handleFileChange = (taskId: string, phase: PhaseKey, file: File | undefined) => {
-    if (!file) {
+  const handleFilesChange = (taskId: string, phase: PhaseKey, fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) {
+      // User clicked "Remove all" - clear files
       const oldUrl = draftScreenshots[taskId]?.[phase] ?? null;
       if (oldUrl) URL.revokeObjectURL(oldUrl);
       setDraftScreenshots((prev) => ({ ...prev, [taskId]: { ...prev[taskId], [phase]: null } }));
-      draftFilesRef.current = { ...draftFilesRef.current, [taskId]: { ...draftFilesRef.current[taskId], [phase]: null } };
+      draftFilesRef.current = {
+        ...draftFilesRef.current,
+        [taskId]: { ...draftFilesRef.current[taskId], [phase]: [] },
+      };
       return;
     }
+
+    // Revoke old preview URLs
     const oldUrl = draftScreenshots[taskId]?.[phase] ?? null;
     if (oldUrl) URL.revokeObjectURL(oldUrl);
-    const objectUrl = URL.createObjectURL(file);
-    draftFilesRef.current = { ...draftFilesRef.current, [taskId]: { ...draftFilesRef.current[taskId], [phase]: file } };
-    setDraftScreenshots((prev) => ({ ...prev, [taskId]: { ...prev[taskId], [phase]: objectUrl } }));
-    setPhaseErrors((prev) => ({ ...prev, [taskId]: { ...prev[taskId], [phase]: '' } }));
+
+    const files = Array.from(fileList);
+    draftFilesRef.current = {
+      ...draftFilesRef.current,
+      [taskId]: { ...draftFilesRef.current[taskId], [phase]: files },
+    };
+
+    // Show preview of first file
+    const objectUrl = URL.createObjectURL(files[0]);
+    setDraftScreenshots((prev) => ({
+      ...prev,
+      [taskId]: { ...prev[taskId], [phase]: objectUrl },
+    }));
+    setPhaseErrors((prev) => ({
+      ...prev,
+      [taskId]: { ...prev[taskId], [phase]: '' },
+    }));
   };
 
   const toggleHistoryEntry = (taskId: string, phase: PhaseKey, idx: number) => {
@@ -930,13 +1030,17 @@ export function DesignerTasks() {
                       return hasContent;
                     });
 
+                    // Rejection can come from API task status or phase history
+                    const apiTaskRejected = selectedTaskDetail.status === 'rejected';
+                    const overallRejected = taskRejected || apiTaskRejected;
+
                     if (visiblePhases.length === 0) {
                       return <p className="text-sm text-gray-500">No submission data yet.</p>;
                     }
 
                     return (
                       <div className="space-y-3">
-                        {taskRejected && (
+                        {overallRejected && (
                           <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
                             <XCircle className="w-4 h-4 text-red-600" />
                             <span className="text-sm font-medium text-red-700">
@@ -951,7 +1055,7 @@ export function DesignerTasks() {
                           const currentStatus = getCurrentStatus(phaseData);
                           const history = phaseData.history || [];
                           const isApproved = currentStatus === 'approved';
-                          const canSubmit = !isApproved && !taskRejected;
+                          const canSubmit = !isApproved && !overallRejected;
                           const noteDraft = draftNotes[taskId]?.[phase.key] ?? '';
                           const newScreenshot = draftScreenshots[taskId]?.[phase.key] ?? null;
                           const existingScreenshot = phaseData.screenshot;
@@ -992,12 +1096,26 @@ export function DesignerTasks() {
                                     <div className="border border-dashed border-gray-300 rounded-lg p-4 bg-blue-50/50">
                                       <h6 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
                                         <MessageSquare className="w-4 h-4" />
-                                        Open Submission
+                                        Submit to {phase.label}
                                       </h6>
                                       <div className="space-y-3">
                                         <div>
+                                          <label className="block text-xs font-medium text-gray-600 mb-1">Stage</label>
+                                          <select
+                                            value={phase.key}
+                                            onChange={() => {}}
+                                            disabled
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-700"
+                                          >
+                                            {PHASES.map((p) => (
+                                              <option key={p.key} value={p.key}>{p.label}</option>
+                                            ))}
+                                          </select>
+                                          <p className="text-xs text-gray-400 mt-1">Submitting to the current phase: {phase.label}</p>
+                                        </div>
+                                        <div>
                                           <label className="block text-xs font-medium text-gray-600 mb-1">
-                                            Progress Note
+                                            Description
                                           </label>
                                           <textarea
                                             rows={3}
@@ -1008,34 +1126,43 @@ export function DesignerTasks() {
                                                 [taskId]: { ...prev[taskId], [phase.key]: e.target.value },
                                               }))
                                             }
-                                            placeholder="Describe your progress..."
+                                            placeholder="Describe your submission..."
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            required
                                           />
                                         </div>
                                         <div>
                                           <label className="block text-xs font-medium text-gray-600 mb-1">
-                                            Telegram Screenshot{' '}
-                                            {phase.key === 'finalStage' && (
-                                              <span className="text-red-500">(required)</span>
-                                            )}
-                                            {phase.key !== 'finalStage' && (
+                                            File Attachments{' '}
+                                            {REQUIRED_ATTACHMENT_STAGES.has(phase.key) ? (
+                                              <span className="text-red-500">(required - at least 1)</span>
+                                            ) : (
                                               <span className="text-gray-400 text-xs ml-1">(optional)</span>
                                             )}
                                           </label>
                                           <div className="flex items-center gap-2">
                                             <label className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-sm text-gray-700">
-                                              <Image className="w-4 h-4" />
-                                              {newScreenshot || existingScreenshot ? 'Change Screenshot' : 'Upload Screenshot'}
+                                              <Upload className="w-4 h-4" />
+                                              {draftFilesRef.current[taskId]?.[phase.key]?.length
+                                                ? `${draftFilesRef.current[taskId][phase.key].length} file(s) selected`
+                                                : newScreenshot || existingScreenshot
+                                                ? 'Change Files'
+                                                : 'Choose Files'}
                                               <input
                                                 type="file"
-                                                accept="image/*"
-                                                onChange={(e) =>
-                                                  handleFileChange(taskId, phase.key, e.target.files?.[0])
-                                                }
+                                                multiple
+                                                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip,.rar"
+                                                ref={(el) => {
+                                                  if (!uploadInputRef.current[taskId]) {
+                                                    uploadInputRef.current[taskId] = {} as Record<PhaseKey, HTMLInputElement | null>;
+                                                  }
+                                                  uploadInputRef.current[taskId][phase.key] = el;
+                                                }}
+                                                onChange={(e) => handleFilesChange(taskId, phase.key, e.target.files)}
                                                 className="hidden"
                                               />
                                             </label>
-                                            {(newScreenshot || existingScreenshot) && (
+                                            {(newScreenshot || existingScreenshot || (draftFilesRef.current[taskId]?.[phase.key]?.length ?? 0) > 0) && (
                                               <button
                                                 type="button"
                                                 onClick={() => {
@@ -1047,12 +1174,12 @@ export function DesignerTasks() {
                                                   }));
                                                   draftFilesRef.current = {
                                                     ...draftFilesRef.current,
-                                                    [taskId]: { ...draftFilesRef.current[taskId], [phase.key]: null },
+                                                    [taskId]: { ...draftFilesRef.current[taskId], [phase.key]: [] },
                                                   };
                                                 }}
                                                 className="text-sm text-red-600 hover:underline"
                                               >
-                                                Remove
+                                                Remove All
                                               </button>
                                             )}
                                           </div>
@@ -1074,15 +1201,16 @@ export function DesignerTasks() {
                                             />
                                           )}
                                           {!newScreenshot && !existingScreenshot && (
-                                            <p className="mt-1 text-xs text-gray-400">No screenshot provided.</p>
+                                            <p className="mt-1 text-xs text-gray-400">No preview available.</p>
                                           )}
                                         </div>
                                         <div className="flex gap-2 pt-2">
                                           <button
                                             onClick={() => handleSubmitPhaseProgress(taskId, phase.key)}
-                                            className="flex items-center gap-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm transition-colors"
+                                            disabled={submissionDraftLoading[taskId]?.[phase.key]}
+                                            className="flex items-center gap-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white rounded-lg text-sm transition-colors"
                                           >
-                                            Save Progress
+                                            {submissionDraftLoading[taskId]?.[phase.key] ? 'Submitting...' : 'Submit'}
                                           </button>
                                           <button
                                             onClick={() => {
@@ -1098,7 +1226,7 @@ export function DesignerTasks() {
                                               }));
                                               draftFilesRef.current = {
                                                 ...draftFilesRef.current,
-                                                [taskId]: { ...draftFilesRef.current[taskId], [phase.key]: null },
+                                                [taskId]: { ...draftFilesRef.current[taskId], [phase.key]: [] },
                                               };
                                             }}
                                             className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition-colors"
