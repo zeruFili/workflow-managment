@@ -152,6 +152,17 @@ const designerApi = {
     );
     return response.data;
   },
+
+  updateSubmission: async (
+    submissionId: string,
+    data: FormData
+  ): Promise<CreateSubmissionResponse> => {
+    const response = await api.patch<CreateSubmissionResponse>(
+      `/designer-tasks/submit/${submissionId}`,
+      data
+    );
+    return response.data;
+  },
 };
 
 export default designerApi;

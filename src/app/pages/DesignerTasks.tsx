@@ -20,6 +20,7 @@ import {
   ChevronUp,
   ChevronLeft,
   ChevronRight,
+  Edit,
   MessageSquare,
   ThumbsUp,
   ThumbsDown,
@@ -321,6 +322,10 @@ export function DesignerTasks() {
   const [phaseErrors, setPhaseErrors] = useState<Record<string, Record<PhaseKey, string>>>({});
   const [submissionDraftLoading, setSubmissionDraftLoading] = useState<Record<string, Record<PhaseKey, boolean>>>({});
 
+  // Raw API submission data (for Edit functionality)
+  const [submissionsRawData, setSubmissionsRawData] = useState<Record<string, SubmissionsWithReviewsData>>({});
+  const [editingSubmission, setEditingSubmission] = useState<{ taskId: string; phase: PhaseKey; submissionId: string } | null>(null);
+
   // Highlight state
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
   const seenThisSession = useRef<Set<string>>(new Set());
@@ -481,7 +486,7 @@ export function DesignerTasks() {
     const notesDraft: Record<PhaseKey, string> = {} as Record<PhaseKey, string>;
     const screenshotsDraft: Record<PhaseKey, string | null> = {} as Record<PhaseKey, string | null>;
     PHASES.forEach((p) => {
-      notesDraft[p.key] = progress[p.key]?.note || '';
+      notesDraft[p.key] = '';
       screenshotsDraft[p.key] = null;
     });
     setDraftNotes((prev) => ({ ...prev, [task.id]: notesDraft }));
@@ -500,6 +505,7 @@ export function DesignerTasks() {
     try {
       const resp = await designerApi.getSubmissionsWithReviews(task.id);
       if (resp.success && resp.data) {
+        setSubmissionsRawData((prev) => ({ ...prev, [task.id]: resp.data }));
         const apiProgress = apiSubmissionsToProgress(resp.data);
         setSubmissionProgress((prev) => {
           const existing = prev[task.id] || {
@@ -542,6 +548,33 @@ export function DesignerTasks() {
     setSelectedTaskDetail(null);
     setShowDetail(false);
     setExpandedPhase(null);
+    setEditingSubmission(null);
+  };
+
+  const handleEditSubmission = (taskId: string, phase: PhaseKey, submissionId: string) => {
+    const rawData = submissionsRawData[taskId];
+    if (!rawData) return;
+
+    const stageMap: Record<PhaseKey, string> = {
+      caseStudy: 'caseStudy',
+      designStage: 'designing',
+      rendering: 'rendering',
+      finalStage: 'finalStage',
+    };
+    const apiKey = stageMap[phase];
+    const submissions: SubmissionItem[] = (rawData as Record<string, SubmissionItem[]>)[apiKey] || [];
+    const submission = submissions.find((s) => s.id === submissionId);
+    if (!submission) return;
+
+    // Pre-populate form fields
+    setDraftNotes((prev) => ({
+      ...prev,
+      [taskId]: { ...prev[taskId], [phase]: submission.description || '' },
+    }));
+    setEditingSubmission({ taskId, phase, submissionId });
+
+    // Expand the phase to show the form
+    setExpandedPhase(phase);
   };
 
   const handleSubmitPhaseProgress = async (taskId: string, phase: PhaseKey) => {
@@ -571,7 +604,10 @@ export function DesignerTasks() {
         formData.append('attachmentFiles', file);
       }
 
-      const response = await designerApi.createSubmission(taskId, formData);
+      const isEditing = editingSubmission?.taskId === taskId && editingSubmission?.phase === phase;
+      const response = isEditing
+        ? await designerApi.updateSubmission(editingSubmission!.submissionId, formData)
+        : await designerApi.createSubmission(taskId, formData);
 
       if (response.success && response.data) {
         // Save note/screenshot locally for UI display
@@ -594,6 +630,7 @@ export function DesignerTasks() {
         try {
           const resp = await designerApi.getSubmissionsWithReviews(taskId);
           if (resp.success && resp.data) {
+            setSubmissionsRawData((prev) => ({ ...prev, [taskId]: resp.data }));
             const apiProgress = apiSubmissionsToProgress(resp.data);
             setSubmissionProgress((prev) => {
               const existing = prev[taskId] || {
@@ -645,6 +682,7 @@ export function DesignerTasks() {
     }
 
     // Clear form on success
+    setEditingSubmission(null);
     const oldUrl = draftScreenshots[taskId]?.[phase] ?? null;
     if (oldUrl) URL.revokeObjectURL(oldUrl);
     setDraftScreenshots((prev) => ({ ...prev, [taskId]: { ...prev[taskId], [phase]: null } }));
@@ -1092,11 +1130,57 @@ export function DesignerTasks() {
 
                               {isExpanded && (
                                 <div className="p-4 space-y-4 bg-white">
+                                  {/* Edit existing submission button */}
+                                  {(() => {
+                                    const rawData = submissionsRawData[taskId];
+                                    const stageMap: Record<PhaseKey, string> = {
+                                      caseStudy: 'caseStudy', designStage: 'designing', rendering: 'rendering', finalStage: 'finalStage',
+                                    };
+                                    const apiKey = stageMap[phase.key];
+                                    const stageSubmissions: SubmissionItem[] = rawData ? (rawData as Record<string, SubmissionItem[]>)[apiKey] || [] : [];
+                                    // Find submissions without reviews that are editable
+                                    const editableSubmissions = stageSubmissions.filter((s) => s.reviews.length === 0);
+                                    const latestEditable = editableSubmissions.length > 0 ? editableSubmissions[editableSubmissions.length - 1] : null;
+                                    const taskActive = selectedTaskDetail.task_state === 'active';
+                                    const canEdit = latestEditable && taskActive && !overallRejected;
+
+                                    const isEditingThis = editingSubmission?.taskId === taskId && editingSubmission?.phase === phase.key;
+
+                                    if (isEditingThis) {
+                                      return (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setEditingSubmission(null);
+                                            setDraftNotes((prev) => ({
+                                              ...prev,
+                                              [taskId]: { ...prev[taskId], [phase.key]: '' },
+                                            }));
+                                          }}
+                                          className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 font-medium"
+                                        >
+                                          <XCircle className="w-3.5 h-3.5" />
+                                          Cancel Edit
+                                        </button>
+                                      );
+                                    }
+
+                                    return canEdit ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleEditSubmission(taskId, phase.key, latestEditable!.id)}
+                                        className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+                                      >
+                                        <Edit className="w-3.5 h-3.5" />
+                                        Edit Latest Submission
+                                      </button>
+                                    ) : null;
+                                  })()}
                                   {canSubmit && (
                                     <div className="border border-dashed border-gray-300 rounded-lg p-4 bg-blue-50/50">
                                       <h6 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
                                         <MessageSquare className="w-4 h-4" />
-                                        Submit to {phase.label}
+                                        {editingSubmission?.taskId === taskId && editingSubmission?.phase === phase.key ? 'Update' : 'Submit'} to {phase.label}
                                       </h6>
                                       <div className="space-y-3">
                                         <div>
@@ -1196,7 +1280,9 @@ export function DesignerTasks() {
                                             disabled={submissionDraftLoading[taskId]?.[phase.key]}
                                             className="flex items-center gap-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white rounded-lg text-sm transition-colors"
                                           >
-                                            {submissionDraftLoading[taskId]?.[phase.key] ? 'Submitting...' : 'Submit'}
+                                            {submissionDraftLoading[taskId]?.[phase.key]
+                                              ? (editingSubmission ? 'Updating...' : 'Submitting...')
+                                              : (editingSubmission ? 'Update' : 'Submit')}
                                           </button>
                                           <button
                                             onClick={() => {
