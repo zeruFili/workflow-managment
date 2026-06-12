@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import Cookies from 'js-cookie';
 import { User, UserRole } from '../types';
 import { loginUser, LoginResult } from '../../controllers/loginController';
 
@@ -15,15 +16,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('user');
-    const savedToken = localStorage.getItem('token');
+    const savedUser = Cookies.get('user');
+    const savedToken = Cookies.get('token');
     if (savedUser && savedToken) {
       try {
         const parsedUser = JSON.parse(savedUser) as User;
         setUser(parsedUser);
       } catch {
-        localStorage.removeItem('user');
-        localStorage.removeItem('token');
+        Cookies.remove('user');
+        Cookies.remove('token');
       }
     }
   }, []);
@@ -40,8 +41,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
+    Cookies.remove('user');
+    Cookies.remove('token');
   };
 
   return (

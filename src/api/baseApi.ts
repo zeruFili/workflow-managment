@@ -4,6 +4,7 @@ import axios, {
   AxiosResponse,
   AxiosError,
 } from "axios";
+import Cookies from "js-cookie";
 
 const BASE_URL = "http://localhost:3001/api/v1/";
 
@@ -15,7 +16,7 @@ api.interceptors.request.use(
       config.headers["Content-Type"] = "application/json";
     }
 
-    const token = localStorage.getItem("token");
+    const token = Cookies.get("token");
     if (token) {
       config.headers["Authorization"] = `Bearer ${token}`;
     }
@@ -29,8 +30,8 @@ api.interceptors.response.use(
 
   async (error: AxiosError) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
+      Cookies.remove("token");
+      Cookies.remove("user");
       window.location.href = "/";
     }
 

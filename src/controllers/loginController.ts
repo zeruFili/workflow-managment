@@ -1,4 +1,5 @@
-import loginApi, { LoginPayload, LoginUser } from "../api/loginApi";
+import Cookies from "js-cookie";
+import loginApi, { LoginPayload } from "../api/loginApi";
 import { User, UserRole } from "../app/types";
 
 function mapBackendRoleToFrontend(backendRole: string): UserRole {
@@ -39,8 +40,8 @@ export async function loginUser(
         role: mapBackendRoleToFrontend(apiUser.role),
       };
 
-      localStorage.setItem("token", accessToken);
-      localStorage.setItem("user", JSON.stringify(user));
+      Cookies.set("token", accessToken);
+      Cookies.set("user", JSON.stringify(user));
 
       return { success: true, user };
     }
