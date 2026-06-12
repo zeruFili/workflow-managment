@@ -349,6 +349,24 @@ export function DesignerTasks() {
         setTasks(response.data);
         setMeta(response.meta);
         setDisplayOffset(0);
+
+        // Pre-fetch submissions for all loaded tasks so feedback shows immediately
+        const results = await Promise.allSettled(
+          response.data.map((t) =>
+            designerApi.getSubmissionsWithReviews(t.id).then((r) => ({ taskId: t.id, resp: r }))
+          )
+        );
+        const progressUpdates: SubmissionProgress = {};
+        const rawDataUpdates: Record<string, SubmissionsWithReviewsData> = {};
+        for (const result of results) {
+          if (result.status === 'fulfilled' && result.value.resp.success && result.value.resp.data) {
+            const { taskId, resp } = result.value;
+            rawDataUpdates[taskId] = resp.data;
+            progressUpdates[taskId] = apiSubmissionsToProgress(resp.data);
+          }
+        }
+        setSubmissionsRawData((prev) => ({ ...prev, ...rawDataUpdates }));
+        setSubmissionProgress((prev) => ({ ...prev, ...progressUpdates }));
       } else {
         setError(response.message || 'Failed to load tasks');
       }
@@ -610,6 +628,15 @@ export function DesignerTasks() {
         : await designerApi.createSubmission(taskId, formData);
 
       if (response.success && response.data) {
+        // Update the task card immediately with new status/stage from backend
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === taskId
+              ? { ...t, status: 'pending', stage: phaseToBackendStage(phase), updated_at: new Date().toISOString() }
+              : t
+          )
+        );
+
         // Save note/screenshot locally for UI display
         const screenshotUrl = files.length > 0
           ? URL.createObjectURL(files[0])
@@ -736,7 +763,7 @@ export function DesignerTasks() {
     });
   };
 
-  const getCurrentPhaseInfo = (taskId: string) => {
+  const getCurrentPhaseInfo = (taskId: string, task: DesignerTaskItem) => {
     const progress = getDisplayProgress(taskId);
     const stopIdx = findFirstNonApprovedPhaseIndex(PHASES, progress);
     let currentPhaseKey: PhaseKey | null = null;
@@ -752,6 +779,20 @@ export function DesignerTasks() {
         currentPhaseKey = PHASES[lastPopulatedIdx].key;
         currentPhaseLabel = PHASES[lastPopulatedIdx].label;
         currentPhaseStatus = getCurrentStatus(progress[currentPhaseKey]);
+      } else if (task.stage) {
+        // Fallback: use task.stage from API when no submission progress exists
+        const found = PHASES.find((p) => p.backendStage === task.stage);
+        if (found) {
+          currentPhaseKey = found.key;
+          currentPhaseLabel = found.label;
+          // Map API ReviewOutcome to PhaseHistoryEntry status
+          const apiStatus = task.status;
+          if (apiStatus === 'approved' || apiStatus === 'rejected' || apiStatus === 'feedback') {
+            currentPhaseStatus = apiStatus;
+          } else {
+            currentPhaseStatus = 'pending';
+          }
+        }
       }
     }
     return { currentPhaseKey, currentPhaseLabel, currentPhaseStatus };
@@ -826,7 +867,7 @@ export function DesignerTasks() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {sortedTasks.slice(displayOffset, displayOffset + ROWS_PER_DISPLAY).map((task) => {
               const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'approved';
-              const { currentPhaseKey, currentPhaseLabel, currentPhaseStatus } = getCurrentPhaseInfo(task.id);
+              const { currentPhaseKey, currentPhaseLabel, currentPhaseStatus } = getCurrentPhaseInfo(task.id, task);
               const isHighlighted = highlightedIds.has(task.id);
 
               return (
