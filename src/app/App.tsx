@@ -44,7 +44,7 @@ function ProtectedRoute({
 }
 
 function AppContent() {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const { isReady, webApp } = useTelegram();
 
   useEffect(() => {
@@ -56,11 +56,26 @@ function AppContent() {
     }
   }, [isReady, webApp]);
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-center">
+          <div className="inline-block w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+          <p className="mt-4 text-gray-600 text-sm">Restoring session...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <HashRouter>
       <Routes>
-        {/* Always start from the login page */}
-        <Route path="/" element={<Login />} />
+        <Route
+          path="/"
+          element={
+            user ? <Navigate to="/dashboard" replace /> : <Login />
+          }
+        />
 
         {/* Dashboard route – role-specific landing pages */}
         <Route

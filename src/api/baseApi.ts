@@ -32,7 +32,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       Cookies.remove("token");
       Cookies.remove("user");
-      window.location.href = "/";
+      window.location.hash = "#/";
     }
 
     return Promise.reject(error);
