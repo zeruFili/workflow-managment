@@ -742,8 +742,7 @@ export function DesignerAssignments() {
   const sortedTasks = [...assignedTasks].sort((a, b) => {
     const aHL = highlightedIds.has(a.id) ? 1 : 0;
     const bHL = highlightedIds.has(b.id) ? 1 : 0;
-    if (bHL !== aHL) return bHL - aHL;
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    return bHL - aHL;
   });
 
   // ── Rating helpers ──

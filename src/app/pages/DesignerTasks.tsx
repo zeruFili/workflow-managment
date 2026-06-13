@@ -798,12 +798,11 @@ export function DesignerTasks() {
     ? assignedTasks.filter((task) => task.assigned_to_user_id === user.id)
     : assignedTasks;
 
-  // Sort: highlighted first, then by created_at descending
+  // Sort: highlighted first, otherwise preserve backend ordering
   const sortedTasks = [...visibleTasks].sort((a, b) => {
     const aHL = highlightedIds.has(a.id) ? 1 : 0;
     const bHL = highlightedIds.has(b.id) ? 1 : 0;
-    if (bHL !== aHL) return bHL - aHL;
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    return bHL - aHL;
   });
 
   const statusDisplay = (status: string | null): string => {
