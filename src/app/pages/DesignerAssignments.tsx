@@ -82,11 +82,11 @@ interface ReviewData {
   submittedAt: string;
 }
 
-const PHASES: { key: PhaseKey; label: string }[] = [
-  { key: 'caseStudy', label: 'Case Study' },
-  { key: 'designStage', label: 'Design Stage' },
-  { key: 'rendering', label: 'Rendering' },
-  { key: 'finalStage', label: 'Final Stage' },
+const PHASES: { key: PhaseKey; label: string; backendStage: string }[] = [
+  { key: 'caseStudy', label: 'Case Study', backendStage: 'case study' },
+  { key: 'designStage', label: 'Design Stage', backendStage: 'designing' },
+  { key: 'rendering', label: 'Rendering', backendStage: 'rendering' },
+  { key: 'finalStage', label: 'Final Stage', backendStage: 'final stage' },
 ];
 
 const STORAGE_KEY = 'designer-submission-progress';
@@ -607,6 +607,49 @@ export function DesignerAssignments() {
     return isFinalStageApprovedFromProgress(getDisplayProgress(taskId));
   };
 
+  const getCurrentPhaseInfo = (task: DesignerTaskItem) => {
+    const found = PHASES.find((p) => p.backendStage === task.stage);
+    const currentPhaseKey: PhaseKey | null = found?.key ?? null;
+    const currentPhaseLabel = found?.label ?? (task.stage || '');
+    const apiStatus = task.status;
+    let currentPhaseStatus: PhaseHistoryEntry['status'] | 'pending' = 'pending';
+    if (apiStatus === 'approved' || apiStatus === 'rejected') {
+      currentPhaseStatus = apiStatus;
+    } else if (apiStatus === 'feedback') {
+      currentPhaseStatus = 'feedback';
+    }
+    return { currentPhaseKey, currentPhaseLabel, currentPhaseStatus };
+  };
+
+  const getLatestActivity = (task: DesignerTaskItem): {
+    description: string;
+    kind: 'review' | 'submission';
+    outcome: string;
+  } | null => {
+    const raw = task.submissionsWithReviews;
+    if (!raw) return null;
+    let latestTs = 0;
+    let latest: { description: string; kind: 'review' | 'submission'; outcome: string } | null = null;
+    const stages = [raw.caseStudy || [], raw.designing || [], raw.rendering || [], raw.finalStage || []];
+    for (const submissions of stages) {
+      for (const s of submissions) {
+        const sTs = Math.max(new Date(s.created_at).getTime(), s.updated_at ? new Date(s.updated_at).getTime() : 0);
+        if (sTs > latestTs) {
+          latestTs = sTs;
+          latest = { description: s.description || '', kind: 'submission', outcome: 'pending' };
+        }
+        for (const r of (s.reviews || [])) {
+          const rTs = Math.max(new Date(r.created_at).getTime(), r.updated_at ? new Date(r.updated_at).getTime() : 0);
+          if (rTs > latestTs) {
+            latestTs = rTs;
+            latest = { description: r.description || '', kind: 'review', outcome: r.review_outcome };
+          }
+        }
+      }
+    }
+    return latest;
+  };
+
   const openDetail = (task: DesignerTaskItem) => {
     setSelectedTaskDetail(task);
     setShowDetail(true);
@@ -853,24 +896,7 @@ export function DesignerAssignments() {
               const isOverdue =
                 task.due_date && new Date(task.due_date) < new Date() && task.status !== 'approved';
 
-              const progress = getDisplayProgress(task.id);
-              const stopIdx = findFirstNonApprovedPhaseIndex(PHASES, progress);
-              let currentPhaseKey: PhaseKey | null = null;
-              let currentPhaseLabel = '';
-              let currentPhaseStatus: PhaseHistoryEntry['status'] | 'pending' = 'pending';
-
-              if (stopIdx !== -1) {
-                currentPhaseKey = PHASES[stopIdx].key;
-                currentPhaseLabel = PHASES[stopIdx].label;
-                currentPhaseStatus = getCurrentStatus(progress[currentPhaseKey]);
-              } else {
-                const lastPopulated = getLastPopulatedPhaseIndex(progress);
-                if (lastPopulated >= 0) {
-                  currentPhaseKey = PHASES[lastPopulated].key;
-                  currentPhaseLabel = PHASES[lastPopulated].label;
-                  currentPhaseStatus = getCurrentStatus(progress[currentPhaseKey]);
-                }
-              }
+              const { currentPhaseKey, currentPhaseLabel, currentPhaseStatus } = getCurrentPhaseInfo(task);
 
               const finalStageApproved = isFinalStageApproved(task.id);
               const showReview = finalStageApproved;
@@ -922,7 +948,7 @@ export function DesignerAssignments() {
                           ? 'Feedback Given'
                           : currentPhaseStatus === 'rejected'
                           ? 'Rejected'
-                          : 'Pending Review'}
+                          : 'Pending'}
                       </span>
                     ) : (
                       <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${statusColorClass(task.status)}`}>
@@ -954,53 +980,44 @@ export function DesignerAssignments() {
                     Open Submission Detail
                   </button>
 
-                  {/* Last Phase Status */}
+                  {/* Latest Activity */}
                   {(() => {
-                    const progress = getDisplayProgress(task.id);
-                    const stopIdx = findFirstNonApprovedPhaseIndex(PHASES, progress);
-                    const lastPopulated = getLastPopulatedPhaseIndex(progress);
-                    const displayIdx = stopIdx !== -1 ? stopIdx : lastPopulated;
-                    if (displayIdx === -1) return null;
-                    const phaseKey = PHASES[displayIdx].key;
-                    const phaseLabel = PHASES[displayIdx].label;
-                    const phaseData = progress[phaseKey];
-                    if (!phaseData || !phaseData.history || phaseData.history.length === 0) return null;
-                    const latest = phaseData.history[phaseData.history.length - 1];
-                    const status = latest.status;
-                    const message = latest.message;
-                    const isApproved = status === 'approved';
-                    const isRejected = status === 'rejected';
-                    const isFeedback = status === 'feedback';
-                    const BadgeIcon = isApproved ? CheckCircle2 : isRejected ? XCircle : AlertCircle;
+                    const activity = getLatestActivity(task);
+                    if (!activity || !activity.description) return null;
+                    const outcome = activity.outcome;
+                    const isApproved = outcome === 'approved';
+                    const isRejected = outcome === 'rejected';
+                    const isFeedback = outcome === 'feedback';
+                    const BadgeIcon = isApproved ? CheckCircle2 : isRejected ? XCircle : isFeedback ? AlertCircle : MessageSquare;
                     const containerColor = isApproved
                       ? 'bg-green-50 border-green-200'
                       : isRejected
                       ? 'bg-red-50 border-red-200'
-                      : 'bg-yellow-50 border-yellow-200';
+                      : isFeedback
+                      ? 'bg-yellow-50 border-yellow-200'
+                      : 'bg-blue-50 border-blue-200';
                     const textColor = isApproved
                       ? 'text-green-700'
                       : isRejected
                       ? 'text-red-700'
-                      : 'text-yellow-700';
+                      : isFeedback
+                      ? 'text-yellow-700'
+                      : 'text-blue-700';
                     const iconColor = isApproved
                       ? 'text-green-600'
                       : isRejected
                       ? 'text-red-600'
-                      : 'text-yellow-600';
-                    const displayLabel = isApproved
-                      ? `${phaseLabel} - Approved`
                       : isFeedback
-                      ? 'Feedback'
-                      : `${phaseLabel} - Rejected`;
+                      ? 'text-yellow-600'
+                      : 'text-blue-600';
+                    const statusLabel = isApproved ? 'Approved' : isRejected ? 'Rejected' : isFeedback ? 'Feedback Given' : 'Pending';
                     return (
                       <div className={`mb-4 p-3 rounded-lg border ${containerColor}`}>
                         <div className="flex items-center gap-2 mb-2">
                           <BadgeIcon className={`w-4 h-4 ${iconColor}`} />
-                          <p className={`text-sm font-medium ${textColor}`}>{displayLabel}</p>
+                          <p className={`text-sm font-medium ${textColor}`}>{statusLabel}</p>
                         </div>
-                        {message && (
-                          <p className="text-sm text-gray-700 italic">"{message}"</p>
-                        )}
+                        <p className="text-sm text-gray-700">{activity.description}</p>
                       </div>
                     );
                   })()}
