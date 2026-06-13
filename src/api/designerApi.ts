@@ -66,6 +66,7 @@ export interface DesignerTaskItem {
   assigned_to_user: SafeUserOutput | null;
   updated_by_user: SafeUserOutput | null;
   submissionsWithReviews: SubmissionsWithReviewsData;
+  hasNestedNotification: boolean;
 }
 
 export interface DesignerTaskListMeta {
