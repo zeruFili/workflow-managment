@@ -607,7 +607,7 @@ export function DesignerAssignments() {
     return isFinalStageApprovedFromProgress(getDisplayProgress(taskId));
   };
 
-  const openDetail = async (task: DesignerTaskItem) => {
+  const openDetail = (task: DesignerTaskItem) => {
     setSelectedTaskDetail(task);
     setShowDetail(true);
     setExpandedPhase('caseStudy');
@@ -621,31 +621,24 @@ export function DesignerAssignments() {
       [task.id]: { caseStudy: null, designStage: null, rendering: null, finalStage: null },
     }));
 
-    // Fetch submissions-with-reviews from API
-    setSubmissionsLoading((prev) => ({ ...prev, [task.id]: true }));
-    try {
-      const resp = await designerApi.getSubmissionsWithReviews(task.id);
-      if (resp.success && resp.data) {
-        const apiProgress = apiSubmissionsToProgress(resp.data);
-        setSubmissionProgress((prev) => {
-          const existing = prev[task.id] || defaultTaskProgress();
-          const merged: Record<PhaseKey, PhaseData> = {} as Record<PhaseKey, PhaseData>;
-          for (const phase of PHASES) {
-            const apiPhase = apiProgress[phase.key];
-            const existingPhase = existing[phase.key] || defaultPhase();
-            merged[phase.key] = {
-              note: apiPhase?.note || existingPhase.note,
-              screenshot: apiPhase?.screenshot || existingPhase.screenshot,
-              history: apiPhase?.history?.length ? apiPhase.history : existingPhase.history || [],
-            };
-          }
-          return { ...prev, [task.id]: merged };
-        });
-      }
-    } catch {
-      // Keep existing data on fetch failure
-    } finally {
-      setSubmissionsLoading((prev) => ({ ...prev, [task.id]: false }));
+    // Use submissions data already embedded in the task response
+    const swr = task.submissionsWithReviews;
+    if (swr) {
+      const apiProgress = apiSubmissionsToProgress(swr);
+      setSubmissionProgress((prev) => {
+        const existing = prev[task.id] || defaultTaskProgress();
+        const merged: Record<PhaseKey, PhaseData> = {} as Record<PhaseKey, PhaseData>;
+        for (const phase of PHASES) {
+          const apiPhase = apiProgress[phase.key];
+          const existingPhase = existing[phase.key] || defaultPhase();
+          merged[phase.key] = {
+            note: apiPhase?.note || existingPhase.note,
+            screenshot: apiPhase?.screenshot || existingPhase.screenshot,
+            history: apiPhase?.history?.length ? apiPhase.history : existingPhase.history || [],
+          };
+        }
+        return { ...prev, [task.id]: merged };
+      });
     }
   };
 

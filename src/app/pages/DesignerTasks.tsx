@@ -366,19 +366,12 @@ export function DesignerTasks() {
         cachedMeta = response.meta;
         setDisplayOffset(0);
 
-        // Pre-fetch submissions for all loaded tasks so feedback shows immediately
-        const results = await Promise.allSettled(
-          response.data.map((t) =>
-            designerApi.getSubmissionsWithReviews(t.id).then((r) => ({ taskId: t.id, resp: r }))
-          )
-        );
         const progressUpdates: SubmissionProgress = {};
         const rawDataUpdates: Record<string, SubmissionsWithReviewsData> = {};
-        for (const result of results) {
-          if (result.status === 'fulfilled' && result.value.resp.success && result.value.resp.data) {
-            const { taskId, resp } = result.value;
-            rawDataUpdates[taskId] = resp.data;
-            progressUpdates[taskId] = apiSubmissionsToProgress(resp.data);
+        for (const task of response.data) {
+          if (task.submissionsWithReviews) {
+            rawDataUpdates[task.id] = task.submissionsWithReviews;
+            progressUpdates[task.id] = apiSubmissionsToProgress(task.submissionsWithReviews);
           }
         }
         cachedRawData = rawDataUpdates;
@@ -530,7 +523,7 @@ export function DesignerTasks() {
     };
   };
 
-  const openDetail = async (task: DesignerTaskItem) => {
+  const openDetail = (task: DesignerTaskItem) => {
     setSelectedTaskDetail(task);
     const progress = getDisplayProgress(task.id);
     const notesDraft: Record<PhaseKey, string> = {} as Record<PhaseKey, string>;
@@ -550,38 +543,30 @@ export function DesignerTasks() {
     }));
     setShowDetail(true);
 
-    // Fetch submissions-with-reviews from API
-    setSubmissionsLoading((prev) => ({ ...prev, [task.id]: true }));
-    try {
-      const resp = await designerApi.getSubmissionsWithReviews(task.id);
-      if (resp.success && resp.data) {
-        setSubmissionsRawData((prev) => ({ ...prev, [task.id]: resp.data }));
-        const apiProgress = apiSubmissionsToProgress(resp.data);
-        setSubmissionProgress((prev) => {
-          const existing = prev[task.id] || {
-            caseStudy: defaultPhase(),
-            designStage: defaultPhase(),
-            rendering: defaultPhase(),
-            finalStage: defaultPhase(),
+    // Use submissions data already embedded in the task response
+    const swr = task.submissionsWithReviews;
+    if (swr) {
+      setSubmissionsRawData((prev) => ({ ...prev, [task.id]: swr }));
+      const apiProgress = apiSubmissionsToProgress(swr);
+      setSubmissionProgress((prev) => {
+        const existing = prev[task.id] || {
+          caseStudy: defaultPhase(),
+          designStage: defaultPhase(),
+          rendering: defaultPhase(),
+          finalStage: defaultPhase(),
+        };
+        const merged: Record<PhaseKey, PhaseData> = {} as Record<PhaseKey, PhaseData>;
+        for (const phase of PHASES) {
+          const apiPhase = apiProgress[phase.key];
+          const existingPhase = existing[phase.key] || defaultPhase();
+          merged[phase.key] = {
+            note: apiPhase?.note || existingPhase.note,
+            screenshot: apiPhase?.screenshot || existingPhase.screenshot,
+            history: apiPhase?.history?.length ? apiPhase.history : existingPhase.history || [],
           };
-          // Merge: API data overwrites history but preserves user notes/screenshots if API has no content
-          const merged: Record<PhaseKey, PhaseData> = {} as Record<PhaseKey, PhaseData>;
-          for (const phase of PHASES) {
-            const apiPhase = apiProgress[phase.key];
-            const existingPhase = existing[phase.key] || defaultPhase();
-            merged[phase.key] = {
-              note: apiPhase?.note || existingPhase.note,
-              screenshot: apiPhase?.screenshot || existingPhase.screenshot,
-              history: apiPhase?.history?.length ? apiPhase.history : existingPhase.history || [],
-            };
-          }
-          return { ...prev, [task.id]: merged };
-        });
-      }
-    } catch {
-      // Keep existing data on fetch failure
-    } finally {
-      setSubmissionsLoading((prev) => ({ ...prev, [task.id]: false }));
+        }
+        return { ...prev, [task.id]: merged };
+      });
     }
   };
 
@@ -686,38 +671,10 @@ export function DesignerTasks() {
           return { ...prev, [taskId]: { ...taskProgress, [phase]: updatedPhase } };
         });
 
-        // Refresh submissions from API
+        // Refresh submissions by refetching current page
         setSubmissionsLoading((prev) => ({ ...prev, [taskId]: true }));
         try {
-          const resp = await designerApi.getSubmissionsWithReviews(taskId);
-          if (resp.success && resp.data) {
-            cachedRawData = { ...cachedRawData, [taskId]: resp.data };
-            setSubmissionsRawData((prev) => ({ ...prev, [taskId]: resp.data }));
-            const apiProgress = apiSubmissionsToProgress(resp.data);
-            setSubmissionProgress((prev) => {
-              const existing = prev[taskId] || {
-                caseStudy: defaultPhase(),
-                designStage: defaultPhase(),
-                rendering: defaultPhase(),
-                finalStage: defaultPhase(),
-              };
-              const merged: Record<PhaseKey, PhaseData> = {} as Record<PhaseKey, PhaseData>;
-              for (const p of PHASES) {
-                const apiPhase = apiProgress[p.key];
-                const existingPhase = existing[p.key] || defaultPhase();
-                merged[p.key] = {
-                  note: apiPhase?.note || existingPhase.note,
-                  screenshot: apiPhase?.screenshot || existingPhase.screenshot,
-                  history: apiPhase?.history?.length ? apiPhase.history : existingPhase.history || [],
-                };
-              }
-              const result = { ...prev, [taskId]: merged };
-              cachedProgress = { ...cachedProgress, [taskId]: merged };
-              return result;
-            });
-          }
-        } catch {
-          // Keep local data on refresh failure
+          await fetchTasks(apiPage, true);
         } finally {
           setSubmissionsLoading((prev) => ({ ...prev, [taskId]: false }));
         }
