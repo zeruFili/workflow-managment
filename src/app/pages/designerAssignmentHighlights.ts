@@ -1,11 +1,15 @@
-export const PENDING_REVIEW_HIGHLIGHTED_IDS = ['dtask-14', 'dtask-15'];
 export const DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY = 'designer-assignments-notifications-updated';
 
 const viewedPendingReviewCards = new Set<string>();
+let designerAssignmentNotificationIds = new Set<string>();
+
+export function setDesignerAssignmentNotificationIds(ids: Set<string>) {
+  designerAssignmentNotificationIds = ids;
+}
 
 export function getPendingReviewHighlightedIds() {
   return new Set(
-    PENDING_REVIEW_HIGHLIGHTED_IDS.filter((id) => !viewedPendingReviewCards.has(id))
+    [...designerAssignmentNotificationIds].filter((id) => !viewedPendingReviewCards.has(id))
   );
 }
 

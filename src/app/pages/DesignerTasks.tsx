@@ -40,6 +40,7 @@ export interface PhaseHistoryEntry {
   message: string;
   timestamp: string;
   designerSubmission: DesignerSubmissionSnapshot;
+  hasNotification: boolean;
 }
 
 export interface PhaseData {
@@ -69,8 +70,8 @@ const API_TASKS_CACHE_KEY = 'designer-api-tasks-cache';
 // ──────────── NOTIFICATIONS / HIGHLIGHT ────────────
 export const DESIGNER_TASKS_NOTIFICATIONS_KEY = 'designer-tasks-notifications-updated';
 
-const HIGHLIGHTED_IDS = ['mdt-1', 'mdt-6', 'mdt-3'];
 const viewedDesignerTaskCards = new Set<string>();
+let designerTaskNotificationIds = new Set<string>();
 
 function publishDesignerTasksBadgeCount(count: number) {
   window.dispatchEvent(
@@ -80,7 +81,7 @@ function publishDesignerTasksBadgeCount(count: number) {
 
 export function getUnseenDesignerTaskHighlightedIds() {
   return new Set(
-    HIGHLIGHTED_IDS.filter((id) => !viewedDesignerTaskCards.has(id))
+    [...designerTaskNotificationIds].filter((id) => !viewedDesignerTaskCards.has(id))
   );
 }
 
@@ -222,6 +223,22 @@ function apiSubmissionsToProgress(data: SubmissionsWithReviewsData): Record<Phas
             screenshot: subScreenshot ?? createSubmissionScreenshot('Submission'),
             submittedAt: submission.created_at,
           },
+          hasNotification: review.hasNotification,
+        });
+      }
+
+      // Add entry for submission itself if it has a notification and no reviews (pending)
+      if (submission.reviews.length === 0 && submission.hasNotification) {
+        history.push({
+          status: 'feedback',
+          message: `Submission for ${PHASES.find((p) => p.backendStage === submission.stage)?.label || submission.stage}`,
+          timestamp: submission.created_at,
+          designerSubmission: {
+            note: subNote,
+            screenshot: subScreenshot ?? createSubmissionScreenshot('Submission'),
+            submittedAt: submission.created_at,
+          },
+          hasNotification: true,
         });
       }
     }
@@ -378,6 +395,16 @@ export function DesignerTasks() {
         cachedProgress = { ...progressUpdates };
         setSubmissionsRawData((prev) => ({ ...prev, ...rawDataUpdates }));
         setSubmissionProgress((prev) => ({ ...prev, ...progressUpdates }));
+
+        // Compute highlighted task IDs from notifications
+        designerTaskNotificationIds = new Set(
+          response.data
+            .filter((t) => t.submissionsWithReviews?.taskNotification?.hasNotification || t.hasNestedNotification)
+            .map((t) => t.id)
+        );
+        const unseenNotif = new Set([...designerTaskNotificationIds].filter((id) => !viewedDesignerTaskCards.has(id)));
+        setHighlightedIds(unseenNotif);
+        publishDesignerTasksBadgeCount(unseenNotif.size);
       } else {
         setError(response.message || 'Failed to load tasks');
       }
@@ -414,15 +441,6 @@ export function DesignerTasks() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(submissionProgress));
     }
   }, [submissionProgress]);
-
-  // ── Init highlights ──
-  useEffect(() => {
-    const unseen = new Set(
-      HIGHLIGHTED_IDS.filter((id) => !viewedDesignerTaskCards.has(id))
-    );
-    setHighlightedIds(unseen);
-    publishDesignerTasksBadgeCount(unseen.size);
-  }, []);
 
   // ── Intersection Observer ──
   useEffect(() => {
@@ -464,11 +482,16 @@ export function DesignerTasks() {
     seenThisSession.current.clear();
     observedElements.current.clear();
     const currentTasks = tasksRef.current;
-    const remainingUnseen = currentTasks
-      .filter((t) => HIGHLIGHTED_IDS.includes(t.id) && !viewedDesignerTaskCards.has(t.id))
-      .map((t) => t.id);
-    setHighlightedIds(new Set(remainingUnseen));
-    publishDesignerTasksBadgeCount(remainingUnseen.length);
+    designerTaskNotificationIds = new Set(
+      currentTasks
+        .filter((t) => t.submissionsWithReviews?.taskNotification?.hasNotification || t.hasNestedNotification)
+        .map((t) => t.id)
+    );
+    const remainingUnseen = new Set(
+      [...designerTaskNotificationIds].filter((id) => !viewedDesignerTaskCards.has(id))
+    );
+    setHighlightedIds(remainingUnseen);
+    publishDesignerTasksBadgeCount(remainingUnseen.size);
   };
 
   useEffect(() => { return () => { commitSeenSession(); }; }, []);
@@ -807,11 +830,30 @@ export function DesignerTasks() {
     ? assignedTasks.filter((task) => task.assigned_to_user_id === user.id)
     : assignedTasks;
 
-  // Sort: highlighted first, otherwise preserve backend ordering
+  // Sort by latest activity (task, submission, or review timestamps) descending
   const sortedTasks = [...visibleTasks].sort((a, b) => {
-    const aHL = highlightedIds.has(a.id) ? 1 : 0;
-    const bHL = highlightedIds.has(b.id) ? 1 : 0;
-    return bHL - aHL;
+    const getLatestTs = (t: DesignerTaskItem): number => {
+      let max = Math.max(
+        new Date(t.created_at).getTime(),
+        t.updated_at ? new Date(t.updated_at).getTime() : 0
+      );
+      const swr = t.submissionsWithReviews;
+      if (swr) {
+        const stages = [swr.caseStudy || [], swr.designing || [], swr.rendering || [], swr.finalStage || []];
+        for (const submissions of stages) {
+          for (const s of submissions) {
+            if (s.created_at) max = Math.max(max, new Date(s.created_at).getTime());
+            if (s.updated_at) max = Math.max(max, new Date(s.updated_at).getTime());
+            for (const r of (s.reviews || [])) {
+              if (r.created_at) max = Math.max(max, new Date(r.created_at).getTime());
+              if (r.updated_at) max = Math.max(max, new Date(r.updated_at).getTime());
+            }
+          }
+        }
+      }
+      return max;
+    };
+    return getLatestTs(b) - getLatestTs(a);
   });
 
   const statusDisplay = (status: string | null): string => {
@@ -1141,8 +1183,19 @@ export function DesignerTasks() {
                             pending: { label: 'Pending Review', icon: Clock, color: 'bg-blue-100 text-blue-700' },
                           }[currentStatus];
 
+                          // Check if this phase has any notifications
+                          const rawData = submissionsRawData[taskId];
+                          const stageMap: Record<PhaseKey, string> = {
+                            caseStudy: 'caseStudy', designStage: 'designing', rendering: 'rendering', finalStage: 'finalStage',
+                          };
+                          const apiKey = stageMap[phase.key];
+                          const stageSubmissions: SubmissionItem[] = rawData ? (rawData as Record<string, SubmissionItem[]>)[apiKey] || [] : [];
+                          const phaseHasNotification = stageSubmissions.some(
+                            (s) => s.hasNotification || (s.reviews || []).some((r) => r.hasNotification)
+                          );
+
                           return (
-                            <div key={phase.key} className="border border-gray-200 rounded-lg overflow-hidden">
+                            <div key={phase.key} className={`border rounded-lg overflow-hidden ${phaseHasNotification ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200'}`}>
                               <button
                                 type="button"
                                 onClick={() => setExpandedPhase(isExpanded ? null : phase.key)}
@@ -1150,6 +1203,9 @@ export function DesignerTasks() {
                               >
                                 <div className="flex items-center gap-3">
                                   <span className="font-medium text-gray-800">{phase.label}</span>
+                                  {phaseHasNotification && (
+                                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                                  )}
                                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusBadge.color}`}>
                                     <statusBadge.icon className="w-3 h-3" />
                                     {statusBadge.label}
@@ -1398,13 +1454,16 @@ export function DesignerTasks() {
                                               : 'bg-yellow-100 text-yellow-700';
 
                                           return (
-                                            <div key={idxEntry} className="border border-gray-200 rounded-lg overflow-hidden">
+                                            <div key={idxEntry} className={`border rounded-lg overflow-hidden ${entry.hasNotification ? 'border-blue-400 ring-1 ring-blue-100' : 'border-gray-200'}`}>
                                               <button
                                                 type="button"
                                                 onClick={() => toggleHistoryEntry(taskId, phase.key, idxEntry)}
                                                 className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors"
                                               >
                                                 <div className="flex items-center gap-2">
+                                                  {entry.hasNotification && (
+                                                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                                                  )}
                                                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${entryColor}`}>
                                                     <EntryIcon className="w-3 h-3" />
                                                     {entryBadge}

@@ -5,6 +5,7 @@ import {
   loadDesignerApplications,
 } from './designerTaskShared';
 import {
+  setDesignerAssignmentNotificationIds,
   getPendingReviewHighlightedIds,
   markPendingReviewCardsViewed,
   publishDesignerAssignmentsBadgeCount,
@@ -60,6 +61,7 @@ export interface PhaseHistoryEntry {
   message: string;
   timestamp: string;
   designerSubmission: DesignerSubmissionSnapshot;
+  hasNotification: boolean;
 }
 
 export interface PhaseData {
@@ -297,6 +299,21 @@ function apiSubmissionsToProgress(data: SubmissionsWithReviewsData): Record<Phas
             screenshot: subScreenshot ?? createSubmissionScreenshot('Submission'),
             submittedAt: submission.created_at,
           },
+          hasNotification: review.hasNotification,
+        });
+      }
+
+      if (submission.reviews.length === 0 && submission.hasNotification) {
+        history.push({
+          status: 'feedback',
+          message: `Submission for ${PHASES.find((p) => p.backendStage === submission.stage)?.label || submission.stage}`,
+          timestamp: submission.created_at,
+          designerSubmission: {
+            note: subNote,
+            screenshot: subScreenshot ?? createSubmissionScreenshot('Submission'),
+            submittedAt: submission.created_at,
+          },
+          hasNotification: true,
         });
       }
     }
@@ -400,6 +417,15 @@ export function DesignerAssignments() {
         setTasks(response.data);
         setMeta(response.meta);
         setDisplayOffset(0);
+
+        // Compute highlighted task IDs from notifications
+        const notifIds = new Set(
+          response.data
+            .filter((t) => t.submissionsWithReviews?.taskNotification?.hasNotification || t.hasNestedNotification)
+            .map((t) => t.id)
+        );
+        setDesignerAssignmentNotificationIds(notifIds);
+        setHighlightedIds(new Set([...notifIds]));
       } else {
         setError(response.message || 'Failed to load tasks');
       }
@@ -479,17 +505,12 @@ export function DesignerAssignments() {
     return () => {
       if (seenThisSession.current.size === 0) return;
       seenThisSession.current.forEach((id) => {
-        if (highlightedIds.has(id)) {
-          markPendingReviewCardsViewed(new Set([id]));
-          setHighlightedIds((prev) => {
-            const next = new Set(prev);
-            next.delete(id);
-            return next;
-          });
-        }
+        markPendingReviewCardsViewed([id]);
       });
       seenThisSession.current.clear();
       observedElements.current.clear();
+      setHighlightedIds(new Set([...getPendingReviewHighlightedIds()]));
+      publishDesignerAssignmentsBadgeCount(getPendingReviewCount());
     };
   }, []);
 
@@ -738,6 +759,7 @@ export function DesignerAssignments() {
       status: 'feedback',
       message: draft.trim() || '(No message)',
       timestamp: new Date().toISOString(),
+      hasNotification: false,
     });
     updateDraft(taskId, phase, '');
   };
@@ -748,6 +770,7 @@ export function DesignerAssignments() {
       status: 'approved',
       message: draft.trim() || 'Approved',
       timestamp: new Date().toISOString(),
+      hasNotification: false,
     });
     updateDraft(taskId, phase, '');
   };
@@ -759,6 +782,7 @@ export function DesignerAssignments() {
       status: 'rejected',
       message: draft,
       timestamp: new Date().toISOString(),
+      hasNotification: false,
     });
     updateDraft(taskId, phase, '');
   };
@@ -782,10 +806,30 @@ export function DesignerAssignments() {
   const visiblePhases = lastPopulatedIdx >= 0 ? PHASES.slice(0, lastPopulatedIdx + 1) : [];
 
   const assignedTasks = tasks.filter((task) => !!task.assigned_to_user_id);
+  // Sort by latest activity (task, submission, or review timestamps) descending
   const sortedTasks = [...assignedTasks].sort((a, b) => {
-    const aHL = highlightedIds.has(a.id) ? 1 : 0;
-    const bHL = highlightedIds.has(b.id) ? 1 : 0;
-    return bHL - aHL;
+    const getLatestTs = (t: DesignerTaskItem): number => {
+      let max = Math.max(
+        new Date(t.created_at).getTime(),
+        t.updated_at ? new Date(t.updated_at).getTime() : 0
+      );
+      const swr = t.submissionsWithReviews;
+      if (swr) {
+        const stages = [swr.caseStudy || [], swr.designing || [], swr.rendering || [], swr.finalStage || []];
+        for (const submissions of stages) {
+          for (const s of submissions) {
+            if (s.created_at) max = Math.max(max, new Date(s.created_at).getTime());
+            if (s.updated_at) max = Math.max(max, new Date(s.updated_at).getTime());
+            for (const r of (s.reviews || [])) {
+              if (r.created_at) max = Math.max(max, new Date(r.created_at).getTime());
+              if (r.updated_at) max = Math.max(max, new Date(r.updated_at).getTime());
+            }
+          }
+        }
+      }
+      return max;
+    };
+    return getLatestTs(b) - getLatestTs(a);
   });
 
   // ── Rating helpers ──
@@ -1294,8 +1338,19 @@ export function DesignerAssignments() {
                           pending: { label: 'Pending Review', icon: Clock, color: 'bg-blue-100 text-blue-700' },
                         }[currentStatus];
 
+                        // Check if this phase has any notifications
+                        const rawData = selectedTaskDetail.submissionsWithReviews;
+                        const stageMap: Record<PhaseKey, string> = {
+                          caseStudy: 'caseStudy', designStage: 'designing', rendering: 'rendering', finalStage: 'finalStage',
+                        };
+                        const apiKey = stageMap[phase.key];
+                        const stageSubmissions: SubmissionItem[] = rawData ? (rawData as Record<string, SubmissionItem[]>)[apiKey] || [] : [];
+                        const phaseHasNotification = stageSubmissions.some(
+                          (s) => s.hasNotification || (s.reviews || []).some((r) => r.hasNotification)
+                        );
+
                         return (
-                          <div key={phase.key} className="border border-gray-200 rounded-lg overflow-hidden">
+                          <div key={phase.key} className={`border rounded-lg overflow-hidden ${phaseHasNotification ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200'}`}>
                             <button
                               type="button"
                               onClick={() => setExpandedPhase(isExpanded ? null : phase.key)}
@@ -1303,6 +1358,9 @@ export function DesignerAssignments() {
                             >
                               <div className="flex items-center gap-3">
                                 <span className="font-medium text-gray-800">{phase.label}</span>
+                                {phaseHasNotification && (
+                                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                                )}
                                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusBadge.color}`}>
                                   <statusBadge.icon className="w-3 h-3" />
                                   {statusBadge.label}
@@ -1351,13 +1409,16 @@ export function DesignerAssignments() {
                                         const EntryIcon = entry.status === 'approved' ? ThumbsUp : entry.status === 'rejected' ? ThumbsDown : MessageSquare;
                                         const entryColor = entry.status === 'approved' ? 'bg-green-100 text-green-700' : entry.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700';
                                         return (
-                                          <div key={idxEntry} className="border border-gray-200 rounded-lg overflow-hidden">
+                                          <div key={idxEntry} className={`border rounded-lg overflow-hidden ${entry.hasNotification ? 'border-blue-400 ring-1 ring-blue-100' : 'border-gray-200'}`}>
                                             <button
                                               type="button"
                                               onClick={() => toggleHistoryEntry(taskId, phase.key, idxEntry)}
                                               className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors"
                                             >
                                               <div className="flex items-center gap-2">
+                                                {entry.hasNotification && (
+                                                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                                                )}
                                                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${entryColor}`}>
                                                   <EntryIcon className="w-3 h-3" />{entryBadge}
                                                 </span>
