@@ -7,6 +7,7 @@ import dataCollectorApi, {
   DataCollectorSubmissionWrapper,
   DataCollectorSubmissionReview,
 } from '../../api/dataCollectorApi';
+import notificationApi from '../../api/notificationApi';
 import {
   AlertCircle,
   Calendar,
@@ -582,6 +583,64 @@ export function DataCollectorTasks() {
     draftFilesRef.current = { ...draftFilesRef.current, [task.id]: [] };
     setExpandedSubmissionId(null);
     setShowDetail(true);
+
+    const notifIds: string[] = [];
+    const swr = task.submissionsWithReviews;
+    if (swr?.taskNotification?.hasNotification && swr.taskNotification.notificationId) {
+      notifIds.push(swr.taskNotification.notificationId);
+    }
+    (swr?.submissions || []).forEach((w) => {
+      if (w.hasNotification && w.notificationId) notifIds.push(w.notificationId);
+      (w.submission?.reviews || []).forEach((r) => {
+        if (r.hasNotification && r.notificationId) notifIds.push(r.notificationId);
+      });
+    });
+
+    if (notifIds.length > 0) {
+      notificationApi.bulkMarkRead(notifIds).catch(() => {});
+
+      const clearedSwr = swr
+        ? {
+            ...swr,
+            taskNotification: { hasNotification: false, notificationId: null },
+            submissions: swr.submissions.map((w) => ({
+              ...w,
+              hasNotification: false,
+              notificationId: null,
+              submission: {
+                ...w.submission,
+                reviews: (w.submission.reviews || []).map((r) => ({
+                  ...r,
+                  hasNotification: false,
+                  notificationId: null,
+                })),
+              },
+            })),
+          }
+        : swr;
+
+      const clearedTask = { ...task, hasNestedNotification: false, submissionsWithReviews: clearedSwr } as DataCollectorTaskItem;
+      setSelectedTask(clearedTask);
+
+      const updatedTasks = tasksRef.current.map((t) =>
+        t.id === task.id ? clearedTask : t
+      );
+      setTasks(updatedTasks);
+      tasksRef.current = updatedTasks;
+      if (cachedTasks) {
+        cachedTasks = cachedTasks.map((t) => (t.id === task.id ? clearedTask : t));
+      }
+
+      viewedDataCollectorCards.add(task.id);
+      dataCollectorNotificationIds = new Set(
+        updatedTasks.filter((t) => anyNotification(t)).map((t) => t.id)
+      );
+      const remaining = new Set(
+        [...dataCollectorNotificationIds].filter((id) => !viewedDataCollectorCards.has(id))
+      );
+      setHighlightedIds(remaining);
+      publishBadgeCount(remaining.size);
+    }
   };
 
   const closeDetail = () => {
