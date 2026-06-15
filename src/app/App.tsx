@@ -230,7 +230,7 @@ function AppContent() {
         <Route
           path="/data-collector-tasks"
           element={
-            <ProtectedRoute allowedRoles={['ceo', 'general_manager']}>
+            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'data_collector']}>
               <Layout>
                 <DataCollectorTasks />
               </Layout>

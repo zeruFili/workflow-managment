@@ -1,151 +1,48 @@
-import React, { useMemo, useState, useRef, useEffect } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Task } from '../types';
-import { Badge } from '../components/ui/badge';
-import { Calendar, Plus, Image, X, Send } from 'lucide-react';
+import dataCollectorApi, {
+  DataCollectorTaskItem,
+  DataCollectorTaskListMeta,
+  DataCollectorSubmissionRaw,
+  DataCollectorSubmissionWrapper,
+  DataCollectorSubmissionReview,
+} from '../../api/dataCollectorApi';
+import {
+  AlertCircle,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  Upload,
+  XCircle,
+  ChevronDown,
+  ChevronUp,
+  ChevronLeft,
+  ChevronRight,
+  MessageSquare,
+  ThumbsUp,
+  ThumbsDown,
+  Plus,
+  Image,
+  Send,
+  X,
+  Database,
+} from 'lucide-react';
 
-const STORAGE_KEY = 'data-collector-tasks-v2';
+// ------------ NOTIFICATIONS / HIGHLIGHT ------------
+export const DATA_COLLECTOR_NOTIFICATIONS_KEY = 'data-collector-notifications-updated';
 
-// In-memory "viewed" set – survives route changes but resets on page refresh (demo behavior)
 const viewedDataCollectorCards = new Set<string>();
-
-// First 3 tasks are always "new" until the user scrolls them into view AND navigates away
-const HIGHLIGHTED_IDS = ['dc-task-1', 'dc-task-2', 'dc-task-3'];
-
-const seedTasks: Task[] = [
-  {
-    id: 'dc-task-1',
-    projectId: 'data-collection',
-    title: 'Collect site measurements',
-    description: 'Measure the assigned site and record room dimensions.',
-    instruction: 'Capture wall lengths, ceiling heights, and access points before end of day.',
-    assignedBy: '2',
-    status: 'in_progress',
-    submissions: [
-      {
-        id: 'sub-1',
-        submittedBy: '7',
-        submittedByName: 'Robert Taylor',
-        submittedAt: '2026-05-18T12:10:00Z',
-        notes: 'Captured the telegram preview and measurement notes. See images.',
-        attachments: ['https://placehold.co/800x480/0f172a/f8fafc?text=Telegram+Preview'],
-        metadata: { telegramHandle: '@site_updates' },
-      },
-    ],
-    deadline: '2026-05-25T23:59:59Z',
-    createdAt: '2026-05-18T08:00:00Z',
-  },
-  {
-    id: 'dc-task-2',
-    projectId: 'data-collection',
-    title: 'Update customer survey sheet',
-    description: 'Verify field entries and correct any missing contact details.',
-    instruction: 'Cross-check the phone numbers and addresses with the latest client notes.',
-    assignedBy: '1',
-    status: 'in_progress',
-    submissions: [
-      {
-        id: 'sub-2',
-        submittedBy: '4',
-        submittedByName: 'Michael Brown',
-        submittedAt: '2026-05-18T15:42:00Z',
-        notes: 'Fixed missing phone numbers and attached Telegram preview for confirmation.',
-        attachments: ['https://placehold.co/800x480/1e293b/e2e8f0?text=Telegram+Destination+Preview'],
-        metadata: { telegramChannel: '@customer_updates', location: 'Site A' },
-      },
-    ],
-    deadline: '2026-05-22T23:59:59Z',
-    createdAt: '2026-05-17T10:00:00Z',
-    approvalStatus: 'approved',
-  },
-  {
-    id: 'dc-task-3',
-    projectId: 'data-collection',
-    title: 'Photograph property exterior',
-    description: 'Take clear, well-lit photos of the front, back, and side elevations.',
-    instruction: 'Ensure property number is visible; capture any visible damage or unique features.',
-    assignedBy: '2',
-    status: 'completed',
-    submissions: [
-      {
-        id: 'sub-3',
-        submittedBy: '7',
-        submittedByName: 'Robert Taylor',
-        submittedAt: '2026-05-17T09:30:00Z',
-        notes: 'Photos uploaded via Telegram, all angles covered.',
-        attachments: ['https://placehold.co/800x480/334155/f8fafc?text=Exterior+Photo+Front'],
-        metadata: { telegramHandle: '@site_updates', location: '123 Main St' },
-      },
-    ],
-    deadline: '2026-05-20T23:59:59Z',
-    createdAt: '2026-05-15T08:00:00Z',
-    approvalStatus: 'approved',
-    feedbacks: [
-      {
-        id: 'fb-1',
-        text: 'Excellent coverage, please also capture the rear garden next time.',
-        createdAt: '2026-05-18T10:00:00Z',
-        createdBy: '1',
-        createdByName: 'Alice Johnson',
-      },
-    ],
-  },
-  {
-    id: 'dc-task-4',
-    projectId: 'data-collection',
-    title: 'Record utility meter readings',
-    description: 'Photograph and log gas, electricity, and water meter readings for the property.',
-    instruction: 'Make sure the meter serial number and current reading are clearly visible.',
-    assignedBy: '1',
-    status: 'pending',
-    submissions: [],
-    deadline: '2026-05-27T23:59:59Z',
-    createdAt: '2026-05-19T08:00:00Z',
-  },
-  {
-    id: 'dc-task-5',
-    projectId: 'data-collection',
-    title: 'Verify client contact information',
-    description: 'Call or visit the client to confirm phone numbers, email, and postal address.',
-    instruction: 'Update the CRM with any changes and attach a screenshot of the verification message.',
-    assignedBy: '2',
-    status: 'in_progress',
-    submissions: [
-      {
-        id: 'sub-5',
-        submittedBy: '8',
-        submittedByName: 'Emily Davis',
-        submittedAt: '2026-05-18T16:00:00Z',
-        notes: 'Spoke with the client; updated phone number and verified email. Screenshot attached.',
-        attachments: ['https://placehold.co/800x480/475569/e2e8f0?text=Verification+Confirmation'],
-        metadata: { telegramChannel: '@client_verification' },
-      },
-    ],
-    deadline: '2026-05-23T23:59:59Z',
-    createdAt: '2026-05-16T10:00:00Z',
-    feedbacks: [
-      {
-        id: 'fb-2',
-        text: 'Looks good, but please double-check the postal code.',
-        createdAt: '2026-05-19T09:00:00Z',
-        createdBy: '1',
-        createdByName: 'Alice Johnson',
-      },
-    ],
-  },
-];
-
-// ─── In‑memory notification helper ─────────────────────────────────────────
+let dataCollectorNotificationIds = new Set<string>();
 
 function publishBadgeCount(count: number) {
   window.dispatchEvent(
-    new CustomEvent('data-collector-notifications-updated', { detail: count })
+    new CustomEvent(DATA_COLLECTOR_NOTIFICATIONS_KEY, { detail: count })
   );
 }
 
 export function getUnseenDataCollectorHighlightedIds() {
   return new Set(
-    HIGHLIGHTED_IDS.filter((id) => !viewedDataCollectorCards.has(id))
+    [...dataCollectorNotificationIds].filter((id) => !viewedDataCollectorCards.has(id))
   );
 }
 
@@ -153,74 +50,417 @@ export function getUnseenDataCollectorCount() {
   return getUnseenDataCollectorHighlightedIds().size;
 }
 
-// ─── Component ──────────────────────────────────────────────────────────────
+// ------------ HELPERS ------------
+
+function getAssigneeDisplayName(task: DataCollectorTaskItem): string {
+  if (task.assigned_to_user?.full_name) return task.assigned_to_user.full_name;
+  if (task.assigned_to_user_id) return `User ${task.assigned_to_user_id.slice(0, 8)}`;
+  return 'Unassigned';
+}
+
+function getCreatorDisplayName(task: DataCollectorTaskItem): string {
+  if (task.assigned_by_user?.full_name) return task.assigned_by_user.full_name;
+  return `User ${task.assigned_by_user_id.slice(0, 8)}`;
+}
+
+function statusDisplay(status: string | null): string {
+  if (!status) return 'pending';
+  return status.replace('_', ' ');
+}
+
+function statusColor(status: string | null): string {
+  switch (status) {
+    case 'approved': return 'bg-green-100 text-green-700';
+    case 'rejected': return 'bg-red-100 text-red-700';
+    case 'feedback': return 'bg-yellow-100 text-yellow-700';
+    case 'completed': return 'bg-green-100 text-green-700';
+    case 'in_progress': return 'bg-blue-100 text-blue-700';
+    default: return 'bg-gray-100 text-gray-700';
+  }
+}
+
+function getSubmissions(task: DataCollectorTaskItem): DataCollectorSubmissionRaw[] {
+  return (task.submissionsWithReviews?.submissions || []).map((w) => w.submission);
+}
+
+function getSubmissionWrappers(task: DataCollectorTaskItem): DataCollectorSubmissionWrapper[] {
+  return task.submissionsWithReviews?.submissions || [];
+}
+
+function anyNotification(task: DataCollectorTaskItem): boolean {
+  const swr = task.submissionsWithReviews;
+  return !!(
+    swr?.taskNotification?.hasNotification ||
+    task.hasNestedNotification ||
+    (swr?.submissions || []).some(
+      (w) => w.hasNotification || (w.submission?.reviews || []).some((r) => r.hasNotification)
+    )
+  );
+}
+
+const ROWS_PER_DISPLAY = 10;
+
+const STORAGE_KEY = 'data-collector-tasks-v3';
+
+// ── Seed data (matches backend response shape exactly) ──
+const seedTasks: DataCollectorTaskItem[] = [
+  {
+    id: 'dc-task-1',
+    assigned_to_user_id: '4',
+    assigned_by_user_id: '2',
+    title: 'Collect site measurements',
+    description: 'Measure the assigned site and record room dimensions.',
+    status: 'in_progress',
+    task_state: 'active',
+    due_date: '2026-06-25T23:59:59Z',
+    attachment_urls: ['https://placehold.co/800x480/0f172a/f8fafc?text=Site+Measurements'],
+    updated_by: null,
+    created_at: '2026-05-18T08:00:00Z',
+    updated_at: '2026-05-19T12:10:00Z',
+    assigned_by_user: { id: '2', full_name: 'Bob Smith', role: 'general_manager' },
+    assigned_to_user: { id: '4', full_name: 'Michael Brown', role: 'data_collector' },
+    updated_by_user: null,
+    submissionsWithReviews: {
+      taskNotification: { hasNotification: true, notificationId: 'notif-dc-t1' },
+      submissions: [
+        {
+          submissionId: 'dc-sub-1',
+          hasNotification: true,
+          notificationId: 'notif-dc-1',
+          submission: {
+            id: 'dc-sub-1',
+            data_collector_task_id: 'dc-task-1',
+            description: 'Captured all room dimensions and access points. Photos attached.',
+            attachment_urls: ['https://placehold.co/800x480/0f172a/f8fafc?text=Telegram+Preview'],
+            created_at: '2026-05-19T12:10:00Z',
+            updated_at: null,
+            reviews: [
+              {
+                id: 'dc-rev-1',
+                data_collector_submission_id: 'dc-sub-1',
+                reviewer_user_id: '1',
+                reviewer_user: { id: '1', full_name: 'Alice Johnson', role: 'ceo' },
+                review_outcome: 'feedback',
+                description: 'Good work, but please also measure the utility access points.',
+                created_at: '2026-05-20T10:00:00Z',
+                updated_at: null,
+                hasNotification: true,
+                notificationId: 'notif-dc-r1',
+              },
+            ],
+          },
+        },
+      ],
+      latestActivityTs: 1748350800000,
+    },
+    hasNestedNotification: true,
+  },
+  {
+    id: 'dc-task-2',
+    assigned_to_user_id: '7',
+    assigned_by_user_id: '1',
+    title: 'Update customer survey sheet',
+    description: 'Verify field entries and correct any missing contact details.',
+    status: 'in_progress',
+    task_state: 'active',
+    due_date: '2026-06-22T23:59:59Z',
+    attachment_urls: null,
+    updated_by: null,
+    created_at: '2026-05-17T10:00:00Z',
+    updated_at: '2026-05-18T15:42:00Z',
+    assigned_by_user: { id: '1', full_name: 'Alice Johnson', role: 'ceo' },
+    assigned_to_user: { id: '7', full_name: 'Robert Taylor', role: 'data_collector' },
+    updated_by_user: null,
+    submissionsWithReviews: {
+      taskNotification: { hasNotification: true, notificationId: 'notif-dc-t2' },
+      submissions: [
+        {
+          submissionId: 'dc-sub-2',
+          hasNotification: true,
+          notificationId: 'notif-dc-2',
+          submission: {
+            id: 'dc-sub-2',
+            data_collector_task_id: 'dc-task-2',
+            description: 'Fixed missing phone numbers and attached verification screenshot.',
+            attachment_urls: ['https://placehold.co/800x480/1e293b/e2e8f0?text=Survey+Update'],
+            created_at: '2026-05-18T15:42:00Z',
+            updated_at: null,
+            reviews: [],
+          },
+        },
+      ],
+      latestActivityTs: 1747582920000,
+    },
+    hasNestedNotification: true,
+  },
+  {
+    id: 'dc-task-3',
+    assigned_to_user_id: '7',
+    assigned_by_user_id: '2',
+    title: 'Photograph property exterior',
+    description: 'Take clear, well-lit photos of the front, back, and side elevations.',
+    status: 'completed',
+    task_state: 'active',
+    due_date: '2026-06-20T23:59:59Z',
+    attachment_urls: ['https://placehold.co/800x480/334155/f8fafc?text=Exterior+Photo'],
+    updated_by: null,
+    created_at: '2026-05-15T08:00:00Z',
+    updated_at: '2026-05-20T10:00:00Z',
+    assigned_by_user: { id: '2', full_name: 'Bob Smith', role: 'general_manager' },
+    assigned_to_user: { id: '7', full_name: 'Robert Taylor', role: 'data_collector' },
+    updated_by_user: null,
+    submissionsWithReviews: {
+      taskNotification: { hasNotification: false, notificationId: null },
+      submissions: [
+        {
+          submissionId: 'dc-sub-3',
+          hasNotification: false,
+          notificationId: null,
+          submission: {
+            id: 'dc-sub-3',
+            data_collector_task_id: 'dc-task-3',
+            description: 'Photos uploaded, all angles covered.',
+            attachment_urls: ['https://placehold.co/800x480/334155/f8fafc?text=Exterior+Front'],
+            created_at: '2026-05-17T09:30:00Z',
+            updated_at: null,
+            reviews: [
+              {
+                id: 'dc-rev-2',
+                data_collector_submission_id: 'dc-sub-3',
+                reviewer_user_id: '1',
+                reviewer_user: { id: '1', full_name: 'Alice Johnson', role: 'ceo' },
+                review_outcome: 'approved',
+                description: 'Excellent coverage, please also capture the rear garden next time.',
+                created_at: '2026-05-20T10:00:00Z',
+                updated_at: null,
+                hasNotification: true,
+                notificationId: 'notif-dc-r2',
+              },
+            ],
+          },
+        },
+      ],
+      latestActivityTs: 1748350800000,
+    },
+    hasNestedNotification: true,
+  },
+  {
+    id: 'dc-task-4',
+    assigned_to_user_id: null,
+    assigned_by_user_id: '1',
+    title: 'Record utility meter readings',
+    description: 'Photograph and log gas, electricity, and water meter readings for the property.',
+    status: 'pending',
+    task_state: 'active',
+    due_date: '2026-06-27T23:59:59Z',
+    attachment_urls: null,
+    updated_by: null,
+    created_at: '2026-05-19T08:00:00Z',
+    updated_at: null,
+    assigned_by_user: { id: '1', full_name: 'Alice Johnson', role: 'ceo' },
+    assigned_to_user: null,
+    updated_by_user: null,
+    submissionsWithReviews: {
+      taskNotification: { hasNotification: false, notificationId: null },
+      submissions: [],
+      latestActivityTs: 0,
+    },
+    hasNestedNotification: false,
+  },
+  {
+    id: 'dc-task-5',
+    assigned_to_user_id: '8',
+    assigned_by_user_id: '2',
+    title: 'Verify client contact information',
+    description: 'Call or visit the client to confirm phone numbers, email, and postal address.',
+    status: 'in_progress',
+    task_state: 'active',
+    due_date: '2026-06-23T23:59:59Z',
+    attachment_urls: null,
+    updated_by: null,
+    created_at: '2026-05-16T10:00:00Z',
+    updated_at: '2026-05-19T09:00:00Z',
+    assigned_by_user: { id: '2', full_name: 'Bob Smith', role: 'general_manager' },
+    assigned_to_user: { id: '8', full_name: 'Emily Davis', role: 'data_collector' },
+    updated_by_user: null,
+    submissionsWithReviews: {
+      taskNotification: { hasNotification: false, notificationId: null },
+      submissions: [
+        {
+          submissionId: 'dc-sub-5',
+          hasNotification: false,
+          notificationId: null,
+          submission: {
+            id: 'dc-sub-5',
+            data_collector_task_id: 'dc-task-5',
+            description: 'Spoke with the client; updated phone number and verified email.',
+            attachment_urls: ['https://placehold.co/800x480/475569/e2e8f0?text=Verification'],
+            created_at: '2026-05-18T16:00:00Z',
+            updated_at: null,
+            reviews: [
+              {
+                id: 'dc-rev-3',
+                data_collector_submission_id: 'dc-sub-5',
+                reviewer_user_id: '1',
+                reviewer_user: { id: '1', full_name: 'Alice Johnson', role: 'ceo' },
+                review_outcome: 'feedback',
+                description: 'Looks good, but please double-check the postal code.',
+                created_at: '2026-05-19T09:00:00Z',
+                updated_at: null,
+                hasNotification: true,
+                notificationId: 'notif-dc-r3',
+              },
+            ],
+          },
+        },
+      ],
+      latestActivityTs: 1747659600000,
+    },
+    hasNestedNotification: true,
+  },
+];
+
+// Module-level cache
+let cachedTasks: DataCollectorTaskItem[] | null = null;
+let cachedMeta: DataCollectorTaskListMeta | null = null;
+
+function loadLocalTasks(): DataCollectorTaskItem[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored) as DataCollectorTaskItem[];
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch { /* ignore */ }
+  return [];
+}
+
+function persistLocalTasks(tasksToSave: DataCollectorTaskItem[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasksToSave));
+  } catch { /* ignore */ }
+}
+
+function initLocalWithSeed(): DataCollectorTaskItem[] {
+  const existing = loadLocalTasks();
+  if (existing.length > 0) return existing;
+  persistLocalTasks(seedTasks);
+  return seedTasks;
+}
 
 export function DataCollectorTasks() {
   const { user } = useAuth();
+  const [tasks, setTasks] = useState<DataCollectorTaskItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const [tasks, setTasks] = useState<Task[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (!saved) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(seedTasks));
-      return seedTasks;
-    }
-    const parsed = JSON.parse(saved) as Task[];
-    const merged = [
-      ...parsed.map((t) => {
-        const seed = seedTasks.find((s) => s.id === t.id);
-        return seed ? { ...seed, ...t } : t;
-      }),
-      ...seedTasks.filter((s) => !parsed.some((t) => t.id === s.id)),
-    ];
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-    return merged;
+  const [apiPage, setApiPage] = useState(1);
+  const [meta, setMeta] = useState<DataCollectorTaskListMeta | null>(null);
+  const [displayOffset, setDisplayOffset] = useState(0);
+
+  const [selectedTask, setSelectedTask] = useState<DataCollectorTaskItem | null>(null);
+  const [showDetail, setShowDetail] = useState(false);
+  const [submissionsLoading, setSubmissionsLoading] = useState<Record<string, boolean>>({});
+  const [expandedSubmissionId, setExpandedSubmissionId] = useState<string | null>(null);
+
+  const [draftNote, setDraftNote] = useState<Record<string, string>>({});
+  const [draftScreenshots, setDraftScreenshots] = useState<Record<string, string | null>>({});
+  const draftFilesRef = useRef<Record<string, File[]>>({});
+  const [submissionDraftLoading, setSubmissionDraftLoading] = useState<Record<string, boolean>>({});
+
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newTaskForm, setNewTaskForm] = useState({
+    title: '',
+    description: '',
+    instruction: '',
+    deadline: '',
+    status: 'pending' as string,
   });
+  const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  const screenshotFileRef = useRef<File | null>(null);
+
+  const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
+  const imageRef = useRef<HTMLImageElement | null>(null);
+  const [imageZoom, setImageZoom] = useState(1);
 
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
-  
-  // Track which highlighted cards have been scrolled into view this session
   const seenThisSession = useRef<Set<string>>(new Set());
-  
-  // Track which elements are currently being observed to avoid duplicates
   const observedElements = useRef<Set<string>>(new Set());
-  
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const tasksRef = useRef<DataCollectorTaskItem[]>([]);
+  useEffect(() => { tasksRef.current = tasks; }, [tasks]);
 
-  // Ref always mirrors highlightedIds so the unmount cleanup never reads stale state
-  const highlightedIdsRef = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    highlightedIdsRef.current = highlightedIds;
-  }, [highlightedIds]);
+  const canManage = user?.role === 'ceo' || user?.role === 'general_manager';
 
-  // ── On mount: determine which tasks are still unseen ──────────────────────
-  useEffect(() => {
-    const unseen = new Set(
-      HIGHLIGHTED_IDS.filter((id) => !viewedDataCollectorCards.has(id))
-    );
-    setHighlightedIds(unseen);
-    publishBadgeCount(unseen.size);
-  }, []);
+  const fetchTasks = useCallback(async (page: number, force = false) => {
+    if (!user) return;
+    if (!force && cachedTasks && cachedMeta) {
+      setTasks(cachedTasks);
+      setMeta(cachedMeta);
+      setIsLoading(false);
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
 
-  // ── IntersectionObserver: track which highlighted tasks have been scrolled into view ──
+    const applyTasks = (data: DataCollectorTaskItem[], total: number) => {
+      setTasks(data);
+      setMeta({ total, page, limit: ROWS_PER_DISPLAY, totalPages: Math.ceil(total / ROWS_PER_DISPLAY) });
+      cachedTasks = data;
+      cachedMeta = { total, page, limit: ROWS_PER_DISPLAY, totalPages: Math.ceil(total / ROWS_PER_DISPLAY) };
+      setDisplayOffset(0);
+
+      dataCollectorNotificationIds = new Set(
+        data.filter((t) => anyNotification(t)).map((t) => t.id)
+      );
+      const unseen = new Set([...dataCollectorNotificationIds].filter((id) => !viewedDataCollectorCards.has(id)));
+      setHighlightedIds(unseen);
+      publishBadgeCount(unseen.size);
+    };
+
+    try {
+      const response = await dataCollectorApi.getDataCollectorTasks({ page, limit: ROWS_PER_DISPLAY });
+      if (response.success) {
+        applyTasks(response.data, response.meta.total);
+        // Sync API data back to localStorage as cache
+        persistLocalTasks(response.data);
+      } else {
+        // API returned error — fallback to localStorage
+        const local = initLocalWithSeed();
+        const start = (page - 1) * ROWS_PER_DISPLAY;
+        const paged = local.slice(start, start + ROWS_PER_DISPLAY);
+        applyTasks(paged, local.length);
+        setError(null); // clear error — we have fallback data
+      }
+    } catch {
+      // API unreachable — fallback to localStorage
+      const local = initLocalWithSeed();
+      const start = (page - 1) * ROWS_PER_DISPLAY;
+      const paged = local.slice(start, start + ROWS_PER_DISPLAY);
+      applyTasks(paged, local.length);
+      setError(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user]);
+
   useEffect(() => {
-    // Clean up previous observer
+    if (!user) return;
+    fetchTasks(apiPage);
+  }, [user, apiPage, fetchTasks]);
+
+  useEffect(() => {
     if (observerRef.current) {
       observerRef.current.disconnect();
       observedElements.current.clear();
     }
-
-    // Nothing to observe
-    if (highlightedIds.size === 0) {
-      return;
-    }
+    if (highlightedIds.size === 0) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           const id = (entry.target as HTMLElement).dataset.highlightedId;
           if (!id || !highlightedIds.has(id)) return;
-
-          // Only process if >=70% visible and not already recorded
           if (entry.isIntersecting && entry.intersectionRatio >= 0.7) {
             if (!observedElements.current.has(id)) {
               observedElements.current.add(id);
@@ -231,69 +471,315 @@ export function DataCollectorTasks() {
       },
       { threshold: [0.7] }
     );
-
     observerRef.current = observer;
-
-    // Observe only currently highlighted elements
     highlightedIds.forEach((id) => {
       const el = document.querySelector(`[data-highlighted-id="${id}"]`);
-      if (el && !observedElements.current.has(id)) {
-        observer.observe(el);
-      }
+      if (el && !observedElements.current.has(id)) observer.observe(el);
     });
-
     return () => {
       observer.disconnect();
       observedElements.current.clear();
     };
   }, [highlightedIds]);
 
-  // ── On unmount: mark all seen tasks as viewed and update badge ────────────
-  useEffect(() => {
-    return () => {
-      const idsSeen = Array.from(seenThisSession.current);
-      if (idsSeen.length > 0) {
-        // Persist to in-memory set (resets on refresh = demo behavior)
-        idsSeen.forEach((id) => viewedDataCollectorCards.add(id));
-        
-        // Calculate remaining unseen highlighted IDs
-        const remaining = new Set(
-          HIGHLIGHTED_IDS.filter((id) => !viewedDataCollectorCards.has(id))
-        );
-        
-        // Update badge count for next visit
-        publishBadgeCount(remaining.size);
-        
-        // Optional: update local state if component is still mounted
-        setHighlightedIds(remaining);
-      }
-    };
-  }, []); // empty deps — runs only on unmount
+  const commitSeenSession = () => {
+    if (seenThisSession.current.size === 0) return;
+    seenThisSession.current.forEach((id) => viewedDataCollectorCards.add(id));
+    seenThisSession.current.clear();
+    observedElements.current.clear();
+    const currentTasks = tasksRef.current;
+    dataCollectorNotificationIds = new Set(
+      currentTasks.filter((t) => anyNotification(t)).map((t) => t.id)
+    );
+    const remainingUnseen = new Set(
+      [...dataCollectorNotificationIds].filter((id) => !viewedDataCollectorCards.has(id))
+    );
+    setHighlightedIds(remainingUnseen);
+    publishBadgeCount(remainingUnseen.size);
+  };
 
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [showDetail, setShowDetail] = useState(false);
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [feedbackText, setFeedbackText] = useState('');
-
-  const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
-  const imageRef = useRef<HTMLImageElement | null>(null);
-  const [imageZoom, setImageZoom] = useState(1);
-
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newTaskForm, setNewTaskForm] = useState({
-    title: '',
-    description: '',
-    instruction: '',
-    deadline: '',
-    status: 'pending' as Task['status'],
-  });
-  const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  useEffect(() => { return () => { commitSeenSession(); }; }, []);
 
   if (!user) return null;
 
-  const canManage =
-    user.role === 'ceo' ||
-    user.role === 'general_manager';
+  const sortedTasks = [...tasks].sort((a, b) => {
+    const getLatestTs = (t: DataCollectorTaskItem): number => {
+      let max = Math.max(
+        new Date(t.created_at).getTime(),
+        t.updated_at ? new Date(t.updated_at).getTime() : 0
+      );
+      for (const w of getSubmissionWrappers(t)) {
+        const s = w.submission;
+        if (s.created_at) max = Math.max(max, new Date(s.created_at).getTime());
+        if (s.updated_at) max = Math.max(max, new Date(s.updated_at).getTime());
+        for (const r of (s.reviews || [])) {
+          if (r.created_at) max = Math.max(max, new Date(r.created_at).getTime());
+          if (r.updated_at) max = Math.max(max, new Date(r.updated_at).getTime());
+        }
+      }
+      return max;
+    };
+    return getLatestTs(b) - getLatestTs(a);
+  });
+
+  const displayItems = sortedTasks.slice(displayOffset, displayOffset + ROWS_PER_DISPLAY);
+  const canGoPrev = displayOffset > 0 || apiPage > 1;
+  const canGoNext = displayOffset + ROWS_PER_DISPLAY < sortedTasks.length || (meta ? apiPage < meta.totalPages : false);
+
+  const goNext = () => {
+    if (displayOffset + ROWS_PER_DISPLAY < sortedTasks.length) {
+      setDisplayOffset(displayOffset + ROWS_PER_DISPLAY);
+    } else {
+      cachedTasks = null;
+      cachedMeta = null;
+      setApiPage((p) => p + 1);
+    }
+  };
+
+  const goPrev = () => {
+    if (displayOffset - ROWS_PER_DISPLAY >= 0) {
+      setDisplayOffset(displayOffset - ROWS_PER_DISPLAY);
+    } else {
+      cachedTasks = null;
+      cachedMeta = null;
+      setApiPage((p) => Math.max(1, p - 1));
+    }
+  };
+
+  const getLatestActivity = (task: DataCollectorTaskItem): {
+    description: string;
+    kind: 'review' | 'submission';
+    outcome: string;
+  } | null => {
+    const wrappers = getSubmissionWrappers(task);
+    let latestTs = 0;
+    let latest: { description: string; kind: 'review' | 'submission'; outcome: string } | null = null;
+    for (const w of wrappers) {
+      const s = w.submission;
+      const sTs = Math.max(new Date(s.created_at).getTime(), s.updated_at ? new Date(s.updated_at).getTime() : 0);
+      if (sTs > latestTs) {
+        latestTs = sTs;
+        latest = { description: s.description || '', kind: 'submission', outcome: 'pending' };
+      }
+      for (const r of (s.reviews || [])) {
+        const rTs = Math.max(new Date(r.created_at).getTime(), r.updated_at ? new Date(r.updated_at).getTime() : 0);
+        if (rTs > latestTs) {
+          latestTs = rTs;
+          latest = { description: r.description || '', kind: 'review', outcome: r.review_outcome };
+        }
+      }
+    }
+    return latest;
+  };
+
+  const openDetail = (task: DataCollectorTaskItem) => {
+    setSelectedTask(task);
+    setDraftNote((prev) => ({ ...prev, [task.id]: '' }));
+    setDraftScreenshots((prev) => ({ ...prev, [task.id]: null }));
+    draftFilesRef.current = { ...draftFilesRef.current, [task.id]: [] };
+    setExpandedSubmissionId(null);
+    setShowDetail(true);
+  };
+
+  const closeDetail = () => {
+    const taskId = selectedTask?.id;
+    if (taskId && draftScreenshots[taskId]) {
+      const url = draftScreenshots[taskId];
+      if (url) URL.revokeObjectURL(url);
+    }
+    setSelectedTask(null);
+    setShowDetail(false);
+    setExpandedSubmissionId(null);
+  };
+
+  const handleFilesChange = (taskId: string, fileList: FileList | null) => {
+    const oldUrl = draftScreenshots[taskId] ?? null;
+    if (oldUrl) URL.revokeObjectURL(oldUrl);
+
+    if (!fileList || fileList.length === 0) {
+      setDraftScreenshots((prev) => ({ ...prev, [taskId]: null }));
+      draftFilesRef.current = { ...draftFilesRef.current, [taskId]: [] };
+      return;
+    }
+
+    const files = Array.from(fileList);
+    draftFilesRef.current = { ...draftFilesRef.current, [taskId]: files };
+    const objectUrl = URL.createObjectURL(files[0]);
+    setDraftScreenshots((prev) => ({ ...prev, [taskId]: objectUrl }));
+  };
+
+  const handleSubmitSubmission = async (taskId: string) => {
+    const note = draftNote[taskId] ?? '';
+    const files = draftFilesRef.current[taskId] ?? [];
+
+    setSubmissionDraftLoading((prev) => ({ ...prev, [taskId]: true }));
+
+    const addLocalSubmission = () => {
+      const all = loadLocalTasks().length > 0 ? loadLocalTasks() : seedTasks;
+      const now = new Date().toISOString();
+      const subId = `dc-sub-${Date.now()}`;
+      const newWrapper: DataCollectorSubmissionWrapper = {
+        submissionId: subId,
+        hasNotification: true,
+        notificationId: `notif-dc-${Date.now()}`,
+        submission: {
+          id: subId,
+          data_collector_task_id: taskId,
+          description: note.trim() || 'Data collector submission',
+          attachment_urls: files.length > 0 ? files.map((f) => URL.createObjectURL(f)) : null,
+          created_at: now,
+          updated_at: null,
+          reviews: [],
+        },
+      };
+      const updated = all.map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              updated_at: now,
+              hasNestedNotification: true,
+              submissionsWithReviews: {
+                ...t.submissionsWithReviews,
+                taskNotification: { hasNotification: true, notificationId: t.submissionsWithReviews?.taskNotification?.notificationId || `notif-dc-t${Date.now()}` },
+                submissions: [...(t.submissionsWithReviews?.submissions || []), newWrapper],
+                latestActivityTs: Date.now(),
+              },
+            }
+          : t
+      );
+      persistLocalTasks(updated);
+
+      const existingIds = new Set(dataCollectorNotificationIds);
+      existingIds.add(taskId);
+      dataCollectorNotificationIds = existingIds;
+
+      const updatedCache = (cachedTasks || all).map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              updated_at: now,
+              hasNestedNotification: true,
+              submissionsWithReviews: {
+                ...t.submissionsWithReviews,
+                taskNotification: { hasNotification: true, notificationId: t.submissionsWithReviews?.taskNotification?.notificationId || `notif-dc-t${Date.now()}` },
+                submissions: [...(t.submissionsWithReviews?.submissions || []), newWrapper],
+                latestActivityTs: Date.now(),
+              },
+            }
+          : t
+      );
+      cachedTasks = updatedCache;
+      setTasks(updatedCache);
+    };
+
+    try {
+      const formData = new FormData();
+      formData.append('description', note.trim() || 'Data collector submission');
+      for (const file of files) {
+        formData.append('attachmentFiles', file);
+      }
+
+      const response = await dataCollectorApi.createSubmission(taskId, formData);
+
+      if (response.success) {
+        await fetchTasks(apiPage, true);
+      } else {
+        addLocalSubmission();
+      }
+    } catch {
+      addLocalSubmission();
+    } finally {
+      setSubmissionDraftLoading((prev) => ({ ...prev, [taskId]: false }));
+      const oldUrl = draftScreenshots[taskId] ?? null;
+      if (oldUrl) URL.revokeObjectURL(oldUrl);
+      setDraftScreenshots((prev) => ({ ...prev, [taskId]: null }));
+      setDraftNote((prev) => ({ ...prev, [taskId]: '' }));
+      draftFilesRef.current = { ...draftFilesRef.current, [taskId]: [] };
+    }
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    screenshotFileRef.current = file;
+    const reader = new FileReader();
+    reader.onload = () => setScreenshotPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleCreateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canManage) return;
+
+    const addLocalTask = () => {
+      const all = loadLocalTasks().length > 0 ? loadLocalTasks() : seedTasks;
+      const now = new Date().toISOString();
+      const newTask: DataCollectorTaskItem = {
+        id: `dc-task-${Date.now()}`,
+        assigned_to_user_id: null,
+        assigned_by_user_id: user?.id || '1',
+        title: newTaskForm.title.trim(),
+        description: newTaskForm.description.trim(),
+        status: newTaskForm.status,
+        task_state: 'active',
+        due_date: newTaskForm.deadline ? new Date(newTaskForm.deadline).toISOString() : null,
+        attachment_urls: screenshotPreview ? [screenshotPreview] : null,
+        updated_by: null,
+        created_at: now,
+        updated_at: null,
+        assigned_by_user: { id: user?.id || '1', full_name: user?.full_name || 'User', role: user?.role || 'ceo' },
+        assigned_to_user: null,
+        updated_by_user: null,
+        submissionsWithReviews: {
+          taskNotification: { hasNotification: false, notificationId: null },
+          submissions: [],
+          latestActivityTs: 0,
+        },
+        hasNestedNotification: false,
+      };
+      const updated = [newTask, ...all];
+      persistLocalTasks(updated);
+      cachedTasks = updated;
+      cachedMeta = { total: updated.length, page: apiPage, limit: ROWS_PER_DISPLAY, totalPages: Math.ceil(updated.length / ROWS_PER_DISPLAY) };
+      setTasks(updated);
+      setNewTaskForm({ title: '', description: '', instruction: '', deadline: '', status: 'pending' });
+      setScreenshotPreview(null);
+      screenshotFileRef.current = null;
+      setShowCreateModal(false);
+    };
+
+    try {
+      const formData = new FormData();
+      formData.append('title', newTaskForm.title.trim());
+      formData.append('description', newTaskForm.description.trim());
+      formData.append('instruction', newTaskForm.instruction.trim());
+      formData.append('status', newTaskForm.status);
+      if (newTaskForm.deadline) {
+        formData.append('due_date', new Date(newTaskForm.deadline).toISOString());
+      }
+      if (screenshotFileRef.current) {
+        formData.append('attachmentFiles', screenshotFileRef.current);
+      }
+
+      const response = await dataCollectorApi.createDataCollectorTask(formData);
+
+      if (response.success) {
+        cachedTasks = null;
+        cachedMeta = null;
+        setNewTaskForm({ title: '', description: '', instruction: '', deadline: '', status: 'pending' });
+        setScreenshotPreview(null);
+        screenshotFileRef.current = null;
+        setShowCreateModal(false);
+        await fetchTasks(apiPage, true);
+      } else {
+        // API error — create locally
+        addLocalTask();
+      }
+    } catch {
+      // API unreachable — create locally
+      addLocalTask();
+    }
+  };
 
   const summary = {
     total: tasks.length,
@@ -302,102 +788,16 @@ export function DataCollectorTasks() {
     completed: tasks.filter((t) => t.status === 'completed').length,
   };
 
-  const persistTasks = (updated: Task[]) => {
-    setTasks(updated);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-  };
-
-  const openDetail = (task: Task) => {
-    setSelectedTask(task);
-    setShowDetail(true);
-  };
-
-  const closeDetail = () => {
-    setSelectedTask(null);
-    setShowDetail(false);
-  };
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setScreenshotPreview(reader.result as string);
-    reader.readAsDataURL(file);
-  };
-
-  const handleCreateTask = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!canManage) return;
-
-    const nextTask: Task = {
-      id: `dc-task-${Date.now()}`,
-      projectId: 'data-collection',
-      title: newTaskForm.title.trim(),
-      description: newTaskForm.description.trim(),
-      instruction: newTaskForm.instruction.trim(),
-      assignedBy: user.id,
-      status: newTaskForm.status,
-      deadline: newTaskForm.deadline || undefined,
-      createdAt: new Date().toISOString(),
-      telegramScreenshot: screenshotPreview || '',
-      submissions: [],
-      feedbacks: [],
-    };
-
-    persistTasks([nextTask, ...tasks]);
-    setNewTaskForm({ title: '', description: '', instruction: '', deadline: '', status: 'pending' });
-    setScreenshotPreview(null);
-    setShowCreateModal(false);
-  };
-
-  const handleApprove = (task: Task) => {
-    if (!canManage) return;
-    const updated = tasks.map((t) =>
-      t.id === task.id
-        ? { ...t, approvalStatus: 'approved', updatedAt: new Date().toISOString() }
-        : t
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+      </div>
     );
-    persistTasks(updated);
-    closeDetail();
-  };
-
-  const handleProvideFeedback = () => {
-    if (!canManage || !selectedTask) return;
-    if (!feedbackText.trim()) return;
-
-    const feedback = {
-      id: `fb-${Date.now()}`,
-      text: feedbackText.trim(),
-      createdAt: new Date().toISOString(),
-      createdBy: user.id,
-      createdByName: user.full_name,
-    };
-
-    const updated = tasks.map((t) =>
-      t.id === selectedTask.id
-        ? { ...t, feedbacks: [...(t.feedbacks || []), feedback], updatedAt: new Date().toISOString() }
-        : t
-    );
-    persistTasks(updated);
-    setFeedbackText('');
-    setShowFeedbackModal(false);
-    closeDetail();
-  };
-
-  // Sort tasks so highlighted ones always appear at the top, with stable secondary sort
-  const sortedTasks = useMemo(() => {
-    return [...tasks].sort((a, b) => {
-      const aHL = highlightedIds.has(a.id) ? 1 : 0;
-      const bHL = highlightedIds.has(b.id) ? 1 : 0;
-      if (bHL !== aHL) return bHL - aHL; // highlighted first
-      // Stable secondary sort by createdAt descending
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
-  }, [tasks, highlightedIds]);
+  }
 
   return (
     <div className="space-y-6">
-      {/* ── Header ── */}
       <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
         <div>
           <h2 className="text-2xl font-semibold text-slate-900">Data Collector Assignment Desk</h2>
@@ -409,14 +809,14 @@ export function DataCollectorTasks() {
               <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-semibold">
                 {highlightedIds.size}
               </span>
-              new {highlightedIds.size === 1 ? 'task' : 'tasks'} since your last visit
+              new {highlightedIds.size === 1 ? 'record' : 'records'} since your last visit
             </p>
           )}
         </div>
         {canManage && (
           <button
             onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 shrink-0"
           >
             <Plus className="h-4 w-4" />
             Create Data Task
@@ -424,7 +824,10 @@ export function DataCollectorTasks() {
         )}
       </div>
 
-      {/* ── Summary cards ── */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">{error}</div>
+      )}
+
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: 'Total', value: summary.total },
@@ -439,96 +842,410 @@ export function DataCollectorTasks() {
         ))}
       </div>
 
-      {/* ── Task list (sorted) ── */}
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h3 className="text-lg font-semibold text-slate-900">Data collection queue</h3>
-        <p className="mt-1 text-sm text-slate-600">Latest field tasks with submissions and status.</p>
+      {sortedTasks.length === 0 ? (
+        <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+          <Database className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-500">No data collection tasks yet.</p>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {displayItems.map((task) => {
+              const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'approved' && task.status !== 'completed';
+              const isHighlighted = highlightedIds.has(task.id);              return (
+                <div
+                  key={task.id}
+                  data-highlighted-id={isHighlighted ? task.id : undefined}
+                  className={`bg-white rounded-xl p-6 shadow-sm border transition-all duration-300 hover:shadow-md ${
+                    isHighlighted
+                      ? 'border-2 border-blue-400 ring-4 ring-blue-100 shadow-blue-100'
+                      : 'border-gray-200'
+                  }`}
+                >
+                  {isHighlighted && (
+                    <div className="mb-3">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                        New
+                      </span>
+                    </div>
+                  )}
 
-        <div className="mt-4 space-y-3">
-          {sortedTasks.map((task) => {
-            const isHighlighted = highlightedIds.has(task.id);
-            return (
-              <div
-                key={task.id}
-                data-highlighted-id={isHighlighted ? task.id : undefined}
-                className={[
-                  'rounded-xl p-4 transition-all duration-300',
-                  isHighlighted
-                    ? 'border-2 border-blue-400 ring-4 ring-blue-100 bg-white shadow-blue-100 shadow-sm'
-                    : 'border border-slate-200',
-                ].join(' ')}
-              >
-                {/* "New" pill */}
-                {isHighlighted && (
-                  <div className="mb-2">
-                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full">
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                      New
+                  <div className="flex items-start justify-between mb-3 gap-3">
+                    <div>
+                      <h3 className="font-semibold text-lg text-gray-900">{task.title}</h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Assigned to: {getAssigneeDisplayName(task)}
+                      </p>
+                    </div>
+                    <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${statusColor(task.status)}`}>
+                      {statusDisplay(task.status)}
                     </span>
                   </div>
-                )}
 
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-semibold text-slate-900">{task.title}</p>
-                    <p className="text-sm text-slate-500">ID: {task.id}</p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Badge
-                      className={
-                        task.status === 'completed'
-                          ? 'bg-green-100 text-green-700 border-green-200'
-                          : task.status === 'in_progress'
-                          ? 'bg-blue-100 text-blue-700 border-blue-200'
-                          : 'bg-amber-100 text-amber-700 border-amber-200'
-                      }
-                    >
-                      {task.status.replace('_', ' ')}
-                    </Badge>
-                    {task.feedbacks && task.feedbacks.length > 0 && (
-                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                        Feedback Provided
-                      </span>
-                    )}
-                    {task.approvalStatus === 'approved' && (
-                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        Approved
-                      </span>
-                    )}
-                    {task.approvalStatus === 'rejected' && (
-                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                        Rejected
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <p className="mt-2 text-sm text-slate-600">{task.description}</p>
-
-                <div className="mt-3 flex items-center justify-between text-sm text-slate-500">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4" />
-                    <span>
-                      {task.deadline
-                        ? new Date(task.deadline).toLocaleDateString()
-                        : 'No deadline'}
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-medium">
+                      Created by {getCreatorDisplayName(task)}
                     </span>
+                    {task.assigned_to_user_id && (
+                      <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-medium">
+                        Assigned to {getAssigneeDisplayName(task)}
+                      </span>
+                    )}
+                    {getSubmissionWrappers(task).length > 0 && (
+                      <span className="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium">
+                        {getSubmissionWrappers(task).length} submission{getSubmissionWrappers(task).length !== 1 ? 's' : ''}
+                      </span>
+                    )}
                   </div>
+
+                  <p className="text-sm text-gray-600 mb-3">{task.description}</p>
+
                   <button
                     onClick={() => openDetail(task)}
-                    className="text-blue-600 hover:underline text-sm font-medium"
+                    className="mb-4 text-sm text-blue-600 hover:underline"
                   >
                     Open Submission Detail
                   </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
 
-      {/* ── Create task modal ── */}
-      {showCreateModal && canManage && (
+                  {(() => {
+                    const activity = getLatestActivity(task);
+                    if (!activity || !activity.description) return null;
+                    const outcome = activity.outcome;
+                    const isApproved = outcome === 'approved';
+                    const isRejected = outcome === 'rejected';
+                    const isFeedback = outcome === 'feedback';
+                    const BadgeIcon = isApproved ? CheckCircle2 : isRejected ? XCircle : isFeedback ? AlertCircle : MessageSquare;
+                    const containerColor = isApproved
+                      ? 'bg-green-50 border-green-200'
+                      : isRejected
+                      ? 'bg-red-50 border-red-200'
+                      : isFeedback
+                      ? 'bg-yellow-50 border-yellow-200'
+                      : 'bg-blue-50 border-blue-200';
+                    const textColor = isApproved
+                      ? 'text-green-700'
+                      : isRejected
+                      ? 'text-red-700'
+                      : isFeedback
+                      ? 'text-yellow-700'
+                      : 'text-blue-700';
+                    const iconColor = isApproved
+                      ? 'text-green-600'
+                      : isRejected
+                      ? 'text-red-600'
+                      : isFeedback
+                      ? 'text-yellow-600'
+                      : 'text-blue-600';
+                    const statusLabel = isApproved ? 'Approved' : isRejected ? 'Rejected' : isFeedback ? 'Feedback Given' : 'Pending';
+                    return (
+                      <div className={`mb-4 p-3 rounded-lg border ${containerColor}`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <BadgeIcon className={`w-4 h-4 ${iconColor}`} />
+                          <p className={`text-sm font-medium ${textColor}`}>{statusLabel}</p>
+                        </div>
+                        <p className="text-sm text-gray-700">{activity.description}</p>
+                      </div>
+                    );
+                  })()}
+
+                  <div className="space-y-2 text-sm">
+                    {task.due_date && (
+                      <div className={`flex items-center gap-2 ${isOverdue ? 'text-red-600' : 'text-gray-500'}`}>
+                        <Calendar className="w-4 h-4" />
+                        <span>Due: {new Date(task.due_date).toLocaleDateString()}{isOverdue && ' (Overdue)'}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 text-gray-500">
+                      <Clock className="w-4 h-4" />
+                      <span>Created: {new Date(task.created_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>          {(meta && (meta.totalPages > 1 || sortedTasks.length > ROWS_PER_DISPLAY)) && (
+            <div className="flex items-center justify-center gap-4 py-4">
+              <button
+                onClick={goPrev}
+                disabled={!canGoPrev}
+                className="flex items-center gap-1 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Previous
+              </button>
+              <span className="text-sm text-gray-600">
+                {sortedTasks.length > ROWS_PER_DISPLAY
+                  ? `Showing ${displayOffset + 1}-${Math.min(displayOffset + ROWS_PER_DISPLAY, sortedTasks.length)} of ${meta.total}`
+                  : `Page ${apiPage} of ${meta.totalPages} (${meta.total} total)`
+                }
+              </span>
+              <button
+                onClick={goNext}
+                disabled={!canGoNext}
+                className="flex items-center gap-1 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Next
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </>
+      )}      {showDetail && selectedTask && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-6 overflow-y-auto">
+          <div className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl max-h-[92vh] overflow-y-auto">
+            <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-6 py-5">
+              <div>
+                <h3 className="text-2xl font-semibold text-gray-900">Submission Detail</h3>
+                <p className="mt-1 text-sm text-gray-500">View submissions and review feedback</p>
+                {submissionsLoading[selectedTask.id] && (
+                  <p className="text-xs text-blue-600 mt-1">Loading submission data...</p>
+                )}
+              </div>
+              <button onClick={closeDetail} className="rounded-lg p-2 hover:bg-gray-100">
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 px-6 py-5 lg:grid-cols-3">
+              <div className="lg:col-span-2 space-y-5">
+                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h4 className="text-xl font-semibold text-gray-900">{selectedTask.title}</h4>
+                      <p className="mt-1 text-sm text-gray-500">ID: {selectedTask.id}</p>
+                    </div>
+                    <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${statusColor(selectedTask.status)}`}>
+                      {statusDisplay(selectedTask.status)}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
+                      Created by {getCreatorDisplayName(selectedTask)}
+                    </span>
+                    <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">
+                      Assigned to {getAssigneeDisplayName(selectedTask)}
+                    </span>
+                  </div>
+                </section>
+
+                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Description</h5>
+                  <p className="mt-2 text-sm text-gray-700">{selectedTask.description}</p>
+                </section>
+
+                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-4">
+                    Submissions &amp; Review Feedback
+                  </h5>
+                  {getSubmissionWrappers(selectedTask).length === 0 ? (
+                    <p className="text-sm text-gray-500">No submissions yet.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {getSubmissionWrappers(selectedTask).map((wrapper) => {
+                        const sub = wrapper.submission;
+                        const subHasNotification = wrapper.hasNotification ||
+                          (sub.reviews || []).some((r) => r.hasNotification);
+                        const isSubExpanded = expandedSubmissionId === sub.id;
+
+                        return (
+                          <div key={sub.id} className={`border rounded-lg overflow-hidden ${subHasNotification ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200'}`}>
+                            <button
+                              type="button"
+                              onClick={() => setExpandedSubmissionId(isSubExpanded ? null : sub.id)}
+                              className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                            >
+                              <div className="flex items-center gap-3">
+                                {subHasNotification && (
+                                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                                )}
+                                <div>
+                                  <span className="font-medium text-gray-800">Submission #{sub.id.slice(-6)}</span>
+                                  <span className="ml-2 text-xs text-gray-500">
+                                    {new Date(sub.created_at).toLocaleString()}
+                                  </span>
+                                </div>
+                                {(sub.reviews || []).length > 0 && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-xs font-medium text-gray-600">
+                                    {sub.reviews.length} review{sub.reviews.length !== 1 ? 's' : ''}
+                                  </span>
+                                )}
+                              </div>
+                              {isSubExpanded ? (
+                                <ChevronUp className="w-4 h-4 text-gray-500" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4 text-gray-500" />
+                              )}
+                            </button>
+
+                            {isSubExpanded && (
+                              <div className="p-4 bg-white space-y-4">
+                                {sub.description && (
+                                  <div>
+                                    <h6 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Submission Note</h6>
+                                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{sub.description}</p>
+                                  </div>
+                                )}
+
+                                {sub.attachment_urls && sub.attachment_urls.length > 0 && (
+                                  <div>
+                                    <h6 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Attachments</h6>
+                                    <div className="flex gap-2 flex-wrap">
+                                      {sub.attachment_urls.map((url, idx) => (
+                                        <img
+                                          key={idx}
+                                          src={url}
+                                          alt={`attachment-${idx}`}
+                                          className="h-24 w-auto rounded border object-cover cursor-pointer hover:ring-2 hover:ring-blue-400 transition-shadow"
+                                          onClick={() => setImageViewerSrc(url)}
+                                        />
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}                                {(sub.reviews || []).length > 0 && (
+                                  <div className="border-t border-gray-100 pt-4">
+                                    <h6 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Reviews</h6>
+                                    <div className="space-y-2">
+                                      {sub.reviews.map((review) => {
+                                        const isReviewApproved = review.review_outcome === 'approved';
+                                        const isReviewRejected = review.review_outcome === 'rejected';
+                                        const isReviewFeedback = review.review_outcome === 'feedback';
+                                        const ReviewIcon = isReviewApproved ? ThumbsUp : isReviewRejected ? ThumbsDown : MessageSquare;
+                                        const reviewEntryColor = isReviewApproved
+                                          ? 'bg-green-100 text-green-700'
+                                          : isReviewRejected
+                                          ? 'bg-red-100 text-red-700'
+                                          : 'bg-yellow-100 text-yellow-700';
+                                        const reviewStatusLabel = isReviewApproved
+                                          ? 'Approved'
+                                          : isReviewRejected
+                                          ? 'Rejected'
+                                          : 'Feedback Given';
+
+                                        return (
+                                          <div key={review.id} className={`border rounded-lg overflow-hidden ${review.hasNotification ? 'border-blue-400 ring-1 ring-blue-100' : 'border-gray-200'}`}>
+                                            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50">
+                                              {review.hasNotification && (
+                                                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                                              )}
+                                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${reviewEntryColor}`}>
+                                                <ReviewIcon className="w-3 h-3" />
+                                                {reviewStatusLabel}
+                                              </span>
+                                              <span className="text-xs text-gray-500">
+                                                {new Date(review.created_at).toLocaleString()}
+                                              </span>
+                                              <span className="text-xs text-gray-400">
+                                                by {review.reviewer_user?.full_name || `User ${review.reviewer_user_id.slice(0, 8)}`}
+                                              </span>
+                                            </div>
+                                            {review.description && (
+                                              <div className="px-3 py-2">
+                                                <p className="text-sm text-gray-800 whitespace-pre-wrap">{review.description}</p>
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>                {canManage && (
+                  <section className="rounded-xl border border-dashed border-gray-300 bg-blue-50/50 p-4">
+                    <h6 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4" />
+                      Submit to this Task
+                    </h6>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                        <textarea
+                          rows={3}
+                          value={draftNote[selectedTask.id] ?? ''}
+                          onChange={(e) =>
+                            setDraftNote((prev) => ({
+                              ...prev,
+                              [selectedTask.id]: e.target.value,
+                            }))
+                          }
+                          placeholder="Describe your submission..."
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          File Attachments <span className="text-gray-400 text-xs ml-1">(optional)</span>
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <label className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-sm text-gray-700">
+                            <Upload className="w-4 h-4" />
+                            {draftFilesRef.current[selectedTask.id]?.length
+                              ? `${draftFilesRef.current[selectedTask.id].length} file(s) selected`
+                              : draftScreenshots[selectedTask.id]
+                              ? 'Change Files'
+                              : 'Choose Files'}
+                            <input
+                              type="file"
+                              multiple
+                              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip,.rar"
+                              onChange={(e) => handleFilesChange(selectedTask.id, e.target.files)}
+                              className="hidden"
+                            />
+                          </label>
+                          {(draftScreenshots[selectedTask.id] || (draftFilesRef.current[selectedTask.id]?.length ?? 0) > 0) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const oldUrl = draftScreenshots[selectedTask.id] ?? null;
+                                if (oldUrl) URL.revokeObjectURL(oldUrl);
+                                setDraftScreenshots((prev) => ({ ...prev, [selectedTask.id]: null }));
+                                draftFilesRef.current = { ...draftFilesRef.current, [selectedTask.id]: [] };
+                              }}
+                              className="text-sm text-red-600 hover:underline"
+                            >
+                              Remove All
+                            </button>
+                          )}
+                        </div>
+                        {draftScreenshots[selectedTask.id] && (
+                          <img
+                            src={draftScreenshots[selectedTask.id]!}
+                            alt="preview"
+                            className="mt-2 w-full max-h-40 rounded-lg border object-contain"
+                          />
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleSubmitSubmission(selectedTask.id)}
+                        disabled={submissionDraftLoading[selectedTask.id]}
+                        className="flex items-center gap-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white rounded-lg text-sm transition-colors"
+                      >
+                        {submissionDraftLoading[selectedTask.id] ? 'Submitting...' : 'Submit'}
+                      </button>
+                    </div>
+                  </section>
+                )}
+              </div>              <aside className="space-y-4">
+                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Timeline</h5>
+                  <div className="mt-2 space-y-2 text-sm text-gray-700">
+                    <p>Deadline: {selectedTask.due_date ? new Date(selectedTask.due_date).toLocaleDateString() : 'No deadline'}</p>
+                    <p>Created: {new Date(selectedTask.created_at).toLocaleDateString()}</p>
+                    <p>Assigned by: {getCreatorDisplayName(selectedTask)}</p>
+                  </div>
+                </section>
+              </aside>
+            </div>
+          </div>
+        </div>
+      )}      {showCreateModal && canManage && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
@@ -584,9 +1301,7 @@ export function DataCollectorTasks() {
                   <label className="mb-2 block text-sm font-medium text-slate-700">Status</label>
                   <select
                     value={newTaskForm.status}
-                    onChange={(e) =>
-                      setNewTaskForm((f) => ({ ...f, status: e.target.value as Task['status'] }))
-                    }
+                    onChange={(e) => setNewTaskForm((f) => ({ ...f, status: e.target.value }))}
                     className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm"
                   >
                     <option value="pending">Pending</option>
@@ -596,9 +1311,7 @@ export function DataCollectorTasks() {
                 </div>
               </div>
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Telegram Screenshot (Evidence)
-                </label>
+                <label className="mb-2 block text-sm font-medium text-slate-700">Evidence Screenshot</label>
                 <div className="flex items-center gap-2">
                   <label className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-sm">
                     <Image className="w-4 h-4" />
@@ -642,185 +1355,7 @@ export function DataCollectorTasks() {
             </form>
           </div>
         </div>
-      )}
-
-      {/* ── Detail modal ── */}
-      {showDetail && selectedTask && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-6">
-          <div className="bg-white rounded-xl p-6 w-full max-w-4xl shadow-xl max-h-[92vh] overflow-y-auto">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="text-2xl font-semibold">{selectedTask.title}</h3>
-                <p className="text-sm text-gray-500">Task ID: {selectedTask.id}</p>
-                <p className="text-sm text-gray-500">
-                  Deadline:{' '}
-                  {selectedTask.deadline
-                    ? new Date(selectedTask.deadline).toLocaleString()
-                    : 'None'}
-                </p>
-              </div>
-              <button onClick={closeDetail} className="px-3 py-2 rounded-lg border">
-                Close
-              </button>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="md:col-span-2">
-                <h4 className="text-sm font-medium text-gray-600">Task Description</h4>
-                <p className="mt-2 text-gray-800">{selectedTask.description}</p>
-
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg border">
-                  <h5 className="text-sm font-medium text-gray-600">Instruction</h5>
-                  <p className="mt-2 text-sm text-gray-700">{selectedTask.instruction}</p>
-                </div>
-
-                {/* Submissions */}
-                <div className="mt-4">
-                  <h5 className="text-sm font-medium text-gray-600">
-                    Submissions ({selectedTask.submissions?.length || 0})
-                  </h5>
-                  {selectedTask.submissions && selectedTask.submissions.length > 0 ? (
-                    <div className="mt-2 space-y-3">
-                      {selectedTask.submissions.map((sub) => (
-                        <div key={sub.id} className="bg-gray-50 p-4 rounded-lg border">
-                          <div className="text-sm">
-                            <span className="font-medium">Submitted by:</span> {sub.submittedByName}{' '}
-                            ({new Date(sub.submittedAt).toLocaleString()})
-                          </div>
-                          <p className="mt-2 text-sm text-gray-700">{sub.notes}</p>
-                          {sub.metadata && (
-                            <div className="mt-2 text-xs text-gray-500 flex flex-wrap gap-2">
-                              {Object.entries(sub.metadata).map(([key, value]) => (
-                                <span key={key} className="bg-white px-2 py-1 rounded border">
-                                  {key}: {value}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                          {sub.attachments && sub.attachments.length > 0 && (
-                            <div className="mt-3 flex gap-2 flex-wrap">
-                              {sub.attachments.map((url, idx) => (
-                                <img
-                                  key={idx}
-                                  src={url}
-                                  alt={`attachment-${idx}`}
-                                  className="h-24 w-auto rounded border object-cover cursor-pointer"
-                                  onClick={() => setImageViewerSrc(url)}
-                                />
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mt-2 text-sm text-gray-500">No submissions yet.</p>
-                  )}
-                </div>
-
-                {/* Screenshot evidence */}
-                <div className="mt-6">
-                  <h5 className="text-sm font-medium text-gray-600">Task Screenshot Evidence</h5>
-                  {selectedTask.telegramScreenshot ? (
-                    <img
-                      src={selectedTask.telegramScreenshot}
-                      alt="Telegram evidence"
-                      className="mt-2 w-full max-h-56 object-cover rounded-lg border cursor-pointer"
-                      onClick={() => setImageViewerSrc(selectedTask.telegramScreenshot!)}
-                    />
-                  ) : (
-                    <p className="mt-2 text-sm text-gray-500">No screenshot attached.</p>
-                  )}
-                </div>
-              </div>
-
-              <aside className="space-y-4">
-                <div className="p-4 bg-gray-50 rounded-lg border">
-                  <h5 className="text-sm font-medium text-gray-600">Metadata</h5>
-                  <div className="mt-2 text-sm text-gray-700 space-y-1">
-                    <div>Status: {selectedTask.status.replace('_', ' ')}</div>
-                    <div>Created: {new Date(selectedTask.createdAt).toLocaleDateString()}</div>
-                    {selectedTask.approvalStatus && (
-                      <div>Decision: {selectedTask.approvalStatus}</div>
-                    )}
-                    {selectedTask.feedbacks && selectedTask.feedbacks.length > 0 && (
-                      <div>
-                        <div className="font-medium mt-2">Feedback history:</div>
-                        {selectedTask.feedbacks.map((fb) => (
-                          <div key={fb.id} className="text-xs mt-1 pl-2 border-l-2 border-yellow-400">
-                            <span className="font-medium">{fb.createdByName}:</span> {fb.text}
-                            <div className="text-gray-400">
-                              {new Date(fb.createdAt).toLocaleString()}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {canManage && (
-                  <div className="p-4 bg-white rounded-lg border shadow-sm">
-                    <h5 className="text-sm font-medium text-gray-600">Actions</h5>
-                    <div className="mt-3 flex flex-col gap-2">
-                      <button
-                        onClick={() => handleApprove(selectedTask)}
-                        className="w-full px-3 py-2 bg-green-600 text-white rounded-lg"
-                      >
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => setShowFeedbackModal(true)}
-                        className="w-full px-3 py-2 border rounded-lg text-gray-700"
-                      >
-                        Provide Feedback
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </aside>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Feedback modal ── */}
-      {showFeedbackModal && selectedTask && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6">
-          <div className="bg-white rounded-xl p-6 w-full max-w-2xl shadow-xl">
-            <div className="flex items-center justify-between">
-              <h4 className="text-lg font-semibold">Provide Feedback</h4>
-              <button onClick={() => setShowFeedbackModal(false)} className="px-3 py-2 rounded-lg border">
-                Cancel
-              </button>
-            </div>
-            <textarea
-              value={feedbackText}
-              onChange={(e) => setFeedbackText(e.target.value)}
-              rows={6}
-              className="w-full mt-4 rounded-lg border px-3 py-2 text-sm"
-              placeholder="Enter feedback for the data collector..."
-            />
-            <div className="mt-4 flex justify-end gap-3">
-              <button
-                onClick={() => setShowFeedbackModal(false)}
-                className="px-4 py-2 rounded-lg border"
-              >
-                Close
-              </button>
-              <button
-                onClick={handleProvideFeedback}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg"
-              >
-                Send Feedback
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Image viewer modal ── */}
-      {imageViewerSrc && (
+      )}      {imageViewerSrc && (
         <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
           <div className="relative max-w-[95vw] max-h-[95vh]">
             <img
@@ -833,29 +1368,29 @@ export function DataCollectorTasks() {
             <div className="absolute top-2 right-2 flex gap-2">
               <button
                 onClick={() => imageRef.current?.requestFullscreen?.()}
-                className="px-3 py-2 bg-white/80 rounded"
+                className="px-3 py-2 bg-white/80 rounded text-sm"
               >
                 Fullscreen
               </button>
-              <button onClick={() => setImageViewerSrc(null)} className="px-3 py-2 bg-white/80 rounded">
+              <button onClick={() => setImageViewerSrc(null)} className="px-3 py-2 bg-white/80 rounded text-sm">
                 Close
               </button>
             </div>
             <div className="absolute left-2 bottom-2 flex items-center gap-2 bg-white/90 rounded p-2">
               <button
                 onClick={() => setImageZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))}
-                className="px-2 py-1 border rounded"
+                className="px-2 py-1 border rounded text-sm"
               >
                 -
               </button>
               <div className="text-sm px-2">{Math.round(imageZoom * 100)}%</div>
               <button
                 onClick={() => setImageZoom((z) => Math.min(3, +(z + 0.25).toFixed(2)))}
-                className="px-2 py-1 border rounded"
+                className="px-2 py-1 border rounded text-sm"
               >
                 +
               </button>
-              <button onClick={() => setImageZoom(1)} className="px-2 py-1 border rounded">
+              <button onClick={() => setImageZoom(1)} className="px-2 py-1 border rounded text-sm">
                 Reset
               </button>
             </div>
