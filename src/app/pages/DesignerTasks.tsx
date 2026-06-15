@@ -36,7 +36,7 @@ export interface DesignerSubmissionSnapshot {
 }
 
 export interface PhaseHistoryEntry {
-  status: 'feedback' | 'approved' | 'rejected';
+  status: 'feedback' | 'approved' | 'rejected' | 'pending';
   message: string;
   timestamp: string;
   designerSubmission: DesignerSubmissionSnapshot;
@@ -212,6 +212,22 @@ function apiSubmissionsToProgress(data: SubmissionsWithReviewsData): Record<Phas
         : null;
       const subNote = submission.description || '';
 
+      // Always add a history entry for the submission itself (even without reviews)
+      // so the phase has displayable content and gating works
+      if (submission.reviews.length === 0) {
+        history.push({
+          status: 'pending',
+          message: subNote || `Submission for ${PHASES.find((p) => p.backendStage === submission.stage)?.label || submission.stage}`,
+          timestamp: submission.created_at,
+          designerSubmission: {
+            note: subNote,
+            screenshot: subScreenshot ?? createSubmissionScreenshot('Submission'),
+            submittedAt: submission.created_at,
+          },
+          hasNotification: submission.hasNotification,
+        });
+      }
+
       for (const review of submission.reviews) {
         const reviewOutcome = review.review_outcome as 'approved' | 'rejected' | 'feedback';
         history.push({
@@ -224,21 +240,6 @@ function apiSubmissionsToProgress(data: SubmissionsWithReviewsData): Record<Phas
             submittedAt: submission.created_at,
           },
           hasNotification: review.hasNotification,
-        });
-      }
-
-      // Add entry for submission itself if it has a notification and no reviews (pending)
-      if (submission.reviews.length === 0 && submission.hasNotification) {
-        history.push({
-          status: 'feedback',
-          message: `Submission for ${PHASES.find((p) => p.backendStage === submission.stage)?.label || submission.stage}`,
-          timestamp: submission.created_at,
-          designerSubmission: {
-            note: subNote,
-            screenshot: subScreenshot ?? createSubmissionScreenshot('Submission'),
-            submittedAt: submission.created_at,
-          },
-          hasNotification: true,
         });
       }
     }
@@ -698,6 +699,10 @@ export function DesignerTasks() {
         setSubmissionsLoading((prev) => ({ ...prev, [taskId]: true }));
         try {
           await fetchTasks(apiPage, true);
+          if (cachedTasks) {
+            const refreshed = cachedTasks.find((t) => t.id === taskId);
+            if (refreshed) setSelectedTaskDetail(refreshed);
+          }
         } finally {
           setSubmissionsLoading((prev) => ({ ...prev, [taskId]: false }));
         }
@@ -1136,11 +1141,17 @@ export function DesignerTasks() {
                     const stopIdx = findFirstNonApprovedPhaseIndex(PHASES, progress);
                     const lastPopulated = getLastPopulatedPhaseIndex(progress);
                     const displayPhaseIdx = stopIdx !== -1 ? stopIdx : lastPopulated;
+                    const stopPhaseStatus = stopIdx !== -1
+                      ? getCurrentStatus(progress[PHASES[stopIdx].key])
+                      : null;
+                    const isStopPhaseRejected = stopPhaseStatus === 'rejected';
 
                     const visiblePhases = PHASES.filter((phase, idx) => {
                       const hasContent = phaseHasDisplayableContent(progress[phase.key]);
+                      // Show the next empty phase after the current one so designer can submit
+                      if (idx === displayPhaseIdx + 1 && !hasContent && stopIdx === displayPhaseIdx && !isStopPhaseRejected) return true;
+                      // Hide phases beyond the first non-approved one (rejection gate)
                       if (stopIdx !== -1 && idx > stopIdx) return false;
-                      if (idx === displayPhaseIdx + 1 && !hasContent) return true;
                       return hasContent;
                     });
 
@@ -1400,108 +1411,103 @@ export function DesignerTasks() {
                                     </div>
                                   )}
 
-                                  {isApproved && (
-                                    <div>
-                                      <h6 className="text-sm font-medium text-gray-700 mb-1">Designer's Progress Note</h6>
-                                      {phaseData.note ? (
-                                        <div className="text-sm text-gray-800 bg-gray-50 p-3 rounded-lg border border-gray-100 whitespace-pre-wrap">
-                                          {phaseData.note}
-                                        </div>
-                                      ) : (
-                                        <p className="text-sm text-gray-400 italic">No progress note submitted.</p>
-                                      )}
-                                    </div>
-                                  )}
-
-                                  {isApproved && (
-                                    <div>
-                                      <h6 className="text-sm font-medium text-gray-700 mb-1">Telegram Screenshot</h6>
-                                      {existingScreenshot ? (
-                                        <img
-                                          src={existingScreenshot}
-                                          alt="current screenshot"
-                                          className="mt-2 max-w-full h-auto max-h-64 rounded-lg border object-contain"
-                                        />
-                                      ) : (
-                                        <p className="text-sm text-gray-400 italic">No screenshot provided.</p>
-                                      )}
-                                    </div>
-                                  )}
-
-                                  {history.length > 0 && (
+                                  {/* ── Submissions list per phase (expandable, reviews nested) ── */}
+                                  {stageSubmissions.length > 0 && (
                                     <div className="border-t border-gray-100 pt-4">
-                                      <h6 className="text-sm font-medium text-gray-700 mb-2">
-                                        Prior Feedback Messages
+                                      <h6 className="text-sm font-medium text-gray-700 mb-3">
+                                        {stageSubmissions.length} Submission{stageSubmissions.length !== 1 ? 's' : ''}
                                       </h6>
                                       <div className="space-y-2">
-                                        {history.map((entry, idxEntry) => {
-                                          const isEntryExpanded = taskHistoryIdx === idxEntry;
-                                          const entryBadge =
-                                            entry.status === 'feedback'
-                                              ? 'Feedback Given'
-                                              : entry.status.charAt(0).toUpperCase() + entry.status.slice(1);
-                                          const EntryIcon =
-                                            entry.status === 'approved'
-                                              ? ThumbsUp
-                                              : entry.status === 'rejected'
-                                              ? ThumbsDown
-                                              : MessageSquare;
-                                          const entryColor =
-                                            entry.status === 'approved'
-                                              ? 'bg-green-100 text-green-700'
-                                              : entry.status === 'rejected'
-                                              ? 'bg-red-100 text-red-700'
-                                              : 'bg-yellow-100 text-yellow-700';
-
+                                        {stageSubmissions.map((sub, sIdx) => {
+                                          const isSubExpanded = expandedHistoryIdx[taskId]?.[phase.key] === sIdx;
+                                          const subReviewCount = (sub.reviews || []).length;
                                           return (
-                                            <div key={idxEntry} className={`border rounded-lg overflow-hidden ${entry.hasNotification ? 'border-blue-400 ring-1 ring-blue-100' : 'border-gray-200'}`}>
+                                            <div key={sub.id} className={`border rounded-lg overflow-hidden ${sub.hasNotification ? 'border-blue-400 ring-1 ring-blue-100' : 'border-gray-200'}`}>
                                               <button
                                                 type="button"
-                                                onClick={() => toggleHistoryEntry(taskId, phase.key, idxEntry)}
-                                                className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors"
+                                                onClick={() => toggleHistoryEntry(taskId, phase.key, sIdx)}
+                                                className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
                                               >
-                                                <div className="flex items-center gap-2">
-                                                  {entry.hasNotification && (
-                                                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                  {sub.hasNotification && (
+                                                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
                                                   )}
-                                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${entryColor}`}>
-                                                    <EntryIcon className="w-3 h-3" />
-                                                    {entryBadge}
-                                                  </span>
+                                                  <span className="text-xs font-medium text-gray-700">Submission {sIdx + 1}</span>
                                                   <span className="text-xs text-gray-500">
-                                                    {new Date(entry.timestamp).toLocaleString()}
+                                                    {new Date(sub.created_at).toLocaleString()}
                                                   </span>
+                                                  {subReviewCount > 0 && (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-xs font-medium text-gray-600">
+                                                      {subReviewCount} review{subReviewCount !== 1 ? 's' : ''}
+                                                    </span>
+                                                  )}
                                                 </div>
-                                                {isEntryExpanded ? (
-                                                  <ChevronUp className="w-4 h-4 text-gray-500" />
+                                                {isSubExpanded ? (
+                                                  <ChevronUp className="w-4 h-4 text-gray-500 shrink-0" />
                                                 ) : (
-                                                  <ChevronDown className="w-4 h-4 text-gray-500" />
+                                                  <ChevronDown className="w-4 h-4 text-gray-500 shrink-0" />
                                                 )}
                                               </button>
-                                              {isEntryExpanded && (
-                                                <div className="p-3 bg-white space-y-3">
-                                                  <p className="text-sm text-gray-800 whitespace-pre-wrap font-medium">
-                                                    "{entry.message}"
-                                                  </p>
-                                                  <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                                                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-                                                      Designer's Submission at this point
-                                                    </p>
-                                                    <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                                                      {entry.designerSubmission.note || (
-                                                        <span className="italic text-gray-400">No note</span>
-                                                      )}
-                                                    </p>
-                                                    {entry.designerSubmission.screenshot ? (
-                                                      <img
-                                                        src={entry.designerSubmission.screenshot}
-                                                        alt="designer screenshot"
-                                                        className="mt-2 max-w-full h-auto max-h-40 rounded border object-contain"
-                                                      />
-                                                    ) : (
-                                                      <p className="text-xs text-gray-400 italic mt-1">No screenshot</p>
-                                                    )}
-                                                  </div>
+                                              {isSubExpanded && (
+                                                <div className="px-3 py-3 space-y-3 bg-white">
+                                                  {sub.description && (
+                                                    <div>
+                                                      <h6 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Note</h6>
+                                                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{sub.description}</p>
+                                                    </div>
+                                                  )}
+                                                  {sub.attachment_urls && sub.attachment_urls.length > 0 && (
+                                                    <div>
+                                                      <h6 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Attachments</h6>
+                                                      <div className="flex gap-2 flex-wrap">
+                                                        {sub.attachment_urls.map((url, aIdx) => (
+                                                          <img
+                                                            key={aIdx}
+                                                            src={url}
+                                                            alt={`attachment-${aIdx}`}
+                                                            className="h-24 w-auto rounded border object-cover cursor-pointer hover:ring-2 hover:ring-blue-400 transition-shadow"
+                                                          />
+                                                        ))}
+                                                      </div>
+                                                    </div>
+                                                  )}
+                                                  {subReviewCount > 0 && (
+                                                    <div className="border-t border-gray-100 pt-3 space-y-2">
+                                                      <span className="text-xs font-medium text-gray-500 uppercase">Reviews</span>
+                                                      {sub.reviews.map((review) => {
+                                                        const isRApproved = review.review_outcome === 'approved';
+                                                        const isRRejected = review.review_outcome === 'rejected';
+                                                        const RIcon = isRApproved ? ThumbsUp : isRRejected ? ThumbsDown : MessageSquare;
+                                                        const RColor = isRApproved ? 'bg-green-100 text-green-700' : isRRejected ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700';
+                                                        const RIcColor = isRApproved ? 'text-green-600' : isRRejected ? 'text-red-600' : 'text-yellow-600';
+                                                        const RLabel = isRApproved ? 'Approved' : isRRejected ? 'Rejected' : 'Feedback';
+                                                        return (
+                                                          <div key={review.id} className={`border rounded-lg overflow-hidden ${review.hasNotification ? 'border-blue-400 ring-1 ring-blue-100' : 'border-gray-200'}`}>
+                                                            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50">
+                                                              {review.hasNotification && (
+                                                                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                                                              )}
+                                                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${RColor}`}>
+                                                                <RIcon className={`w-3 h-3 ${RIcColor}`} />
+                                                                {RLabel}
+                                                              </span>
+                                                              <span className="text-xs text-gray-500">
+                                                                {new Date(review.created_at).toLocaleString()}
+                                                              </span>
+                                                              <span className="text-xs text-gray-400">
+                                                                by {review.reviewer_user?.full_name || `User ${review.reviewer_user_id.slice(0, 8)}`}
+                                                              </span>
+                                                            </div>
+                                                            {review.description && (
+                                                              <div className="px-3 py-2">
+                                                                <p className="text-sm text-gray-800 whitespace-pre-wrap">{review.description}</p>
+                                                              </div>
+                                                            )}
+                                                          </div>
+                                                        );
+                                                      })}
+                                                    </div>
+                                                  )}
                                                 </div>
                                               )}
                                             </div>

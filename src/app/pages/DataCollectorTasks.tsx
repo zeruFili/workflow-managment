@@ -391,6 +391,7 @@ export function DataCollectorTasks() {
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
 
   const canManage = user?.role === 'ceo' || user?.role === 'general_manager';
+  const canSubmit = canManage || user?.role === 'data_collector';
 
   const fetchTasks = useCallback(async (page: number, force = false) => {
     if (!user) return;
@@ -670,6 +671,8 @@ export function DataCollectorTasks() {
       );
       cachedTasks = updatedCache;
       setTasks(updatedCache);
+      const updatedSelected = updatedCache.find((t) => t.id === taskId);
+      if (updatedSelected) setSelectedTask(updatedSelected);
     };
 
     try {
@@ -683,11 +686,19 @@ export function DataCollectorTasks() {
 
       if (response.success) {
         await fetchTasks(apiPage, true);
+        if (cachedTasks) {
+          const refreshed = cachedTasks.find((t) => t.id === taskId);
+          if (refreshed) setSelectedTask(refreshed);
+        }
       } else {
         addLocalSubmission();
+        const task = (cachedTasks || loadLocalTasks().length > 0 ? loadLocalTasks() : seedTasks).find((t) => t.id === taskId);
+        if (task) setSelectedTask(task);
       }
     } catch {
       addLocalSubmission();
+      const task = (cachedTasks || loadLocalTasks().length > 0 ? loadLocalTasks() : seedTasks).find((t) => t.id === taskId);
+      if (task) setSelectedTask(task);
     } finally {
       setSubmissionDraftLoading((prev) => ({ ...prev, [taskId]: false }));
       const oldUrl = draftScreenshots[taskId] ?? null;
@@ -1042,7 +1053,7 @@ export function DataCollectorTasks() {
                     <p className="text-sm text-gray-500">No submissions yet.</p>
                   ) : (
                     <div className="space-y-4">
-                      {getSubmissionWrappers(selectedTask).map((wrapper) => {
+                      {getSubmissionWrappers(selectedTask).map((wrapper, idx) => {
                         const sub = wrapper.submission;
                         const subHasNotification = wrapper.hasNotification ||
                           (sub.reviews || []).some((r) => r.hasNotification);
@@ -1060,7 +1071,7 @@ export function DataCollectorTasks() {
                                   <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
                                 )}
                                 <div>
-                                  <span className="font-medium text-gray-800">Submission #{sub.id.slice(-6)}</span>
+                                  <span className="font-medium text-gray-800">Submission {idx + 1}</span>
                                   <span className="ml-2 text-xs text-gray-500">
                                     {new Date(sub.created_at).toLocaleString()}
                                   </span>
@@ -1157,7 +1168,9 @@ export function DataCollectorTasks() {
                       })}
                     </div>
                   )}
-                </section>                {canManage && (
+                </section>
+
+                {canSubmit && (
                   <section className="rounded-xl border border-dashed border-gray-300 bg-blue-50/50 p-4">
                     <h6 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
                       <MessageSquare className="w-4 h-4" />
