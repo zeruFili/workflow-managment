@@ -18,6 +18,7 @@ import {
   ChevronUp,
   ChevronLeft,
   ChevronRight,
+  Edit,
   MessageSquare,
   ThumbsUp,
   ThumbsDown,
@@ -362,6 +363,7 @@ export function DataCollectorTasks() {
   const [showDetail, setShowDetail] = useState(false);
   const [submissionsLoading, setSubmissionsLoading] = useState<Record<string, boolean>>({});
   const [expandedSubmissionId, setExpandedSubmissionId] = useState<string | null>(null);
+  const [editingSubmissionId, setEditingSubmissionId] = useState<string | null>(null);
 
   const [draftNote, setDraftNote] = useState<Record<string, string>>({});
   const [draftScreenshots, setDraftScreenshots] = useState<Record<string, string | null>>({});
@@ -609,6 +611,18 @@ export function DataCollectorTasks() {
     setDraftScreenshots((prev) => ({ ...prev, [taskId]: objectUrl }));
   };
 
+  const handleEditSubmission = (taskId: string, subId: string) => {
+    const wrappers = getSubmissionWrappers(selectedTask || { submissionsWithReviews: { submissions: [], taskNotification: { hasNotification: false, notificationId: null }, latestActivityTs: 0 }, hasNestedNotification: false } as DataCollectorTaskItem);
+    const wrapper = getSubmissionWrappers(selectedTask!).find((w) => w.submission.id === subId);
+    if (!wrapper) return;
+    const sub = wrapper.submission;
+    setEditingSubmissionId(subId);
+    setDraftNote((prev) => ({ ...prev, [taskId]: sub.description || '' }));
+    setDraftScreenshots((prev) => ({ ...prev, [taskId]: sub.attachment_urls?.[0] || null }));
+    draftFilesRef.current = { ...draftFilesRef.current, [taskId]: [] };
+    setExpandedSubmissionId(subId);
+  };
+
   const handleSubmitSubmission = async (taskId: string) => {
     const note = draftNote[taskId] ?? '';
     const files = draftFilesRef.current[taskId] ?? [];
@@ -682,7 +696,10 @@ export function DataCollectorTasks() {
         formData.append('attachmentFiles', file);
       }
 
-      const response = await dataCollectorApi.createSubmission(taskId, formData);
+      const isEditing = editingSubmissionId !== null;
+      const response = isEditing
+        ? await dataCollectorApi.updateSubmission(editingSubmissionId!, formData)
+        : await dataCollectorApi.createSubmission(taskId, formData);
 
       if (response.success) {
         await fetchTasks(apiPage, true);
@@ -691,18 +708,19 @@ export function DataCollectorTasks() {
           if (refreshed) setSelectedTask(refreshed);
         }
       } else {
-        addLocalSubmission();
+        if (!isEditing) addLocalSubmission();
         const task = (cachedTasks || loadLocalTasks().length > 0 ? loadLocalTasks() : seedTasks).find((t) => t.id === taskId);
         if (task) setSelectedTask(task);
       }
     } catch {
-      addLocalSubmission();
+      if (!editingSubmissionId) addLocalSubmission();
       const task = (cachedTasks || loadLocalTasks().length > 0 ? loadLocalTasks() : seedTasks).find((t) => t.id === taskId);
       if (task) setSelectedTask(task);
     } finally {
       setSubmissionDraftLoading((prev) => ({ ...prev, [taskId]: false }));
+      setEditingSubmissionId(null);
       const oldUrl = draftScreenshots[taskId] ?? null;
-      if (oldUrl) URL.revokeObjectURL(oldUrl);
+      if (oldUrl && oldUrl.startsWith('blob:')) URL.revokeObjectURL(oldUrl);
       setDraftScreenshots((prev) => ({ ...prev, [taskId]: null }));
       setDraftNote((prev) => ({ ...prev, [taskId]: '' }));
       draftFilesRef.current = { ...draftFilesRef.current, [taskId]: [] };
@@ -1053,11 +1071,22 @@ export function DataCollectorTasks() {
                     <p className="text-sm text-gray-500">No submissions yet.</p>
                   ) : (
                     <div className="space-y-4">
-                      {getSubmissionWrappers(selectedTask).map((wrapper, idx) => {
+                      {(() => {
+                        const wrappers = getSubmissionWrappers(selectedTask);
+                        const editableWrappers = wrappers.filter((w) => w.submission.reviews.length === 0);
+                        const latestEditable = editableWrappers.length > 0 ? editableWrappers[editableWrappers.length - 1] : null;
+                        const taskActive = selectedTask.task_state === 'active';
+                        const taskRejected = selectedTask.status === 'rejected';
+                        const canEditSubmission = latestEditable && taskActive && !taskRejected;
+                        const latestEditableId = canEditSubmission ? latestEditable!.submission.id : null;
+                        const isEditingThis = editingSubmissionId !== null;
+
+                        return wrappers.map((wrapper, idx) => {
                         const sub = wrapper.submission;
                         const subHasNotification = wrapper.hasNotification ||
                           (sub.reviews || []).some((r) => r.hasNotification);
                         const isSubExpanded = expandedSubmissionId === sub.id;
+                        const isThisLatestEditable = sub.id === latestEditableId;
 
                         return (
                           <div key={sub.id} className={`border rounded-lg overflow-hidden ${subHasNotification ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200'}`}>
@@ -1113,7 +1142,37 @@ export function DataCollectorTasks() {
                                       ))}
                                     </div>
                                   </div>
-                                )}                                {(sub.reviews || []).length > 0 && (
+                                )}
+
+                                {isThisLatestEditable && (
+                                  <div className="pt-2">
+                                    {isEditingThis && editingSubmissionId === sub.id ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingSubmissionId(null);
+                                          setDraftNote((prev) => ({ ...prev, [selectedTask.id]: '' }));
+                                          setDraftScreenshots((prev) => ({ ...prev, [selectedTask.id]: null }));
+                                          draftFilesRef.current = { ...draftFilesRef.current, [selectedTask.id]: [] };
+                                        }}
+                                        className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 font-medium"
+                                      >
+                                        <X className="w-3.5 h-3.5" />
+                                        Cancel Edit
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleEditSubmission(selectedTask.id, sub.id)}
+                                        className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+                                      >
+                                        Edit Submission
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+
+                                {(sub.reviews || []).length > 0 && (
                                   <div className="border-t border-gray-100 pt-4">
                                     <h6 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Reviews</h6>
                                     <div className="space-y-2">
@@ -1165,7 +1224,8 @@ export function DataCollectorTasks() {
                             )}
                           </div>
                         );
-                      })}
+                      });
+                    })()}
                     </div>
                   )}
                 </section>
@@ -1174,7 +1234,7 @@ export function DataCollectorTasks() {
                   <section className="rounded-xl border border-dashed border-gray-300 bg-blue-50/50 p-4">
                     <h6 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
                       <MessageSquare className="w-4 h-4" />
-                      Submit to this Task
+                      {editingSubmissionId ? 'Update' : 'Submit'} to this Task
                     </h6>
                     <div className="space-y-3">
                       <div>
@@ -1240,7 +1300,9 @@ export function DataCollectorTasks() {
                         disabled={submissionDraftLoading[selectedTask.id]}
                         className="flex items-center gap-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white rounded-lg text-sm transition-colors"
                       >
-                        {submissionDraftLoading[selectedTask.id] ? 'Submitting...' : 'Submit'}
+                        {submissionDraftLoading[selectedTask.id]
+                          ? (editingSubmissionId ? 'Updating...' : 'Submitting...')
+                          : (editingSubmissionId ? 'Update' : 'Submit')}
                       </button>
                     </div>
                   </section>
