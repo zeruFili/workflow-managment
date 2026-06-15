@@ -701,7 +701,15 @@ export function DesignerTasks() {
           await fetchTasks(apiPage, true);
           if (cachedTasks) {
             const refreshed = cachedTasks.find((t) => t.id === taskId);
-            if (refreshed) setSelectedTaskDetail(refreshed);
+            if (refreshed) {
+              setSelectedTaskDetail(refreshed);
+              // Also update progress directly from the refreshed task's data
+              if (refreshed.submissionsWithReviews) {
+                const freshProgress = apiSubmissionsToProgress(refreshed.submissionsWithReviews);
+                setSubmissionProgress((prev) => ({ ...prev, [taskId]: freshProgress }));
+                setSubmissionsRawData((prev) => ({ ...prev, [taskId]: refreshed.submissionsWithReviews }));
+              }
+            }
           }
         } finally {
           setSubmissionsLoading((prev) => ({ ...prev, [taskId]: false }));
@@ -1138,26 +1146,39 @@ export function DesignerTasks() {
                   {(() => {
                     const progress = getDisplayProgress(selectedTaskDetail.id);
                     const taskRejected = isTaskRejected(progress);
-                    const stopIdx = findFirstNonApprovedPhaseIndex(PHASES, progress);
-                    const lastPopulated = getLastPopulatedPhaseIndex(progress);
-                    const displayPhaseIdx = stopIdx !== -1 ? stopIdx : lastPopulated;
-                    const stopPhaseStatus = stopIdx !== -1
-                      ? getCurrentStatus(progress[PHASES[stopIdx].key])
-                      : null;
-                    const isStopPhaseRejected = stopPhaseStatus === 'rejected';
-
-                    const visiblePhases = PHASES.filter((phase, idx) => {
-                      const hasContent = phaseHasDisplayableContent(progress[phase.key]);
-                      // Show the next empty phase after the current one so designer can submit
-                      if (idx === displayPhaseIdx + 1 && !hasContent && stopIdx === displayPhaseIdx && !isStopPhaseRejected) return true;
-                      // Hide phases beyond the first non-approved one (rejection gate)
-                      if (stopIdx !== -1 && idx > stopIdx) return false;
-                      return hasContent;
-                    });
-
-                    // Rejection can come from API task status or phase history
                     const apiTaskRejected = selectedTaskDetail.status === 'rejected';
                     const overallRejected = taskRejected || apiTaskRejected;
+
+                    // Find the last phase with content
+                    const lastPopulated = getLastPopulatedPhaseIndex(progress);
+
+                    // Check if any phase is rejected
+                    const rejectedIdx = PHASES.findIndex((p) => {
+                      const d = progress[p.key];
+                      return d && d.history && d.history.length > 0 && getCurrentStatus(d) === 'rejected';
+                    });
+
+                    // Determine the last visible phase index
+                    let lastVisibleIdx = PHASES.length - 1;
+                    if (rejectedIdx !== -1) {
+                      // If rejected, stop at the rejected phase (hide subsequent phases)
+                      lastVisibleIdx = rejectedIdx;
+                    } else if (lastPopulated !== -1) {
+                      // Show one more phase after the last populated one so designer can submit
+                      lastVisibleIdx = Math.min(lastPopulated + 1, PHASES.length - 1);
+                    } else {
+                      // No phases have content yet — show only Case Study
+                      lastVisibleIdx = 0;
+                    }
+
+                    const visiblePhases = PHASES.filter((_p, idx) => {
+                      if (idx > lastVisibleIdx) return false;
+                      if (idx === lastVisibleIdx) {
+                        // Show last phase even if empty (so designer can submit)
+                        return true;
+                      }
+                      return phaseHasDisplayableContent(progress[_p.key]);
+                    });
 
                     if (visiblePhases.length === 0) {
                       return <p className="text-sm text-gray-500">No submission data yet.</p>;
@@ -1231,52 +1252,6 @@ export function DesignerTasks() {
 
                               {isExpanded && (
                                 <div className="p-4 space-y-4 bg-white">
-                                  {/* Edit existing submission button */}
-                                  {(() => {
-                                    const rawData = submissionsRawData[taskId];
-                                    const stageMap: Record<PhaseKey, string> = {
-                                      caseStudy: 'caseStudy', designStage: 'designing', rendering: 'rendering', finalStage: 'finalStage',
-                                    };
-                                    const apiKey = stageMap[phase.key];
-                                    const stageSubmissions: SubmissionItem[] = rawData ? (rawData as Record<string, SubmissionItem[]>)[apiKey] || [] : [];
-                                    // Find submissions without reviews that are editable
-                                    const editableSubmissions = stageSubmissions.filter((s) => s.reviews.length === 0);
-                                    const latestEditable = editableSubmissions.length > 0 ? editableSubmissions[editableSubmissions.length - 1] : null;
-                                    const taskActive = selectedTaskDetail.task_state === 'active';
-                                    const canEdit = latestEditable && taskActive && !overallRejected;
-
-                                    const isEditingThis = editingSubmission?.taskId === taskId && editingSubmission?.phase === phase.key;
-
-                                    if (isEditingThis) {
-                                      return (
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setEditingSubmission(null);
-                                            setDraftNotes((prev) => ({
-                                              ...prev,
-                                              [taskId]: { ...prev[taskId], [phase.key]: '' },
-                                            }));
-                                          }}
-                                          className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 font-medium"
-                                        >
-                                          <XCircle className="w-3.5 h-3.5" />
-                                          Cancel Edit
-                                        </button>
-                                      );
-                                    }
-
-                                    return canEdit ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleEditSubmission(taskId, phase.key, latestEditable!.id)}
-                                        className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800 font-medium"
-                                      >
-                                        <Edit className="w-3.5 h-3.5" />
-                                        Edit Latest Submission
-                                      </button>
-                                    ) : null;
-                                  })()}
                                   {canSubmit && (
                                     <div className="border border-dashed border-gray-300 rounded-lg p-4 bg-blue-50/50">
                                       <h6 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
@@ -1412,7 +1387,15 @@ export function DesignerTasks() {
                                   )}
 
                                   {/* ── Submissions list per phase (expandable, reviews nested) ── */}
-                                  {stageSubmissions.length > 0 && (
+                                  {stageSubmissions.length > 0 && (() => {
+                                    const editableSubmissions = stageSubmissions.filter((s) => s.reviews.length === 0);
+                                    const latestEditable = editableSubmissions.length > 0 ? editableSubmissions[editableSubmissions.length - 1] : null;
+                                    const taskActive = selectedTaskDetail.task_state === 'active';
+                                    const canEdit = latestEditable && taskActive && !overallRejected;
+                                    const latestEditableId = canEdit ? latestEditable!.id : null;
+                                    const isEditingThis = editingSubmission?.taskId === taskId && editingSubmission?.phase === phase.key;
+
+                                    return (
                                     <div className="border-t border-gray-100 pt-4">
                                       <h6 className="text-sm font-medium text-gray-700 mb-3">
                                         {stageSubmissions.length} Submission{stageSubmissions.length !== 1 ? 's' : ''}
@@ -1421,6 +1404,7 @@ export function DesignerTasks() {
                                         {stageSubmissions.map((sub, sIdx) => {
                                           const isSubExpanded = expandedHistoryIdx[taskId]?.[phase.key] === sIdx;
                                           const subReviewCount = (sub.reviews || []).length;
+                                          const isThisEditable = sub.id === latestEditableId;
                                           return (
                                             <div key={sub.id} className={`border rounded-lg overflow-hidden ${sub.hasNotification ? 'border-blue-400 ring-1 ring-blue-100' : 'border-gray-200'}`}>
                                               <button
@@ -1471,6 +1455,35 @@ export function DesignerTasks() {
                                                       </div>
                                                     </div>
                                                   )}
+                                                  {isThisEditable && (
+                                                    <div className="pt-2">
+                                                      {isEditingThis ? (
+                                                        <button
+                                                          type="button"
+                                                          onClick={() => {
+                                                            setEditingSubmission(null);
+                                                            setDraftNotes((prev) => ({
+                                                              ...prev,
+                                                              [taskId]: { ...prev[taskId], [phase.key]: '' },
+                                                            }));
+                                                          }}
+                                                          className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 font-medium"
+                                                        >
+                                                          <XCircle className="w-3.5 h-3.5" />
+                                                          Cancel Edit
+                                                        </button>
+                                                      ) : (
+                                                        <button
+                                                          type="button"
+                                                          onClick={() => handleEditSubmission(taskId, phase.key, sub.id)}
+                                                          className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+                                                        >
+                                                          <Edit className="w-3.5 h-3.5" />
+                                                          Edit Latest Submission
+                                                        </button>
+                                                      )}
+                                                    </div>
+                                                  )}
                                                   {subReviewCount > 0 && (
                                                     <div className="border-t border-gray-100 pt-3 space-y-2">
                                                       <span className="text-xs font-medium text-gray-500 uppercase">Reviews</span>
@@ -1515,7 +1528,8 @@ export function DesignerTasks() {
                                         })}
                                       </div>
                                     </div>
-                                  )}
+                                    );
+                                  })()}
                                 </div>
                               )}
                             </div>
