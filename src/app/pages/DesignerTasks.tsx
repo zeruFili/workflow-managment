@@ -73,6 +73,7 @@ export const DESIGNER_TASKS_NOTIFICATIONS_KEY = 'designer-tasks-notifications-up
 
 const viewedDesignerTaskCards = new Set<string>();
 let designerTaskNotificationIds = new Set<string>();
+const markedTaskNotificationIds = new Set<string>();
 
 function publishDesignerTasksBadgeCount(count: number) {
   window.dispatchEvent(
@@ -111,6 +112,40 @@ function stripSubmissionNotifications(sub: SubmissionItem): SubmissionItem {
     notificationId: null,
     reviews: (sub.reviews || []).map((r) => ({ ...r, hasNotification: false, notificationId: null })),
   };
+}
+
+function designerTaskHasAnyNotification(task: DesignerTaskItem): boolean {
+  if ((task as any).taskNotification?.hasNotification) return true;
+  const swr = task.submissionsWithReviews;
+  if (!swr) return task.hasNestedNotification;
+  if (swr.taskNotification?.hasNotification) return true;
+  const stages: (keyof SubmissionsWithReviewsData)[] = ['caseStudy', 'designing', 'rendering', 'finalStage'];
+  for (const stage of stages) {
+    const subs: SubmissionItem[] = (swr as any)?.[stage] || [];
+    for (const sub of subs) {
+      if (sub.hasNotification) return true;
+      for (const r of sub.reviews || []) {
+        if (r.hasNotification) return true;
+      }
+    }
+  }
+  return task.hasNestedNotification;
+}
+
+function hasNestedDesignerNotifications(task: DesignerTaskItem): boolean {
+  const swr = task.submissionsWithReviews;
+  if (!swr) return task.hasNestedNotification;
+  const stages: (keyof SubmissionsWithReviewsData)[] = ['caseStudy', 'designing', 'rendering', 'finalStage'];
+  for (const stage of stages) {
+    const subs: SubmissionItem[] = (swr as any)?.[stage] || [];
+    for (const sub of subs) {
+      if (sub.hasNotification) return true;
+      for (const r of sub.reviews || []) {
+        if (r.hasNotification) return true;
+      }
+    }
+  }
+  return task.hasNestedNotification;
 }
 
 function createSubmissionScreenshot(phaseLabel: string): string {
@@ -366,7 +401,20 @@ export function DesignerTasks() {
   const observedElements = useRef<Set<string>>(new Set());
   const observerRef = useRef<IntersectionObserver | null>(null);
   const tasksRef = useRef<DesignerTaskItem[]>([]);
+  const pendingTaskNotifIds = useRef<Map<string, string>>(new Map());
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
+
+  useEffect(() => {
+    if (tasks.length === 0) return;
+    designerTaskNotificationIds = new Set(
+      tasks.filter((t) => designerTaskHasAnyNotification(t)).map((t) => t.id)
+    );
+    const remaining = new Set(
+      [...designerTaskNotificationIds].filter((id) => !viewedDesignerTaskCards.has(id))
+    );
+    setHighlightedIds(remaining);
+    publishDesignerTasksBadgeCount(remaining.size);
+  }, [tasks]);
 
   // ── Determine role-based limits ──
   const isLeadership = user?.role === 'ceo' || user?.role === 'general_manager';
@@ -410,7 +458,7 @@ export function DesignerTasks() {
         // Compute highlighted task IDs from notifications
         designerTaskNotificationIds = new Set(
           response.data
-            .filter((t) => t.submissionsWithReviews?.taskNotification?.hasNotification || t.hasNestedNotification)
+            .filter((t) => designerTaskHasAnyNotification(t))
             .map((t) => t.id)
         );
         const unseenNotif = new Set([...designerTaskNotificationIds].filter((id) => !viewedDesignerTaskCards.has(id)));
@@ -470,6 +518,12 @@ export function DesignerTasks() {
             if (!observedElements.current.has(id)) {
               observedElements.current.add(id);
               seenThisSession.current.add(id);
+              const task = tasksRef.current.find((t) => t.id === id);
+              const topNotif = (task as any)?.taskNotification;
+              const swrNotif = task?.submissionsWithReviews?.taskNotification;
+              if ((topNotif?.hasNotification && topNotif.notificationId) || (swrNotif?.hasNotification && swrNotif.notificationId)) {
+                pendingTaskNotifIds.current.set(id, topNotif?.notificationId || swrNotif!.notificationId);
+              }
             }
           }
         });
@@ -488,14 +542,76 @@ export function DesignerTasks() {
   }, [highlightedIds]);
 
   const commitSeenSession = () => {
-    if (seenThisSession.current.size === 0) return;
-    seenThisSession.current.forEach((id) => viewedDesignerTaskCards.add(id));
+    if (seenThisSession.current.size === 0 && pendingTaskNotifIds.current.size === 0) return;
+    
+    const currentTasks = tasksRef.current;
+    
+    seenThisSession.current.forEach((id) => {
+      const task = currentTasks.find((t) => t.id === id);
+      if (!task || !hasNestedDesignerNotifications(task)) {
+        viewedDesignerTaskCards.add(id);
+      }
+    });
     seenThisSession.current.clear();
     observedElements.current.clear();
-    const currentTasks = tasksRef.current;
+    
+    const pending = new Map(pendingTaskNotifIds.current);
+    pendingTaskNotifIds.current.clear();
+    
+    for (const [taskId, notifId] of pending) {
+      if (markedTaskNotificationIds.has(notifId)) continue;
+      markedTaskNotificationIds.add(notifId);
+      
+      notificationApi.markRead(notifId)
+        .then(() => {
+          const tasks = tasksRef.current;
+          const updatedTasks = tasks.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  taskNotification: null,
+                  submissionsWithReviews: {
+                    ...t.submissionsWithReviews,
+                    taskNotification: { hasNotification: false, notificationId: null },
+                  },
+                }
+              : t
+          );
+          setTasks(updatedTasks as DesignerTaskItem[]);
+          tasksRef.current = updatedTasks as DesignerTaskItem[];
+          if (cachedTasks) {
+            cachedTasks = cachedTasks.map((t) =>
+              t.id === taskId
+                ? {
+                    ...t,
+                    taskNotification: null,
+                    submissionsWithReviews: {
+                      ...t.submissionsWithReviews,
+                      taskNotification: { hasNotification: false, notificationId: null },
+                    },
+                  }
+                : t
+            ) as DesignerTaskItem[];
+          }
+          designerTaskNotificationIds = new Set(
+            updatedTasks
+              .filter((t) => designerTaskHasAnyNotification(t))
+              .map((t) => t.id)
+          );
+          const remaining = new Set(
+            [...designerTaskNotificationIds].filter((id) => !viewedDesignerTaskCards.has(id))
+          );
+          setHighlightedIds(remaining);
+          publishDesignerTasksBadgeCount(remaining.size);
+        })
+        .catch(() => {
+          markedTaskNotificationIds.delete(notifId);
+        });
+    }
+    
     designerTaskNotificationIds = new Set(
       currentTasks
-        .filter((t) => t.submissionsWithReviews?.taskNotification?.hasNotification || t.hasNestedNotification)
+        .filter((t) => designerTaskHasAnyNotification(t))
         .map((t) => t.id)
     );
     const remainingUnseen = new Set(
@@ -605,9 +721,6 @@ export function DesignerTasks() {
 
     // Bulk-mark notification IDs from submissions & reviews
     const notifIds: string[] = [];
-    if (swr?.taskNotification?.hasNotification && swr.taskNotification.notificationId) {
-      notifIds.push(swr.taskNotification.notificationId);
-    }
     const stages: (keyof SubmissionsWithReviewsData)[] = ['caseStudy', 'designing', 'rendering', 'finalStage'];
     for (const stage of stages) {
       const subs: SubmissionItem[] = (swr as any)?.[stage] || [];
@@ -625,7 +738,6 @@ export function DesignerTasks() {
       const clearedSwr = swr
         ? {
             ...swr,
-            taskNotification: { hasNotification: false, notificationId: null },
             caseStudy: (swr.caseStudy || []).map(stripSubmissionNotifications),
             designing: (swr.designing || []).map(stripSubmissionNotifications),
             rendering: (swr.rendering || []).map(stripSubmissionNotifications),
@@ -645,10 +757,12 @@ export function DesignerTasks() {
         cachedTasks = cachedTasks.map((t) => (t.id === task.id ? clearedTask : t));
       }
 
-      viewedDesignerTaskCards.add(task.id);
+      if (!designerTaskHasAnyNotification(clearedTask)) {
+        viewedDesignerTaskCards.add(task.id);
+      }
       designerTaskNotificationIds = new Set(
         updatedTasks
-          .filter((t) => t.submissionsWithReviews?.taskNotification?.hasNotification || t.hasNestedNotification)
+          .filter((t) => designerTaskHasAnyNotification(t))
           .map((t) => t.id)
       );
       const remaining = new Set(

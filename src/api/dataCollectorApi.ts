@@ -39,10 +39,6 @@ export interface DataCollectorSubmissionWrapper {
 }
 
 export interface DataCollectorSubmissionsWithReviews {
-  taskNotification: {
-    hasNotification: boolean;
-    notificationId: string | null;
-  };
   submissions: DataCollectorSubmissionWrapper[];
   latestActivityTs: number;
 }
@@ -64,6 +60,10 @@ export interface DataCollectorTaskItem {
   assigned_to_user: SafeUserOutput | null;
   updated_by_user: SafeUserOutput | null;
   submissionsWithReviews: DataCollectorSubmissionsWithReviews;
+  taskNotification: {
+    hasNotification: boolean;
+    notificationId: string | null;
+  };
   hasNestedNotification: boolean;
 }
 

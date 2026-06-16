@@ -96,6 +96,8 @@ const STORAGE_KEY = 'designer-submission-progress';
 const REVIEW_STORAGE_KEY = 'designer-task-reviews';
 const ROWS_PER_DISPLAY = 10;
 
+const markedTaskNotificationIds = new Set<string>();
+
 // ---------- Helpers ----------
 function loadSubmissionProgress(): SubmissionProgress {
   try {
@@ -126,6 +128,40 @@ function stripSubmissionNotifications(sub: SubmissionItem): SubmissionItem {
     notificationId: null,
     reviews: (sub.reviews || []).map((r) => ({ ...r, hasNotification: false, notificationId: null })),
   };
+}
+
+function designerTaskHasAnyNotification(task: DesignerTaskItem): boolean {
+  if ((task as any).taskNotification?.hasNotification) return true;
+  const swr = task.submissionsWithReviews;
+  if (!swr) return task.hasNestedNotification;
+  if (swr.taskNotification?.hasNotification) return true;
+  const stages: (keyof SubmissionsWithReviewsData)[] = ['caseStudy', 'designing', 'rendering', 'finalStage'];
+  for (const stage of stages) {
+    const subs: SubmissionItem[] = (swr as any)?.[stage] || [];
+    for (const sub of subs) {
+      if (sub.hasNotification) return true;
+      for (const r of sub.reviews || []) {
+        if (r.hasNotification) return true;
+      }
+    }
+  }
+  return task.hasNestedNotification;
+}
+
+function hasNestedDesignerNotifications(task: DesignerTaskItem): boolean {
+  const swr = task.submissionsWithReviews;
+  if (!swr) return task.hasNestedNotification;
+  const stages: (keyof SubmissionsWithReviewsData)[] = ['caseStudy', 'designing', 'rendering', 'finalStage'];
+  for (const stage of stages) {
+    const subs: SubmissionItem[] = (swr as any)?.[stage] || [];
+    for (const sub of subs) {
+      if (sub.hasNotification) return true;
+      for (const r of sub.reviews || []) {
+        if (r.hasNotification) return true;
+      }
+    }
+  }
+  return task.hasNestedNotification;
 }
 
 function createSubmissionScreenshot(phaseLabel: string): string {
@@ -410,7 +446,19 @@ export function DesignerAssignments() {
   const observedElements = useRef<Set<string>>(new Set());
   const observerRef = useRef<IntersectionObserver | null>(null);
   const tasksRef = useRef<DesignerTaskItem[]>([]);
+  const pendingTaskNotifIds = useRef<Map<string, string>>(new Map());
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
+
+  useEffect(() => {
+    if (tasks.length === 0) return;
+    const notifIds = new Set(
+      tasks.filter((t) => designerTaskHasAnyNotification(t)).map((t) => t.id)
+    );
+    setDesignerAssignmentNotificationIds(notifIds);
+    const remaining = getPendingReviewHighlightedIds();
+    setHighlightedIds(remaining);
+    publishDesignerAssignmentsBadgeCount(remaining.size);
+  }, [tasks]);
 
   // Role-based limits
   const isLeadership = user?.role === 'ceo' || user?.role === 'general_manager';
@@ -431,7 +479,7 @@ export function DesignerAssignments() {
         // Compute highlighted task IDs from notifications
         const notifIds = new Set(
           response.data
-            .filter((t) => t.submissionsWithReviews?.taskNotification?.hasNotification || t.hasNestedNotification)
+            .filter((t) => designerTaskHasAnyNotification(t))
             .map((t) => t.id)
         );
         setDesignerAssignmentNotificationIds(notifIds);
@@ -496,6 +544,12 @@ export function DesignerAssignments() {
             if (!observedElements.current.has(id)) {
               observedElements.current.add(id);
               seenThisSession.current.add(id);
+              const task = tasksRef.current.find((t) => t.id === id);
+              const topNotif = (task as any)?.taskNotification;
+              const swrNotif = task?.submissionsWithReviews?.taskNotification;
+              if ((topNotif?.hasNotification && topNotif.notificationId) || (swrNotif?.hasNotification && swrNotif.notificationId)) {
+                pendingTaskNotifIds.current.set(id, topNotif?.notificationId || swrNotif!.notificationId);
+              }
             }
           }
         });
@@ -513,12 +567,58 @@ export function DesignerAssignments() {
   // Commit seen session on unmount
   useEffect(() => {
     return () => {
-      if (seenThisSession.current.size === 0) return;
+      if (seenThisSession.current.size === 0 && pendingTaskNotifIds.current.size === 0) return;
+      
+      const currentTasks = tasksRef.current;
+      
       seenThisSession.current.forEach((id) => {
-        markPendingReviewCardsViewed([id]);
+        const task = currentTasks.find((t) => t.id === id);
+        if (!task || !hasNestedDesignerNotifications(task)) {
+          markPendingReviewCardsViewed([id]);
+        }
       });
       seenThisSession.current.clear();
       observedElements.current.clear();
+      
+      const pending = new Map(pendingTaskNotifIds.current);
+      pendingTaskNotifIds.current.clear();
+      
+      for (const [taskId, notifId] of pending) {
+        if (markedTaskNotificationIds.has(notifId)) continue;
+        markedTaskNotificationIds.add(notifId);
+        
+        notificationApi.markRead(notifId)
+          .then(() => {
+            const tasks = tasksRef.current;
+            const updatedTasks = tasks.map((t) =>
+              t.id === taskId
+                ? {
+                    ...t,
+                    taskNotification: null,
+                    submissionsWithReviews: {
+                      ...t.submissionsWithReviews,
+                      taskNotification: { hasNotification: false, notificationId: null },
+                    },
+                  }
+                : t
+            );
+            setTasks(updatedTasks as DesignerTaskItem[]);
+            tasksRef.current = updatedTasks as DesignerTaskItem[];
+            const newNotifIds = new Set(
+              updatedTasks
+                .filter((t) => designerTaskHasAnyNotification(t))
+                .map((t) => t.id)
+            );
+            setDesignerAssignmentNotificationIds(newNotifIds);
+            const remaining = getPendingReviewHighlightedIds();
+            setHighlightedIds(remaining);
+            publishDesignerAssignmentsBadgeCount(remaining.size);
+          })
+          .catch(() => {
+            markedTaskNotificationIds.delete(notifId);
+          });
+      }
+      
       setHighlightedIds(new Set([...getPendingReviewHighlightedIds()]));
       publishDesignerAssignmentsBadgeCount(getPendingReviewCount());
     };
@@ -612,6 +712,9 @@ export function DesignerAssignments() {
       updated_by: null,
       created_at: new Date().toISOString(),
       updated_at: null,
+      submissionsWithReviews: { caseStudy: [], designing: [], rendering: [], finalStage: [] },
+      taskNotification: { hasNotification: false, notificationId: null },
+      hasNestedNotification: false,
     };
 
     persistTasks([nextTask, ...tasks]);
@@ -717,9 +820,6 @@ export function DesignerAssignments() {
 
     // Bulk-mark notification IDs from submissions & reviews
     const notifIds: string[] = [];
-    if (swr?.taskNotification?.hasNotification && swr.taskNotification.notificationId) {
-      notifIds.push(swr.taskNotification.notificationId);
-    }
     const stages: (keyof SubmissionsWithReviewsData)[] = ['caseStudy', 'designing', 'rendering', 'finalStage'];
     for (const stage of stages) {
       const subs: SubmissionItem[] = (swr as any)?.[stage] || [];
@@ -737,7 +837,6 @@ export function DesignerAssignments() {
       const clearedSwr = swr
         ? {
             ...swr,
-            taskNotification: { hasNotification: false, notificationId: null },
             caseStudy: (swr.caseStudy || []).map(stripSubmissionNotifications),
             designing: (swr.designing || []).map(stripSubmissionNotifications),
             rendering: (swr.rendering || []).map(stripSubmissionNotifications),
@@ -754,10 +853,12 @@ export function DesignerAssignments() {
       setTasks(updatedTasks);
       tasksRef.current = updatedTasks;
 
-      markPendingReviewCardsViewed([task.id]);
+      if (!designerTaskHasAnyNotification(clearedTask)) {
+        markPendingReviewCardsViewed([task.id]);
+      }
       const newNotifIds = new Set(
         updatedTasks
-          .filter((t) => t.submissionsWithReviews?.taskNotification?.hasNotification || t.hasNestedNotification)
+          .filter((t) => designerTaskHasAnyNotification(t))
           .map((t) => t.id)
       );
       setDesignerAssignmentNotificationIds(newNotifIds);

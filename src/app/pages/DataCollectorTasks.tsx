@@ -35,6 +35,7 @@ export const DATA_COLLECTOR_NOTIFICATIONS_KEY = 'data-collector-notifications-up
 
 const viewedDataCollectorCards = new Set<string>();
 let dataCollectorNotificationIds = new Set<string>();
+const markedTaskNotificationIds = new Set<string>();
 
 function publishBadgeCount(count: number) {
   window.dispatchEvent(
@@ -90,9 +91,20 @@ function getSubmissionWrappers(task: DataCollectorTaskItem): DataCollectorSubmis
 }
 
 function anyNotification(task: DataCollectorTaskItem): boolean {
+  if ((task as any).taskNotification?.hasNotification) return true;
   const swr = task.submissionsWithReviews;
   return !!(
     swr?.taskNotification?.hasNotification ||
+    task.hasNestedNotification ||
+    (swr?.submissions || []).some(
+      (w) => w.hasNotification || (w.submission?.reviews || []).some((r) => r.hasNotification)
+    )
+  );
+}
+
+function hasNestedNotifications(task: DataCollectorTaskItem): boolean {
+  const swr = task.submissionsWithReviews;
+  return (
     task.hasNestedNotification ||
     (swr?.submissions || []).some(
       (w) => w.hasNotification || (w.submission?.reviews || []).some((r) => r.hasNotification)
@@ -122,8 +134,8 @@ const seedTasks: DataCollectorTaskItem[] = [
     assigned_by_user: { id: '2', full_name: 'Bob Smith', role: 'general_manager' },
     assigned_to_user: { id: '4', full_name: 'Michael Brown', role: 'data_collector' },
     updated_by_user: null,
+    taskNotification: { hasNotification: true, notificationId: 'notif-dc-t1' },
     submissionsWithReviews: {
-      taskNotification: { hasNotification: true, notificationId: 'notif-dc-t1' },
       submissions: [
         {
           submissionId: 'dc-sub-1',
@@ -173,8 +185,8 @@ const seedTasks: DataCollectorTaskItem[] = [
     assigned_by_user: { id: '1', full_name: 'Alice Johnson', role: 'ceo' },
     assigned_to_user: { id: '7', full_name: 'Robert Taylor', role: 'data_collector' },
     updated_by_user: null,
+    taskNotification: { hasNotification: true, notificationId: 'notif-dc-t2' },
     submissionsWithReviews: {
-      taskNotification: { hasNotification: true, notificationId: 'notif-dc-t2' },
       submissions: [
         {
           submissionId: 'dc-sub-2',
@@ -211,8 +223,8 @@ const seedTasks: DataCollectorTaskItem[] = [
     assigned_by_user: { id: '2', full_name: 'Bob Smith', role: 'general_manager' },
     assigned_to_user: { id: '7', full_name: 'Robert Taylor', role: 'data_collector' },
     updated_by_user: null,
+    taskNotification: { hasNotification: false, notificationId: null },
     submissionsWithReviews: {
-      taskNotification: { hasNotification: false, notificationId: null },
       submissions: [
         {
           submissionId: 'dc-sub-3',
@@ -262,8 +274,8 @@ const seedTasks: DataCollectorTaskItem[] = [
     assigned_by_user: { id: '1', full_name: 'Alice Johnson', role: 'ceo' },
     assigned_to_user: null,
     updated_by_user: null,
+    taskNotification: { hasNotification: false, notificationId: null },
     submissionsWithReviews: {
-      taskNotification: { hasNotification: false, notificationId: null },
       submissions: [],
       latestActivityTs: 0,
     },
@@ -285,8 +297,8 @@ const seedTasks: DataCollectorTaskItem[] = [
     assigned_by_user: { id: '2', full_name: 'Bob Smith', role: 'general_manager' },
     assigned_to_user: { id: '8', full_name: 'Emily Davis', role: 'data_collector' },
     updated_by_user: null,
+    taskNotification: { hasNotification: false, notificationId: null },
     submissionsWithReviews: {
-      taskNotification: { hasNotification: false, notificationId: null },
       submissions: [
         {
           submissionId: 'dc-sub-5',
@@ -391,7 +403,20 @@ export function DataCollectorTasks() {
   const observedElements = useRef<Set<string>>(new Set());
   const observerRef = useRef<IntersectionObserver | null>(null);
   const tasksRef = useRef<DataCollectorTaskItem[]>([]);
+  const pendingTaskNotifIds = useRef<Map<string, string>>(new Map());
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
+
+  useEffect(() => {
+    if (tasks.length === 0) return;
+    dataCollectorNotificationIds = new Set(
+      tasks.filter((t) => anyNotification(t)).map((t) => t.id)
+    );
+    const remaining = new Set(
+      [...dataCollectorNotificationIds].filter((id) => !viewedDataCollectorCards.has(id))
+    );
+    setHighlightedIds(remaining);
+    publishBadgeCount(remaining.size);
+  }, [tasks]);
 
   const canManage = user?.role === 'ceo' || user?.role === 'general_manager';
   const canSubmit = canManage || user?.role === 'data_collector';
@@ -469,6 +494,12 @@ export function DataCollectorTasks() {
             if (!observedElements.current.has(id)) {
               observedElements.current.add(id);
               seenThisSession.current.add(id);
+              const task = tasksRef.current.find((t) => t.id === id);
+              const topNotif = (task as any)?.taskNotification;
+              const swrNotif = task?.submissionsWithReviews?.taskNotification;
+              if ((topNotif?.hasNotification && topNotif.notificationId) || (swrNotif?.hasNotification && swrNotif.notificationId)) {
+                pendingTaskNotifIds.current.set(id, topNotif?.notificationId || swrNotif!.notificationId);
+              }
             }
           }
         });
@@ -487,11 +518,71 @@ export function DataCollectorTasks() {
   }, [highlightedIds]);
 
   const commitSeenSession = () => {
-    if (seenThisSession.current.size === 0) return;
-    seenThisSession.current.forEach((id) => viewedDataCollectorCards.add(id));
+    if (seenThisSession.current.size === 0 && pendingTaskNotifIds.current.size === 0) return;
+    
+    const currentTasks = tasksRef.current;
+    
+    seenThisSession.current.forEach((id) => {
+      const task = currentTasks.find((t) => t.id === id);
+      if (!task || !hasNestedNotifications(task)) {
+        viewedDataCollectorCards.add(id);
+      }
+    });
     seenThisSession.current.clear();
     observedElements.current.clear();
-    const currentTasks = tasksRef.current;
+    
+    const pending = new Map(pendingTaskNotifIds.current);
+    pendingTaskNotifIds.current.clear();
+    
+    for (const [taskId, notifId] of pending) {
+      if (markedTaskNotificationIds.has(notifId)) continue;
+      markedTaskNotificationIds.add(notifId);
+      
+      notificationApi.markRead(notifId)
+        .then(() => {
+          const tasks = tasksRef.current;
+          const updatedTasks = tasks.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  taskNotification: null,
+                  submissionsWithReviews: {
+                    ...t.submissionsWithReviews,
+                    taskNotification: { hasNotification: false, notificationId: null },
+                  },
+                }
+              : t
+          );
+          setTasks(updatedTasks as DataCollectorTaskItem[]);
+          tasksRef.current = updatedTasks as DataCollectorTaskItem[];
+          if (cachedTasks) {
+            cachedTasks = cachedTasks.map((t) =>
+              t.id === taskId
+                ? {
+                    ...t,
+                    taskNotification: null,
+                    submissionsWithReviews: {
+                      ...t.submissionsWithReviews,
+                      taskNotification: { hasNotification: false, notificationId: null },
+                    },
+                  }
+                : t
+            ) as DataCollectorTaskItem[];
+          }
+          dataCollectorNotificationIds = new Set(
+            updatedTasks.filter((t) => anyNotification(t)).map((t) => t.id)
+          );
+          const remaining = new Set(
+            [...dataCollectorNotificationIds].filter((id) => !viewedDataCollectorCards.has(id))
+          );
+          setHighlightedIds(remaining);
+          publishBadgeCount(remaining.size);
+        })
+        .catch(() => {
+          markedTaskNotificationIds.delete(notifId);
+        });
+    }
+    
     dataCollectorNotificationIds = new Set(
       currentTasks.filter((t) => anyNotification(t)).map((t) => t.id)
     );
@@ -586,9 +677,6 @@ export function DataCollectorTasks() {
 
     const notifIds: string[] = [];
     const swr = task.submissionsWithReviews;
-    if (swr?.taskNotification?.hasNotification && swr.taskNotification.notificationId) {
-      notifIds.push(swr.taskNotification.notificationId);
-    }
     (swr?.submissions || []).forEach((w) => {
       if (w.hasNotification && w.notificationId) notifIds.push(w.notificationId);
       (w.submission?.reviews || []).forEach((r) => {
@@ -602,7 +690,6 @@ export function DataCollectorTasks() {
       const clearedSwr = swr
         ? {
             ...swr,
-            taskNotification: { hasNotification: false, notificationId: null },
             submissions: swr.submissions.map((w) => ({
               ...w,
               hasNotification: false,
@@ -631,7 +718,9 @@ export function DataCollectorTasks() {
         cachedTasks = cachedTasks.map((t) => (t.id === task.id ? clearedTask : t));
       }
 
-      viewedDataCollectorCards.add(task.id);
+      if (!anyNotification(clearedTask)) {
+        viewedDataCollectorCards.add(task.id);
+      }
       dataCollectorNotificationIds = new Set(
         updatedTasks.filter((t) => anyNotification(t)).map((t) => t.id)
       );
@@ -671,7 +760,7 @@ export function DataCollectorTasks() {
   };
 
   const handleEditSubmission = (taskId: string, subId: string) => {
-    const wrappers = getSubmissionWrappers(selectedTask || { submissionsWithReviews: { submissions: [], taskNotification: { hasNotification: false, notificationId: null }, latestActivityTs: 0 }, hasNestedNotification: false } as DataCollectorTaskItem);
+    const wrappers = getSubmissionWrappers(selectedTask || { submissionsWithReviews: { submissions: [], latestActivityTs: 0 }, taskNotification: { hasNotification: false, notificationId: null }, hasNestedNotification: false } as DataCollectorTaskItem);
     const wrapper = getSubmissionWrappers(selectedTask!).find((w) => w.submission.id === subId);
     if (!wrapper) return;
     const sub = wrapper.submission;
@@ -712,9 +801,9 @@ export function DataCollectorTasks() {
               ...t,
               updated_at: now,
               hasNestedNotification: true,
+              taskNotification: { hasNotification: true, notificationId: t.taskNotification?.notificationId || `notif-dc-t${Date.now()}` },
               submissionsWithReviews: {
                 ...t.submissionsWithReviews,
-                taskNotification: { hasNotification: true, notificationId: t.submissionsWithReviews?.taskNotification?.notificationId || `notif-dc-t${Date.now()}` },
                 submissions: [...(t.submissionsWithReviews?.submissions || []), newWrapper],
                 latestActivityTs: Date.now(),
               },
@@ -733,9 +822,9 @@ export function DataCollectorTasks() {
               ...t,
               updated_at: now,
               hasNestedNotification: true,
+              taskNotification: { hasNotification: true, notificationId: t.taskNotification?.notificationId || `notif-dc-t${Date.now()}` },
               submissionsWithReviews: {
                 ...t.submissionsWithReviews,
-                taskNotification: { hasNotification: true, notificationId: t.submissionsWithReviews?.taskNotification?.notificationId || `notif-dc-t${Date.now()}` },
                 submissions: [...(t.submissionsWithReviews?.submissions || []), newWrapper],
                 latestActivityTs: Date.now(),
               },
@@ -819,10 +908,10 @@ export function DataCollectorTasks() {
         assigned_to_user: null,
         updated_by_user: null,
         submissionsWithReviews: {
-          taskNotification: { hasNotification: false, notificationId: null },
           submissions: [],
           latestActivityTs: 0,
         },
+        taskNotification: { hasNotification: false, notificationId: null },
         hasNestedNotification: false,
       };
       const updated = [newTask, ...all];

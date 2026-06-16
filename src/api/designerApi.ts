@@ -35,10 +35,6 @@ export interface SubmissionItem {
 }
 
 export interface SubmissionsWithReviewsData {
-  taskNotification: {
-    hasNotification: boolean;
-    notificationId: string | null;
-  };
   caseStudy: SubmissionItem[];
   designing: SubmissionItem[];
   rendering: SubmissionItem[];
@@ -66,6 +62,10 @@ export interface DesignerTaskItem {
   assigned_to_user: SafeUserOutput | null;
   updated_by_user: SafeUserOutput | null;
   submissionsWithReviews: SubmissionsWithReviewsData;
+  taskNotification: {
+    hasNotification: boolean;
+    notificationId: string | null;
+  };
   hasNestedNotification: boolean;
 }
 
