@@ -377,6 +377,7 @@ export function DataCollectorTasks() {
   const [submissionsLoading, setSubmissionsLoading] = useState<Record<string, boolean>>({});
   const [expandedSubmissionId, setExpandedSubmissionId] = useState<string | null>(null);
   const [editingSubmissionId, setEditingSubmissionId] = useState<string | null>(null);
+  const [reviewDraft, setReviewDraft] = useState<Record<string, string>>({});
 
   const [draftNote, setDraftNote] = useState<Record<string, string>>({});
   const [draftScreenshots, setDraftScreenshots] = useState<Record<string, string | null>>({});
@@ -419,7 +420,10 @@ export function DataCollectorTasks() {
   }, [tasks]);
 
   const canManage = user?.role === 'ceo' || user?.role === 'general_manager';
-  const canSubmit = canManage || user?.role === 'data_collector';
+  const canSubmit = user?.role === 'data_collector';
+  const taskAllowsSubmit = selectedTask
+    ? selectedTask.status !== 'rejected' && selectedTask.task_state === 'active'
+    : false;
 
   const fetchTasks = useCallback(async (page: number, force = false) => {
     if (!user) return;
@@ -757,6 +761,25 @@ export function DataCollectorTasks() {
     draftFilesRef.current = { ...draftFilesRef.current, [taskId]: files };
     const objectUrl = URL.createObjectURL(files[0]);
     setDraftScreenshots((prev) => ({ ...prev, [taskId]: objectUrl }));
+  };
+
+  const handleReviewSubmission = async (taskId: string, subId: string, outcome: string) => {
+    const note = reviewDraft[taskId] ?? '';
+    try {
+      await dataCollectorApi.createReview(subId, {
+        description: note.trim() || `Review: ${outcome}`,
+        review_outcome: outcome,
+      });
+
+      await fetchTasks(apiPage, true);
+      if (cachedTasks) {
+        const refreshed = cachedTasks.find((t) => t.id === taskId);
+        if (refreshed) setSelectedTask(refreshed);
+      }
+      setReviewDraft((prev) => ({ ...prev, [taskId]: '' }));
+    } catch {
+      setError('Unable to submit review');
+    }
   };
 
   const handleEditSubmission = (taskId: string, subId: string) => {
@@ -1221,11 +1244,12 @@ export function DataCollectorTasks() {
                     <div className="space-y-4">
                       {(() => {
                         const wrappers = getSubmissionWrappers(selectedTask);
+                        const latestSubmissionId = wrappers.length > 0 ? wrappers[wrappers.length - 1].submission.id : null;
                         const editableWrappers = wrappers.filter((w) => w.submission.reviews.length === 0);
                         const latestEditable = editableWrappers.length > 0 ? editableWrappers[editableWrappers.length - 1] : null;
                         const taskActive = selectedTask.task_state === 'active';
                         const taskRejected = selectedTask.status === 'rejected';
-                        const canEditSubmission = latestEditable && taskActive && !taskRejected;
+                        const canEditSubmission = latestEditable && taskActive && !taskRejected && user?.role === 'data_collector';
                         const latestEditableId = canEditSubmission ? latestEditable!.submission.id : null;
                         const isEditingThis = editingSubmissionId !== null;
 
@@ -1235,6 +1259,7 @@ export function DataCollectorTasks() {
                           (sub.reviews || []).some((r) => r.hasNotification);
                         const isSubExpanded = expandedSubmissionId === sub.id;
                         const isThisLatestEditable = sub.id === latestEditableId;
+                        const isLatestSubmission = sub.id === latestSubmissionId;
 
                         return (
                           <div key={sub.id} className={`border rounded-lg overflow-hidden ${subHasNotification ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200'}`}>
@@ -1368,6 +1393,42 @@ export function DataCollectorTasks() {
                                     </div>
                                   </div>
                                 )}
+
+                                {canManage && isLatestSubmission && (
+                                  <div className="border-t border-gray-100 pt-3">
+                                    <h6 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Review &amp; Decision</h6>
+                                    <textarea
+                                      rows={2}
+                                      value={reviewDraft[selectedTask.id] ?? ''}
+                                      onChange={(e) => setReviewDraft((prev) => ({ ...prev, [selectedTask.id]: e.target.value }))}
+                                      placeholder="Your feedback or reason..."
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm mb-2"
+                                    />
+                                    <div className="flex flex-wrap gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleReviewSubmission(selectedTask.id, sub.id, 'approved')}
+                                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-300 hover:bg-green-100 transition-colors"
+                                      >
+                                        <ThumbsUp className="w-3.5 h-3.5" /> Approve
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleReviewSubmission(selectedTask.id, sub.id, 'rejected')}
+                                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-700 border border-red-300 hover:bg-red-100 transition-colors"
+                                      >
+                                        <ThumbsDown className="w-3.5 h-3.5" /> Reject
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleReviewSubmission(selectedTask.id, sub.id, 'feedback')}
+                                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-100 transition-colors"
+                                      >
+                                        <Send className="w-3.5 h-3.5" /> Feedback
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
@@ -1378,7 +1439,7 @@ export function DataCollectorTasks() {
                   )}
                 </section>
 
-                {canSubmit && (
+                {canSubmit && taskAllowsSubmit && (
                   <section className="rounded-xl border border-dashed border-gray-300 bg-blue-50/50 p-4">
                     <h6 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
                       <MessageSquare className="w-4 h-4" />

@@ -1380,7 +1380,7 @@ export function DesignerTasks() {
                           const currentStatus = getCurrentStatus(phaseData);
                           const history = phaseData.history || [];
                           const isApproved = currentStatus === 'approved';
-                          const canSubmit = !overallRejected;
+                          const canSubmit = !overallRejected && selectedTaskDetail.task_state === 'active';
                           const noteDraft = draftNotes[taskId]?.[phase.key] ?? '';
                           const newScreenshot = draftScreenshots[taskId]?.[phase.key] ?? null;
                           const existingScreenshot = phaseData.screenshot;
@@ -1570,7 +1570,7 @@ export function DesignerTasks() {
                                     const editableSubmissions = stageSubmissions.filter((s) => s.reviews.length === 0);
                                     const latestEditable = editableSubmissions.length > 0 ? editableSubmissions[editableSubmissions.length - 1] : null;
                                     const taskActive = selectedTaskDetail.task_state === 'active';
-                                    const canEdit = latestEditable && taskActive && !overallRejected;
+                                    const canEdit = latestEditable && taskActive && !overallRejected && user?.role === 'designer';
                                     const latestEditableId = canEdit ? latestEditable!.id : null;
                                     const isEditingThis = editingSubmission?.taskId === taskId && editingSubmission?.phase === phase.key;
 

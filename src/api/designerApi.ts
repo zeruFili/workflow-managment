@@ -147,6 +147,28 @@ const designerApi = {
     );
     return response.data;
   },
+
+  createReview: async (
+    submissionId: string,
+    data: { description: string; review_outcome: string }
+  ): Promise<{ success: boolean; data?: SubmissionReview; message?: string }> => {
+    const response = await api.post<{ success: boolean; data?: SubmissionReview; message?: string }>(
+      `/designer-submissions/${submissionId}/review`,
+      data
+    );
+    return response.data;
+  },
+
+  updateReview: async (
+    reviewId: string,
+    data: { description: string; review_outcome: string }
+  ): Promise<{ success: boolean; data?: SubmissionReview; message?: string }> => {
+    const response = await api.patch<{ success: boolean; data?: SubmissionReview; message?: string }>(
+      `/designer-submission-reviews/${reviewId}`,
+      data
+    );
+    return response.data;
+  },
 };
 
 export default designerApi;

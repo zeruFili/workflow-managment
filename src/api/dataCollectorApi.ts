@@ -115,6 +115,19 @@ export interface CreateSubmissionResponse {
   message?: string;
 }
 
+// ── Create / Update Review ──
+
+export interface CreateReviewPayload {
+  description: string;
+  review_outcome: string;
+}
+
+export interface ReviewResponse {
+  success: boolean;
+  data?: DataCollectorSubmissionReview;
+  message?: string;
+}
+
 // ── Query params ──
 
 export interface TaskListParams {
@@ -154,6 +167,28 @@ const dataCollectorApi = {
   ): Promise<CreateSubmissionResponse> => {
     const response = await api.post<CreateSubmissionResponse>(
       `/data-collector-tasks/${taskId}/submissions`,
+      data
+    );
+    return response.data;
+  },
+
+  createReview: async (
+    submissionId: string,
+    data: CreateReviewPayload
+  ): Promise<ReviewResponse> => {
+    const response = await api.post<ReviewResponse>(
+      `/data-collector-submissions/${submissionId}/review`,
+      data
+    );
+    return response.data;
+  },
+
+  updateReview: async (
+    reviewId: string,
+    data: CreateReviewPayload
+  ): Promise<ReviewResponse> => {
+    const response = await api.patch<ReviewResponse>(
+      `/data-collector-reviews/${reviewId}`,
       data
     );
     return response.data;
