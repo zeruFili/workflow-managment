@@ -1507,37 +1507,51 @@ export function DesignerAssignments() {
                   </h5>
 
                   {(() => {
-                    const summaryIdx = getLastPopulatedPhaseIndex(currentProgress);
-                    if (summaryIdx !== -1) {
-                      const phaseKey = PHASES[summaryIdx].key;
-                      const phaseLabel = PHASES[summaryIdx].label;
-                      const phaseData = currentProgress?.[phaseKey];
-                      if (phaseData) {
-                        const history = phaseData.history ?? [];
-                        if (history.length > 0) {
-                          const latestEntry = history[history.length - 1];
-                          const status = latestEntry.status;
-                          const message = latestEntry.message;
-                          const isApproved = status === 'approved';
-                          const isRejected = status === 'rejected';
-                          const isFeedback = status === 'feedback';
-                          const BadgeIcon = isApproved ? CheckCircle2 : isRejected ? XCircle : AlertCircle;
-                          const displayLabel = isApproved
-                            ? `${phaseLabel} - Approved`
-                            : isFeedback ? 'Feedback' : `${phaseLabel} - Rejected`;
-                          return (
-                            <div className={`p-4 rounded-lg border mb-4 ${
-                              isApproved ? 'bg-green-50 border-green-200' : isRejected ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'
-                            }`}>
-                              <div className="flex items-center gap-2 mb-2">
-                                <BadgeIcon className={`w-4 h-4 ${isApproved ? 'text-green-600' : isRejected ? 'text-red-600' : 'text-yellow-600'}`} />
-                                <p className="text-sm font-medium text-gray-800">{displayLabel}</p>
-                              </div>
-                              {message && <p className="text-sm text-gray-700 italic">"{message}"</p>}
-                            </div>
-                          );
+                    // Find the latest review across ALL phases, not just the last populated one
+                    const swr = selectedTaskDetail.submissionsWithReviews;
+                    const stageLabels = ['Case Study', 'Design Stage', 'Rendering', 'Final Stage'];
+                    const stages = swr ? [swr.caseStudy || [], swr.designing || [], swr.rendering || [], swr.finalStage || []] : [[], [], [], []];
+                    let latestReview: { message: string; status: string; stageLabel: string; reviewerName: string } | null = null;
+                    let latestReviewTs = 0;
+                    for (let si = 0; si < stages.length; si++) {
+                      for (const s of stages[si]) {
+                        for (const r of (s.reviews || [])) {
+                          const rTs = new Date(r.created_at).getTime();
+                          if (rTs > latestReviewTs) {
+                            latestReviewTs = rTs;
+                            latestReview = {
+                              message: r.description || '',
+                              status: r.review_outcome,
+                              stageLabel: stageLabels[si],
+                              reviewerName: r.reviewer_user?.full_name || `Reviewer`,
+                            };
+                          }
                         }
                       }
+                    }
+                    if (latestReview) {
+                      const status = latestReview.status;
+                      const isApproved = status === 'approved';
+                      const isRejected = status === 'rejected';
+                      const isFeedback = status === 'feedback';
+                      const BadgeIcon = isApproved ? CheckCircle2 : isRejected ? XCircle : AlertCircle;
+                      const displayLabel = isApproved
+                        ? `${latestReview.stageLabel} - Approved`
+                        : isRejected
+                        ? `${latestReview.stageLabel} - Rejected`
+                        : `${latestReview.stageLabel} - Feedback`;
+                      return (
+                        <div className={`p-4 rounded-lg border mb-4 ${
+                          isApproved ? 'bg-green-50 border-green-200' : isRejected ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'
+                        }`}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <BadgeIcon className={`w-4 h-4 ${isApproved ? 'text-green-600' : isRejected ? 'text-red-600' : 'text-yellow-600'}`} />
+                            <p className="text-sm font-medium text-gray-800">{displayLabel}</p>
+                            <span className="text-xs text-gray-400">by {latestReview.reviewerName}</span>
+                          </div>
+                          {latestReview.message && <p className="text-sm text-gray-700 italic">{latestReview.message}</p>}
+                        </div>
+                      );
                     }
                     return null;
                   })()}

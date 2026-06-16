@@ -1,87 +1,70 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { DesignerTask, DesignerTaskApplication } from '../types';
-import { APPLICATION_STORAGE_KEY, TASK_STORAGE_KEY } from './designerTaskShared';
-import { CheckCircle2, User, Users } from 'lucide-react';
-import {
-  mockDesignerTasksForApplications,
-  mockDesignerTaskApplicationsForApplications,
-} from '../data/mockData';
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const APPLICATIONS_PAGE_TASK_STORAGE_KEY = 'designer_applications_page_tasks';
-const APPLICATIONS_PAGE_APP_STORAGE_KEY = 'designer_applications_page_applications';
+import { CheckCircle2, User, Users, Loader2, AlertCircle } from 'lucide-react';
+import designerApi, { DesignerTaskItem, DesignerApplicationItem } from '../../api/designerApi';
+import userApi, { UserItem } from '../../api/userApi';
 
 const reviewRoles = new Set(['ceo', 'general_manager']);
 
-const designerRoster = [
-  { id: '3', name: 'Emily Chen', role: 'Designer' },
-  { id: '4', name: 'Michael Brown', role: 'Designer' },
-  { id: '9', name: 'Sophia Ahmed', role: 'Designer' },
-  { id: '10', name: 'Daniel Reed', role: 'Designer' },
-  { id: '11', name: 'Liam Carter', role: 'Designer' },
-];
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function getDesignerName(designerId: string): string {
-  return designerRoster.find((d) => d.id === designerId)?.name ?? `Designer ${designerId}`;
+function getStatusTone(isAssigned: boolean, isSelectedApp: boolean) {
+  if (isAssigned && isSelectedApp) return 'bg-green-100 text-green-700';
+  return 'bg-yellow-100 text-yellow-700';
 }
-
-// Merge persisted data with seed data so that any new seed entries are picked up
-// while user-made changes are preserved.
-function mergeWithSeed<T extends { id: string }>(persisted: T[], seed: T[]): T[] {
-  return [
-    ...persisted.map((item) => {
-      const seedItem = seed.find((s) => s.id === item.id);
-      return seedItem ? { ...seedItem, ...item } : item;
-    }),
-    ...seed.filter((s) => !persisted.some((p) => p.id === s.id)),
-  ];
-}
-
-function loadTasks(): DesignerTask[] {
-  const saved = localStorage.getItem(APPLICATIONS_PAGE_TASK_STORAGE_KEY);
-  if (saved) {
-    const parsed = JSON.parse(saved) as DesignerTask[];
-    const merged = mergeWithSeed(parsed, mockDesignerTasksForApplications);
-    localStorage.setItem(APPLICATIONS_PAGE_TASK_STORAGE_KEY, JSON.stringify(merged));
-    return merged;
-  }
-  localStorage.setItem(
-    APPLICATIONS_PAGE_TASK_STORAGE_KEY,
-    JSON.stringify(mockDesignerTasksForApplications)
-  );
-  return mockDesignerTasksForApplications;
-}
-
-function loadApplications(): DesignerTaskApplication[] {
-  const saved = localStorage.getItem(APPLICATIONS_PAGE_APP_STORAGE_KEY);
-  if (saved) {
-    const parsed = JSON.parse(saved) as DesignerTaskApplication[];
-    const merged = mergeWithSeed(parsed, mockDesignerTaskApplicationsForApplications);
-    localStorage.setItem(APPLICATIONS_PAGE_APP_STORAGE_KEY, JSON.stringify(merged));
-    return merged;
-  }
-  localStorage.setItem(
-    APPLICATIONS_PAGE_APP_STORAGE_KEY,
-    JSON.stringify(mockDesignerTaskApplicationsForApplications)
-  );
-  return mockDesignerTaskApplicationsForApplications;
-}
-
-// ─── Component ────────────────────────────────────────────────────────────────
 
 export function DesignerApplications() {
   const { user } = useAuth();
-  const [tasks, setTasks] = useState<DesignerTask[]>(loadTasks);
-  const [applications, setApplications] = useState<DesignerTaskApplication[]>(loadApplications);
+  const [tasks, setTasks] = useState<DesignerTaskItem[]>([]);
+  const [applicationsByTask, setApplicationsByTask] = useState<Record<string, DesignerApplicationItem[]>>({});
+  const [designers, setDesigners] = useState<UserItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Per-task selected designer in the dropdown (only while the assignment UI is open)
   const [selectedDesignerByTask, setSelectedDesignerByTask] = useState<Record<string, string>>({});
-  // Tracks which already-assigned tasks are currently being re-edited
   const [editingAssignment, setEditingAssignment] = useState<Record<string, boolean>>({});
+
+  const [assigningTaskId, setAssigningTaskId] = useState<string | null>(null);
+  const [assignError, setAssignError] = useState<string | null>(null);
+
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const [tasksRes, usersRes] = await Promise.all([
+        designerApi.getDesignerTasks({ isPublic: true, assignedTo: '__unassigned__', limit: 100 }),
+        userApi.getDesigners(),
+      ]);
+
+      const fetchedTasks = tasksRes.data;
+      setTasks(fetchedTasks);
+      setDesigners(usersRes.data);
+
+      if (fetchedTasks.length > 0) {
+        const appResults = await Promise.all(
+          fetchedTasks.map((task) =>
+            designerApi
+              .getApplications(task.id, { limit: 100 })
+              .then((res) => ({ taskId: task.id, apps: res.data }))
+              .catch(() => ({ taskId: task.id, apps: [] as DesignerApplicationItem[] }))
+          )
+        );
+
+        const appsMap: Record<string, DesignerApplicationItem[]> = {};
+        appResults.forEach(({ taskId, apps }) => {
+          appsMap[taskId] = apps;
+        });
+        setApplicationsByTask(appsMap);
+      }
+    } catch (err: any) {
+      setError(err?.response?.data?.message || err?.message || 'Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   if (!user) return null;
 
@@ -93,103 +76,81 @@ export function DesignerApplications() {
     );
   }
 
-  // ── Persistence helpers ──────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      </div>
+    );
+  }
 
-  const persistTasks = (updated: DesignerTask[]) => {
-    setTasks(updated);
-    localStorage.setItem(APPLICATIONS_PAGE_TASK_STORAGE_KEY, JSON.stringify(updated));
-  };
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center">
+        <AlertCircle className="mx-auto h-10 w-10 text-red-400" />
+        <p className="mt-3 text-red-700 font-medium">Failed to load designer applications</p>
+        <p className="mt-1 text-sm text-red-600">{error}</p>
+        <button
+          onClick={fetchData}
+          className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
-  const persistApplications = (updated: DesignerTaskApplication[]) => {
-    setApplications(updated);
-    localStorage.setItem(APPLICATIONS_PAGE_APP_STORAGE_KEY, JSON.stringify(updated));
-  };
-
-  // ── Handlers ────────────────────────────────────────────────────────────
-
-  const handleAssign = (taskId: string) => {
+  const handleAssign = async (taskId: string) => {
     const selectedDesignerId = selectedDesignerByTask[taskId];
     if (!selectedDesignerId) return;
 
-    const now = new Date().toISOString();
-    const assignedDesignerName = getDesignerName(selectedDesignerId);
+    setAssigningTaskId(taskId);
+    setAssignError(null);
 
-    // Mark task as assigned / in-progress
-    const updatedTasks = tasks.map((task) =>
-      task.id === taskId
-        ? { ...task, assignedTo: selectedDesignerId, status: 'in_progress' as const }
-        : task
-    );
+    try {
+      const response = await designerApi.assignDesigner(taskId, selectedDesignerId);
 
-    // Update application statuses for this task:
-    // - selected applicant → 'assigned'
-    // - all other applicants → 'rejected'
-    // If the selected designer did NOT apply, create a synthetic application for them
-    const taskApps = applications.filter((a) => a.taskId === taskId);
-    const alreadyHasApp = taskApps.some((a) => a.applicantId === selectedDesignerId);
+      const chosenDesigner = designers.find((d) => d.id === selectedDesignerId);
 
-    let updatedApplications = applications.map((app) => {
-      if (app.taskId !== taskId) return app;
+      setTasks((prev) =>
+        prev.map((task) =>
+          task.id === taskId
+            ? {
+                ...task,
+                assigned_to_user_id: selectedDesignerId,
+                assigned_to_user: chosenDesigner
+                  ? { id: chosenDesigner.id, full_name: chosenDesigner.full_name, role: chosenDesigner.role }
+                  : null,
+              }
+            : task
+        )
+      );
 
-      if (app.applicantId === selectedDesignerId) {
-        return {
-          ...app,
-          status: 'assigned' as const,
-          reviewedBy: user.id,
-          reviewedByName: user.full_name,
-          reviewedAt: now,
-          reviewNote: `Assigned to ${assignedDesignerName}.`,
-        };
+      setSelectedDesignerByTask((prev) => {
+        const next = { ...prev };
+        delete next[taskId];
+        return next;
+      });
+      setEditingAssignment((prev) => {
+        const next = { ...prev };
+        delete next[taskId];
+        return next;
+      });
+    } catch (err: any) {
+      if (err?.response?.status === 409) {
+        setAssignError('Task is already assigned to a designer.');
+      } else {
+        setAssignError(err?.response?.data?.message || err?.message || 'Failed to assign designer');
       }
-
-      return {
-        ...app,
-        status: 'rejected' as const,
-        reviewedBy: user.id,
-        reviewedByName: user.full_name,
-        reviewedAt: now,
-        reviewNote: `Assigned to ${assignedDesignerName} instead.`,
-      };
-    });
-
-    // If designer didn't apply, add a synthetic record so their name is trackable
-    if (!alreadyHasApp) {
-      const syntheticApp: DesignerTaskApplication = {
-        id: `dapp-manual-${taskId}-${selectedDesignerId}`,
-        taskId,
-        applicantId: selectedDesignerId,
-        applicantName: assignedDesignerName,
-        applicantRole: 'designer',
-        message: '(Manually assigned — did not apply)',
-        appliedAt: now,
-        status: 'assigned',
-        reviewedBy: user.id,
-        reviewedByName: user.full_name,
-        reviewedAt: now,
-        reviewNote: `Manually assigned to ${assignedDesignerName}.`,
-      };
-      updatedApplications = [...updatedApplications, syntheticApp];
+    } finally {
+      setAssigningTaskId(null);
     }
-
-    persistTasks(updatedTasks);
-    persistApplications(updatedApplications);
-
-    // Clean up transient UI state
-    setSelectedDesignerByTask((prev) => {
-      const next = { ...prev };
-      delete next[taskId];
-      return next;
-    });
-    setEditingAssignment((prev) => {
-      const next = { ...prev };
-      delete next[taskId];
-      return next;
-    });
   };
 
   const startEditing = (taskId: string, currentAssignedTo: string | undefined) => {
     setSelectedDesignerByTask((prev) => ({ ...prev, [taskId]: currentAssignedTo ?? '' }));
     setEditingAssignment((prev) => ({ ...prev, [taskId]: true }));
+    setAssignError(null);
   };
 
   const cancelEditing = (taskId: string) => {
@@ -203,24 +164,19 @@ export function DesignerApplications() {
       delete next[taskId];
       return next;
     });
+    setAssignError(null);
   };
 
-  // ── Build grouped list ───────────────────────────────────────────────────
+  const groupedApplications = tasks.map((task) => ({
+    task,
+    applications: applicationsByTask[task.id] || [],
+  }));
 
-  // Show a card for every task that either has at least one application OR
-  // has already been assigned by the reviewer.
-  const groupedApplications = tasks
-    .map((task) => ({
-      task,
-      applications: applications.filter((a) => a.taskId === task.id),
-    }))
-    .filter(({ task, applications: apps }) => apps.length > 0 || !!task.assignedTo);
-
-  // ── Render ───────────────────────────────────────────────────────────────
+  const getDesignerName = (designerId: string): string =>
+    designers.find((d) => d.id === designerId)?.full_name ?? `Designer ${designerId}`;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Designer Applications</h2>
@@ -230,38 +186,30 @@ export function DesignerApplications() {
         </div>
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
           <Users className="w-4 h-4" />
-          Admin and General Manager only
+          CEO and General Manager only
         </div>
       </div>
 
       {groupedApplications.length > 0 ? (
         <div className="space-y-4">
           {groupedApplications.map(({ task, applications: taskApplications }) => {
-            const isAssigned = !!task.assignedTo;
+            const isAssigned = !!task.assigned_to_user_id;
             const isEditing = !!editingAssignment[task.id];
-
-            // The assignment UI is shown when either:
-            // (a) no one is assigned yet — reviewer needs to make the first assignment
-            // (b) the reviewer has clicked "Edit Assigned User"
             const showAssignmentUI = !isAssigned || isEditing;
 
-            // Always hide the assigned designer from the applicants list —
-            // their name is displayed prominently below the task title instead.
+            // Exclude assigned designer from applicants list
             const visibleApplications = taskApplications.filter(
-              (app) => app.applicantId !== task.assignedTo
+              (app) => app.applicant_user_id !== task.assigned_to_user_id
             );
 
-            // Build assign-dropdown options:
-            // 1. Designers who applied (shown first)
-            // 2. Designers who did NOT apply (shown after, labelled)
-            const applicantIds = new Set(taskApplications.map((a) => a.applicantId));
+            const applicantIds = new Set(taskApplications.map((a) => a.applicant_user_id));
             const applicantOptions = taskApplications.map((app) => ({
-              id: app.applicantId,
-              label: `${app.applicantName} (applied)`,
+              id: app.applicant_user_id,
+              label: `${app.applicant_user.full_name} (applied)`,
             }));
-            const nonApplicantOptions = designerRoster
+            const nonApplicantOptions = designers
               .filter((d) => !applicantIds.has(d.id))
-              .map((d) => ({ id: d.id, label: `${d.name} (${d.role}, did not apply)` }));
+              .map((d) => ({ id: d.id, label: `${d.full_name} (designer, did not apply)` }));
             const assignOptions = [...applicantOptions, ...nonApplicantOptions];
 
             return (
@@ -269,20 +217,16 @@ export function DesignerApplications() {
                 key={task.id}
                 className="bg-white rounded-xl p-5 shadow-sm border border-gray-200 space-y-4"
               >
-                {/* ── Task header ─────────────────────────────────────────── */}
                 <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
                   <div>
                     <h3 className="font-semibold text-lg text-gray-900">{task.title}</h3>
                     <p className="text-sm text-gray-500">{task.description}</p>
-
-                    {/* Assigned designer shown below title once assignment is made */}
                     {isAssigned && (
                       <p className="text-sm font-medium text-blue-700 mt-2">
-                        Assigned to: {getDesignerName(task.assignedTo!)}
+                        Assigned to: {task.assigned_to_user?.full_name || getDesignerName(task.assigned_to_user_id!)}
                       </p>
                     )}
                   </div>
-
                   <span
                     className={`shrink-0 px-2 py-1 rounded-full text-xs font-medium ${
                       isAssigned
@@ -294,46 +238,46 @@ export function DesignerApplications() {
                   </span>
                 </div>
 
-                {/* ── Applicants list (excludes the already-assigned designer) ── */}
                 {visibleApplications.length > 0 && (
                   <div className="space-y-3">
-                    {visibleApplications.map((application) => (
-                      <div
-                        key={application.id}
-                        className="rounded-lg border border-gray-200 bg-gray-50 p-4"
-                      >
-                        <div className="flex items-start justify-between gap-3 flex-col sm:flex-row">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <User className="w-4 h-4 text-gray-500" />
-                              <p className="font-medium text-gray-900">{application.applicantName}</p>
+                    {visibleApplications.map((application) => {
+                      const isSelectedApp =
+                        isAssigned && application.applicant_user_id === task.assigned_to_user_id;
+                      return (
+                        <div
+                          key={application.id}
+                          className="rounded-lg border border-gray-200 bg-gray-50 p-4"
+                        >
+                          <div className="flex items-start justify-between gap-3 flex-col sm:flex-row">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <User className="w-4 h-4 text-gray-500" />
+                                <p className="font-medium text-gray-900">
+                                  {application.applicant_user.full_name}
+                                </p>
+                              </div>
+                              <p className="text-xs text-gray-500 mt-1">
+                                Applied on {new Date(application.created_at).toLocaleString()}
+                              </p>
                             </div>
-                            <p className="text-xs text-gray-500 mt-1">
-                              Applied on {new Date(application.appliedAt).toLocaleString()}
-                            </p>
+                            <span
+                              className={`shrink-0 px-2 py-1 rounded-full text-xs font-medium ${getStatusTone(
+                                isAssigned,
+                                isSelectedApp
+                              )}`}
+                            >
+                              {isSelectedApp ? 'assigned' : 'pending'}
+                            </span>
                           </div>
-                          <span
-                            className={`shrink-0 px-2 py-1 rounded-full text-xs font-medium ${
-                              application.status === 'assigned'
-                                ? 'bg-green-100 text-green-700'
-                                : application.status === 'rejected'
-                                ? 'bg-red-100 text-red-700'
-                                : 'bg-yellow-100 text-yellow-700'
-                            }`}
-                          >
-                            {application.status}
-                          </span>
+                          {application.cover_note && (
+                            <p className="text-sm text-gray-700 mt-3">{application.cover_note}</p>
+                          )}
                         </div>
-                        <p className="text-sm text-gray-700 mt-3">{application.message}</p>
-                        {application.reviewNote && (
-                          <p className="text-xs text-gray-500 mt-2">• {application.reviewNote}</p>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 
-                {/* ── Assignment / Edit section ────────────────────────────── */}
                 {showAssignmentUI ? (
                   <div className="rounded-lg border border-dashed border-blue-300 bg-blue-50 p-4 space-y-4">
                     <div>
@@ -362,23 +306,30 @@ export function DesignerApplications() {
                       </p>
                     </div>
 
+                    {assignError && (
+                      <p className="text-sm text-red-600">{assignError}</p>
+                    )}
+
                     <div className="flex gap-2">
                       <button
                         type="button"
                         onClick={() => handleAssign(task.id)}
-                        disabled={!selectedDesignerByTask[task.id]}
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                        disabled={!selectedDesignerByTask[task.id] || assigningTaskId === task.id}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 text-sm"
                       >
                         <CheckCircle2 className="w-4 h-4" />
-                        {isEditing ? 'Update Assignment' : 'Assign Selected Designer'}
+                        {assigningTaskId === task.id
+                          ? 'Assigning...'
+                          : isEditing
+                          ? 'Update Assignment'
+                          : 'Assign Selected Designer'}
                       </button>
-
-                      {/* Cancel only makes sense when editing an existing assignment */}
                       {isEditing && (
                         <button
                           type="button"
                           onClick={() => cancelEditing(task.id)}
-                          className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+                          disabled={assigningTaskId === task.id}
+                          className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm"
                         >
                           Cancel
                         </button>
@@ -386,17 +337,16 @@ export function DesignerApplications() {
                     </div>
                   </div>
                 ) : (
-                  /* Shown only after the reviewer has made an assignment */
                   <div className="rounded-lg border border-dashed border-green-300 bg-green-50 p-4 space-y-3">
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="w-5 h-5 text-green-600" />
                       <span className="text-sm font-medium text-green-800">
-                        User Assigned: {getDesignerName(task.assignedTo!)}
+                        Assigned to: {task.assigned_to_user?.full_name || getDesignerName(task.assigned_to_user_id!)}
                       </span>
                     </div>
                     <button
                       type="button"
-                      onClick={() => startEditing(task.id, task.assignedTo)}
+                      onClick={() => startEditing(task.id, task.assigned_to_user_id ?? undefined)}
                       className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm"
                     >
                       Edit Assigned User

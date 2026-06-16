@@ -101,6 +101,22 @@ export interface CreateSubmissionResponse {
   message?: string;
 }
 
+export interface DesignerApplicationItem {
+  id: string;
+  designer_task_id: string;
+  applicant_user_id: string;
+  cover_note: string | null;
+  created_at: string;
+  updated_at: string | null;
+  applicant_user: SafeUserOutput;
+}
+
+export interface DesignerApplicationListResponse {
+  success: boolean;
+  data: DesignerApplicationItem[];
+  meta: DesignerTaskListMeta;
+}
+
 // ── Query params ──
 
 export interface TaskListParams {
@@ -177,6 +193,28 @@ const designerApi = {
     const response = await api.post<{ success: boolean; data?: any; message?: string }>(
       `/designer-tasks/${taskId}/apply`,
       data ?? {}
+    );
+    return response.data;
+  },
+
+  getApplications: async (
+    taskId: string,
+    params?: { page?: number; limit?: number }
+  ): Promise<DesignerApplicationListResponse> => {
+    const response = await api.get<DesignerApplicationListResponse>(
+      `/designer-tasks/${taskId}/applications`,
+      { params }
+    );
+    return response.data;
+  },
+
+  assignDesigner: async (
+    taskId: string,
+    designerId: string
+  ): Promise<{ success: boolean; data?: any; message?: string }> => {
+    const response = await api.post<{ success: boolean; data?: any; message?: string }>(
+      `/designer-tasks/${taskId}/assign`,
+      { designer_id: designerId }
     );
     return response.data;
   },

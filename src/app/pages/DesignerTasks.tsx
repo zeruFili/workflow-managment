@@ -1362,6 +1362,54 @@ export function DesignerTasks() {
                   </h5>
 
                   {(() => {
+                    // Show latest review summary across all phases
+                    const raw = submissionsRawData[selectedTaskDetail.id];
+                    const stageLabels = ['Case Study', 'Design Stage', 'Rendering', 'Final Stage'];
+                    const stages = raw ? [raw.caseStudy || [], raw.designing || [], raw.rendering || [], raw.finalStage || []] : [[], [], [], []];
+                    let latestReview: { message: string; status: string; stageLabel: string; reviewerName: string } | null = null;
+                    let latestReviewTs = 0;
+                    for (let si = 0; si < stages.length; si++) {
+                      for (const s of stages[si]) {
+                        for (const r of (s.reviews || [])) {
+                          const rTs = new Date(r.created_at).getTime();
+                          if (rTs > latestReviewTs) {
+                            latestReviewTs = rTs;
+                            latestReview = {
+                              message: r.description || '',
+                              status: r.review_outcome,
+                              stageLabel: stageLabels[si],
+                              reviewerName: r.reviewer_user?.full_name || `Reviewer`,
+                            };
+                          }
+                        }
+                      }
+                    }
+                    if (latestReview) {
+                      const isApproved = latestReview.status === 'approved';
+                      const isRejected = latestReview.status === 'rejected';
+                      const BadgeIcon = isApproved ? CheckCircle2 : isRejected ? XCircle : AlertCircle;
+                      const displayLabel = isApproved
+                        ? `${latestReview.stageLabel} - Approved`
+                        : isRejected
+                        ? `${latestReview.stageLabel} - Rejected`
+                        : `${latestReview.stageLabel} - Feedback`;
+                      return (
+                        <div className={`p-4 rounded-lg border mb-4 ${
+                          isApproved ? 'bg-green-50 border-green-200' : isRejected ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'
+                        }`}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <BadgeIcon className={`w-4 h-4 ${isApproved ? 'text-green-600' : isRejected ? 'text-red-600' : 'text-yellow-600'}`} />
+                            <p className="text-sm font-medium text-gray-800">{displayLabel}</p>
+                            <span className="text-xs text-gray-400">by {latestReview.reviewerName}</span>
+                          </div>
+                          {latestReview.message && <p className="text-sm text-gray-700 italic">{latestReview.message}</p>}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+
+                  {(() => {
                     const progress = getDisplayProgress(selectedTaskDetail.id);
                     const taskRejected = isTaskRejected(progress);
                     const apiTaskRejected = selectedTaskDetail.status === 'rejected';
