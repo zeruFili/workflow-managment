@@ -1,10 +1,16 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { CheckCircle2, User, Users, Loader2, AlertCircle } from 'lucide-react';
+import { CheckCircle2, User, Users, Loader2, AlertCircle, Clock } from 'lucide-react';
 import designerApi, { DesignerTaskItem, DesignerApplicationItem } from '../../api/designerApi';
 import userApi, { UserItem } from '../../api/userApi';
 
 const reviewRoles = new Set(['ceo', 'general_manager']);
+const GRACE_PERIOD_HOURS = 48;
+
+function hoursSince(dateStr: string | null): number {
+  if (!dateStr) return Infinity;
+  return (Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60);
+}
 
 function getStatusTone(isAssigned: boolean, isSelectedApp: boolean) {
   if (isAssigned && isSelectedApp) return 'bg-green-100 text-green-700';
@@ -31,7 +37,7 @@ export function DesignerApplications() {
       setError(null);
 
       const [tasksRes, usersRes] = await Promise.all([
-        designerApi.getDesignerTasks({ isPublic: true, assignedTo: '__unassigned__', limit: 100 }),
+        designerApi.getDesignerTasks({ isPublic: true, limit: 100 }),
         userApi.getDesigners(),
       ]);
 
@@ -66,15 +72,14 @@ export function DesignerApplications() {
     fetchData();
   }, [fetchData]);
 
-  if (!user) return null;
-
-  if (!reviewRoles.has(user.role)) {
-    return (
-      <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
-        <p className="text-gray-500">Access denied. CEO or General Manager only.</p>
-      </div>
-    );
-  }
+  const groupedApplications = useMemo(
+    () =>
+      tasks.map((task) => ({
+        task,
+        applications: applicationsByTask[task.id] || [],
+      })),
+    [tasks, applicationsByTask]
+  );
 
   if (loading) {
     return (
@@ -100,6 +105,16 @@ export function DesignerApplications() {
     );
   }
 
+  if (!user) return null;
+
+  if (!reviewRoles.has(user.role)) {
+    return (
+      <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+        <p className="text-gray-500">Access denied. CEO or General Manager only.</p>
+      </div>
+    );
+  }
+
   const handleAssign = async (taskId: string) => {
     const selectedDesignerId = selectedDesignerByTask[taskId];
     if (!selectedDesignerId) return;
@@ -108,7 +123,7 @@ export function DesignerApplications() {
     setAssignError(null);
 
     try {
-      const response = await designerApi.assignDesigner(taskId, selectedDesignerId);
+      await designerApi.assignDesigner(taskId, selectedDesignerId);
 
       const chosenDesigner = designers.find((d) => d.id === selectedDesignerId);
 
@@ -121,6 +136,7 @@ export function DesignerApplications() {
                 assigned_to_user: chosenDesigner
                   ? { id: chosenDesigner.id, full_name: chosenDesigner.full_name, role: chosenDesigner.role }
                   : null,
+                assigned_at: new Date().toISOString(),
               }
             : task
         )
@@ -137,11 +153,7 @@ export function DesignerApplications() {
         return next;
       });
     } catch (err: any) {
-      if (err?.response?.status === 409) {
-        setAssignError('Task is already assigned to a designer.');
-      } else {
-        setAssignError(err?.response?.data?.message || err?.message || 'Failed to assign designer');
-      }
+      setAssignError(err?.response?.data?.message || err?.message || 'Failed to assign designer');
     } finally {
       setAssigningTaskId(null);
     }
@@ -167,13 +179,13 @@ export function DesignerApplications() {
     setAssignError(null);
   };
 
-  const groupedApplications = tasks.map((task) => ({
-    task,
-    applications: applicationsByTask[task.id] || [],
-  }));
-
   const getDesignerName = (designerId: string): string =>
     designers.find((d) => d.id === designerId)?.full_name ?? `Designer ${designerId}`;
+
+  const unassignedCount = tasks.filter((t) => !t.assigned_to_user_id).length;
+  const graceCount = tasks.filter(
+    (t) => t.assigned_to_user_id && hoursSince(t.assigned_at) < GRACE_PERIOD_HOURS
+  ).length;
 
   return (
     <div className="space-y-6">
@@ -181,7 +193,7 @@ export function DesignerApplications() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Designer Applications</h2>
           <p className="text-gray-600 mt-1">
-            Review applications for each task, then assign a designer.
+            Review applications, assign designers to open tasks, and manage recent assignments.
           </p>
         </div>
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
@@ -190,14 +202,34 @@ export function DesignerApplications() {
         </div>
       </div>
 
+      <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+        <div className="rounded-xl bg-slate-50 px-3 py-3 text-center">
+          <p className="text-xs uppercase tracking-wide text-slate-500">Open Tasks</p>
+          <p className="mt-1 text-lg font-semibold text-slate-900">{unassignedCount}</p>
+        </div>
+        <div className="rounded-xl bg-blue-50 px-3 py-3 text-center">
+          <p className="text-xs uppercase tracking-wide text-blue-600">Grace Period</p>
+          <p className="mt-1 text-lg font-semibold text-blue-700">{graceCount}</p>
+        </div>
+        <div className="rounded-xl bg-green-50 px-3 py-3 text-center">
+          <p className="text-xs uppercase tracking-wide text-green-600">Designers</p>
+          <p className="mt-1 text-lg font-semibold text-green-700">{designers.length}</p>
+        </div>
+      </div>
+
       {groupedApplications.length > 0 ? (
         <div className="space-y-4">
           {groupedApplications.map(({ task, applications: taskApplications }) => {
             const isAssigned = !!task.assigned_to_user_id;
             const isEditing = !!editingAssignment[task.id];
-            const showAssignmentUI = !isAssigned || isEditing;
+            const assignmentAge = hoursSince(task.assigned_at);
+            const isInGracePeriod = isAssigned && assignmentAge < GRACE_PERIOD_HOURS;
+            const canReassign = isAssigned && assignmentAge >= GRACE_PERIOD_HOURS;
 
-            // Exclude assigned designer from applicants list
+            const showAssignmentUI = !isAssigned || isEditing;
+            const showGraceBox = isInGracePeriod && !isEditing;
+            const showReassignBox = canReassign && !isEditing;
+
             const visibleApplications = taskApplications.filter(
               (app) => app.applicant_user_id !== task.assigned_to_user_id
             );
@@ -205,7 +237,7 @@ export function DesignerApplications() {
             const applicantIds = new Set(taskApplications.map((a) => a.applicant_user_id));
             const applicantOptions = taskApplications.map((app) => ({
               id: app.applicant_user_id,
-              label: `${app.applicant_user.full_name} (applied)`,
+              label: `${app.applicant_user?.full_name ?? 'Unknown'} (applied)`,
             }));
             const nonApplicantOptions = designers
               .filter((d) => !applicantIds.has(d.id))
@@ -230,11 +262,13 @@ export function DesignerApplications() {
                   <span
                     className={`shrink-0 px-2 py-1 rounded-full text-xs font-medium ${
                       isAssigned
-                        ? 'bg-green-100 text-green-700'
+                        ? isInGracePeriod
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-green-100 text-green-700'
                         : 'bg-gray-100 text-gray-700'
                     }`}
                   >
-                    {isAssigned ? 'User Assigned' : 'Pending assignment'}
+                    {isAssigned ? (isInGracePeriod ? 'Grace Period' : 'Assigned') : 'Open'}
                   </span>
                 </div>
 
@@ -253,7 +287,7 @@ export function DesignerApplications() {
                               <div className="flex items-center gap-2">
                                 <User className="w-4 h-4 text-gray-500" />
                                 <p className="font-medium text-gray-900">
-                                  {application.applicant_user.full_name}
+                                  {application.applicant_user?.full_name ?? 'Unknown'}
                                 </p>
                               </div>
                               <p className="text-xs text-gray-500 mt-1">
@@ -336,7 +370,19 @@ export function DesignerApplications() {
                       )}
                     </div>
                   </div>
-                ) : (
+                ) : showGraceBox ? (
+                  <div className="rounded-lg border border-dashed border-blue-300 bg-blue-50 p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-5 h-5 text-blue-600" />
+                      <span className="text-sm font-medium text-blue-800">
+                        Assigned to: {task.assigned_to_user?.full_name || getDesignerName(task.assigned_to_user_id!)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-blue-600">
+                      Within 2-day grace period. Reassignment is available after the designer has had 2 days to submit work.
+                    </p>
+                  </div>
+                ) : showReassignBox ? (
                   <div className="rounded-lg border border-dashed border-green-300 bg-green-50 p-4 space-y-3">
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="w-5 h-5 text-green-600" />
@@ -352,7 +398,7 @@ export function DesignerApplications() {
                       Edit Assigned User
                     </button>
                   </div>
-                )}
+                ) : null}
               </div>
             );
           })}
@@ -360,7 +406,7 @@ export function DesignerApplications() {
       ) : (
         <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
           <CheckCircle2 className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No designer applications found yet.</p>
+          <p className="text-gray-500">No designer tasks found yet.</p>
         </div>
       )}
     </div>

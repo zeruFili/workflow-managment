@@ -58,6 +58,7 @@ export interface DesignerTaskItem {
   updated_by: string | null;
   created_at: string;
   updated_at: string | null;
+  assigned_at: string | null;
   assigned_by_user: SafeUserOutput;
   assigned_to_user: SafeUserOutput | null;
   updated_by_user: SafeUserOutput | null;
