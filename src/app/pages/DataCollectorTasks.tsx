@@ -1252,6 +1252,10 @@ export function DataCollectorTasks() {
                         const canEditSubmission = latestEditable && taskActive && !taskRejected && user?.role === 'data_collector';
                         const latestEditableId = canEditSubmission ? latestEditable!.submission.id : null;
                         const isEditingThis = editingSubmissionId !== null;
+                        const taskApproved = selectedTask.status === 'approved';
+                        const updatedAt = selectedTask.updated_at ? new Date(selectedTask.updated_at).getTime() : 0;
+                        const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+                        const canReview = !taskApproved || updatedAt > oneWeekAgo;
 
                         return wrappers.map((wrapper, idx) => {
                         const sub = wrapper.submission;
@@ -1394,8 +1398,9 @@ export function DataCollectorTasks() {
                                   </div>
                                 )}
 
-                                {canManage && isLatestSubmission && (
+                                {canManage && isLatestSubmission && canReview && (
                                   <div className="border-t border-gray-100 pt-3">
+                                    <h6 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Review &amp; Decision</h6>
                                     <h6 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Review &amp; Decision</h6>
                                     <textarea
                                       rows={2}

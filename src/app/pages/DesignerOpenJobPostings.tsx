@@ -1,42 +1,36 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { Calendar, CheckCircle2, Clock, Landmark, Megaphone, ShieldCheck, Send } from 'lucide-react';
-import { JOB_POSTINGS_STORAGE_KEY, jobPostingSeedTasks } from './JobPostings';
-import { roleNamesByUserId, APPLICATION_STORAGE_KEY } from './designerTaskShared';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
+import { Calendar, CheckCircle2, Clock, Landmark, Megaphone, ShieldCheck, Send, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { DesignerTaskApplication, Task } from '../types';
+import designerApi, { DesignerTaskItem } from '../../api/designerApi';
 
-type JobPostingTask = Task & {
-  storyPoints?: number;
-  telegramScreenshot?: string;
-};
+const API_POSTINGS_CACHE_KEY = 'designer-open-job-postings-api';
 
-// ---------- Highlight / Notification system ----------
-const viewedOpenJobPostingCards = new Set<string>(); // in‑memory, resets on page refresh
-
-function publishOpenJobPostingsBadgeCount(count: number) {
-  window.dispatchEvent(
-    new CustomEvent('open-job-postings-notifications-updated', { detail: count })
-  );
+function cachePostingsForBadge(postings: DesignerTaskItem[]) {
+  const minimal = postings.map((p) => ({ id: p.id, createdAt: p.created_at }));
+  localStorage.setItem(API_POSTINGS_CACHE_KEY, JSON.stringify(minimal));
 }
 
-function ensureViewedSetInitialized(items: JobPostingTask[]) {
-  if (viewedOpenJobPostingCards.size === 0) {
-    const sorted = [...items].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-
-    sorted.slice(3).forEach((item) => viewedOpenJobPostingCards.add(item.id));
+function getCachedPostings(): { id: string; createdAt: string }[] {
+  try {
+    const raw = localStorage.getItem(API_POSTINGS_CACHE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
   }
 }
 
-export function getUnseenOpenJobPostingHighlightedIds() {
-  const postings = loadJobPostings();
-  ensureViewedSetInitialized(postings);
+const viewedOpenJobPostingCards = new Set<string>();
 
+export function getUnseenOpenJobPostingHighlightedIds() {
+  const postings = getCachedPostings();
+  if (viewedOpenJobPostingCards.size === 0) {
+    const sorted = [...postings].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    sorted.slice(3).forEach((item) => viewedOpenJobPostingCards.add(item.id));
+  }
   return new Set(
-    postings
-      .filter((task) => !viewedOpenJobPostingCards.has(task.id))
-      .map((task) => task.id)
+    postings.filter((p) => !viewedOpenJobPostingCards.has(p.id)).map((p) => p.id)
   );
 }
 
@@ -44,48 +38,35 @@ export function getUnseenOpenJobPostingsCount() {
   return getUnseenOpenJobPostingHighlightedIds().size;
 }
 
-function loadJobPostings(): JobPostingTask[] {
-  const savedTasks = localStorage.getItem(JOB_POSTINGS_STORAGE_KEY);
-  if (!savedTasks) {
-    localStorage.setItem(JOB_POSTINGS_STORAGE_KEY, JSON.stringify(jobPostingSeedTasks));
-    return jobPostingSeedTasks;
-  }
-
-  const parsedTasks = JSON.parse(savedTasks) as JobPostingTask[];
-  const mergedTasks = [
-    ...parsedTasks.map((task) => {
-      const seedTask = jobPostingSeedTasks.find((candidate) => candidate.id === task.id);
-      return seedTask ? { ...seedTask, ...task } : task;
-    }),
-    ...jobPostingSeedTasks.filter((seedTask) => !parsedTasks.some((task) => task.id === seedTask.id)),
-  ];
-
-  localStorage.setItem(JOB_POSTINGS_STORAGE_KEY, JSON.stringify(mergedTasks));
-  return mergedTasks;
+function publishOpenJobPostingsBadgeCount(count: number) {
+  window.dispatchEvent(
+    new CustomEvent('open-job-postings-notifications-updated', { detail: count })
+  );
 }
 
-function loadApplications(): DesignerTaskApplication[] {
-  const saved = localStorage.getItem(APPLICATION_STORAGE_KEY);
-  if (saved) {
-    return JSON.parse(saved) as DesignerTaskApplication[];
-  }
-  return [];
-}
-
-function getStatusTone(status: string) {
-  if (status === 'completed') return 'bg-green-100 text-green-700';
-  if (status === 'in_progress') return 'bg-blue-100 text-blue-700';
+function getStatusTone(status: string | null) {
+  if (status === 'approved') return 'bg-green-100 text-green-700';
+  if (status === 'rejected') return 'bg-red-100 text-red-700';
   return 'bg-amber-100 text-amber-700';
+}
+
+function getStatusLabel(status: string | null) {
+  if (status === 'approved') return 'completed';
+  if (status === 'rejected') return 'rejected';
+  return 'pending';
 }
 
 export function DesignerOpenJobPostings() {
   const { user } = useAuth();
-  const [postings] = useState<JobPostingTask[]>(() => loadJobPostings());
-  const [applications, setApplications] = useState<DesignerTaskApplication[]>(loadApplications);
+  const [postings, setPostings] = useState<DesignerTaskItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [applyingForTaskId, setApplyingForTaskId] = useState<string | null>(null);
   const [applyMessage, setApplyMessage] = useState('');
+  const appliedTaskIds = useRef<Set<string>>(new Set());
+  const [applyError, setApplyError] = useState<string | null>(null);
+  const [submittingApply, setSubmittingApply] = useState(false);
 
-  // ── Highlight / Notification state ──
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
   const seenThisSession = useRef<Set<string>>(new Set());
   const observedElements = useRef<Set<string>>(new Set());
@@ -93,14 +74,37 @@ export function DesignerOpenJobPostings() {
   const postingsRef = useRef(postings);
   useEffect(() => { postingsRef.current = postings; }, [postings]);
 
-  // Initialise the viewed set after postings are loaded
-  useEffect(() => {
-    ensureViewedSetInitialized(postings);
-  }, [postings]);
+  const fetchPostings = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await designerApi.getDesignerTasks({
+        isPublic: true,
+        assignedTo: '__unassigned__',
+        limit: 100,
+      });
+      const tasks = response.data;
+      setPostings(tasks);
+      cachePostingsForBadge(tasks);
+    } catch (err: any) {
+      setError(err?.response?.data?.message || err?.message || 'Failed to load job postings');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  // Compute highlighted IDs (items not in the viewed set)
+  useEffect(() => {
+    fetchPostings();
+  }, [fetchPostings]);
+
   useEffect(() => {
     if (postings.length === 0) return;
+    if (viewedOpenJobPostingCards.size === 0) {
+      const sorted = [...postings].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      sorted.slice(3).forEach((item) => viewedOpenJobPostingCards.add(item.id));
+    }
     const unseen = postings
       .filter((p) => !viewedOpenJobPostingCards.has(p.id))
       .map((p) => p.id);
@@ -108,7 +112,6 @@ export function DesignerOpenJobPostings() {
     publishOpenJobPostingsBadgeCount(unseen.length);
   }, [postings]);
 
-  // IntersectionObserver for highlighted cards (mark as "seen this session")
   useEffect(() => {
     if (observerRef.current) {
       observerRef.current.disconnect();
@@ -147,33 +150,28 @@ export function DesignerOpenJobPostings() {
     };
   }, [highlightedIds]);
 
-  // Commit seen session on unmount (navigating away)
-  const commitSeenSession = () => {
-    if (seenThisSession.current.size === 0) return;
-    seenThisSession.current.forEach((id) => viewedOpenJobPostingCards.add(id));
-    seenThisSession.current.clear();
-    observedElements.current.clear();
-
-    const current = postingsRef.current;
-    const remainingUnseen = current
-      .filter((p) => !viewedOpenJobPostingCards.has(p.id))
-      .map((p) => p.id);
-    setHighlightedIds(new Set(remainingUnseen));
-    publishOpenJobPostingsBadgeCount(remainingUnseen.length);
-  };
-
   useEffect(() => {
     return () => {
-      commitSeenSession();
+      if (seenThisSession.current.size === 0) return;
+      seenThisSession.current.forEach((id) => viewedOpenJobPostingCards.add(id));
+      seenThisSession.current.clear();
+      observedElements.current.clear();
+
+      const current = postingsRef.current;
+      const remainingUnseen = current
+        .filter((p) => !viewedOpenJobPostingCards.has(p.id))
+        .map((p) => p.id);
+      setHighlightedIds(new Set(remainingUnseen));
+      publishOpenJobPostingsBadgeCount(remainingUnseen.length);
     };
   }, []);
 
   const summary = useMemo(
     () => ({
       total: postings.length,
-      pending: postings.filter((posting) => posting.status === 'pending').length,
-      inProgress: postings.filter((posting) => posting.status === 'in_progress').length,
-      completed: postings.filter((posting) => posting.status === 'completed').length,
+      pending: postings.filter((p) => p.status === 'pending' || !p.status).length,
+      inProgress: postings.filter((p) => p.status === 'pending').length,
+      completed: postings.filter((p) => p.status === 'approved').length,
     }),
     [postings]
   );
@@ -181,41 +179,67 @@ export function DesignerOpenJobPostings() {
   const startApply = (taskId: string) => {
     setApplyingForTaskId(taskId);
     setApplyMessage('');
+    setApplyError(null);
   };
 
   const cancelApply = () => {
     setApplyingForTaskId(null);
     setApplyMessage('');
+    setApplyError(null);
   };
 
-  const submitApplication = (posting: JobPostingTask) => {
+  const submitApplication = async (taskId: string) => {
     if (!user || !applyMessage.trim()) return;
-
-    const newApplication: DesignerTaskApplication = {
-      id: `app-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      taskId: posting.id,
-      applicantId: user.id,
-      applicantName: user.full_name ?? 'Unknown Designer',
-      applicantRole: 'designer',
-      status: 'pending',
-      message: applyMessage.trim(),
-      appliedAt: new Date().toISOString(),
-    };
-
-    const updated = [...applications, newApplication];
-    setApplications(updated);
-    localStorage.setItem(APPLICATION_STORAGE_KEY, JSON.stringify(updated));
-    setApplyingForTaskId(null);
-    setApplyMessage('');
+    setSubmittingApply(true);
+    setApplyError(null);
+    try {
+      await designerApi.apply(taskId, { cover_note: applyMessage.trim() });
+      appliedTaskIds.current.add(taskId);
+      setApplyingForTaskId(null);
+      setApplyMessage('');
+    } catch (err: any) {
+      if (err?.response?.status === 409) {
+        appliedTaskIds.current.add(taskId);
+        setApplyingForTaskId(null);
+        setApplyMessage('');
+      } else {
+        setApplyError(err?.response?.data?.message || err?.message || 'Failed to submit application');
+      }
+    } finally {
+      setSubmittingApply(false);
+    }
   };
 
-  // ── Sort: highlighted first, then by createdAt descending ──
   const sortedPostings = [...postings].sort((a, b) => {
     const aHL = highlightedIds.has(a.id) ? 1 : 0;
     const bHL = highlightedIds.has(b.id) ? 1 : 0;
     if (bHL !== aHL) return bHL - aHL;
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center">
+        <AlertCircle className="mx-auto h-10 w-10 text-red-400" />
+        <p className="mt-3 text-red-700 font-medium">Failed to load job postings</p>
+        <p className="mt-1 text-sm text-red-600">{error}</p>
+        <button
+          onClick={fetchPostings}
+          className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -228,7 +252,7 @@ export function DesignerOpenJobPostings() {
             </div>
             <h3 className="mt-3 text-2xl font-bold text-slate-900">Job postings sent by leadership</h3>
             <p className="mt-2 max-w-2xl text-sm text-slate-600">
-              This view reads the posting data directly from the CEO, General Manager, and System Administrator workflow so designers can review the source details without leaving the page.
+              Browse open designer tasks posted by the CEO and General Manager. Apply to tasks that match your skills.
             </p>
             {highlightedIds.size > 0 && (
               <p className="text-sm text-blue-600 mt-2 flex items-center gap-2">
@@ -268,12 +292,9 @@ export function DesignerOpenJobPostings() {
       ) : (
         <div className="grid grid-cols-2 gap-4 auto-rows-auto">
           {sortedPostings.map((posting) => {
-            const createdByLabel = roleNamesByUserId[posting.assignedBy] ?? `User ${posting.assignedBy}`;
-            const hasApplied = user
-              ? applications.some(
-                  (app) => app.taskId === posting.id && app.applicantId === user.id
-                )
-              : false;
+            const assignedByLabel =
+              posting.assigned_by_user?.full_name || `User ${posting.assigned_by_user_id}`;
+            const hasApplied = appliedTaskIds.current.has(posting.id);
             const isApplying = applyingForTaskId === posting.id;
             const isHighlighted = highlightedIds.has(posting.id);
 
@@ -288,7 +309,6 @@ export function DesignerOpenJobPostings() {
                     : 'border-slate-200',
                 ].join(' ')}
               >
-                {/* "New" badge for highlighted cards */}
                 {isHighlighted && (
                   <div className="mb-3">
                     <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full">
@@ -298,46 +318,40 @@ export function DesignerOpenJobPostings() {
                   </div>
                 )}
 
-                {/* Row 1: role badge + status pill */}
                 <div className="flex items-center justify-between gap-2 shrink-0">
                   <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600 truncate max-w-[60%]">
                     <Landmark className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{createdByLabel}</span>
+                    <span className="truncate">{assignedByLabel}</span>
                   </div>
                   <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${getStatusTone(posting.status)}`}>
-                    {posting.status.replace('_', ' ')}
+                    {getStatusLabel(posting.status)}
                   </span>
                 </div>
 
-                {/* Row 2: title */}
                 <h4 className="mt-3 text-base font-semibold text-slate-900 line-clamp-2 shrink-0">{posting.title}</h4>
 
-                {/* Row 3: description */}
                 <p className="mt-1.5 text-sm text-slate-600 whitespace-pre-wrap">{posting.description}</p>
 
-                {/* Row 4: badges */}
                 <div className="mt-3 flex flex-wrap gap-2 text-xs shrink-0">
                   <span className="rounded-full bg-indigo-100 px-2.5 py-1 font-medium text-indigo-700">
-                    Story Points: {posting.storyPoints ?? 0}
+                    Story Points: {posting.story_point ?? 0}
                   </span>
                   <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-700 truncate max-w-[160px]">
-                    Project ID: {posting.projectId}
+                    Task ID: {posting.id}
                   </span>
                 </div>
 
-                {/* Row 5: dates */}
                 <div className="mt-3 space-y-1 text-xs text-slate-500 shrink-0">
                   <div className="flex items-center gap-2">
                     <Calendar className="h-3.5 w-3.5 shrink-0" />
-                    <span>Deadline: {posting.deadline ? new Date(posting.deadline).toLocaleDateString() : 'No deadline'}</span>
+                    <span>Deadline: {posting.due_date ? new Date(posting.due_date).toLocaleDateString() : 'No deadline'}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Clock className="h-3.5 w-3.5 shrink-0" />
-                    <span>Created: {new Date(posting.createdAt).toLocaleDateString()}</span>
+                    <span>Created: {new Date(posting.created_at).toLocaleDateString()}</span>
                   </div>
                 </div>
 
-                {/* Row 6: apply / applied / inline form */}
                 {user && (
                   <div className="mt-3 shrink-0">
                     {hasApplied ? (
@@ -349,21 +363,25 @@ export function DesignerOpenJobPostings() {
                         <textarea
                           value={applyMessage}
                           onChange={(e) => setApplyMessage(e.target.value)}
-                          placeholder="Tell us why you’re interested…"
+                          placeholder="Tell us why you're interested..."
                           rows={3}
                           className="w-full resize-none rounded-lg border border-slate-300 p-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-400 outline-none"
                           autoFocus
                         />
+                        {applyError && (
+                          <p className="text-xs text-red-600">{applyError}</p>
+                        )}
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => submitApplication(posting)}
-                            disabled={!applyMessage.trim()}
+                            onClick={() => submitApplication(posting.id)}
+                            disabled={!applyMessage.trim() || submittingApply}
                             className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            <Send className="h-3.5 w-3.5" /> Submit
+                            <Send className="h-3.5 w-3.5" /> {submittingApply ? 'Submitting...' : 'Submit'}
                           </button>
                           <button
                             onClick={cancelApply}
+                            disabled={submittingApply}
                             className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
                           >
                             Cancel

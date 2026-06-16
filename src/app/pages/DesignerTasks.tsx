@@ -973,6 +973,38 @@ export function DesignerTasks() {
   };
 
   const getCurrentPhaseInfo = (task: DesignerTaskItem) => {
+    // Find latest review across all phases to determine the most relevant stage/status
+    const raw = submissionsRawData[task.id];
+    const stageLabels = ['Case Study', 'Design Stage', 'Rendering', 'Final Stage'];
+    const stageKeys: PhaseKey[] = ['caseStudy', 'designStage', 'rendering', 'finalStage'];
+    const stages = raw ? [raw.caseStudy || [], raw.designing || [], raw.rendering || [], raw.finalStage || []] : [[], [], [], []];
+    let latestReviewTs = 0;
+    let latestPhaseKey: PhaseKey | null = null;
+    let latestPhaseLabel = '';
+    let latestReviewOutcome: string | null = null;
+
+    for (let si = 0; si < stages.length; si++) {
+      for (const s of stages[si]) {
+        for (const r of (s.reviews || [])) {
+          const rTs = new Date(r.created_at).getTime();
+          if (rTs > latestReviewTs) {
+            latestReviewTs = rTs;
+            latestPhaseKey = stageKeys[si];
+            latestPhaseLabel = stageLabels[si];
+            latestReviewOutcome = r.review_outcome;
+          }
+        }
+      }
+    }
+
+    if (latestReviewOutcome) {
+      return {
+        currentPhaseKey: latestPhaseKey,
+        currentPhaseLabel: latestPhaseLabel,
+        currentPhaseStatus: latestReviewOutcome as PhaseHistoryEntry['status'],
+      };
+    }
+
     const found = PHASES.find((p) => p.backendStage === task.stage);
     const currentPhaseKey: PhaseKey | null = found?.key ?? null;
     const currentPhaseLabel = found?.label ?? (task.stage || '');
@@ -991,24 +1023,28 @@ export function DesignerTasks() {
     description: string;
     kind: 'review' | 'submission';
     outcome: string;
+    stage?: string;
   } | null => {
     const raw = submissionsRawData[taskId];
     if (!raw) return null;
-    let latestTs = 0;
-    let latest: { description: string; kind: 'review' | 'submission'; outcome: string } | null = null;
+    const stageLabels = ['Case Study', 'Design Stage', 'Rendering', 'Final Stage'];
     const stages = [raw.caseStudy || [], raw.designing || [], raw.rendering || [], raw.finalStage || []];
-    for (const submissions of stages) {
+    let latestTs = 0;
+    let latest: { description: string; kind: 'review' | 'submission'; outcome: string; stage?: string } | null = null;
+    for (let si = 0; si < stages.length; si++) {
+      const submissions = stages[si];
+      const stageLabel = stageLabels[si];
       for (const s of submissions) {
         const sTs = Math.max(new Date(s.created_at).getTime(), s.updated_at ? new Date(s.updated_at).getTime() : 0);
         if (sTs > latestTs) {
           latestTs = sTs;
-          latest = { description: s.description || '', kind: 'submission', outcome: 'pending' };
+          latest = { description: s.description || '', kind: 'submission', outcome: 'pending', stage: stageLabel };
         }
         for (const r of (s.reviews || [])) {
           const rTs = Math.max(new Date(r.created_at).getTime(), r.updated_at ? new Date(r.updated_at).getTime() : 0);
           if (rTs > latestTs) {
             latestTs = rTs;
-            latest = { description: r.description || '', kind: 'review', outcome: r.review_outcome };
+            latest = { description: r.description || '', kind: 'review', outcome: r.review_outcome, stage: stageLabel };
           }
         }
       }
@@ -1217,6 +1253,9 @@ export function DesignerTasks() {
                         <div className="flex items-center gap-2 mb-2">
                           <BadgeIcon className={`w-4 h-4 ${iconColor}`} />
                           <p className={`text-sm font-medium ${textColor}`}>{statusLabel}</p>
+                          {activity.stage && (
+                            <span className="text-xs text-gray-400">in {activity.stage}</span>
+                          )}
                         </div>
                         <p className="text-sm text-gray-700">{activity.description}</p>
                       </div>

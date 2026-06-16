@@ -169,6 +169,17 @@ const designerApi = {
     );
     return response.data;
   },
+
+  apply: async (
+    taskId: string,
+    data?: { cover_note?: string }
+  ): Promise<{ success: boolean; data?: any; message?: string }> => {
+    const response = await api.post<{ success: boolean; data?: any; message?: string }>(
+      `/designer-tasks/${taskId}/apply`,
+      data ?? {}
+    );
+    return response.data;
+  },
 };
 
 export default designerApi;
