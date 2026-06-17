@@ -239,6 +239,17 @@ const designerApi = {
     );
     return response.data;
   },
+
+  updateDesignerTask: async (
+    taskId: string,
+    data: FormData | Record<string, unknown>
+  ): Promise<CreateDesignerTaskResponse> => {
+    const response = await api.patch<CreateDesignerTaskResponse>(
+      `/designer-tasks/${taskId}`,
+      data
+    );
+    return response.data;
+  },
 };
 
 export default designerApi;

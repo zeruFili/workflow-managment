@@ -196,6 +196,17 @@ const dataCollectorApi = {
     );
     return response.data;
   },
+
+  updateDataCollectorTask: async (
+    taskId: string,
+    data: FormData | Record<string, unknown>
+  ): Promise<CreateDataCollectorTaskResponse> => {
+    const response = await api.patch<CreateDataCollectorTaskResponse>(
+      `/data-collector-tasks/${taskId}`,
+      data
+    );
+    return response.data;
+  },
 };
 
 export default dataCollectorApi;

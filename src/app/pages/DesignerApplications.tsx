@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { CheckCircle2, User, Users, Loader2, AlertCircle, Clock } from 'lucide-react';
+import { CheckCircle2, User, Users, Loader2, AlertCircle, Clock, Edit, XCircle, Image } from 'lucide-react';
 import designerApi, { DesignerTaskItem, DesignerApplicationItem } from '../../api/designerApi';
 import userApi, { UserItem } from '../../api/userApi';
 
@@ -30,6 +30,17 @@ export function DesignerApplications() {
 
   const [assigningTaskId, setAssigningTaskId] = useState<string | null>(null);
   const [assignError, setAssignError] = useState<string | null>(null);
+
+  // ── Edit Task state ──
+  const [showEditTask, setShowEditTask] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ title: '', description: '', instruction: '', storyPoints: '', deadline: '', is_public: false, assigned_to_user_id: '' });
+  const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
+  const editImageFileRef = useRef<File | null>(null);
+  const [editFormErrors, setEditFormErrors] = useState<Record<string, string>>({});
+  const [editError, setEditError] = useState('');
+  const [editSuccess, setEditSuccess] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const initiallyAssignedIds = useRef<Set<string>>(new Set());
   const editedThisSession = useRef<Set<string>>(new Set());
@@ -195,6 +206,109 @@ export function DesignerApplications() {
     setAssignError(null);
   };
 
+  const openEditTask = (task: DesignerTaskItem) => {
+    setEditingTaskId(task.id);
+    setEditForm({
+      title: task.title,
+      description: task.description,
+      instruction: '',
+      storyPoints: String(task.story_point),
+      deadline: task.due_date ? new Date(task.due_date).toISOString().split('T')[0] : '',
+      is_public: task.is_public ?? false,
+      assigned_to_user_id: task.assigned_to_user_id || '',
+    });
+    setEditImagePreview(null);
+    editImageFileRef.current = null;
+    setEditFormErrors({});
+    setEditError('');
+    setEditSuccess('');
+    setShowEditTask(true);
+  };
+
+  const handleEditTask = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!editingTaskId) return;
+
+    const title = editForm.title.trim();
+    const description = editForm.description.trim();
+    const storyPointsRaw = editForm.storyPoints.trim();
+    const instruction = editForm.instruction.trim();
+    const deadline = editForm.deadline.trim();
+    const assignedTo = editForm.assigned_to_user_id.trim();
+
+    setEditError('');
+
+    const errors: Record<string, string> = {};
+    if (!title) errors.title = 'Title is required.';
+    else if (title.length > 500) errors.title = 'Title must be 500 characters or fewer.';
+    if (!description) errors.description = 'Description is required.';
+    else if (description.length > 5000) errors.description = 'Description must be 5000 characters or fewer.';
+    if (!storyPointsRaw) {
+      errors.storyPoints = 'Story Points are required.';
+    } else {
+      const sp = Number(storyPointsRaw);
+      if (isNaN(sp) || sp < 1 || sp > 100) errors.storyPoints = 'Story Points must be a number between 1 and 100.';
+    }
+
+    setEditFormErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
+    const storyPoints = Number(storyPointsRaw);
+    const file = editImageFileRef.current;
+
+    const fullDescription = instruction
+      ? `${description}\n\nInstructions:\n${instruction}`
+      : description;
+
+    setIsUpdating(true);
+
+    try {
+      let response: { success: boolean; data?: DesignerTaskItem; message?: string };
+
+      if (file) {
+        const formData = new FormData();
+        formData.append('title', title);
+        formData.append('description', fullDescription);
+        formData.append('story_point', String(storyPoints));
+        formData.append('is_public', String(editForm.is_public));
+        if (deadline) formData.append('due_date', new Date(deadline).toISOString());
+        if (assignedTo) formData.append('assigned_to_user_id', assignedTo);
+        formData.append('attachmentFiles', file);
+
+        response = await designerApi.updateDesignerTask(editingTaskId, formData);
+      } else {
+        const payload: Record<string, unknown> = {
+          title,
+          description: fullDescription,
+          story_point: storyPoints,
+          is_public: editForm.is_public,
+        };
+        if (deadline) payload.due_date = new Date(deadline).toISOString();
+        if (assignedTo) payload.assigned_to_user_id = assignedTo;
+
+        response = await designerApi.updateDesignerTask(editingTaskId, payload);
+      }
+
+      if (response.success) {
+        setEditSuccess(response.message || 'Task updated successfully');
+        setShowEditTask(false);
+        setEditingTaskId(null);
+        setEditFormErrors({});
+        fetchData();
+      } else {
+        setEditError(response.message || 'Failed to update task');
+      }
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined;
+      setEditError(msg || 'Unable to update task. Please try again.');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const getDesignerName = (designerId: string): string =>
     designers.find((d) => d.id === designerId)?.full_name ?? `Designer ${designerId}`;
 
@@ -277,6 +391,16 @@ export function DesignerApplications() {
                       <p className="text-sm font-medium text-blue-700 mt-2">
                         Assigned to: {task.assigned_to_user?.full_name || getDesignerName(task.assigned_to_user_id!)}
                       </p>
+                    )}
+                    {taskApplications.length === 0 && (
+                      <button
+                        type="button"
+                        onClick={() => openEditTask(task)}
+                        className="inline-flex items-center gap-1 mt-2 text-sm text-indigo-600 hover:underline"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                        Edit Task
+                      </button>
                     )}
                   </div>
                   <span
@@ -448,6 +572,163 @@ export function DesignerApplications() {
         <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
           <CheckCircle2 className="w-12 h-12 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500">No designer tasks found yet.</p>
+        </div>
+      )}
+
+      {editSuccess && (
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-green-700 text-sm">{editSuccess}</div>
+      )}
+
+      {/* Edit Task Modal */}
+      {showEditTask && editingTaskId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="text-xl font-semibold">Edit Designer Task</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Update the task details below. Fields marked with <span className="text-red-500">*</span> are required.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { if (editImagePreview) URL.revokeObjectURL(editImagePreview); setShowEditTask(false); setEditingTaskId(null); setEditFormErrors({}); setEditError(''); }}
+                className="p-1.5 rounded-lg hover:bg-gray-100 shrink-0"
+                disabled={isUpdating}
+              >
+                <XCircle className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+              </button>
+            </div>
+            <form className="space-y-4" onSubmit={handleEditTask}>
+              {editError && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{editError}</p>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Task Title <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text" value={editForm.title}
+                  onChange={(event) => { setEditForm({ ...editForm, title: event.target.value }); if (editFormErrors.title) setEditFormErrors((prev) => { const n = { ...prev }; delete n.title; return n; }); }}
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${editFormErrors.title ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                  disabled={isUpdating}
+                />
+                {editFormErrors.title && <p className="text-xs text-red-600 mt-1">{editFormErrors.title}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  rows={4} value={editForm.description}
+                  onChange={(event) => { setEditForm({ ...editForm, description: event.target.value }); if (editFormErrors.description) setEditFormErrors((prev) => { const n = { ...prev }; delete n.description; return n; }); }}
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${editFormErrors.description ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                  disabled={isUpdating}
+                />
+                {editFormErrors.description && <p className="text-xs text-red-600 mt-1">{editFormErrors.description}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Story Points <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number" min="1" max="100" value={editForm.storyPoints}
+                  onChange={(event) => { setEditForm({ ...editForm, storyPoints: event.target.value }); if (editFormErrors.storyPoints) setEditFormErrors((prev) => { const n = { ...prev }; delete n.storyPoints; return n; }); }}
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${editFormErrors.storyPoints ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                  disabled={isUpdating}
+                />
+                {editFormErrors.storyPoints && <p className="text-xs text-red-600 mt-1">{editFormErrors.storyPoints}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Assign To (optional)</label>
+                <select
+                  value={editForm.assigned_to_user_id}
+                  onChange={(event) => setEditForm({ ...editForm, assigned_to_user_id: event.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  disabled={isUpdating}
+                >
+                  <option value="">Open for application (unassigned)</option>
+                  {designers.map((d) => (
+                    <option key={d.id} value={d.id}>{d.full_name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="app_edit_is_public"
+                  checked={editForm.is_public}
+                  onChange={(event) => setEditForm({ ...editForm, is_public: event.target.checked })}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  disabled={isUpdating}
+                />
+                <label htmlFor="app_edit_is_public" className="text-sm font-medium text-gray-700">
+                  Public Task (visible to all designers)
+                </label>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Telegram Screenshot (optional)</label>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-sm text-gray-700">
+                    <Image className="w-4 h-4" />Choose Image
+                    <input
+                      type="file" accept="image/*"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (!file) return;
+                        if (editImagePreview) URL.revokeObjectURL(editImagePreview);
+                        editImageFileRef.current = file;
+                        setEditImagePreview(URL.createObjectURL(file));
+                      }}
+                      className="hidden" disabled={isUpdating}
+                    />
+                  </label>
+                  {editImagePreview && (
+                    <button type="button" onClick={() => { if (editImagePreview) URL.revokeObjectURL(editImagePreview); setEditImagePreview(null); editImageFileRef.current = null; }} className="text-sm text-red-600 hover:underline" disabled={isUpdating}>Remove</button>
+                  )}
+                </div>
+                {editImagePreview && (
+                  <div className="mt-3">
+                    <p className="text-xs text-gray-500 mb-1">Preview:</p>
+                    <img src={editImagePreview} alt="preview" className="max-w-full h-auto max-h-48 rounded-lg border object-contain" />
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Instruction (optional)</label>
+                <textarea
+                  rows={4} value={editForm.instruction}
+                  onChange={(event) => setEditForm({ ...editForm, instruction: event.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Describe what the designer must collect or measure" disabled={isUpdating}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Deadline (optional)</label>
+                <input
+                  type="date" value={editForm.deadline}
+                  min={new Date().toISOString().split('T')[0]}
+                  onChange={(event) => setEditForm({ ...editForm, deadline: event.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" disabled={isUpdating}
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button type="button" onClick={() => { if (editImagePreview) URL.revokeObjectURL(editImagePreview); setShowEditTask(false); setEditingTaskId(null); setEditFormErrors({}); setEditError(''); }} className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors" disabled={isUpdating}>Cancel</button>
+                <button type="submit" className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:bg-indigo-300" disabled={isUpdating}>
+                  {isUpdating ? 'Updating...' : 'Update Task'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

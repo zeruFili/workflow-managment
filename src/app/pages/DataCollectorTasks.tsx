@@ -401,6 +401,16 @@ export function DataCollectorTasks() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [dataCollectors, setDataCollectors] = useState<UserItem[]>([]);
 
+  // ── Edit Task state ──
+  const [showEditTask, setShowEditTask] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ title: '', description: '', instruction: '', deadline: '', assigned_to_user_id: '' });
+  const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
+  const editImageFileRef = useRef<File | null>(null);
+  const [editFormErrors, setEditFormErrors] = useState<Record<string, string>>({});
+  const [editError, setEditError] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
+
   const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [imageZoom, setImageZoom] = useState(1);
@@ -925,6 +935,90 @@ export function DataCollectorTasks() {
     }).catch(() => {});
   };
 
+  const openEditTask = (task: DataCollectorTaskItem) => {
+    setEditingTaskId(task.id);
+    setEditForm({
+      title: task.title,
+      description: task.description,
+      instruction: '',
+      deadline: task.due_date ? new Date(task.due_date).toISOString().split('T')[0] : '',
+      assigned_to_user_id: task.assigned_to_user_id || '',
+    });
+    setEditImagePreview(null);
+    editImageFileRef.current = null;
+    setEditFormErrors({});
+    setEditError('');
+    setShowEditTask(true);
+    userApi.getDataCollectors().then((res) => {
+      if (res.success) setDataCollectors(res.data);
+    }).catch(() => {});
+  };
+
+  const handleEditTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTaskId) return;
+
+    const title = editForm.title.trim();
+    const description = editForm.description.trim();
+    const instruction = editForm.instruction.trim();
+    const deadline = editForm.deadline.trim();
+    const assignedTo = editForm.assigned_to_user_id.trim();
+
+    setEditError('');
+
+    const errors: Record<string, string> = {};
+    if (!title) errors.title = 'Title is required.';
+    else if (title.length > 500) errors.title = 'Title must be 500 characters or fewer.';
+    if (!description) errors.description = 'Description is required.';
+    else if (description.length > 5000) errors.description = 'Description must be 5000 characters or fewer.';
+
+    setEditFormErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
+    const fullDescription = instruction
+      ? `${description}\n\nInstructions:\n${instruction}`
+      : description;
+
+    setIsUpdating(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('title', title);
+      formData.append('description', fullDescription);
+      if (deadline) {
+        formData.append('due_date', new Date(deadline).toISOString());
+      }
+      if (assignedTo) {
+        formData.append('assigned_to_user_id', assignedTo);
+      }
+      if (editImageFileRef.current) {
+        formData.append('attachmentFiles', editImageFileRef.current);
+      }
+
+      const response = await dataCollectorApi.updateDataCollectorTask(editingTaskId, formData);
+
+      if (response.success) {
+        setTaskSuccessMsg(response.message || 'Data collector task updated successfully');
+        setShowEditTask(false);
+        setEditingTaskId(null);
+        setEditFormErrors({});
+        cachedTasks = null;
+        cachedMeta = null;
+        await fetchTasks(apiPage, true);
+      } else {
+        setEditError(response.message || 'Failed to update task');
+      }
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined;
+      setEditError(msg || 'Unable to update task. Please try again.');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1128,12 +1222,24 @@ export function DataCollectorTasks() {
 
                   <p className="text-sm text-gray-600 mb-3">{task.description}</p>
 
-                  <button
-                    onClick={() => openDetail(task)}
-                    className="mb-4 text-sm text-blue-600 hover:underline"
-                  >
-                    Open Submission Detail
-                  </button>
+                  <div className="flex items-center gap-3 mb-4">
+                    <button
+                      onClick={() => openDetail(task)}
+                      className="text-sm text-blue-600 hover:underline"
+                    >
+                      Open Submission Detail
+                    </button>
+                    {canManage && getSubmissionWrappers(task).length === 0 && (
+                      <button
+                        type="button"
+                        onClick={() => openEditTask(task)}
+                        className="text-sm text-indigo-600 hover:underline flex items-center gap-1"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                        Edit Task
+                      </button>
+                    )}
+                  </div>
 
                   {(() => {
                     const activity = getLatestActivity(task);
@@ -1762,6 +1868,149 @@ export function DataCollectorTasks() {
                 Reset
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Task Modal */}
+      {showEditTask && editingTaskId && canManage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Edit Data Collection Task</h3>
+                <p className="text-sm text-gray-500 mt-0.5">Update the task details. Fields marked with <span className="text-red-500">*</span> are required.</p>
+              </div>
+              <button onClick={() => { if (!isUpdating) { if (editImagePreview) URL.revokeObjectURL(editImagePreview); setShowEditTask(false); setEditingTaskId(null); setEditFormErrors({}); setEditError(''); } }} className="p-2 rounded-lg hover:bg-gray-100" disabled={isUpdating}>
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <form onSubmit={handleEditTask} className="px-6 py-5 space-y-4">
+              {editError && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{editError}</p>
+              )}
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Title <span className="text-red-500">*</span>
+                </label>
+                <input
+                  value={editForm.title}
+                  onChange={(e) => { setEditForm({ ...editForm, title: e.target.value }); if (editFormErrors.title) setEditFormErrors((prev) => { const n = { ...prev }; delete n.title; return n; }); }}
+                  className={`w-full rounded-xl border px-4 py-2.5 text-sm ${editFormErrors.title ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
+                  disabled={isUpdating}
+                />
+                {editFormErrors.title && <p className="text-xs text-red-600 mt-1">{editFormErrors.title}</p>}
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Description <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={editForm.description}
+                  onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); if (editFormErrors.description) setEditFormErrors((prev) => { const n = { ...prev }; delete n.description; return n; }); }}
+                  className={`w-full rounded-xl border px-4 py-2.5 text-sm ${editFormErrors.description ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
+                  disabled={isUpdating}
+                />
+                {editFormErrors.description && <p className="text-xs text-red-600 mt-1">{editFormErrors.description}</p>}
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Assign To (optional)</label>
+                <select
+                  value={editForm.assigned_to_user_id}
+                  onChange={(e) => setEditForm({ ...editForm, assigned_to_user_id: e.target.value })}
+                  className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm"
+                  disabled={isUpdating}
+                >
+                  <option value="">Unassigned</option>
+                  {dataCollectors.map((d) => (
+                    <option key={d.id} value={d.id}>{d.full_name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Instruction (optional)</label>
+                <textarea
+                  rows={3}
+                  value={editForm.instruction}
+                  onChange={(e) => setEditForm({ ...editForm, instruction: e.target.value })}
+                  className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm"
+                  disabled={isUpdating}
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Deadline (optional)</label>
+                <input
+                  type="date"
+                  min={new Date().toISOString().split('T')[0]}
+                  value={editForm.deadline}
+                  onChange={(e) => setEditForm({ ...editForm, deadline: e.target.value })}
+                  className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm"
+                  disabled={isUpdating}
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Evidence Screenshot (optional)</label>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-sm">
+                    <Image className="w-4 h-4" />
+                    Choose Image
+                    <input
+                      type="file" accept="image/*"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (!file) return;
+                        if (editImagePreview) URL.revokeObjectURL(editImagePreview);
+                        editImageFileRef.current = file;
+                        setEditImagePreview(URL.createObjectURL(file));
+                      }}
+                      className="hidden" disabled={isUpdating}
+                    />
+                  </label>
+                  {editImagePreview && (
+                    <button
+                      type="button"
+                      onClick={() => { if (editImagePreview) URL.revokeObjectURL(editImagePreview); setEditImagePreview(null); editImageFileRef.current = null; }}
+                      className="text-sm text-red-600 hover:underline"
+                      disabled={isUpdating}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                {editImagePreview && (
+                  <img
+                    src={editImagePreview}
+                    alt="preview"
+                    className="mt-3 max-h-48 rounded-lg border object-contain"
+                  />
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => { if (editImagePreview) URL.revokeObjectURL(editImagePreview); setShowEditTask(false); setEditingTaskId(null); setEditFormErrors({}); setEditError(''); }}
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200"
+                  disabled={isUpdating}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:bg-indigo-300"
+                  disabled={isUpdating}
+                >
+                  {isUpdating ? 'Updating...' : 'Update Task'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
