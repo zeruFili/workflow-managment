@@ -1857,6 +1857,17 @@ export function DesignerAssignments() {
                                                     <button onClick={() => handleSubmitFeedback(taskId, phase.key)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-100 transition-colors">
                                                       <Send className="w-3.5 h-3.5" /> {editingReviewId ? 'Update Feedback' : 'Feedback'}
                                                     </button>
+                                                    {editingReviewId && (
+                                                      <button
+                                                        onClick={() => {
+                                                          setEditingReviewId(null);
+                                                          updateDraft(taskId, phase.key, '');
+                                                        }}
+                                                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200 transition-colors"
+                                                      >
+                                                        Cancel
+                                                      </button>
+                                                    )}
                                                   </div>
                                                 </div>
                                                 )}
