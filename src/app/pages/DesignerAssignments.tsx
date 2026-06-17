@@ -473,7 +473,7 @@ export function DesignerAssignments() {
   const apiLimit = isLeadership ? 20 : 10;
 
   // ── Fetch tasks from API ──
-  const fetchTasks = useCallback(async (page: number) => {
+  const fetchTasks = useCallback(async (page: number): Promise<DesignerTaskItem[] | undefined> => {
     if (!user) return;
     setIsLoading(true);
     setError(null);
@@ -503,6 +503,8 @@ export function DesignerAssignments() {
         );
         setDesignerAssignmentNotificationIds(notifIds);
         setHighlightedIds(new Set([...notifIds]));
+
+        return response.data;
       } else {
         setError(response.message || 'Failed to load tasks');
       }
@@ -1080,9 +1082,9 @@ export function DesignerAssignments() {
         await designerApi.createReview(latestSubmission.id, payload);
       }
       updateDraft(taskId, phase, '');
-      await fetchTasks(apiPage, true);
-      if (cachedTasks) {
-        const refreshed = cachedTasks.find((t) => t.id === taskId);
+      const refreshedTasks = await fetchTasks(apiPage);
+      if (refreshedTasks) {
+        const refreshed = refreshedTasks.find((t) => t.id === taskId);
         if (refreshed) {
           setSelectedTaskDetail(refreshed);
           if (refreshed.submissionsWithReviews) {
