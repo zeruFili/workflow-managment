@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { CheckCircle2, User, Users, Loader2, AlertCircle, Clock } from 'lucide-react';
 import designerApi, { DesignerTaskItem, DesignerApplicationItem } from '../../api/designerApi';
@@ -31,19 +31,25 @@ export function DesignerApplications() {
   const [assigningTaskId, setAssigningTaskId] = useState<string | null>(null);
   const [assignError, setAssignError] = useState<string | null>(null);
 
+  const initiallyAssignedIds = useRef<Set<string>>(new Set());
+  const editedThisSession = useRef<Set<string>>(new Set());
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
       const [tasksRes, usersRes] = await Promise.all([
-        designerApi.getDesignerTasks({ isPublic: true, limit: 100 }),
+        designerApi.getDesignerTasks({ limit: 100 }),
         userApi.getDesigners(),
       ]);
 
       const fetchedTasks = tasksRes.data;
       setTasks(fetchedTasks);
       setDesigners(usersRes.data);
+      initiallyAssignedIds.current = new Set(
+        fetchedTasks.filter((t) => t.assigned_to_user_id).map((t) => t.id)
+      );
 
       if (fetchedTasks.length > 0) {
         const appResults = await Promise.all(
@@ -119,11 +125,18 @@ export function DesignerApplications() {
     const selectedDesignerId = selectedDesignerByTask[taskId];
     if (!selectedDesignerId) return;
 
+    const wasAssignedBefore =
+      initiallyAssignedIds.current.has(taskId) || editedThisSession.current.has(taskId);
+
     setAssigningTaskId(taskId);
     setAssignError(null);
 
     try {
       await designerApi.assignDesigner(taskId, selectedDesignerId);
+
+      if (wasAssignedBefore) {
+        editedThisSession.current.add(taskId);
+      }
 
       const chosenDesigner = designers.find((d) => d.id === selectedDesignerId);
 
@@ -137,6 +150,9 @@ export function DesignerApplications() {
                   ? { id: chosenDesigner.id, full_name: chosenDesigner.full_name, role: chosenDesigner.role }
                   : null,
                 assigned_at: new Date().toISOString(),
+                updated_by_user: user
+                  ? { id: user.id, full_name: user.full_name, role: user.role }
+                  : null,
               }
             : task
         )
@@ -225,10 +241,14 @@ export function DesignerApplications() {
             const assignmentAge = hoursSince(task.assigned_at);
             const isInGracePeriod = isAssigned && assignmentAge < GRACE_PERIOD_HOURS;
             const canReassign = isAssigned && assignmentAge >= GRACE_PERIOD_HOURS;
+            const assignedByCurrentUser = isAssigned && task.updated_by_user?.id === user?.id;
+            const wasEdited =
+              initiallyAssignedIds.current.has(task.id) || editedThisSession.current.has(task.id);
 
             const showAssignmentUI = !isAssigned || isEditing;
-            const showGraceBox = isInGracePeriod && !isEditing;
-            const showReassignBox = canReassign && !isEditing;
+            const showAssignmentConfirmation = assignedByCurrentUser && !isEditing;
+            const showGraceBox = isInGracePeriod && !isEditing && !assignedByCurrentUser;
+            const showReassignBox = canReassign && !isEditing && !assignedByCurrentUser;
 
             const visibleApplications = taskApplications.filter(
               (app) => app.applicant_user_id !== task.assigned_to_user_id
@@ -262,13 +282,13 @@ export function DesignerApplications() {
                   <span
                     className={`shrink-0 px-2 py-1 rounded-full text-xs font-medium ${
                       isAssigned
-                        ? isInGracePeriod
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'bg-green-100 text-green-700'
+                        ? assignedByCurrentUser || canReassign
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-blue-100 text-blue-700'
                         : 'bg-gray-100 text-gray-700'
                     }`}
                   >
-                    {isAssigned ? (isInGracePeriod ? 'Grace Period' : 'Assigned') : 'Open'}
+                    {isAssigned ? (assignedByCurrentUser || canReassign ? 'Assigned' : 'Grace Period') : 'Open'}
                   </span>
                 </div>
 
@@ -369,6 +389,27 @@ export function DesignerApplications() {
                         </button>
                       )}
                     </div>
+                  </div>
+                ) : showAssignmentConfirmation ? (
+                  <div className="rounded-lg border border-dashed border-green-300 bg-green-50 p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-green-600" />
+                      <span className="text-sm font-medium text-green-800">
+                        Assigned to: {task.assigned_to_user?.full_name || getDesignerName(task.assigned_to_user_id!)}
+                      </span>
+                    </div>
+                    {wasEdited && task.updated_by_user && (
+                      <p className="text-xs text-green-700">
+                        Edited by: {task.updated_by_user.full_name}
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => startEditing(task.id, task.assigned_to_user_id ?? undefined)}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm"
+                    >
+                      Edit Assigned User
+                    </button>
                   </div>
                 ) : showGraceBox ? (
                   <div className="rounded-lg border border-dashed border-blue-300 bg-blue-50 p-4 space-y-3">
