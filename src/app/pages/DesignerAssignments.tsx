@@ -9,6 +9,7 @@ import {
   getPendingReviewHighlightedIds,
   markPendingReviewCardsViewed,
   publishDesignerAssignmentsBadgeCount,
+  resetDesignerAssignmentsHighlightState,
 } from './designerAssignmentHighlights';
 import designerApi, {
   DesignerTaskItem,
@@ -455,10 +456,6 @@ export function DesignerAssignments() {
   const [reviewComments, setReviewComments] = useState<Record<string, string>>({});
   const [ratingSubmitted, setRatingSubmitted] = useState<Record<string, boolean>>({});
 
-  const [highlightedIds, setHighlightedIds] = useState<Set<string>>(
-    new Set(Array.from(getPendingReviewHighlightedIds()))
-  );
-
   // IntersectionObserver
   const seenThisSession = useRef<Set<string>>(new Set());
   const observedElements = useRef<Set<string>>(new Set());
@@ -467,16 +464,26 @@ export function DesignerAssignments() {
   const pendingTaskNotifIds = useRef<Map<string, string>>(new Map());
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
 
+  const hasResetForSession = useRef(false);
   useEffect(() => {
-    if (tasks.length === 0) return;
+    if (user && !hasResetForSession.current) {
+      resetDesignerAssignmentsHighlightState();
+      markedTaskNotificationIds.clear();
+      hasResetForSession.current = true;
+    }
+    if (!user) {
+      hasResetForSession.current = false;
+    }
+  }, [user]);
+
+  const highlightedIds = (() => {
+    if (tasks.length === 0) return new Set<string>();
     const notifIds = new Set(
       tasks.filter((t) => designerTaskHasAnyNotification(t)).map((t) => t.id)
     );
     setDesignerAssignmentNotificationIds(notifIds);
-    const remaining = getPendingReviewHighlightedIds();
-    setHighlightedIds(remaining);
-    publishDesignerAssignmentsBadgeCount(remaining.size);
-  }, [tasks]);
+    return getPendingReviewHighlightedIds();
+  })();
 
   // Role-based limits
   const isLeadership = user?.role === 'ceo' || user?.role === 'general_manager';
@@ -512,8 +519,6 @@ export function DesignerAssignments() {
             .map((t) => t.id)
         );
         setDesignerAssignmentNotificationIds(notifIds);
-        setHighlightedIds(new Set([...notifIds]));
-
         return response.data;
       } else {
         setError(response.message || 'Failed to load tasks');
@@ -641,17 +646,11 @@ export function DesignerAssignments() {
                 .map((t) => t.id)
             );
             setDesignerAssignmentNotificationIds(newNotifIds);
-            const remaining = getPendingReviewHighlightedIds();
-            setHighlightedIds(remaining);
-            publishDesignerAssignmentsBadgeCount(remaining.size);
           })
           .catch(() => {
             markedTaskNotificationIds.delete(notifId);
           });
       }
-      
-      setHighlightedIds(new Set([...getPendingReviewHighlightedIds()]));
-      publishDesignerAssignmentsBadgeCount(getPendingReviewCount());
     };
   }, []);
 
@@ -1054,6 +1053,13 @@ export function DesignerAssignments() {
 
     // Bulk-mark notification IDs from submissions & reviews
     const notifIds: string[] = [];
+    const topNotif = (task as any).taskNotification;
+    if (topNotif?.hasNotification && topNotif.notificationId && !markedTaskNotificationIds.has(topNotif.notificationId)) {
+      notifIds.push(topNotif.notificationId);
+    }
+    if (swr?.taskNotification?.hasNotification && swr.taskNotification.notificationId && !markedTaskNotificationIds.has(swr.taskNotification.notificationId)) {
+      notifIds.push(swr.taskNotification.notificationId);
+    }
     const stages: (keyof SubmissionsWithReviewsData)[] = ['caseStudy', 'designing', 'rendering', 'finalStage'];
     for (const stage of stages) {
       const subs: SubmissionItem[] = (swr as any)?.[stage] || [];
@@ -1071,6 +1077,7 @@ export function DesignerAssignments() {
       const clearedSwr = swr
         ? {
             ...swr,
+            taskNotification: { hasNotification: false, notificationId: null },
             caseStudy: (swr.caseStudy || []).map(stripSubmissionNotifications),
             designing: (swr.designing || []).map(stripSubmissionNotifications),
             rendering: (swr.rendering || []).map(stripSubmissionNotifications),
@@ -1078,7 +1085,7 @@ export function DesignerAssignments() {
           }
         : swr;
 
-      const clearedTask = { ...task, hasNestedNotification: false, submissionsWithReviews: clearedSwr } as DesignerTaskItem;
+      const clearedTask = { ...task, taskNotification: null, hasNestedNotification: false, submissionsWithReviews: clearedSwr } as DesignerTaskItem;
       setSelectedTaskDetail(clearedTask);
 
       const updatedTasks = tasksRef.current.map((t) =>
@@ -1087,18 +1094,13 @@ export function DesignerAssignments() {
       setTasks(updatedTasks);
       tasksRef.current = updatedTasks;
 
-      if (!designerTaskHasAnyNotification(clearedTask)) {
-        markPendingReviewCardsViewed([task.id]);
-      }
+      markPendingReviewCardsViewed([task.id]);
       const newNotifIds = new Set(
         updatedTasks
           .filter((t) => designerTaskHasAnyNotification(t))
           .map((t) => t.id)
       );
       setDesignerAssignmentNotificationIds(newNotifIds);
-      const remaining = getPendingReviewHighlightedIds();
-      setHighlightedIds(remaining);
-      publishDesignerAssignmentsBadgeCount(remaining.size);
     }
   };
 

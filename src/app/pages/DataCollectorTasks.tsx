@@ -339,6 +339,14 @@ const seedTasks: DataCollectorTaskItem[] = [
 let cachedTasks: DataCollectorTaskItem[] | null = null;
 let cachedMeta: DataCollectorTaskListMeta | null = null;
 
+export function resetDataCollectorHighlightState() {
+  viewedDataCollectorCards.clear();
+  dataCollectorNotificationIds = new Set<string>();
+  markedTaskNotificationIds.clear();
+  cachedTasks = null;
+  cachedMeta = null;
+}
+
 function loadLocalTasks(): DataCollectorTaskItem[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -415,7 +423,6 @@ export function DataCollectorTasks() {
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [imageZoom, setImageZoom] = useState(1);
 
-  const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
   const seenThisSession = useRef<Set<string>>(new Set());
   const observedElements = useRef<Set<string>>(new Set());
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -423,17 +430,30 @@ export function DataCollectorTasks() {
   const pendingTaskNotifIds = useRef<Map<string, string>>(new Map());
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
 
+  const hasResetForSession = useRef(false);
   useEffect(() => {
-    if (tasks.length === 0) return;
+    if (user && !hasResetForSession.current) {
+      resetDataCollectorHighlightState();
+      hasResetForSession.current = true;
+    }
+    if (!user) {
+      hasResetForSession.current = false;
+    }
+  }, [user]);
+
+  const highlightedIds = (() => {
+    if (tasks.length === 0) return new Set<string>();
     dataCollectorNotificationIds = new Set(
       tasks.filter((t) => anyNotification(t)).map((t) => t.id)
     );
-    const remaining = new Set(
+    return new Set(
       [...dataCollectorNotificationIds].filter((id) => !viewedDataCollectorCards.has(id))
     );
-    setHighlightedIds(remaining);
-    publishBadgeCount(remaining.size);
-  }, [tasks]);
+  })();
+
+  useEffect(() => {
+    publishBadgeCount(highlightedIds.size);
+  }, [highlightedIds]);
 
   const canManage = user?.role === 'ceo' || user?.role === 'general_manager';
   const canSubmit = user?.role === 'data_collector';
@@ -446,6 +466,9 @@ export function DataCollectorTasks() {
     if (!force && cachedTasks && cachedMeta) {
       setTasks(cachedTasks);
       setMeta(cachedMeta);
+      dataCollectorNotificationIds = new Set(
+        cachedTasks.filter((t) => anyNotification(t)).map((t) => t.id)
+      );
       setIsLoading(false);
       return;
     }
@@ -462,9 +485,6 @@ export function DataCollectorTasks() {
       dataCollectorNotificationIds = new Set(
         data.filter((t) => anyNotification(t)).map((t) => t.id)
       );
-      const unseen = new Set([...dataCollectorNotificationIds].filter((id) => !viewedDataCollectorCards.has(id)));
-      setHighlightedIds(unseen);
-      publishBadgeCount(unseen.size);
     };
 
     try {
@@ -589,28 +609,11 @@ export function DataCollectorTasks() {
                 : t
             ) as DataCollectorTaskItem[];
           }
-          dataCollectorNotificationIds = new Set(
-            updatedTasks.filter((t) => anyNotification(t)).map((t) => t.id)
-          );
-          const remaining = new Set(
-            [...dataCollectorNotificationIds].filter((id) => !viewedDataCollectorCards.has(id))
-          );
-          setHighlightedIds(remaining);
-          publishBadgeCount(remaining.size);
         })
         .catch(() => {
           markedTaskNotificationIds.delete(notifId);
         });
     }
-    
-    dataCollectorNotificationIds = new Set(
-      currentTasks.filter((t) => anyNotification(t)).map((t) => t.id)
-    );
-    const remainingUnseen = new Set(
-      [...dataCollectorNotificationIds].filter((id) => !viewedDataCollectorCards.has(id))
-    );
-    setHighlightedIds(remainingUnseen);
-    publishBadgeCount(remainingUnseen.size);
   };
 
   useEffect(() => { return () => { commitSeenSession(); }; }, []);
@@ -697,6 +700,13 @@ export function DataCollectorTasks() {
 
     const notifIds: string[] = [];
     const swr = task.submissionsWithReviews;
+    const topNotif = (task as any).taskNotification;
+    if (topNotif?.hasNotification && topNotif.notificationId && !markedTaskNotificationIds.has(topNotif.notificationId)) {
+      notifIds.push(topNotif.notificationId);
+    }
+    if (swr?.taskNotification?.hasNotification && swr.taskNotification.notificationId && !markedTaskNotificationIds.has(swr.taskNotification.notificationId)) {
+      notifIds.push(swr.taskNotification.notificationId);
+    }
     (swr?.submissions || []).forEach((w) => {
       if (w.hasNotification && w.notificationId) notifIds.push(w.notificationId);
       (w.submission?.reviews || []).forEach((r) => {
@@ -710,6 +720,7 @@ export function DataCollectorTasks() {
       const clearedSwr = swr
         ? {
             ...swr,
+            taskNotification: { hasNotification: false, notificationId: null },
             submissions: swr.submissions.map((w) => ({
               ...w,
               hasNotification: false,
@@ -726,7 +737,7 @@ export function DataCollectorTasks() {
           }
         : swr;
 
-      const clearedTask = { ...task, hasNestedNotification: false, submissionsWithReviews: clearedSwr } as DataCollectorTaskItem;
+      const clearedTask = { ...task, taskNotification: null, hasNestedNotification: false, submissionsWithReviews: clearedSwr } as DataCollectorTaskItem;
       setSelectedTask(clearedTask);
 
       const updatedTasks = tasksRef.current.map((t) =>
@@ -738,17 +749,7 @@ export function DataCollectorTasks() {
         cachedTasks = cachedTasks.map((t) => (t.id === task.id ? clearedTask : t));
       }
 
-      if (!anyNotification(clearedTask)) {
-        viewedDataCollectorCards.add(task.id);
-      }
-      dataCollectorNotificationIds = new Set(
-        updatedTasks.filter((t) => anyNotification(t)).map((t) => t.id)
-      );
-      const remaining = new Set(
-        [...dataCollectorNotificationIds].filter((id) => !viewedDataCollectorCards.has(id))
-      );
-      setHighlightedIds(remaining);
-      publishBadgeCount(remaining.size);
+      viewedDataCollectorCards.add(task.id);
     }
   };
 

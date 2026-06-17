@@ -364,6 +364,16 @@ let cachedMeta: DesignerTaskListMeta | null = null;
 let cachedRawData: Record<string, SubmissionsWithReviewsData> | null = null;
 let cachedProgress: SubmissionProgress | null = null;
 
+export function resetDesignerTasksHighlightState() {
+  viewedDesignerTaskCards.clear();
+  designerTaskNotificationIds = new Set<string>();
+  markedTaskNotificationIds.clear();
+  cachedTasks = null;
+  cachedMeta = null;
+  cachedRawData = null;
+  cachedProgress = null;
+}
+
 export function DesignerTasks() {
   const { user } = useAuth();
   const [selectedTaskDetail, setSelectedTaskDetail] = useState<DesignerTaskItem | null>(null);
@@ -396,7 +406,6 @@ export function DesignerTasks() {
   const [editingSubmission, setEditingSubmission] = useState<{ taskId: string; phase: PhaseKey; submissionId: string } | null>(null);
 
   // Highlight state
-  const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
   const seenThisSession = useRef<Set<string>>(new Set());
   const observedElements = useRef<Set<string>>(new Set());
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -404,17 +413,30 @@ export function DesignerTasks() {
   const pendingTaskNotifIds = useRef<Map<string, string>>(new Map());
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
 
+  const hasResetForSession = useRef(false);
   useEffect(() => {
-    if (tasks.length === 0) return;
+    if (user && !hasResetForSession.current) {
+      resetDesignerTasksHighlightState();
+      hasResetForSession.current = true;
+    }
+    if (!user) {
+      hasResetForSession.current = false;
+    }
+  }, [user]);
+
+  const highlightedIds = (() => {
+    if (tasks.length === 0) return new Set<string>();
     designerTaskNotificationIds = new Set(
       tasks.filter((t) => designerTaskHasAnyNotification(t)).map((t) => t.id)
     );
-    const remaining = new Set(
+    return new Set(
       [...designerTaskNotificationIds].filter((id) => !viewedDesignerTaskCards.has(id))
     );
-    setHighlightedIds(remaining);
-    publishDesignerTasksBadgeCount(remaining.size);
-  }, [tasks]);
+  })();
+
+  useEffect(() => {
+    publishDesignerTasksBadgeCount(highlightedIds.size);
+  }, [highlightedIds]);
 
   // ── Determine role-based limits ──
   const isLeadership = user?.role === 'ceo' || user?.role === 'general_manager';
@@ -428,6 +450,9 @@ export function DesignerTasks() {
       setMeta(cachedMeta);
       if (cachedRawData) setSubmissionsRawData(cachedRawData);
       if (cachedProgress) setSubmissionProgress(cachedProgress);
+      designerTaskNotificationIds = new Set(
+        cachedTasks.filter((t) => designerTaskHasAnyNotification(t)).map((t) => t.id)
+      );
       setIsLoading(false);
       return;
     }
@@ -461,9 +486,6 @@ export function DesignerTasks() {
             .filter((t) => designerTaskHasAnyNotification(t))
             .map((t) => t.id)
         );
-        const unseenNotif = new Set([...designerTaskNotificationIds].filter((id) => !viewedDesignerTaskCards.has(id)));
-        setHighlightedIds(unseenNotif);
-        publishDesignerTasksBadgeCount(unseenNotif.size);
       } else {
         setError(response.message || 'Failed to load tasks');
       }
@@ -593,32 +615,11 @@ export function DesignerTasks() {
                 : t
             ) as DesignerTaskItem[];
           }
-          designerTaskNotificationIds = new Set(
-            updatedTasks
-              .filter((t) => designerTaskHasAnyNotification(t))
-              .map((t) => t.id)
-          );
-          const remaining = new Set(
-            [...designerTaskNotificationIds].filter((id) => !viewedDesignerTaskCards.has(id))
-          );
-          setHighlightedIds(remaining);
-          publishDesignerTasksBadgeCount(remaining.size);
         })
         .catch(() => {
           markedTaskNotificationIds.delete(notifId);
         });
     }
-    
-    designerTaskNotificationIds = new Set(
-      currentTasks
-        .filter((t) => designerTaskHasAnyNotification(t))
-        .map((t) => t.id)
-    );
-    const remainingUnseen = new Set(
-      [...designerTaskNotificationIds].filter((id) => !viewedDesignerTaskCards.has(id))
-    );
-    setHighlightedIds(remainingUnseen);
-    publishDesignerTasksBadgeCount(remainingUnseen.size);
   };
 
   useEffect(() => { return () => { commitSeenSession(); }; }, []);
@@ -721,6 +722,13 @@ export function DesignerTasks() {
 
     // Bulk-mark notification IDs from submissions & reviews
     const notifIds: string[] = [];
+    const topNotif = (task as any).taskNotification;
+    if (topNotif?.hasNotification && topNotif.notificationId && !markedTaskNotificationIds.has(topNotif.notificationId)) {
+      notifIds.push(topNotif.notificationId);
+    }
+    if (swr?.taskNotification?.hasNotification && swr.taskNotification.notificationId && !markedTaskNotificationIds.has(swr.taskNotification.notificationId)) {
+      notifIds.push(swr.taskNotification.notificationId);
+    }
     const stages: (keyof SubmissionsWithReviewsData)[] = ['caseStudy', 'designing', 'rendering', 'finalStage'];
     for (const stage of stages) {
       const subs: SubmissionItem[] = (swr as any)?.[stage] || [];
@@ -738,6 +746,7 @@ export function DesignerTasks() {
       const clearedSwr = swr
         ? {
             ...swr,
+            taskNotification: { hasNotification: false, notificationId: null },
             caseStudy: (swr.caseStudy || []).map(stripSubmissionNotifications),
             designing: (swr.designing || []).map(stripSubmissionNotifications),
             rendering: (swr.rendering || []).map(stripSubmissionNotifications),
@@ -745,7 +754,7 @@ export function DesignerTasks() {
           }
         : swr;
 
-      const clearedTask = { ...task, hasNestedNotification: false, submissionsWithReviews: clearedSwr } as DesignerTaskItem;
+      const clearedTask = { ...task, taskNotification: null, hasNestedNotification: false, submissionsWithReviews: clearedSwr } as DesignerTaskItem;
       setSelectedTaskDetail(clearedTask);
 
       const updatedTasks = tasksRef.current.map((t) =>
@@ -757,19 +766,7 @@ export function DesignerTasks() {
         cachedTasks = cachedTasks.map((t) => (t.id === task.id ? clearedTask : t));
       }
 
-      if (!designerTaskHasAnyNotification(clearedTask)) {
-        viewedDesignerTaskCards.add(task.id);
-      }
-      designerTaskNotificationIds = new Set(
-        updatedTasks
-          .filter((t) => designerTaskHasAnyNotification(t))
-          .map((t) => t.id)
-      );
-      const remaining = new Set(
-        [...designerTaskNotificationIds].filter((id) => !viewedDesignerTaskCards.has(id))
-      );
-      setHighlightedIds(remaining);
-      publishDesignerTasksBadgeCount(remaining.size);
+      viewedDesignerTaskCards.add(task.id);
     }
   };
 

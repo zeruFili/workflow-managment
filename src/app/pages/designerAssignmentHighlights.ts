@@ -26,3 +26,8 @@ export function publishDesignerAssignmentsBadgeCount(count: number) {
     new CustomEvent(DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY, { detail: count })
   );
 }
+
+export function resetDesignerAssignmentsHighlightState() {
+  viewedPendingReviewCards.clear();
+  designerAssignmentNotificationIds = new Set<string>();
+}
