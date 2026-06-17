@@ -1665,6 +1665,7 @@ export function DataCollectorTasks() {
                 <label className="mb-1 block text-sm font-medium text-slate-700">Deadline (optional)</label>
                 <input
                   type="date"
+                  min={new Date().toISOString().split('T')[0]}
                   value={newTaskForm.deadline}
                   onChange={(e) => setNewTaskForm((f) => ({ ...f, deadline: e.target.value }))}
                   className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm"
