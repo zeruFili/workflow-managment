@@ -26,6 +26,13 @@ const userApi = {
     });
     return response.data;
   },
+
+  getDataCollectors: async (): Promise<UserListResponse> => {
+    const response = await api.get<UserListResponse>("/users", {
+      params: { role: "data_collector", is_active: true, limit: 100 },
+    });
+    return response.data;
+  },
 };
 
 export default userApi;

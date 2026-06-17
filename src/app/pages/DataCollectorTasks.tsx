@@ -8,6 +8,7 @@ import dataCollectorApi, {
   DataCollectorSubmissionReview,
 } from '../../api/dataCollectorApi';
 import notificationApi from '../../api/notificationApi';
+import userApi, { UserItem } from '../../api/userApi';
 import {
   AlertCircle,
   Calendar,
@@ -391,10 +392,14 @@ export function DataCollectorTasks() {
     description: '',
     instruction: '',
     deadline: '',
-    status: 'pending' as string,
+    assigned_to_user_id: '',
   });
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
   const screenshotFileRef = useRef<File | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [taskSuccessMsg, setTaskSuccessMsg] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [dataCollectors, setDataCollectors] = useState<UserItem[]>([]);
 
   const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
@@ -906,6 +911,20 @@ export function DataCollectorTasks() {
     }
   };
 
+  const openCreateModal = () => {
+    setNewTaskForm({ title: '', description: '', instruction: '', deadline: '', assigned_to_user_id: '' });
+    setScreenshotPreview(null);
+    screenshotFileRef.current = null;
+    setError(null);
+    setTaskSuccessMsg('');
+    setFieldErrors({});
+    setShowCreateModal(true);
+    // Fetch data collectors list for assignment dropdown
+    userApi.getDataCollectors().then((res) => {
+      if (res.success) setDataCollectors(res.data);
+    }).catch(() => {});
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -919,51 +938,41 @@ export function DataCollectorTasks() {
     e.preventDefault();
     if (!canManage) return;
 
-    const addLocalTask = () => {
-      const all = loadLocalTasks().length > 0 ? loadLocalTasks() : seedTasks;
-      const now = new Date().toISOString();
-      const newTask: DataCollectorTaskItem = {
-        id: `dc-task-${Date.now()}`,
-        assigned_to_user_id: null,
-        assigned_by_user_id: user?.id || '1',
-        title: newTaskForm.title.trim(),
-        description: newTaskForm.description.trim(),
-        status: newTaskForm.status,
-        task_state: 'active',
-        due_date: newTaskForm.deadline ? new Date(newTaskForm.deadline).toISOString() : null,
-        attachment_urls: screenshotPreview ? [screenshotPreview] : null,
-        updated_by: null,
-        created_at: now,
-        updated_at: null,
-        assigned_by_user: { id: user?.id || '1', full_name: user?.full_name || 'User', role: user?.role || 'ceo' },
-        assigned_to_user: null,
-        updated_by_user: null,
-        submissionsWithReviews: {
-          submissions: [],
-          latestActivityTs: 0,
-        },
-        taskNotification: { hasNotification: false, notificationId: null },
-        hasNestedNotification: false,
-      };
-      const updated = [newTask, ...all];
-      persistLocalTasks(updated);
-      cachedTasks = updated;
-      cachedMeta = { total: updated.length, page: apiPage, limit: ROWS_PER_DISPLAY, totalPages: Math.ceil(updated.length / ROWS_PER_DISPLAY) };
-      setTasks(updated);
-      setNewTaskForm({ title: '', description: '', instruction: '', deadline: '', status: 'pending' });
-      setScreenshotPreview(null);
-      screenshotFileRef.current = null;
-      setShowCreateModal(false);
-    };
+    const title = newTaskForm.title.trim();
+    const description = newTaskForm.description.trim();
+    const instruction = newTaskForm.instruction.trim();
+    const deadline = newTaskForm.deadline.trim();
+    const assignedTo = newTaskForm.assigned_to_user_id.trim();
+
+    setError(null);
+    setTaskSuccessMsg('');
+
+    // Per-field validation
+    const errors: Record<string, string> = {};
+    if (!title) errors.title = 'Title is required.';
+    else if (title.length > 500) errors.title = 'Title must be 500 characters or fewer.';
+    if (!description) errors.description = 'Description is required.';
+    else if (description.length > 5000) errors.description = 'Description must be 5000 characters or fewer.';
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
+    // Build description: prepend instruction if provided (backend has no separate instruction field)
+    const fullDescription = instruction
+      ? `${description}\n\nInstructions:\n${instruction}`
+      : description;
+
+    setIsCreating(true);
 
     try {
       const formData = new FormData();
-      formData.append('title', newTaskForm.title.trim());
-      formData.append('description', newTaskForm.description.trim());
-      formData.append('instruction', newTaskForm.instruction.trim());
-      formData.append('status', newTaskForm.status);
-      if (newTaskForm.deadline) {
-        formData.append('due_date', new Date(newTaskForm.deadline).toISOString());
+      formData.append('title', title);
+      formData.append('description', fullDescription);
+      if (deadline) {
+        formData.append('due_date', new Date(deadline).toISOString());
+      }
+      if (assignedTo) {
+        formData.append('assigned_to_user_id', assignedTo);
       }
       if (screenshotFileRef.current) {
         formData.append('attachmentFiles', screenshotFileRef.current);
@@ -972,20 +981,26 @@ export function DataCollectorTasks() {
       const response = await dataCollectorApi.createDataCollectorTask(formData);
 
       if (response.success) {
-        cachedTasks = null;
-        cachedMeta = null;
-        setNewTaskForm({ title: '', description: '', instruction: '', deadline: '', status: 'pending' });
+        setTaskSuccessMsg(response.message || 'Data collector task created successfully');
+        setNewTaskForm({ title: '', description: '', instruction: '', deadline: '', assigned_to_user_id: '' });
         setScreenshotPreview(null);
         screenshotFileRef.current = null;
+        setFieldErrors({});
         setShowCreateModal(false);
+        cachedTasks = null;
+        cachedMeta = null;
         await fetchTasks(apiPage, true);
       } else {
-        // API error — create locally
-        addLocalTask();
+        setError(response.message || 'Failed to create task');
       }
-    } catch {
-      // API unreachable — create locally
-      addLocalTask();
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined;
+      setError(msg || 'Unable to connect to server. Please try again.');
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -1023,7 +1038,7 @@ export function DataCollectorTasks() {
         </div>
         {canManage && (
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={openCreateModal}
             className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 shrink-0"
           >
             <Plus className="h-4 w-4" />
@@ -1034,6 +1049,10 @@ export function DataCollectorTasks() {
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">{error}</div>
+      )}
+
+      {taskSuccessMsg && (
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-green-700 text-sm">{taskSuccessMsg}</div>
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -1377,12 +1396,17 @@ export function DataCollectorTasks() {
                                           ? 'Rejected'
                                           : 'Feedback Given';
                                         const reviewTs = new Date(review.created_at).getTime();
-                                        const newerSubExists = wrappers.some((w) => new Date(w.submission.created_at).getTime() > reviewTs);
                                         const hoursSinceCreation = (Date.now() - reviewTs) / (1000 * 60 * 60);
+                                        const hasNewerReview = wrappers.some((w) =>
+                                          (w.submission.reviews || []).some((r) => new Date(r.created_at).getTime() > reviewTs)
+                                        );
+                                        const hasNewerSubmission = wrappers.some((w) =>
+                                          new Date(w.submission.created_at).getTime() > reviewTs
+                                        );
                                         const canEditReview = review.reviewer_user_id === user?.id
                                           && selectedTask.task_state === 'active'
-                                          && !newerSubExists
-                                          && hoursSinceCreation <= 24;
+                                          && !hasNewerReview
+                                          && !hasNewerSubmission;
 
                                         return (
                                           <div key={review.id} className={`border rounded-lg overflow-hidden ${review.hasNotification ? 'border-blue-400 ring-1 ring-blue-100' : 'border-gray-200'}`}>
@@ -1568,78 +1592,101 @@ export function DataCollectorTasks() {
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Create Data Collection Task</h3>
-                <p className="text-sm text-gray-500 mt-0.5">Fill in the task details and attach evidence.</p>
+                <p className="text-sm text-gray-500 mt-0.5">Fill in the task details and attach evidence. Fields marked with <span className="text-red-500">*</span> are required.</p>
               </div>
-              <button onClick={() => setShowCreateModal(false)} className="p-2 rounded-lg hover:bg-gray-100">
+              <button onClick={() => { if (!isCreating) { setShowCreateModal(false); setError(null); setFieldErrors({}); } }} className="p-2 rounded-lg hover:bg-gray-100" disabled={isCreating}>
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
             <form onSubmit={handleCreateTask} className="px-6 py-5 space-y-4">
+              {error && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
+              )}
+
+              {/* Title */}
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Title</label>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Title <span className="text-red-500">*</span>
+                </label>
                 <input
-                  required
                   value={newTaskForm.title}
-                  onChange={(e) => setNewTaskForm((f) => ({ ...f, title: e.target.value }))}
-                  className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm"
+                  onChange={(e) => { setNewTaskForm((f) => ({ ...f, title: e.target.value })); if (fieldErrors.title) setFieldErrors((prev) => { const n = { ...prev }; delete n.title; return n; }); }}
+                  className={`w-full rounded-xl border px-4 py-2.5 text-sm ${fieldErrors.title ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
+                  disabled={isCreating}
                 />
+                {fieldErrors.title && <p className="text-xs text-red-600 mt-1">{fieldErrors.title}</p>}
               </div>
+
+              {/* Description */}
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Description</label>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Description <span className="text-red-500">*</span>
+                </label>
                 <textarea
-                  required
                   rows={3}
                   value={newTaskForm.description}
-                  onChange={(e) => setNewTaskForm((f) => ({ ...f, description: e.target.value }))}
-                  className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm"
+                  onChange={(e) => { setNewTaskForm((f) => ({ ...f, description: e.target.value })); if (fieldErrors.description) setFieldErrors((prev) => { const n = { ...prev }; delete n.description; return n; }); }}
+                  className={`w-full rounded-xl border px-4 py-2.5 text-sm ${fieldErrors.description ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
+                  disabled={isCreating}
                 />
+                {fieldErrors.description && <p className="text-xs text-red-600 mt-1">{fieldErrors.description}</p>}
               </div>
+
+              {/* Assign To */}
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Instruction</label>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Assign To (optional)</label>
+                <select
+                  value={newTaskForm.assigned_to_user_id}
+                  onChange={(e) => setNewTaskForm((f) => ({ ...f, assigned_to_user_id: e.target.value }))}
+                  className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm"
+                  disabled={isCreating}
+                >
+                  <option value="">Unassigned</option>
+                  {dataCollectors.map((d) => (
+                    <option key={d.id} value={d.id}>{d.full_name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Instruction */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Instruction (optional)</label>
                 <textarea
-                  required
                   rows={3}
                   value={newTaskForm.instruction}
                   onChange={(e) => setNewTaskForm((f) => ({ ...f, instruction: e.target.value }))}
                   className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm"
+                  disabled={isCreating}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-700">Deadline</label>
-                  <input
-                    type="date"
-                    value={newTaskForm.deadline}
-                    onChange={(e) => setNewTaskForm((f) => ({ ...f, deadline: e.target.value }))}
-                    className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-700">Status</label>
-                  <select
-                    value={newTaskForm.status}
-                    onChange={(e) => setNewTaskForm((f) => ({ ...f, status: e.target.value }))}
-                    className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm"
-                  >
-                    <option value="pending">Pending</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="completed">Completed</option>
-                  </select>
-                </div>
-              </div>
+
+              {/* Deadline */}
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Evidence Screenshot</label>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Deadline (optional)</label>
+                <input
+                  type="date"
+                  value={newTaskForm.deadline}
+                  onChange={(e) => setNewTaskForm((f) => ({ ...f, deadline: e.target.value }))}
+                  className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm"
+                  disabled={isCreating}
+                />
+              </div>
+
+              {/* Evidence Screenshot */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Evidence Screenshot (optional)</label>
                 <div className="flex items-center gap-2">
                   <label className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-sm">
                     <Image className="w-4 h-4" />
                     Choose Image
-                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={isCreating} />
                   </label>
                   {screenshotPreview && (
                     <button
                       type="button"
-                      onClick={() => setScreenshotPreview(null)}
+                      onClick={() => { setScreenshotPreview(null); screenshotFileRef.current = null; }}
                       className="text-sm text-red-600 hover:underline"
+                      disabled={isCreating}
                     >
                       Remove
                     </button>
@@ -1656,17 +1703,20 @@ export function DataCollectorTasks() {
               <div className="flex justify-end gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowCreateModal(false)}
+                  onClick={() => { setShowCreateModal(false); setError(null); setFieldErrors({}); }}
                   className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200"
+                  disabled={isCreating}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300"
+                  disabled={isCreating}
                 >
-                  <Send className="h-4 w-4" />
-                  Create Task
+                  {isCreating ? 'Creating...' : (
+                    <><Send className="h-4 w-4" />Create Task</>
+                  )}
                 </button>
               </div>
             </form>

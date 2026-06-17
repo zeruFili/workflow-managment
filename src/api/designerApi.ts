@@ -198,7 +198,7 @@ const designerApi = {
 
   updateReview: async (
     reviewId: string,
-    data: { description: string; review_outcome: string; task_state: string }
+    data: { description: string; review_outcome: string; task_state: string; submission_id: string; task_id: string }
   ): Promise<{ success: boolean; data?: SubmissionReview; message?: string }> => {
     const response = await api.patch<{ success: boolean; data?: SubmissionReview; message?: string }>(
       `/designer-submission-reviews/${reviewId}`,
