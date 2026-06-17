@@ -414,6 +414,8 @@ export function DesignerAssignments() {
   const [newTaskImagePreview, setNewTaskImagePreview] = useState<string | null>(null);
   const newTaskImageFileRef = useRef<File | null>(null);
   const [newTaskError, setNewTaskError] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+  const [taskSuccessMsg, setTaskSuccessMsg] = useState('');
 
   // Pagination
   const [apiPage, setApiPage] = useState(1);
@@ -687,55 +689,79 @@ export function DesignerAssignments() {
     event.preventDefault();
     const title = newTask.title.trim();
     const description = newTask.description.trim();
-    if (!title || !description) {
-      setNewTaskError('Title and Description are required.');
+    const storyPoints = Number(newTask.storyPoints);
+    const instruction = newTask.instruction.trim();
+    const deadline = newTask.deadline.trim();
+
+    setNewTaskError('');
+    setTaskSuccessMsg('');
+
+    if (!title) {
+      setNewTaskError('Title is required.');
+      return;
+    }
+    if (!description) {
+      setNewTaskError('Description is required.');
+      return;
+    }
+    if (!newTask.storyPoints || isNaN(storyPoints) || storyPoints < 1 || storyPoints > 100) {
+      setNewTaskError('Story Points must be a number between 1 and 100.');
       return;
     }
 
-    let telegramScreenshot: string | undefined;
     const file = newTaskImageFileRef.current;
-    if (file) {
-      telegramScreenshot = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = () => reject(new Error('Unable to read file'));
-        reader.readAsDataURL(file);
-      });
+
+    // Build description: prepend instruction if provided (backend has no separate instruction field)
+    const fullDescription = instruction
+      ? `${description}\n\nInstructions:\n${instruction}`
+      : description;
+
+    setIsCreating(true);
+
+    try {
+      let response: { success: boolean; data?: DesignerTaskItem; message?: string };
+
+      if (file) {
+        const formData = new FormData();
+        formData.append('title', title);
+        formData.append('description', fullDescription);
+        formData.append('story_point', String(storyPoints));
+        if (deadline) formData.append('due_date', new Date(deadline).toISOString());
+        formData.append('attachmentFiles', file);
+
+        response = await designerApi.createDesignerTask(formData);
+      } else {
+        const payload: Record<string, unknown> = {
+          title,
+          description: fullDescription,
+          story_point: storyPoints,
+        };
+        if (deadline) payload.due_date = new Date(deadline).toISOString();
+
+        response = await designerApi.createDesignerTask(payload);
+      }
+
+      if (response.success) {
+        setTaskSuccessMsg(response.message || 'Designer task created successfully');
+        if (newTaskImagePreview) URL.revokeObjectURL(newTaskImagePreview);
+        setNewTask(emptyNewTask);
+        setNewTaskImagePreview(null);
+        newTaskImageFileRef.current = null;
+        setShowCreateTask(false);
+        // Refresh task list from backend
+        await fetchTasks(apiPage);
+      } else {
+        setNewTaskError(response.message || 'Failed to create task');
+      }
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined;
+      setNewTaskError(msg || 'Unable to connect to server. Please try again.');
+    } finally {
+      setIsCreating(false);
     }
-
-    // Create task locally (stored to list state)
-    const nextTask: DesignerTaskItem = {
-      id: `dtask-${Date.now()}`,
-      title,
-      description,
-      story_point: Number(newTask.storyPoints),
-      assigned_by_user_id: user.id,
-      assigned_by_user: { id: user.id, full_name: user.full_name, role: user.role },
-      assigned_to_user_id: null,
-      assigned_to_user: null,
-      updated_by_user: null,
-      status: 'pending',
-      stage: null,
-      is_paused: false,
-      is_public: true,
-      task_state: 'active',
-      due_date: newTask.deadline || null,
-      attachment_urls: telegramScreenshot ? [telegramScreenshot] : null,
-      updated_by: null,
-      created_at: new Date().toISOString(),
-      updated_at: null,
-      submissionsWithReviews: { caseStudy: [], designing: [], rendering: [], finalStage: [] },
-      taskNotification: { hasNotification: false, notificationId: null },
-      hasNestedNotification: false,
-    };
-
-    persistTasks([nextTask, ...tasks]);
-    if (newTaskImagePreview) URL.revokeObjectURL(newTaskImagePreview);
-    setNewTask(emptyNewTask);
-    setNewTaskImagePreview(null);
-    newTaskImageFileRef.current = null;
-    setNewTaskError('');
-    setShowCreateTask(false);
   };
 
   const handleStatusChange = (taskId: string, newStatus: TaskStatus) => {
@@ -1152,6 +1178,10 @@ export function DesignerAssignments() {
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">{error}</div>
+      )}
+
+      {taskSuccessMsg && (
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-green-700 text-sm">{taskSuccessMsg}</div>
       )}
 
       {/* Task Cards */}
@@ -1691,10 +1721,13 @@ export function DesignerAssignments() {
                                                         const RIcColor = isRApproved ? 'text-green-600' : isRRejected ? 'text-red-600' : 'text-yellow-600';
                                                         const RLabel = isRApproved ? 'Approved' : isRRejected ? 'Rejected' : 'Feedback';
                                                         const reviewTs = new Date(review.created_at).getTime();
-                                                        const newerSubInStage = stageSubmissions.some((s) => new Date(s.created_at).getTime() > reviewTs);
+                                                        const allStages = swr ? [swr.caseStudy || [], swr.designing || [], swr.rendering || [], swr.finalStage || []] : [[], [], [], []];
+                                                        const newestSubTs = Math.max(0, ...allStages.flat().map((s) => new Date(s.created_at).getTime()));
+                                                        const hoursSinceCreation = (Date.now() - reviewTs) / (1000 * 60 * 60);
                                                         const canEditReview = review.reviewer_user_id === user?.id
                                                           && selectedTaskDetail.task_state === 'active'
-                                                          && !newerSubInStage;
+                                                          && newestSubTs <= reviewTs
+                                                          && hoursSinceCreation <= 24;
                                                         return (
                                                         <div key={review.id} className={`border rounded-lg overflow-hidden ${review.hasNotification ? 'border-blue-400 ring-1 ring-blue-100' : 'border-gray-200'}`}>
                                                           <div className="flex items-center gap-2 px-3 py-2 bg-gray-50">

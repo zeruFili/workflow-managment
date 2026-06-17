@@ -102,6 +102,16 @@ export interface CreateSubmissionResponse {
   message?: string;
 }
 
+// ── Create Task ──
+
+export interface CreateDesignerTaskResponse {
+  success: boolean;
+  data?: DesignerTaskItem;
+  message?: string;
+}
+
+// ── Applications ──
+
 export interface DesignerApplicationItem {
   id: string;
   designer_task_id: string;
@@ -139,6 +149,16 @@ const designerApi = {
     const response = await api.get<DesignerTaskListResponse>(
       "/designer-tasks",
       { params }
+    );
+    return response.data;
+  },
+
+  createDesignerTask: async (
+    data: FormData | Record<string, unknown>
+  ): Promise<CreateDesignerTaskResponse> => {
+    const response = await api.post<CreateDesignerTaskResponse>(
+      "/designer-tasks",
+      data
     );
     return response.data;
   },

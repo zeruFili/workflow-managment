@@ -83,15 +83,6 @@ export interface DataCollectorTaskListResponse {
 
 // ── Create Task ──
 
-export interface CreateDataCollectorTaskPayload {
-  title: string;
-  description: string;
-  instruction: string;
-  status?: string;
-  due_date?: string;
-  attachmentFiles?: File[];
-}
-
 export interface CreateDataCollectorTaskResponse {
   success: boolean;
   data?: DataCollectorTaskItem;

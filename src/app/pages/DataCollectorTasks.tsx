@@ -1378,9 +1378,11 @@ export function DataCollectorTasks() {
                                           : 'Feedback Given';
                                         const reviewTs = new Date(review.created_at).getTime();
                                         const newerSubExists = wrappers.some((w) => new Date(w.submission.created_at).getTime() > reviewTs);
+                                        const hoursSinceCreation = (Date.now() - reviewTs) / (1000 * 60 * 60);
                                         const canEditReview = review.reviewer_user_id === user?.id
                                           && selectedTask.task_state === 'active'
-                                          && !newerSubExists;
+                                          && !newerSubExists
+                                          && hoursSinceCreation <= 24;
 
                                         return (
                                           <div key={review.id} className={`border rounded-lg overflow-hidden ${review.hasNotification ? 'border-blue-400 ring-1 ring-blue-100' : 'border-gray-200'}`}>
