@@ -120,6 +120,7 @@ export interface CreateSubmissionResponse {
 export interface CreateReviewPayload {
   description: string;
   review_outcome: string;
+  task_state: string;
 }
 
 export interface ReviewResponse {

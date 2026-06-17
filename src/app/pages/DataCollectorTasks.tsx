@@ -377,6 +377,7 @@ export function DataCollectorTasks() {
   const [submissionsLoading, setSubmissionsLoading] = useState<Record<string, boolean>>({});
   const [expandedSubmissionId, setExpandedSubmissionId] = useState<string | null>(null);
   const [editingSubmissionId, setEditingSubmissionId] = useState<string | null>(null);
+  const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
   const [reviewDraft, setReviewDraft] = useState<Record<string, string>>({});
 
   const [draftNote, setDraftNote] = useState<Record<string, string>>({});
@@ -766,10 +767,17 @@ export function DataCollectorTasks() {
   const handleReviewSubmission = async (taskId: string, subId: string, outcome: string) => {
     const note = reviewDraft[taskId] ?? '';
     try {
-      await dataCollectorApi.createReview(subId, {
+      const payload = {
         description: note.trim() || `Review: ${outcome}`,
         review_outcome: outcome,
-      });
+        task_state: selectedTask?.task_state || 'active',
+      };
+      if (editingReviewId) {
+        await dataCollectorApi.updateReview(editingReviewId, payload);
+        setEditingReviewId(null);
+      } else {
+        await dataCollectorApi.createReview(subId, payload);
+      }
 
       await fetchTasks(apiPage, true);
       if (cachedTasks) {
@@ -1368,6 +1376,11 @@ export function DataCollectorTasks() {
                                           : isReviewRejected
                                           ? 'Rejected'
                                           : 'Feedback Given';
+                                        const reviewTs = new Date(review.created_at).getTime();
+                                        const newerSubExists = wrappers.some((w) => new Date(w.submission.created_at).getTime() > reviewTs);
+                                        const canEditReview = review.reviewer_user_id === user?.id
+                                          && selectedTask.task_state === 'active'
+                                          && !newerSubExists;
 
                                         return (
                                           <div key={review.id} className={`border rounded-lg overflow-hidden ${review.hasNotification ? 'border-blue-400 ring-1 ring-blue-100' : 'border-gray-200'}`}>
@@ -1385,6 +1398,18 @@ export function DataCollectorTasks() {
                                               <span className="text-xs text-gray-400">
                                                 by {review.reviewer_user?.full_name || `User ${review.reviewer_user_id.slice(0, 8)}`}
                                               </span>
+                                              {canEditReview && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    setEditingReviewId(review.id);
+                                                    setReviewDraft((prev) => ({ ...prev, [selectedTask.id]: review.description || '' }));
+                                                  }}
+                                                  className="ml-auto flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                                                >
+                                                  <Edit className="w-3 h-3" /> Edit
+                                                </button>
+                                              )}
                                             </div>
                                             {review.description && (
                                               <div className="px-3 py-2">
@@ -1400,8 +1425,9 @@ export function DataCollectorTasks() {
 
                                 {canManage && isLatestSubmission && canReview && (
                                   <div className="border-t border-gray-100 pt-3">
-                                    <h6 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Review &amp; Decision</h6>
-                                    <h6 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Review &amp; Decision</h6>
+                                    <h6 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                                      {editingReviewId ? 'Update Review' : 'Review &amp; Decision'}
+                                    </h6>
                                     <textarea
                                       rows={2}
                                       value={reviewDraft[selectedTask.id] ?? ''}
@@ -1429,7 +1455,7 @@ export function DataCollectorTasks() {
                                         onClick={() => handleReviewSubmission(selectedTask.id, sub.id, 'feedback')}
                                         className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-100 transition-colors"
                                       >
-                                        <Send className="w-3.5 h-3.5" /> Feedback
+                                        <Send className="w-3.5 h-3.5" /> {editingReviewId ? 'Update Feedback' : 'Feedback'}
                                       </button>
                                     </div>
                                   </div>

@@ -425,6 +425,7 @@ export function DesignerAssignments() {
   const [expandedPhase, setExpandedPhase] = useState<PhaseKey | null>(null);
   const [feedbackDrafts, setFeedbackDrafts] = useState<Record<string, Record<PhaseKey, string>>>({});
   const [expandedHistoryIdx, setExpandedHistoryIdx] = useState<Record<string, Record<PhaseKey, number | null>>>({});
+  const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
 
   const [reviews, setReviews] = useState<Record<string, ReviewData>>(loadReviews);
   const [reviewTaskId, setReviewTaskId] = useState<string | null>(null);
@@ -995,12 +996,18 @@ export function DesignerAssignments() {
     const latestSubmission = submissions[submissions.length - 1];
 
     try {
-      await designerApi.createReview(latestSubmission.id, {
+      const payload = {
         description: message.trim() || `Review: ${outcome}`,
         review_outcome: outcome,
-      });
+        task_state: selectedTaskDetail.task_state,
+      };
+      if (editingReviewId) {
+        await designerApi.updateReview(editingReviewId, payload);
+        setEditingReviewId(null);
+      } else {
+        await designerApi.createReview(latestSubmission.id, payload);
+      }
       updateDraft(taskId, phase, '');
-      // Refresh to get updated data
       await fetchTasks(apiPage, true);
       if (cachedTasks) {
         const refreshed = cachedTasks.find((t) => t.id === taskId);
@@ -1676,14 +1683,19 @@ export function DesignerAssignments() {
                                                 {subReviewCount > 0 && (
                                                   <div className="border-t border-gray-100 pt-3 space-y-2">
                                                     <span className="text-xs font-medium text-gray-500 uppercase">Reviews</span>
-                                                    {sub.reviews.map((review) => {
-                                                      const isRApproved = review.review_outcome === 'approved';
-                                                      const isRRejected = review.review_outcome === 'rejected';
-                                                      const RIcon = isRApproved ? ThumbsUp : isRRejected ? ThumbsDown : MessageSquare;
-                                                      const RColor = isRApproved ? 'bg-green-100 text-green-700' : isRRejected ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700';
-                                                      const RIcColor = isRApproved ? 'text-green-600' : isRRejected ? 'text-red-600' : 'text-yellow-600';
-                                                      const RLabel = isRApproved ? 'Approved' : isRRejected ? 'Rejected' : 'Feedback';
-                                                      return (
+                                                      {sub.reviews.map((review) => {
+                                                        const isRApproved = review.review_outcome === 'approved';
+                                                        const isRRejected = review.review_outcome === 'rejected';
+                                                        const RIcon = isRApproved ? ThumbsUp : isRRejected ? ThumbsDown : MessageSquare;
+                                                        const RColor = isRApproved ? 'bg-green-100 text-green-700' : isRRejected ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700';
+                                                        const RIcColor = isRApproved ? 'text-green-600' : isRRejected ? 'text-red-600' : 'text-yellow-600';
+                                                        const RLabel = isRApproved ? 'Approved' : isRRejected ? 'Rejected' : 'Feedback';
+                                                        const reviewTs = new Date(review.created_at).getTime();
+                                                        const newerSubInStage = stageSubmissions.some((s) => new Date(s.created_at).getTime() > reviewTs);
+                                                        const canEditReview = review.reviewer_user_id === user?.id
+                                                          && selectedTaskDetail.task_state === 'active'
+                                                          && !newerSubInStage;
+                                                        return (
                                                         <div key={review.id} className={`border rounded-lg overflow-hidden ${review.hasNotification ? 'border-blue-400 ring-1 ring-blue-100' : 'border-gray-200'}`}>
                                                           <div className="flex items-center gap-2 px-3 py-2 bg-gray-50">
                                                             {review.hasNotification && (
@@ -1699,6 +1711,18 @@ export function DesignerAssignments() {
                                                             <span className="text-xs text-gray-400">
                                                               by {review.reviewer_user?.full_name || `User ${review.reviewer_user_id.slice(0, 8)}`}
                                                             </span>
+                                                            {canEditReview && (
+                                                              <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                  setEditingReviewId(review.id);
+                                                                  updateDraft(taskId, phase.key, review.description || '');
+                                                                }}
+                                                                className="ml-auto flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                                                              >
+                                                                <Edit className="w-3 h-3" /> Edit
+                                                              </button>
+                                                            )}
                                                           </div>
                                                           {review.description && (
                                                             <div className="px-3 py-2">
@@ -1713,7 +1737,9 @@ export function DesignerAssignments() {
                                                 {/* Review & Decision for this submission */}
                                                 {canReview && (
                                                 <div className="border-t border-gray-100 pt-3">
-                                                  <h6 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Your Review &amp; Decision</h6>
+                                                  <h6 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                                                    {editingReviewId ? 'Update Review' : 'Your Review &amp; Decision'}
+                                                  </h6>
                                                   <textarea
                                                     rows={2}
                                                     value={draft}
@@ -1733,7 +1759,7 @@ export function DesignerAssignments() {
                                                       </button>
                                                     )}
                                                     <button onClick={() => handleSubmitFeedback(taskId, phase.key)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-100 transition-colors">
-                                                      <Send className="w-3.5 h-3.5" /> Submit Feedback
+                                                      <Send className="w-3.5 h-3.5" /> {editingReviewId ? 'Update Feedback' : 'Submit Feedback'}
                                                     </button>
                                                     {history.length > 0 && (
                                                       <button onClick={() => handleReset(taskId, phase.key)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200">

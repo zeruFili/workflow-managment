@@ -167,7 +167,7 @@ const designerApi = {
 
   createReview: async (
     submissionId: string,
-    data: { description: string; review_outcome: string }
+    data: { description: string; review_outcome: string; task_state: string }
   ): Promise<{ success: boolean; data?: SubmissionReview; message?: string }> => {
     const response = await api.post<{ success: boolean; data?: SubmissionReview; message?: string }>(
       `/designer-submissions/${submissionId}/review`,
@@ -178,7 +178,7 @@ const designerApi = {
 
   updateReview: async (
     reviewId: string,
-    data: { description: string; review_outcome: string }
+    data: { description: string; review_outcome: string; task_state: string }
   ): Promise<{ success: boolean; data?: SubmissionReview; message?: string }> => {
     const response = await api.patch<{ success: boolean; data?: SubmissionReview; message?: string }>(
       `/designer-submission-reviews/${reviewId}`,
