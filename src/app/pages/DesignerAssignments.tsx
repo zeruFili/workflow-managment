@@ -39,7 +39,9 @@ import {
   ThumbsDown,
   Send,
   Star,
+  Paperclip,
 } from 'lucide-react';
+import AttachmentViewer from '../components/AttachmentViewer';
 
 const emptyNewTask = {
   title: '',
@@ -1732,6 +1734,16 @@ export function DesignerAssignments() {
                   <p className="mt-2 text-sm text-gray-700">{selectedTaskDetail.description}</p>
                 </section>
 
+                {selectedTaskDetail.attachment_urls && selectedTaskDetail.attachment_urls.length > 0 && (
+                  <section className="rounded-xl border border-gray-200 bg-white p-4">
+                    <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-3 flex items-center gap-2">
+                      <Paperclip className="w-4 h-4" />
+                      Task Attachments
+                    </h5>
+                    <AttachmentViewer attachments={selectedTaskDetail.attachment_urls} />
+                  </section>
+                )}
+
                 {/* Submission Progress & Review */}
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-4">
@@ -1902,16 +1914,7 @@ export function DesignerAssignments() {
                                                 {sub.attachment_urls && sub.attachment_urls.length > 0 && (
                                                   <div>
                                                     <h6 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Attachments</h6>
-                                                    <div className="flex gap-2 flex-wrap">
-                                                      {sub.attachment_urls.map((url, aIdx) => (
-                                                        <img
-                                                          key={aIdx}
-                                                          src={url}
-                                                          alt={`attachment-${aIdx}`}
-                                                          className="h-24 w-auto rounded border object-cover cursor-pointer hover:ring-2 hover:ring-blue-400 transition-shadow"
-                                                        />
-                                                      ))}
-                                                    </div>
+                                                    <AttachmentViewer attachments={sub.attachment_urls} />
                                                   </div>
                                                 )}
                                                 {subReviewCount > 0 && (

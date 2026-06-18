@@ -13,6 +13,7 @@ import {
   FileText,
   AlertCircle,
 } from 'lucide-react';
+import AttachmentViewer from '../components/AttachmentViewer';
 import {
   SITE_ENGINEER_NOTIFICATIONS_KEY,
   SITE_ENGINEER_HIGHLIGHTED_IDS,
@@ -370,17 +371,7 @@ export function SiteEngineerTasks() {
               {task.attachments && task.attachments.length > 0 && (
                 <div className="mb-4">
                   <p className="text-xs text-gray-500 mb-2">Attachments</p>
-                  <div className="space-y-2">
-                    {task.attachments.map((attachment, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center gap-2 text-sm text-gray-700 bg-gray-50 p-2 rounded"
-                      >
-                        <FileText className="w-4 h-4 text-gray-400" />
-                        <span>{attachment}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <AttachmentViewer attachments={task.attachments} />
                 </div>
               )}
 

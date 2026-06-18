@@ -29,7 +29,9 @@ import {
   Send,
   X,
   Database,
+  Paperclip,
 } from 'lucide-react';
+import AttachmentViewer from '../components/AttachmentViewer';
 
 // ------------ NOTIFICATIONS / HIGHLIGHT ------------
 export const DATA_COLLECTOR_NOTIFICATIONS_KEY = 'data-collector-notifications-updated';
@@ -420,10 +422,6 @@ export function DataCollectorTasks() {
   const [editFormErrors, setEditFormErrors] = useState<Record<string, string>>({});
   const [editError, setEditError] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
-
-  const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
-  const imageRef = useRef<HTMLImageElement | null>(null);
-  const [imageZoom, setImageZoom] = useState(1);
 
   const seenThisSession = useRef<Set<string>>(new Set());
   const observedElements = useRef<Set<string>>(new Set());
@@ -1404,6 +1402,16 @@ export function DataCollectorTasks() {
                   <p className="mt-2 text-sm text-gray-700">{selectedTask.description}</p>
                 </section>
 
+                {selectedTask.attachment_urls && selectedTask.attachment_urls.length > 0 && (
+                  <section className="rounded-xl border border-gray-200 bg-white p-4">
+                    <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-3 flex items-center gap-2">
+                      <Paperclip className="w-4 h-4" />
+                      Task Attachments
+                    </h5>
+                    <AttachmentViewer attachments={selectedTask.attachment_urls} />
+                  </section>
+                )}
+
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-4">
                     Submissions &amp; Review Feedback
@@ -1477,17 +1485,7 @@ export function DataCollectorTasks() {
                                 {sub.attachment_urls && sub.attachment_urls.length > 0 && (
                                   <div>
                                     <h6 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Attachments</h6>
-                                    <div className="flex gap-2 flex-wrap">
-                                      {sub.attachment_urls.map((url, idx) => (
-                                        <img
-                                          key={idx}
-                                          src={url}
-                                          alt={`attachment-${idx}`}
-                                          className="h-24 w-auto rounded border object-cover cursor-pointer hover:ring-2 hover:ring-blue-400 transition-shadow"
-                                          onClick={() => setImageViewerSrc(url)}
-                                        />
-                                      ))}
-                                    </div>
+                                    <AttachmentViewer attachments={sub.attachment_urls} />
                                   </div>
                                 )}
 
@@ -1748,10 +1746,6 @@ export function DataCollectorTasks() {
               </button>
             </div>
             <form onSubmit={handleCreateTask} className="px-6 py-5 space-y-4">
-              {error && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
-              )}
-
               {/* Title */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
@@ -1869,48 +1863,10 @@ export function DataCollectorTasks() {
                   )}
                 </button>
               </div>
+              {error && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
+              )}
             </form>
-          </div>
-        </div>
-      )}      {imageViewerSrc && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
-          <div className="relative max-w-[95vw] max-h-[95vh]">
-            <img
-              ref={imageRef}
-              src={imageViewerSrc}
-              alt="evidence"
-              style={{ transform: `scale(${imageZoom})` }}
-              className="max-w-full max-h-[90vh] object-contain rounded transition-transform"
-            />
-            <div className="absolute top-2 right-2 flex gap-2">
-              <button
-                onClick={() => imageRef.current?.requestFullscreen?.()}
-                className="px-3 py-2 bg-white/80 rounded text-sm"
-              >
-                Fullscreen
-              </button>
-              <button onClick={() => setImageViewerSrc(null)} className="px-3 py-2 bg-white/80 rounded text-sm">
-                Close
-              </button>
-            </div>
-            <div className="absolute left-2 bottom-2 flex items-center gap-2 bg-white/90 rounded p-2">
-              <button
-                onClick={() => setImageZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))}
-                className="px-2 py-1 border rounded text-sm"
-              >
-                -
-              </button>
-              <div className="text-sm px-2">{Math.round(imageZoom * 100)}%</div>
-              <button
-                onClick={() => setImageZoom((z) => Math.min(3, +(z + 0.25).toFixed(2)))}
-                className="px-2 py-1 border rounded text-sm"
-              >
-                +
-              </button>
-              <button onClick={() => setImageZoom(1)} className="px-2 py-1 border rounded text-sm">
-                Reset
-              </button>
-            </div>
           </div>
         </div>
       )}
@@ -1929,10 +1885,6 @@ export function DataCollectorTasks() {
               </button>
             </div>
             <form onSubmit={handleEditTask} className="px-6 py-5 space-y-4">
-              {editError && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{editError}</p>
-              )}
-
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
                   Title <span className="text-red-500">*</span>
@@ -2053,6 +2005,9 @@ export function DataCollectorTasks() {
                   {isUpdating ? 'Updating...' : 'Update Task'}
                 </button>
               </div>
+              {editError && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{editError}</p>
+              )}
             </form>
           </div>
         </div>
