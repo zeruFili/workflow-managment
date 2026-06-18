@@ -2251,10 +2251,6 @@ export function DesignerAssignments() {
               </button>
             </div>
             <form className="space-y-4" onSubmit={handleEditTask}>
-              {editError && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{editError}</p>
-              )}
-
               {/* Title */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -2386,6 +2382,9 @@ export function DesignerAssignments() {
                   {isUpdating ? 'Updating...' : 'Update Task'}
                 </button>
               </div>
+              {editError && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{editError}</p>
+              )}
             </form>
           </div>
         </div>
