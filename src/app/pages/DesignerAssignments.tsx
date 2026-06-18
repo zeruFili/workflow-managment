@@ -1242,7 +1242,20 @@ export function DesignerAssignments() {
     ? getDisplayProgress(selectedTaskDetail.id)
     : null;
 
-  const visiblePhases = PHASES;
+  const visiblePhases = (() => {
+    const swr = selectedTaskDetail?.submissionsWithReviews;
+    if (!swr) return [];
+    const stageMap: Record<PhaseKey, keyof SubmissionsWithReviewsData> = {
+      caseStudy: 'caseStudy',
+      designStage: 'designing',
+      rendering: 'rendering',
+      finalStage: 'finalStage',
+    };
+    return PHASES.filter((p) => {
+      const subs = (swr as any)[stageMap[p.key]] as SubmissionItem[] | undefined;
+      return subs && subs.length > 0;
+    });
+  })();
 
   const assignedTasks = tasks.filter((task) => !!task.assigned_to_user_id);
   // Sort by latest activity (task, submission, or review timestamps) descending
