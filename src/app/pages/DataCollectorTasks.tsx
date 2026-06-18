@@ -393,6 +393,8 @@ export function DataCollectorTasks() {
   const [draftScreenshots, setDraftScreenshots] = useState<Record<string, string | null>>({});
   const draftFilesRef = useRef<Record<string, File[]>>({});
   const [submissionDraftLoading, setSubmissionDraftLoading] = useState<Record<string, boolean>>({});
+  const [submissionError, setSubmissionError] = useState<Record<string, string>>({});
+  const [reviewError, setReviewError] = useState<Record<string, string>>({});
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newTaskForm, setNewTaskForm] = useState({
@@ -697,6 +699,8 @@ export function DataCollectorTasks() {
     draftFilesRef.current = { ...draftFilesRef.current, [task.id]: [] };
     setExpandedSubmissionId(null);
     setShowDetail(true);
+    setSubmissionError((prev) => ({ ...prev, [task.id]: '' }));
+    setReviewError((prev) => ({ ...prev, [task.id]: '' }));
 
     const notifIds: string[] = [];
     const swr = task.submissionsWithReviews;
@@ -782,6 +786,10 @@ export function DataCollectorTasks() {
 
   const handleReviewSubmission = async (taskId: string, subId: string, outcome: string) => {
     const note = reviewDraft[taskId] ?? '';
+    setReviewError((prev) => ({ ...prev, [taskId]: '' }));
+
+    let errorMsg: string | null = null;
+
     try {
       const payload = {
         description: note.trim() || `Review: ${outcome}`,
@@ -790,19 +798,27 @@ export function DataCollectorTasks() {
       };
       if (editingReviewId) {
         await dataCollectorApi.updateReview(editingReviewId, payload);
-        setEditingReviewId(null);
       } else {
         await dataCollectorApi.createReview(subId, payload);
       }
+    } catch (err: unknown) {
+      errorMsg =
+        (err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined) ||
+        'Unable to submit review. Please try again.';
+    }
 
+    if (errorMsg) {
+      setReviewError((prev) => ({ ...prev, [taskId]: errorMsg! }));
+    } else {
+      setEditingReviewId(null);
+      setReviewDraft((prev) => ({ ...prev, [taskId]: '' }));
       await fetchTasks(apiPage, true);
       if (cachedTasks) {
         const refreshed = cachedTasks.find((t) => t.id === taskId);
         if (refreshed) setSelectedTask(refreshed);
       }
-      setReviewDraft((prev) => ({ ...prev, [taskId]: '' }));
-    } catch {
-      setError('Unable to submit review');
     }
   };
 
@@ -816,6 +832,7 @@ export function DataCollectorTasks() {
     setDraftScreenshots((prev) => ({ ...prev, [taskId]: sub.attachment_urls?.[0] || null }));
     draftFilesRef.current = { ...draftFilesRef.current, [taskId]: [] };
     setExpandedSubmissionId(subId);
+    setSubmissionError((prev) => ({ ...prev, [taskId]: '' }));
   };
 
   const handleSubmitSubmission = async (taskId: string) => {
@@ -823,6 +840,9 @@ export function DataCollectorTasks() {
     const files = draftFilesRef.current[taskId] ?? [];
 
     setSubmissionDraftLoading((prev) => ({ ...prev, [taskId]: true }));
+    setSubmissionError((prev) => ({ ...prev, [taskId]: '' }));
+
+    const isEditing = editingSubmissionId !== null;
 
     const addLocalSubmission = () => {
       const all = loadLocalTasks().length > 0 ? loadLocalTasks() : seedTasks;
@@ -884,6 +904,8 @@ export function DataCollectorTasks() {
       if (updatedSelected) setSelectedTask(updatedSelected);
     };
 
+    let errorMsg: string | null = null;
+
     try {
       const formData = new FormData();
       formData.append('description', note.trim() || 'Data collector submission');
@@ -891,7 +913,6 @@ export function DataCollectorTasks() {
         formData.append('attachmentFiles', file);
       }
 
-      const isEditing = editingSubmissionId !== null;
       const response = isEditing
         ? await dataCollectorApi.updateSubmission(editingSubmissionId!, formData)
         : await dataCollectorApi.createSubmission(taskId, formData);
@@ -903,16 +924,31 @@ export function DataCollectorTasks() {
           if (refreshed) setSelectedTask(refreshed);
         }
       } else {
+        errorMsg = response.message || 'Submission failed. Please refresh the page.';
         if (!isEditing) addLocalSubmission();
-        const task = (cachedTasks || loadLocalTasks().length > 0 ? loadLocalTasks() : seedTasks).find((t) => t.id === taskId);
-        if (task) setSelectedTask(task);
       }
-    } catch {
-      if (!editingSubmissionId) addLocalSubmission();
-      const task = (cachedTasks || loadLocalTasks().length > 0 ? loadLocalTasks() : seedTasks).find((t) => t.id === taskId);
-      if (task) setSelectedTask(task);
+    } catch (err: unknown) {
+      if (!isEditing) addLocalSubmission();
+      errorMsg =
+        (err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined) ||
+        'Unable to connect to server. Please try again.';
     } finally {
       setSubmissionDraftLoading((prev) => ({ ...prev, [taskId]: false }));
+    }
+
+    if (errorMsg) {
+      setSubmissionError((prev) => ({ ...prev, [taskId]: errorMsg! }));
+      if (!isEditing) {
+        setEditingSubmissionId(null);
+        const oldUrl = draftScreenshots[taskId] ?? null;
+        if (oldUrl && oldUrl.startsWith('blob:')) URL.revokeObjectURL(oldUrl);
+        setDraftScreenshots((prev) => ({ ...prev, [taskId]: null }));
+        setDraftNote((prev) => ({ ...prev, [taskId]: '' }));
+        draftFilesRef.current = { ...draftFilesRef.current, [taskId]: [] };
+      }
+    } else {
       setEditingSubmissionId(null);
       const oldUrl = draftScreenshots[taskId] ?? null;
       if (oldUrl && oldUrl.startsWith('blob:')) URL.revokeObjectURL(oldUrl);
@@ -1591,6 +1627,9 @@ export function DataCollectorTasks() {
                                         <Send className="w-3.5 h-3.5" /> {editingReviewId ? 'Update Feedback' : 'Feedback'}
                                       </button>
                                     </div>
+                                    {reviewError[selectedTask.id] && (
+                                      <p className="mt-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{reviewError[selectedTask.id]}</p>
+                                    )}
                                   </div>
                                 )}
                               </div>
@@ -1677,6 +1716,9 @@ export function DataCollectorTasks() {
                           ? (editingSubmissionId ? 'Updating...' : 'Submitting...')
                           : (editingSubmissionId ? 'Update' : 'Submit')}
                       </button>
+                      {submissionError[selectedTask.id] && (
+                        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{submissionError[selectedTask.id]}</p>
+                      )}
                     </div>
                   </section>
                 )}

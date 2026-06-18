@@ -845,33 +845,7 @@ export function DesignerTasks() {
         : await designerApi.createSubmission(taskId, formData);
 
       if (response.success && response.data) {
-        // Update the task card immediately with new status/stage from backend
-        setTasks((prev) => {
-          const updated = prev.map((t) =>
-            t.id === taskId
-              ? { ...t, status: 'pending', stage: phaseToBackendStage(phase), updated_at: new Date().toISOString() }
-              : t
-          );
-          cachedTasks = updated;
-          return updated;
-        });
-
-        // Save note/screenshot locally for UI display
-        const screenshotUrl = files.length > 0
-          ? URL.createObjectURL(files[0])
-          : null;
-
-        setSubmissionProgress((prev) => {
-          const taskProgress = prev[taskId] ?? getDisplayProgress(taskId);
-          const updatedPhase: PhaseData = {
-            ...taskProgress[phase],
-            note: note.trim(),
-            screenshot: screenshotUrl ?? taskProgress[phase].screenshot,
-          };
-          return { ...prev, [taskId]: { ...taskProgress, [phase]: updatedPhase } };
-        });
-
-        // Refresh submissions by refetching current page
+        // Refresh submissions from backend first
         setSubmissionsLoading((prev) => ({ ...prev, [taskId]: true }));
         try {
           await fetchTasks(apiPage, true);
@@ -879,7 +853,6 @@ export function DesignerTasks() {
             const refreshed = cachedTasks.find((t) => t.id === taskId);
             if (refreshed) {
               setSelectedTaskDetail(refreshed);
-              // Also update progress directly from the refreshed task's data
               if (refreshed.submissionsWithReviews) {
                 const freshProgress = apiSubmissionsToProgress(refreshed.submissionsWithReviews);
                 setSubmissionProgress((prev) => ({ ...prev, [taskId]: freshProgress }));
@@ -893,7 +866,7 @@ export function DesignerTasks() {
       } else {
         setPhaseErrors((prev) => ({
           ...prev,
-          [taskId]: { ...prev[taskId], [phase]: response.message || 'Submission failed' },
+          [taskId]: { ...prev[taskId], [phase]: response.message || 'Submission failed. Please refresh the page.' },
         }));
         return;
       }
