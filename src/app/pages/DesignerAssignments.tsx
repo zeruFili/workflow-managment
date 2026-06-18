@@ -446,6 +446,7 @@ export function DesignerAssignments() {
   const [feedbackDrafts, setFeedbackDrafts] = useState<Record<string, Record<PhaseKey, string>>>({});
   const [expandedHistoryIdx, setExpandedHistoryIdx] = useState<Record<string, Record<PhaseKey, number | null>>>({});
   const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
+  const [reviewError, setReviewError] = useState<Record<string, string>>({});
 
   const [reviews, setReviews] = useState<Record<string, ReviewData>>(loadReviews);
   const [reviewTaskId, setReviewTaskId] = useState<string | null>(null);
@@ -1184,6 +1185,9 @@ export function DesignerAssignments() {
     if (submissions.length === 0) return;
     const latestSubmission = submissions[submissions.length - 1];
 
+    const errorKey = `${taskId}_${phase}`;
+    setReviewError((prev) => ({ ...prev, [errorKey]: '' }));
+
     try {
       const payload = {
         description: message.trim() || `Review: ${outcome}`,
@@ -1198,12 +1202,6 @@ export function DesignerAssignments() {
           setEditingReviewId(null);
           return;
         }
-        console.log('updateReview payload:', {
-          reviewId: editingReviewId,
-          submission_id: editingSubmission.id,
-          task_id: taskId,
-          ...payload,
-        });
         await designerApi.updateReview(editingReviewId, {
           ...payload,
           submission_id: editingSubmission.id,
@@ -1225,8 +1223,12 @@ export function DesignerAssignments() {
           }
         }
       }
-    } catch {
-      setError('Unable to submit review');
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined;
+      setReviewError((prev) => ({ ...prev, [errorKey]: msg || 'Unable to submit review. Please try again.' }));
     }
   };
 
@@ -2036,6 +2038,9 @@ export function DesignerAssignments() {
                                                       </button>
                                                     )}
                                                   </div>
+                                                  {reviewError[`${taskId}_${phase.key}`] && (
+                                                    <p className="mt-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{reviewError[`${taskId}_${phase.key}`]}</p>
+                                                  )}
                                                 </div>
                                                 )}
                                               </div>
