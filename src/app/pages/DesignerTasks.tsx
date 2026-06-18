@@ -808,6 +808,10 @@ export function DesignerTasks() {
       ...prev,
       [taskId]: { ...prev[taskId], [phase]: submission.description || '' },
     }));
+    setDraftScreenshots((prev) => ({
+      ...prev,
+      [taskId]: { ...prev[taskId], [phase]: submission.attachment_urls?.[0] || null },
+    }));
     setEditingSubmission({ taskId, phase, submissionId });
 
     // Expand the phase to show the form
@@ -1539,7 +1543,7 @@ export function DesignerTasks() {
                                               <Upload className="w-4 h-4" />
                                               {draftFilesRef.current[taskId]?.[phase.key]?.length
                                                 ? `${draftFilesRef.current[taskId][phase.key].length} file(s) selected`
-                                                : newScreenshot || existingScreenshot
+                                                : newScreenshot
                                                 ? 'Change Files'
                                                 : 'Choose Files'}
                                               <input
@@ -1556,7 +1560,7 @@ export function DesignerTasks() {
                                                 className="hidden"
                                               />
                                             </label>
-                                            {(newScreenshot || existingScreenshot || (draftFilesRef.current[taskId]?.[phase.key]?.length ?? 0) > 0) && (
+                                            {(newScreenshot || (draftFilesRef.current[taskId]?.[phase.key]?.length ?? 0) > 0) && (
                                               <button
                                                 type="button"
                                                 onClick={() => {
@@ -1584,14 +1588,7 @@ export function DesignerTasks() {
                                               className="mt-2 w-full max-h-40 rounded-lg border object-contain"
                                             />
                                           )}
-                                          {!newScreenshot && existingScreenshot && (
-                                            <img
-                                              src={existingScreenshot}
-                                              alt="current screenshot"
-                                              className="mt-2 w-full max-h-40 rounded-lg border object-contain"
-                                            />
-                                          )}
-                                          {!newScreenshot && !existingScreenshot && (
+                                          {!newScreenshot && !(draftFilesRef.current[taskId]?.[phase.key]?.length) && (
                                             <p className="mt-1 text-xs text-gray-400">No preview available.</p>
                                           )}
                                         </div>
