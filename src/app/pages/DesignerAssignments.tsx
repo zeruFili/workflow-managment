@@ -325,7 +325,7 @@ function apiSubmissionsToProgress(data: SubmissionsWithReviewsData): Record<Phas
   };
 
   for (const [apiStage, phaseKey] of Object.entries(stageMap)) {
-    const submissions: SubmissionItem[] = (data as Record<string, SubmissionItem[]>)[apiStage] || [];
+    const submissions: SubmissionItem[] = (data as any)[apiStage] || [];
     if (submissions.length === 0) continue;
 
     const latestSubmission = submissions[submissions.length - 1];
@@ -1180,7 +1180,7 @@ export function DesignerAssignments() {
       caseStudy: 'caseStudy', designStage: 'designing', rendering: 'rendering', finalStage: 'finalStage',
     };
     const apiKey = stageMap[phase];
-    const submissions: SubmissionItem[] = (selectedTaskDetail.submissionsWithReviews as Record<string, SubmissionItem[]>)[apiKey] || [];
+    const submissions: SubmissionItem[] = (selectedTaskDetail.submissionsWithReviews as any)[apiKey] || [];
     if (submissions.length === 0) return;
     const latestSubmission = submissions[submissions.length - 1];
 
@@ -1242,8 +1242,7 @@ export function DesignerAssignments() {
     ? getDisplayProgress(selectedTaskDetail.id)
     : null;
 
-  const lastPopulatedIdx = getLastPopulatedPhaseIndex(currentProgress);
-  const visiblePhases = lastPopulatedIdx >= 0 ? PHASES.slice(0, lastPopulatedIdx + 1) : [];
+  const visiblePhases = PHASES;
 
   const assignedTasks = tasks.filter((task) => !!task.assigned_to_user_id);
   // Sort by latest activity (task, submission, or review timestamps) descending
@@ -1815,19 +1814,9 @@ export function DesignerAssignments() {
                           : [[], [], [], []];
                         const allSubs = allStages.flat();
                         const taskId = selectedTaskDetail.id;
-                        const phaseData = currentProgress?.[phase.key] ?? defaultPhase();
                         const isExpanded = expandedPhase === phase.key;
-                        const currentStatus = getCurrentStatus(phaseData);
-                        const history = phaseData.history || [];
                         const draft = feedbackDrafts[taskId]?.[phase.key] ?? '';
                         const taskHistoryIdx = expandedHistoryIdx[taskId]?.[phase.key];
-
-                        const statusBadge = {
-                          feedback: { label: 'Feedback Given', icon: MessageSquare, color: 'bg-yellow-100 text-yellow-700' },
-                          approved: { label: 'Approved', icon: ThumbsUp, color: 'bg-green-100 text-green-700' },
-                          rejected: { label: 'Rejected', icon: ThumbsDown, color: 'bg-red-100 text-red-700' },
-                          pending: { label: 'Pending Review', icon: Clock, color: 'bg-blue-100 text-blue-700' },
-                        }[currentStatus];
 
                         // Check if this phase has any notifications
                         const rawData = selectedTaskDetail.submissionsWithReviews;
@@ -1835,10 +1824,21 @@ export function DesignerAssignments() {
                           caseStudy: 'caseStudy', designStage: 'designing', rendering: 'rendering', finalStage: 'finalStage',
                         };
                         const apiKey = stageMap[phase.key];
-                        const stageSubmissions: SubmissionItem[] = rawData ? (rawData as Record<string, SubmissionItem[]>)[apiKey] || [] : [];
+                        const stageSubmissions: SubmissionItem[] = rawData ? (rawData as any)[apiKey] || [] : [];
                         const phaseHasNotification = stageSubmissions.some(
                           (s) => s.hasNotification || (s.reviews || []).some((r) => r.hasNotification)
                         );
+
+                        // Find the latest review for this specific stage to show as the badge
+                        let latestStageReviewOutcome: string | null = null;
+                        for (const s of stageSubmissions) {
+                          for (const r of (s.reviews || [])) {
+                            if (!latestStageReviewOutcome) {
+                              latestStageReviewOutcome = r.review_outcome;
+                            }
+                          }
+                        }
+
                         const taskApproved = selectedTaskDetail.status === 'approved';
                         const updatedAt = selectedTaskDetail.updated_at ? new Date(selectedTaskDetail.updated_at).getTime() : 0;
                         const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
@@ -1856,10 +1856,20 @@ export function DesignerAssignments() {
                                 {phaseHasNotification && (
                                   <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
                                 )}
-                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusBadge.color}`}>
-                                  <statusBadge.icon className="w-3 h-3" />
-                                  {statusBadge.label}
-                                </span>
+                                {latestStageReviewOutcome && (() => {
+                                  const outcome = latestStageReviewOutcome as string;
+                                  const isApproved = outcome === 'approved';
+                                  const isRejected = outcome === 'rejected';
+                                  const badgeIcon = isApproved ? ThumbsUp : isRejected ? ThumbsDown : MessageSquare;
+                                  const badgeColor = isApproved ? 'bg-green-100 text-green-700' : isRejected ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700';
+                                  const badgeLabel = isApproved ? 'Approved' : isRejected ? 'Rejected' : 'Feedback Given';
+                                  return (
+                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${badgeColor}`}>
+                                      <badgeIcon className="w-3 h-3" />
+                                      {badgeLabel}
+                                    </span>
+                                  );
+                                })()}
                               </div>
                               {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
                             </button>

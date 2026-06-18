@@ -243,7 +243,7 @@ function apiSubmissionsToProgress(data: SubmissionsWithReviewsData): Record<Phas
   };
 
   for (const [apiStage, phaseKey] of Object.entries(stageMap)) {
-    const submissions: SubmissionItem[] = (data as Record<string, SubmissionItem[]>)[apiStage] || [];
+    const submissions: SubmissionItem[] = (data as any)[apiStage] || [];
 
     if (submissions.length === 0) continue;
 
@@ -799,7 +799,7 @@ export function DesignerTasks() {
       finalStage: 'finalStage',
     };
     const apiKey = stageMap[phase];
-    const submissions: SubmissionItem[] = (rawData as Record<string, SubmissionItem[]>)[apiKey] || [];
+    const submissions: SubmissionItem[] = (rawData as any)[apiKey] || [];
     const submission = submissions.find((s) => s.id === submissionId);
     if (!submission) return;
 
@@ -1473,7 +1473,7 @@ export function DesignerTasks() {
                             caseStudy: 'caseStudy', designStage: 'designing', rendering: 'rendering', finalStage: 'finalStage',
                           };
                           const apiKey = stageMap[phase.key];
-                          const stageSubmissions: SubmissionItem[] = rawData ? (rawData as Record<string, SubmissionItem[]>)[apiKey] || [] : [];
+                          const stageSubmissions: SubmissionItem[] = rawData ? (rawData as any)[apiKey] || [] : [];
                           const phaseHasNotification = stageSubmissions.some(
                             (s) => s.hasNotification || (s.reviews || []).some((r) => r.hasNotification)
                           );
