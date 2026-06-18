@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { mockProjects } from '../data/mockData';
 import { getTaskAssigneeLabel, loadDesignerTasks } from '../pages/designerTaskShared';
 import { getUnseenDataCollectorCount } from '../pages/DataCollectorTasks';
+import { getUnseenQuantitySurveyorCount } from '../pages/QuantitySurveyorTasks';
 import {
   DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY,
   getPendingReviewCount,
@@ -54,6 +55,7 @@ function QuickAccessButton({
 export function LeadershipQuickAccess() {
   const [paidCustomersCount, setPaidCustomersCount] = useState(() => getUnseenPaidCustomerCount());
   const [dataCollectorCount, setDataCollectorCount] = useState(() => getUnseenDataCollectorCount());
+  const [quantitySurveyorCount, setQuantitySurveyorCount] = useState(() => getUnseenQuantitySurveyorCount());
   const [designerAssignmentsCount, setDesignerAssignmentsCount] = useState(getPendingReviewCount());
   const [designerTasks] = useState(() =>
     loadDesignerTasks()
@@ -79,6 +81,11 @@ export function LeadershipQuickAccess() {
       setDataCollectorCount(customEvent.detail ?? 0);
     };
 
+    const onQuantitySurveyor = (event: Event) => {
+      const customEvent = event as CustomEvent<number>;
+      setQuantitySurveyorCount(customEvent.detail ?? 0);
+    };
+
     const onDesignerAssignments = (event: Event) => {
       const customEvent = event as CustomEvent<number>;
       setDesignerAssignmentsCount(customEvent.detail ?? 0);
@@ -86,11 +93,13 @@ export function LeadershipQuickAccess() {
 
     window.addEventListener('paid-customers-notifications-updated', onPaidCustomers);
     window.addEventListener('data-collector-notifications-updated', onDataCollector);
+    window.addEventListener('quantity-surveyor-notifications-updated', onQuantitySurveyor);
     window.addEventListener(DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY, onDesignerAssignments);
 
     return () => {
       window.removeEventListener('paid-customers-notifications-updated', onPaidCustomers);
       window.removeEventListener('data-collector-notifications-updated', onDataCollector);
+      window.removeEventListener('quantity-surveyor-notifications-updated', onQuantitySurveyor);
       window.removeEventListener(DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY, onDesignerAssignments);
     };
   }, []);
@@ -122,6 +131,14 @@ export function LeadershipQuickAccess() {
           badgeCount={dataCollectorCount}
           iconBgClass="bg-green-100"
           iconTextClass="text-green-600"
+        />
+        <QuickAccessButton
+          to="/quantity-surveyor-tasks"
+          label="Quantity Surveyor Tasks"
+          icon={Briefcase}
+          badgeCount={quantitySurveyorCount}
+          iconBgClass="bg-purple-100"
+          iconTextClass="text-purple-600"
         />
         <QuickAccessButton
           to="/paid-customers"

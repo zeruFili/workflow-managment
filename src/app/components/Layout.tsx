@@ -133,7 +133,6 @@ export function Layout({ children }: LayoutProps) {
 
   // ── Updated: site_engineer also gets a sidebar‑less layout ────────────
   const isSidebarlessRole =
-    user.role === 'quantity_surveyor' ||
     user.role === 'finance_officer' ||
     user.role === 'site_engineer';
 
@@ -151,14 +150,16 @@ export function Layout({ children }: LayoutProps) {
     ) {
       // Site engineer is now sidebar‑less, so this block won't execute for them
       navigationItems.push({
-        path: user.role === 'site_engineer' ? '/site-engineer-tasks' : user.role === 'data_collector' ? '/data-collector-tasks' : '/tasks',
-        label: user.role === 'site_engineer' ? 'Site Engineer Tasks' : user.role === 'data_collector' ? 'Data Collector Tasks' : 'Tasks',
+        path: user.role === 'site_engineer' ? '/site-engineer-tasks' : user.role === 'data_collector' ? '/data-collector-tasks' : user.role === 'quantity_surveyor' ? '/quantity-surveyor-tasks' : '/tasks',
+        label: user.role === 'site_engineer' ? 'Site Engineer Tasks' : user.role === 'data_collector' ? 'Data Collector Tasks' : user.role === 'quantity_surveyor' ? 'Quantity Surveyor Tasks' : 'Tasks',
         icon: CheckSquare,
         badge:
           user.role === 'site_engineer' && siteEngineerNotifications > 0
             ? siteEngineerNotifications
             : user.role === 'data_collector' && dataCollectorNotifications > 0
             ? dataCollectorNotifications
+            : user.role === 'quantity_surveyor' && quantitySurveyorNotifications > 0
+            ? quantitySurveyorNotifications
             : undefined,
       });
     }

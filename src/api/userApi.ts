@@ -33,6 +33,13 @@ const userApi = {
     });
     return response.data;
   },
+
+  getQuantitySurveyors: async (): Promise<UserListResponse> => {
+    const response = await api.get<UserListResponse>("/users", {
+      params: { role: "quantity_surveyor", is_active: true, limit: 100 },
+    });
+    return response.data;
+  },
 };
 
 export default userApi;

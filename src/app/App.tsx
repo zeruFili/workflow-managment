@@ -274,7 +274,7 @@ function AppContent() {
         <Route
           path="/quantity-surveyor-tasks"
           element={
-            <ProtectedRoute allowedRoles={['ceo', 'general_manager']}>
+            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'quantity_surveyor']}>
               <Layout>
                 <QuantitySurveyorTasks />
               </Layout>
