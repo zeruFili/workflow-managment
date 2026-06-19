@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { designerRoles } from './designerTaskShared';
 import designerApi, {
@@ -506,6 +507,22 @@ export function DesignerTasks() {
     if (!user) return;
     fetchTasks(apiPage);
   }, [user, apiPage, fetchTasks]);
+
+  // ── Auto-open detail from query parameter ──
+  const [searchParams, setSearchParams] = useSearchParams();
+  const autoOpenTaskId = searchParams.get('open');
+  const autoOpenedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!autoOpenTaskId || autoOpenedRef.current === autoOpenTaskId || isLoading) return;
+    const task = tasks.find((t) => t.id === autoOpenTaskId);
+    if (task) {
+      autoOpenedRef.current = autoOpenTaskId;
+      openDetail(task);
+      searchParams.delete('open');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [autoOpenTaskId, isLoading, tasks]);
 
   // ── Load user submission progress from localStorage as fallback ──
   useEffect(() => {

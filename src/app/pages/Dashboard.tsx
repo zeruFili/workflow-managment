@@ -34,7 +34,7 @@ import {
 import {
   getUnseenOpenJobPostingsCount,
 } from '../pages/DesignerOpenJobPostings';
-import { loadDesignerTasks, getTaskAssigneeLabel } from '../pages/designerTaskShared';
+import designerApi, { DesignerTaskItem } from '../../api/designerApi';
 
 type DashboardButtonProps = {
   to: string;
@@ -180,19 +180,31 @@ function MarketingQuickAccess() {
 }
 
 function DesignerQuickAccess() {
+  const { user } = useAuth();
+  const [designerTasks, setDesignerTasks] = useState<DesignerTaskItem[]>([]);
   const [designerTaskCount, setDesignerTaskCount] = useState(() => getUnseenDesignerTaskCount());
   const [openJobPostingsCount, setOpenJobPostingsCount] = useState(() => getUnseenOpenJobPostingsCount());
   const highlightedTaskIds = getUnseenDesignerTaskHighlightedIds();
 
-  const designerTasks = loadDesignerTasks()
-    .filter((task) => !!task.assignedTo)
-    .sort((a, b) => {
-      const aHighlighted = highlightedTaskIds.has(a.id) ? 1 : 0;
-      const bHighlighted = highlightedTaskIds.has(b.id) ? 1 : 0;
+  useEffect(() => {
+    if (!user) return;
+    designerApi.getDesignerTasks({ limit: 50 })
+      .then((response) => {
+        if (response.success) {
+          const assigned = response.data.filter((task) => task.assigned_to_user_id === user.id);
+          setDesignerTasks(assigned);
+        }
+      })
+      .catch(() => {});
+  }, [user]);
 
-      if (bHighlighted !== aHighlighted) return bHighlighted - aHighlighted;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
+  const sortedTasks = [...designerTasks].sort((a, b) => {
+    const aHighlighted = highlightedTaskIds.has(a.id) ? 1 : 0;
+    const bHighlighted = highlightedTaskIds.has(b.id) ? 1 : 0;
+
+    if (bHighlighted !== aHighlighted) return bHighlighted - aHighlighted;
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
 
   useEffect(() => {
     const onDesignerTasksUpdated = (event: Event) => {
@@ -254,17 +266,16 @@ function DesignerQuickAccess() {
         </div>
 
         <div className="divide-y divide-gray-100">
-          {designerTasks.length === 0 ? (
+          {sortedTasks.length === 0 ? (
             <div className="px-4 py-8 text-center text-sm text-gray-500">No assigned designer tasks yet.</div>
           ) : (
-            designerTasks.slice(0, 6).map((task) => {
+            sortedTasks.slice(0, 6).map((task) => {
               const isHighlighted = highlightedTaskIds.has(task.id);
-              const project = mockProjects.find((candidate) => candidate.id === task.projectId);
 
               return (
                 <Link
                   key={task.id}
-                  to="/designer-tasks"
+                  to={`/designer-tasks?open=${task.id}`}
                   className={`block px-4 py-4 transition-colors hover:bg-gray-50 ${isHighlighted ? 'bg-blue-50/70' : ''}`}
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
@@ -277,10 +288,9 @@ function DesignerQuickAccess() {
                           </span>
                         )}
                       </div>
-                      <p className="mt-1 text-sm text-gray-600">Assignee: {getTaskAssigneeLabel(task.assignedTo)}</p>
-                      <p className="text-sm text-gray-500">Project: {project?.name ?? 'Unlinked project'}</p>
-                      {task.deadline && (
-                        <p className="text-sm text-gray-500">Due: {new Date(task.deadline).toLocaleDateString()}</p>
+                      <p className="mt-1 text-sm text-gray-600 line-clamp-2">{task.description}</p>
+                      {task.due_date && (
+                        <p className="text-sm text-gray-500">Due: {new Date(task.due_date).toLocaleDateString()}</p>
                       )}
                     </div>
                     <Briefcase className="h-5 w-5 shrink-0 text-gray-400 sm:mt-0.5" />
