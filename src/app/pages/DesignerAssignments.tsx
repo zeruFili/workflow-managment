@@ -40,6 +40,7 @@ import {
   Send,
   Star,
   Paperclip,
+  PauseCircle,
 } from 'lucide-react';
 import AttachmentViewer from '../components/AttachmentViewer';
 
@@ -941,6 +942,16 @@ export function DesignerAssignments() {
   };
 
   const getCurrentPhaseInfo = (task: DesignerTaskItem) => {
+    // If task is paused, show the current stage with paused status
+    if (task.is_paused) {
+      const found = PHASES.find((p) => p.backendStage === task.stage);
+      return {
+        currentPhaseKey: (found?.key ?? null) as PhaseKey | null,
+        currentPhaseLabel: found?.label ?? (task.stage || ''),
+        currentPhaseStatus: 'paused' as PhaseHistoryEntry['status'],
+      };
+    }
+
     // Find the latest review across all phases to determine the most relevant stage/status
     const swr = task.submissionsWithReviews;
     const stageLabels = ['Case Study', 'Design Stage', 'Rendering', 'Final Stage'];
@@ -1431,7 +1442,11 @@ export function DesignerAssignments() {
                         Assigned to: {getAssigneeDisplayName(task)}
                       </p>
                     </div>
-                    {currentPhaseKey ? (
+                    {task.is_paused ? (
+                      <span className="px-2 py-1 rounded text-xs font-medium whitespace-nowrap bg-amber-100 text-amber-700">
+                        {currentPhaseLabel || 'Current Stage'} - Paused
+                      </span>
+                    ) : currentPhaseKey ? (
                       <span
                         className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
                           currentPhaseStatus === 'approved'
@@ -1493,50 +1508,60 @@ export function DesignerAssignments() {
                     )}
                   </div>
 
-                  {/* Latest Activity */}
-                  {(() => {
-                    const activity = getLatestActivity(task);
-                    if (!activity || !activity.description) return null;
-                    const outcome = activity.outcome;
-                    const isApproved = outcome === 'approved';
-                    const isRejected = outcome === 'rejected';
-                    const isFeedback = outcome === 'feedback';
-                    const BadgeIcon = isApproved ? CheckCircle2 : isRejected ? XCircle : isFeedback ? AlertCircle : MessageSquare;
-                    const containerColor = isApproved
-                      ? 'bg-green-50 border-green-200'
-                      : isRejected
-                      ? 'bg-red-50 border-red-200'
-                      : isFeedback
-                      ? 'bg-yellow-50 border-yellow-200'
-                      : 'bg-blue-50 border-blue-200';
-                    const textColor = isApproved
-                      ? 'text-green-700'
-                      : isRejected
-                      ? 'text-red-700'
-                      : isFeedback
-                      ? 'text-yellow-700'
-                      : 'text-blue-700';
-                    const iconColor = isApproved
-                      ? 'text-green-600'
-                      : isRejected
-                      ? 'text-red-600'
-                      : isFeedback
-                      ? 'text-yellow-600'
-                      : 'text-blue-600';
-                    const statusLabel = isApproved ? 'Approved' : isRejected ? 'Rejected' : isFeedback ? 'Feedback Given' : 'Pending';
-                    return (
-                      <div className={`mb-4 p-3 rounded-lg border ${containerColor}`}>
-                        <div className="flex items-center gap-2 mb-2">
-                          <BadgeIcon className={`w-4 h-4 ${iconColor}`} />
-                          <p className={`text-sm font-medium ${textColor}`}>{statusLabel}</p>
-                          {activity.stage && (
-                            <span className="text-xs text-gray-400">in {activity.stage}</span>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-700">{activity.description}</p>
+                  {/* Latest Activity - show pause reason when paused */}
+                  {task.is_paused && task.pause_reason ? (
+                    <div className="mb-4 p-3 rounded-lg border bg-amber-50 border-amber-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <PauseCircle className="w-4 h-4 text-amber-600" />
+                        <p className="text-sm font-medium text-amber-700">Task Paused</p>
                       </div>
-                    );
-                  })()}
+                      <p className="text-sm text-amber-800">{task.pause_reason}</p>
+                    </div>
+                  ) : (
+                    (() => {
+                      const activity = getLatestActivity(task);
+                      if (!activity || !activity.description) return null;
+                      const outcome = activity.outcome;
+                      const isApproved = outcome === 'approved';
+                      const isRejected = outcome === 'rejected';
+                      const isFeedback = outcome === 'feedback';
+                      const BadgeIcon = isApproved ? CheckCircle2 : isRejected ? XCircle : isFeedback ? AlertCircle : MessageSquare;
+                      const containerColor = isApproved
+                        ? 'bg-green-50 border-green-200'
+                        : isRejected
+                        ? 'bg-red-50 border-red-200'
+                        : isFeedback
+                        ? 'bg-yellow-50 border-yellow-200'
+                        : 'bg-blue-50 border-blue-200';
+                      const textColor = isApproved
+                        ? 'text-green-700'
+                        : isRejected
+                        ? 'text-red-700'
+                        : isFeedback
+                        ? 'text-yellow-700'
+                        : 'text-blue-700';
+                      const iconColor = isApproved
+                        ? 'text-green-600'
+                        : isRejected
+                        ? 'text-red-600'
+                        : isFeedback
+                        ? 'text-yellow-600'
+                        : 'text-blue-600';
+                      const statusLabel = isApproved ? 'Approved' : isRejected ? 'Rejected' : isFeedback ? 'Feedback Given' : 'Pending';
+                      return (
+                        <div className={`mb-4 p-3 rounded-lg border ${containerColor}`}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <BadgeIcon className={`w-4 h-4 ${iconColor}`} />
+                            <p className={`text-sm font-medium ${textColor}`}>{statusLabel}</p>
+                            {activity.stage && (
+                              <span className="text-xs text-gray-400">in {activity.stage}</span>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-700">{activity.description}</p>
+                        </div>
+                      );
+                    })()
+                  )}
 
                   <div className="space-y-2 text-sm">
                     {task.due_date && (
