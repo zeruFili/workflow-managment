@@ -27,6 +27,8 @@ import {
   ThumbsUp,
   ThumbsDown,
   Paperclip,
+  PauseCircle,
+  PlayCircle,
 } from 'lucide-react';
 import AttachmentViewer from '../components/AttachmentViewer';
 
@@ -69,6 +71,7 @@ function phaseToBackendStage(phase: PhaseKey): string {
 const REQUIRED_ATTACHMENT_STAGES: Set<PhaseKey> = new Set(['rendering', 'finalStage']);
 
 const STORAGE_KEY = 'designer-submission-progress';
+const PAUSED_SNAPSHOT_KEY = 'designer-paused-snapshots';
 const API_TASKS_CACHE_KEY = 'designer-api-tasks-cache';
 
 // ──────────── NOTIFICATIONS / HIGHLIGHT ────────────
@@ -77,6 +80,35 @@ export const DESIGNER_TASKS_NOTIFICATIONS_KEY = 'designer-tasks-notifications-up
 const viewedDesignerTaskCards = new Set<string>();
 let designerTaskNotificationIds = new Set<string>();
 const markedTaskNotificationIds = new Set<string>();
+
+// ──────────── PAUSED TASK SNAPSHOTS ────────────
+type PausedSnapshotData = Record<string, SubmissionsWithReviewsData>;
+
+function loadPausedSnapshots(): PausedSnapshotData {
+  try {
+    const stored = localStorage.getItem(PAUSED_SNAPSHOT_KEY);
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    return {};
+  }
+}
+
+function savePausedSnapshot(taskId: string, data: SubmissionsWithReviewsData) {
+  const snapshots = loadPausedSnapshots();
+  snapshots[taskId] = data;
+  localStorage.setItem(PAUSED_SNAPSHOT_KEY, JSON.stringify(snapshots));
+}
+
+function removePausedSnapshot(taskId: string) {
+  const snapshots = loadPausedSnapshots();
+  delete snapshots[taskId];
+  localStorage.setItem(PAUSED_SNAPSHOT_KEY, JSON.stringify(snapshots));
+}
+
+function getPausedSnapshot(taskId: string): SubmissionsWithReviewsData | null {
+  const snapshots = loadPausedSnapshots();
+  return snapshots[taskId] || null;
+}
 
 function publishDesignerTasksBadgeCount(count: number) {
   window.dispatchEvent(
@@ -408,6 +440,13 @@ export function DesignerTasks() {
   const [submissionsRawData, setSubmissionsRawData] = useState<Record<string, SubmissionsWithReviewsData>>({});
   const [editingSubmission, setEditingSubmission] = useState<{ taskId: string; phase: PhaseKey; submissionId: string } | null>(null);
 
+  // Pause/Resume state
+  const [pauseLoading, setPauseLoading] = useState<Record<string, boolean>>({});
+  const [resumeLoading, setResumeLoading] = useState<Record<string, boolean>>({});
+  const [showPauseDialog, setShowPauseDialog] = useState(false);
+  const [pauseReason, setPauseReason] = useState('');
+  const [pausedSnapshots, setPausedSnapshots] = useState<PausedSnapshotData>(() => loadPausedSnapshots());
+
   // Highlight state
   const seenThisSession = useRef<Set<string>>(new Set());
   const observedElements = useRef<Set<string>>(new Set());
@@ -472,10 +511,17 @@ export function DesignerTasks() {
 
         const progressUpdates: SubmissionProgress = {};
         const rawDataUpdates: Record<string, SubmissionsWithReviewsData> = {};
+        const currentSnapshots = loadPausedSnapshots();
+        setPausedSnapshots(currentSnapshots);
         for (const task of response.data) {
-          if (task.submissionsWithReviews) {
-            rawDataUpdates[task.id] = task.submissionsWithReviews;
-            progressUpdates[task.id] = apiSubmissionsToProgress(task.submissionsWithReviews);
+          // For paused tasks with a snapshot, use the frozen snapshot data
+          // so the designer sees pre-pause state while CEO/GM can still review
+          const swr = task.is_paused && currentSnapshots[task.id]
+            ? currentSnapshots[task.id]
+            : task.submissionsWithReviews;
+          if (swr) {
+            rawDataUpdates[task.id] = swr;
+            progressUpdates[task.id] = apiSubmissionsToProgress(swr);
           }
         }
         cachedRawData = rawDataUpdates;
@@ -713,8 +759,10 @@ export function DesignerTasks() {
     }));
     setShowDetail(true);
 
-    // Use submissions data already embedded in the task response
-    const swr = task.submissionsWithReviews;
+    // Use submissions data — for paused tasks use the frozen snapshot
+    // so designer sees pre-pause state while CEO/GM can review
+    const snapshotSwr = task.is_paused ? getPausedSnapshot(task.id) : null;
+    const swr = snapshotSwr || task.submissionsWithReviews;
     if (swr) {
       setSubmissionsRawData((prev) => ({ ...prev, [task.id]: swr }));
       const apiProgress = apiSubmissionsToProgress(swr);
@@ -836,6 +884,10 @@ export function DesignerTasks() {
   };
 
   const handleSubmitPhaseProgress = async (taskId: string, phase: PhaseKey) => {
+    // Prevent submission if the task is paused
+    const task = tasks.find((t) => t.id === taskId);
+    if (task?.is_paused) return;
+
     const note = draftNotes[taskId]?.[phase] ?? '';
     const files = draftFilesRef.current[taskId]?.[phase] ?? [];
 
@@ -923,6 +975,80 @@ export function DesignerTasks() {
     };
   };
 
+  // ── Pause / Resume ──
+  const handlePauseTask = async () => {
+    if (!selectedTaskDetail) return;
+    const reason = pauseReason.trim();
+    if (!reason) return;
+
+    setPauseLoading((prev) => ({ ...prev, [selectedTaskDetail.id]: true }));
+    try {
+      const response = await designerApi.pauseTask(selectedTaskDetail.id, { reason });
+      if (response.success && response.data) {
+        // Save snapshot of current submissions
+        if (selectedTaskDetail.submissionsWithReviews) {
+          savePausedSnapshot(selectedTaskDetail.id, selectedTaskDetail.submissionsWithReviews);
+          setPausedSnapshots((prev) => ({ ...prev, [selectedTaskDetail.id]: selectedTaskDetail.submissionsWithReviews }));
+        }
+        // Update the selected task detail
+        const pausedTask = response.data;
+        setSelectedTaskDetail(pausedTask);
+        // Update in tasks list
+        setTasks((prev) => prev.map((t) => (t.id === pausedTask.id ? pausedTask : t)));
+        if (cachedTasks) {
+          cachedTasks = cachedTasks.map((t) => (t.id === pausedTask.id ? pausedTask : t));
+        }
+      } else {
+        // Handle error silently for now
+      }
+    } catch {
+      // Handle error silently
+    } finally {
+      setPauseLoading((prev) => ({ ...prev, [selectedTaskDetail.id]: false }));
+      setShowPauseDialog(false);
+      setPauseReason('');
+    }
+  };
+
+  const handleResumeTask = async () => {
+    if (!selectedTaskDetail) return;
+
+    setResumeLoading((prev) => ({ ...prev, [selectedTaskDetail.id]: true }));
+    try {
+      const response = await designerApi.resumeTask(selectedTaskDetail.id);
+      if (response.success) {
+        // Remove frozen snapshot
+        removePausedSnapshot(selectedTaskDetail.id);
+        setPausedSnapshots((prev) => {
+          const next = { ...prev };
+          delete next[selectedTaskDetail.id];
+          return next;
+        });
+        // Force refresh to get latest data including reviews made while paused
+        cachedTasks = null;
+        cachedMeta = null;
+        cachedRawData = null;
+        cachedProgress = null;
+        await fetchTasks(apiPage, true);
+        if (cachedTasks) {
+          const refreshed = cachedTasks.find((t) => t.id === selectedTaskDetail.id);
+          if (refreshed) {
+            setSelectedTaskDetail(refreshed);
+            if (refreshed.submissionsWithReviews) {
+              setSubmissionsRawData((prev) => ({ ...prev, [refreshed.id]: refreshed.submissionsWithReviews }));
+              const freshProgress = apiSubmissionsToProgress(refreshed.submissionsWithReviews);
+              setSubmissionProgress((prev) => ({ ...prev, [refreshed.id]: freshProgress }));
+            }
+          }
+        }
+      }
+    } catch {
+      // Handle error silently
+    } finally {
+      setResumeLoading((prev) => ({ ...prev, [selectedTaskDetail.id]: false }));
+    }
+  };
+
   const handleFilesChange = (taskId: string, phase: PhaseKey, fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) {
       // User clicked "Remove all" - clear files
@@ -966,6 +1092,16 @@ export function DesignerTasks() {
   };
 
   const getCurrentPhaseInfo = (task: DesignerTaskItem) => {
+    // If task is paused, show the current stage with paused status
+    if (task.is_paused) {
+      const found = PHASES.find((p) => p.backendStage === task.stage);
+      return {
+        currentPhaseKey: (found?.key ?? null) as PhaseKey | null,
+        currentPhaseLabel: found?.label ?? (task.stage || ''),
+        currentPhaseStatus: 'paused' as PhaseHistoryEntry['status'],
+      };
+    }
+
     // Find latest review across all phases to determine the most relevant stage/status
     const raw = submissionsRawData[task.id];
     const stageLabels = ['Case Study', 'Design Stage', 'Rendering', 'Final Stage'];
@@ -1161,7 +1297,11 @@ export function DesignerTasks() {
                         Assigned to: {getAssigneeDisplayName(task)}
                       </p>
                     </div>
-                    {currentPhaseKey ? (
+                    {task.is_paused ? (
+                      <span className="px-2 py-1 rounded text-xs font-medium whitespace-nowrap bg-amber-100 text-amber-700">
+                        {currentPhaseLabel || 'Current Stage'} - Paused
+                      </span>
+                    ) : currentPhaseKey ? (
                       <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${
                         currentPhaseStatus === 'approved'
                           ? 'bg-green-100 text-green-700'
@@ -1210,50 +1350,60 @@ export function DesignerTasks() {
                     Open Submission Detail
                   </button>
 
-                  {/* Latest Activity */}
-                  {(() => {
-                    const activity = getLatestActivity(task.id);
-                    if (!activity || !activity.description) return null;
-                    const outcome = activity.outcome;
-                    const isApproved = outcome === 'approved';
-                    const isRejected = outcome === 'rejected';
-                    const isFeedback = outcome === 'feedback';
-                    const BadgeIcon = isApproved ? CheckCircle2 : isRejected ? XCircle : isFeedback ? AlertCircle : MessageSquare;
-                    const containerColor = isApproved
-                      ? 'bg-green-50 border-green-200'
-                      : isRejected
-                      ? 'bg-red-50 border-red-200'
-                      : isFeedback
-                      ? 'bg-yellow-50 border-yellow-200'
-                      : 'bg-blue-50 border-blue-200';
-                    const textColor = isApproved
-                      ? 'text-green-700'
-                      : isRejected
-                      ? 'text-red-700'
-                      : isFeedback
-                      ? 'text-yellow-700'
-                      : 'text-blue-700';
-                    const iconColor = isApproved
-                      ? 'text-green-600'
-                      : isRejected
-                      ? 'text-red-600'
-                      : isFeedback
-                      ? 'text-yellow-600'
-                      : 'text-blue-600';
-                    const statusLabel = isApproved ? 'Approved' : isRejected ? 'Rejected' : isFeedback ? 'Feedback Given' : 'Pending';
-                    return (
-                      <div className={`mb-4 p-3 rounded-lg border ${containerColor}`}>
-                        <div className="flex items-center gap-2 mb-2">
-                          <BadgeIcon className={`w-4 h-4 ${iconColor}`} />
-                          <p className={`text-sm font-medium ${textColor}`}>{statusLabel}</p>
-                          {activity.stage && (
-                            <span className="text-xs text-gray-400">in {activity.stage}</span>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-700">{activity.description}</p>
+                  {/* Latest Activity - show pause reason when paused */}
+                  {task.is_paused && task.pause_reason ? (
+                    <div className="mb-4 p-3 rounded-lg border bg-amber-50 border-amber-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <PauseCircle className="w-4 h-4 text-amber-600" />
+                        <p className="text-sm font-medium text-amber-700">Task Paused</p>
                       </div>
-                    );
-                  })()}
+                      <p className="text-sm text-amber-800">{task.pause_reason}</p>
+                    </div>
+                  ) : (
+                    (() => {
+                      const activity = getLatestActivity(task.id);
+                      if (!activity || !activity.description) return null;
+                      const outcome = activity.outcome;
+                      const isApproved = outcome === 'approved';
+                      const isRejected = outcome === 'rejected';
+                      const isFeedback = outcome === 'feedback';
+                      const BadgeIcon = isApproved ? CheckCircle2 : isRejected ? XCircle : isFeedback ? AlertCircle : MessageSquare;
+                      const containerColor = isApproved
+                        ? 'bg-green-50 border-green-200'
+                        : isRejected
+                        ? 'bg-red-50 border-red-200'
+                        : isFeedback
+                        ? 'bg-yellow-50 border-yellow-200'
+                        : 'bg-blue-50 border-blue-200';
+                      const textColor = isApproved
+                        ? 'text-green-700'
+                        : isRejected
+                        ? 'text-red-700'
+                        : isFeedback
+                        ? 'text-yellow-700'
+                        : 'text-blue-700';
+                      const iconColor = isApproved
+                        ? 'text-green-600'
+                        : isRejected
+                        ? 'text-red-600'
+                        : isFeedback
+                        ? 'text-yellow-600'
+                        : 'text-blue-600';
+                      const statusLabel = isApproved ? 'Approved' : isRejected ? 'Rejected' : isFeedback ? 'Feedback Given' : 'Pending';
+                      return (
+                        <div className={`mb-4 p-3 rounded-lg border ${containerColor}`}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <BadgeIcon className={`w-4 h-4 ${iconColor}`} />
+                            <p className={`text-sm font-medium ${textColor}`}>{statusLabel}</p>
+                            {activity.stage && (
+                              <span className="text-xs text-gray-400">in {activity.stage}</span>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-700">{activity.description}</p>
+                        </div>
+                      );
+                    })()
+                  )}
 
                   <div className="space-y-2 text-sm">
                     {task.due_date && (
@@ -1309,14 +1459,50 @@ export function DesignerTasks() {
             <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-6 py-5">
               <div>
                 <h3 className="text-2xl font-semibold text-gray-900">Submission Detail</h3>
-                <p className="mt-1 text-sm text-gray-500">Submit your work and view feedback</p>
+                <p className="mt-1 text-sm text-gray-500">
+                  {selectedTaskDetail.is_paused ? 'This task is currently paused.' : 'Submit your work and view feedback'}
+                </p>
+                {selectedTaskDetail.is_paused && selectedTaskDetail.pause_reason && (
+                  <div className="mt-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <PauseCircle className="w-4 h-4 text-amber-600" />
+                      <span className="text-sm font-medium text-amber-700">Pause Reason</span>
+                    </div>
+                    <p className="text-sm text-amber-800">{selectedTaskDetail.pause_reason}</p>
+                  </div>
+                )}
                 {submissionsLoading[selectedTaskDetail.id] && (
                   <p className="text-xs text-blue-600 mt-1">Loading submission data...</p>
                 )}
               </div>
-              <button onClick={closeDetail} className="rounded-lg p-2 hover:bg-gray-100">
-                <XCircle className="h-5 w-5 text-gray-500" />
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {user?.role === 'designer' && !selectedTaskDetail.is_paused && selectedTaskDetail.task_state === 'active' && (
+                  <button
+                    onClick={() => {
+                      setPauseReason('');
+                      setShowPauseDialog(true);
+                    }}
+                    disabled={pauseLoading[selectedTaskDetail.id]}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors disabled:opacity-50"
+                  >
+                    <PauseCircle className="w-4 h-4" />
+                    {pauseLoading[selectedTaskDetail.id] ? 'Pausing...' : 'Pause'}
+                  </button>
+                )}
+                {user?.role === 'designer' && selectedTaskDetail.is_paused && (
+                  <button
+                    onClick={handleResumeTask}
+                    disabled={resumeLoading[selectedTaskDetail.id]}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-green-100 text-green-700 hover:bg-green-200 transition-colors disabled:opacity-50"
+                  >
+                    <PlayCircle className="w-4 h-4" />
+                    {resumeLoading[selectedTaskDetail.id] ? 'Resuming...' : 'Resume'}
+                  </button>
+                )}
+                <button onClick={closeDetail} className="rounded-lg p-2 hover:bg-gray-100">
+                  <XCircle className="h-5 w-5 text-gray-500" />
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-6 px-6 py-5 lg:grid-cols-3">
@@ -1331,16 +1517,22 @@ export function DesignerTasks() {
                       Story Points: {selectedTaskDetail.story_point}
                     </span>
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
+                   <div className="mt-3 flex flex-wrap gap-2">
                     <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
                       Created by {getCreatorDisplayName(selectedTaskDetail)}
                     </span>
                     <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">
                       Assigned to {getAssigneeDisplayName(selectedTaskDetail)}
                     </span>
-                    <span className={`rounded-full px-2 py-1 text-xs font-medium ${statusColor(selectedTaskDetail.status)}`}>
-                      {statusDisplay(selectedTaskDetail.status)}
-                    </span>
+                    {selectedTaskDetail.is_paused ? (
+                      <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">
+                        Paused
+                      </span>
+                    ) : (
+                      <span className={`rounded-full px-2 py-1 text-xs font-medium ${statusColor(selectedTaskDetail.status)}`}>
+                        {statusDisplay(selectedTaskDetail.status)}
+                      </span>
+                    )}
                   </div>
                 </section>
 
@@ -1363,6 +1555,15 @@ export function DesignerTasks() {
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-4">
                     Submission Progress &amp; Review Feedback
                   </h5>
+
+                  {selectedTaskDetail.is_paused && (
+                    <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
+                      <PauseCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span className="text-sm text-amber-700">
+                        This task is paused. Submissions are disabled.
+                      </span>
+                    </div>
+                  )}
 
                   {(() => {
                     // Show latest review summary across all phases
@@ -1470,7 +1671,7 @@ export function DesignerTasks() {
                           const currentStatus = getCurrentStatus(phaseData);
                           const history = phaseData.history || [];
                           const isApproved = currentStatus === 'approved';
-                          const canSubmit = !overallRejected && selectedTaskDetail.task_state === 'active';
+                          const canSubmit = !overallRejected && selectedTaskDetail.task_state === 'active' && !selectedTaskDetail.is_paused;
                           const noteDraft = draftNotes[taskId]?.[phase.key] ?? '';
                           const newScreenshot = draftScreenshots[taskId]?.[phase.key] ?? null;
                           const existingScreenshot = phaseData.screenshot;
@@ -1653,7 +1854,7 @@ export function DesignerTasks() {
                                     const editableSubmissions = stageSubmissions.filter((s) => s.reviews.length === 0);
                                     const latestEditable = editableSubmissions.length > 0 ? editableSubmissions[editableSubmissions.length - 1] : null;
                                     const taskActive = selectedTaskDetail.task_state === 'active';
-                                    const canEdit = latestEditable && taskActive && !overallRejected && user?.role === 'designer';
+                                    const canEdit = latestEditable && taskActive && !overallRejected && user?.role === 'designer' && !selectedTaskDetail.is_paused;
                                     const latestEditableId = canEdit ? latestEditable!.id : null;
                                     const isEditingThis = editingSubmission?.taskId === taskId && editingSubmission?.phase === phase.key;
 
@@ -1808,6 +2009,46 @@ export function DesignerTasks() {
           </div>
         </div>
       )}
+
+      {/* Pause Reason Dialog */}
+      {showPauseDialog && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Pause Task</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Please provide a reason for pausing this task. You will not be able to submit new work until the task is resumed.
+            </p>
+            <textarea
+              rows={3}
+              value={pauseReason}
+              onChange={(e) => setPauseReason(e.target.value)}
+              placeholder="Enter the reason for pausing..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                onClick={() => {
+                  setShowPauseDialog(false);
+                  setPauseReason('');
+                }}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePauseTask}
+                disabled={!pauseReason.trim() || pauseLoading[selectedTaskDetail?.id || '']}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white rounded-lg text-sm transition-colors flex items-center gap-1.5"
+              >
+                <PauseCircle className="w-4 h-4" />
+                {pauseLoading[selectedTaskDetail?.id || ''] ? 'Pausing...' : 'Pause Task'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

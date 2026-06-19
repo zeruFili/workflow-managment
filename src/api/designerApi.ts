@@ -54,6 +54,7 @@ export interface DesignerTaskItem {
   status: string | null;
   stage: string | null;
   is_paused: boolean | null;
+  pause_reason: string | null;
   is_public: boolean | null;
   task_state: string;
   story_point: number;
@@ -251,6 +252,26 @@ const designerApi = {
     const response = await api.patch<CreateDesignerTaskResponse>(
       `/designer-tasks/${taskId}`,
       data
+    );
+    return response.data;
+  },
+
+  pauseTask: async (
+    taskId: string,
+    data: { reason: string }
+  ): Promise<{ success: boolean; data?: DesignerTaskItem; message?: string }> => {
+    const response = await api.post<{ success: boolean; data?: DesignerTaskItem; message?: string }>(
+      `/designer-tasks/${taskId}/pause`,
+      data
+    );
+    return response.data;
+  },
+
+  resumeTask: async (
+    taskId: string
+  ): Promise<{ success: boolean; data?: DesignerTaskItem; message?: string }> => {
+    const response = await api.post<{ success: boolean; data?: DesignerTaskItem; message?: string }>(
+      `/designer-tasks/${taskId}/resume`
     );
     return response.data;
   },
