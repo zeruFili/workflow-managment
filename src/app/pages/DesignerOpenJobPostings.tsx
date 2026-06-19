@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { Calendar, CheckCircle2, Clock, Landmark, Megaphone, ShieldCheck, Send, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import designerApi, { DesignerTaskItem } from '../../api/designerApi';
+import notificationApi from '../../api/notificationApi';
 
 const API_POSTINGS_CACHE_KEY = 'designer-open-job-postings-api';
 
@@ -20,15 +21,15 @@ function getCachedPostings(): { id: string; createdAt: string }[] {
 }
 
 const viewedOpenJobPostingCards = new Set<string>();
+const markedTaskNotificationIds = new Set<string>();
+
+export function resetDesignerOpenJobPostingsHighlightState() {
+  viewedOpenJobPostingCards.clear();
+  markedTaskNotificationIds.clear();
+}
 
 export function getUnseenOpenJobPostingHighlightedIds() {
   const postings = getCachedPostings();
-  if (viewedOpenJobPostingCards.size === 0) {
-    const sorted = [...postings].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-    sorted.slice(3).forEach((item) => viewedOpenJobPostingCards.add(item.id));
-  }
   return new Set(
     postings.filter((p) => !viewedOpenJobPostingCards.has(p.id)).map((p) => p.id)
   );
@@ -67,12 +68,36 @@ export function DesignerOpenJobPostings() {
   const [applyError, setApplyError] = useState<string | null>(null);
   const [submittingApply, setSubmittingApply] = useState(false);
 
-  const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
+  const highlightedIds = (() => {
+    if (postings.length === 0) return new Set<string>();
+    return new Set(
+      postings
+        .filter((p) => (p.taskNotification?.hasNotification || p.hasNestedNotification) && !viewedOpenJobPostingCards.has(p.id))
+        .map((p) => p.id)
+    );
+  })();
+
+  useEffect(() => {
+    publishOpenJobPostingsBadgeCount(highlightedIds.size);
+  }, [highlightedIds]);
+
   const seenThisSession = useRef<Set<string>>(new Set());
   const observedElements = useRef<Set<string>>(new Set());
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const pendingTaskNotifIds = useRef<Map<string, string>>(new Map());
   const postingsRef = useRef(postings);
   useEffect(() => { postingsRef.current = postings; }, [postings]);
+
+  const hasResetForSession = useRef(false);
+  useEffect(() => {
+    if (user && !hasResetForSession.current) {
+      resetDesignerOpenJobPostingsHighlightState();
+      hasResetForSession.current = true;
+    }
+    if (!user) {
+      hasResetForSession.current = false;
+    }
+  }, [user]);
 
   const fetchPostings = useCallback(async () => {
     try {
@@ -98,21 +123,6 @@ export function DesignerOpenJobPostings() {
   }, [fetchPostings]);
 
   useEffect(() => {
-    if (postings.length === 0) return;
-    if (viewedOpenJobPostingCards.size === 0) {
-      const sorted = [...postings].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-      sorted.slice(3).forEach((item) => viewedOpenJobPostingCards.add(item.id));
-    }
-    const unseen = postings
-      .filter((p) => !viewedOpenJobPostingCards.has(p.id))
-      .map((p) => p.id);
-    setHighlightedIds(new Set(unseen));
-    publishOpenJobPostingsBadgeCount(unseen.length);
-  }, [postings]);
-
-  useEffect(() => {
     if (observerRef.current) {
       observerRef.current.disconnect();
       observedElements.current.clear();
@@ -128,6 +138,12 @@ export function DesignerOpenJobPostings() {
             if (!observedElements.current.has(id)) {
               observedElements.current.add(id);
               seenThisSession.current.add(id);
+              const posting = postingsRef.current.find((p) => p.id === id);
+              const topNotif = posting?.taskNotification;
+              const swrNotif = posting?.submissionsWithReviews?.taskNotification;
+              if ((topNotif?.hasNotification && topNotif.notificationId) || (swrNotif?.hasNotification && swrNotif.notificationId)) {
+                pendingTaskNotifIds.current.set(id, topNotif?.notificationId || swrNotif!.notificationId);
+              }
             }
           }
         });
@@ -152,17 +168,51 @@ export function DesignerOpenJobPostings() {
 
   useEffect(() => {
     return () => {
-      if (seenThisSession.current.size === 0) return;
-      seenThisSession.current.forEach((id) => viewedOpenJobPostingCards.add(id));
+      if (seenThisSession.current.size === 0 && pendingTaskNotifIds.current.size === 0) return;
+
+      const currentPostings = postingsRef.current;
+
+      seenThisSession.current.forEach((id) => {
+        const posting = currentPostings.find((p) => p.id === id);
+        const hasRemainingNotif =
+          posting?.hasNestedNotification ||
+          posting?.taskNotification?.hasNotification ||
+          posting?.submissionsWithReviews?.taskNotification?.hasNotification;
+        if (!hasRemainingNotif) {
+          viewedOpenJobPostingCards.add(id);
+        }
+      });
       seenThisSession.current.clear();
       observedElements.current.clear();
 
-      const current = postingsRef.current;
-      const remainingUnseen = current
-        .filter((p) => !viewedOpenJobPostingCards.has(p.id))
-        .map((p) => p.id);
-      setHighlightedIds(new Set(remainingUnseen));
-      publishOpenJobPostingsBadgeCount(remainingUnseen.length);
+      const pending = new Map(pendingTaskNotifIds.current);
+      pendingTaskNotifIds.current.clear();
+
+      for (const [postingId, notifId] of pending) {
+        if (markedTaskNotificationIds.has(notifId)) continue;
+        markedTaskNotificationIds.add(notifId);
+
+        notificationApi.markRead(notifId)
+          .then(() => {
+            setPostings((prev) =>
+              prev.map((p) =>
+                p.id === postingId
+                  ? {
+                      ...p,
+                      taskNotification: null,
+                      submissionsWithReviews: {
+                        ...(p.submissionsWithReviews as any),
+                        taskNotification: { hasNotification: false, notificationId: null },
+                      },
+                    }
+                  : p
+              )
+            );
+          })
+          .catch(() => {
+            markedTaskNotificationIds.delete(notifId);
+          });
+      }
     };
   }, []);
 
