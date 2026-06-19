@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { CheckCircle2, User, Users, Loader2, AlertCircle, Clock, Edit, XCircle, Image } from 'lucide-react';
+import { CheckCircle2, User, Users, Loader2, AlertCircle, Clock, Edit, XCircle, Image, Lock } from 'lucide-react';
 import designerApi, { DesignerTaskItem, DesignerApplicationItem } from '../../api/designerApi';
 import userApi, { UserItem } from '../../api/userApi';
 
@@ -338,7 +338,7 @@ export function DesignerApplications() {
           <p className="mt-1 text-lg font-semibold text-slate-900">{unassignedCount}</p>
         </div>
         <div className="rounded-xl bg-blue-50 px-3 py-3 text-center">
-          <p className="text-xs uppercase tracking-wide text-blue-600">Grace Period</p>
+          <p className="text-xs uppercase tracking-wide text-blue-600">Editable</p>
           <p className="mt-1 text-lg font-semibold text-blue-700">{graceCount}</p>
         </div>
         <div className="rounded-xl bg-green-50 px-3 py-3 text-center">
@@ -354,7 +354,7 @@ export function DesignerApplications() {
             const isEditing = !!editingAssignment[task.id];
             const assignmentAge = hoursSince(task.assigned_at);
             const isInGracePeriod = isAssigned && assignmentAge < GRACE_PERIOD_HOURS;
-            const canReassign = isAssigned && assignmentAge >= GRACE_PERIOD_HOURS;
+            const isLocked = isAssigned && assignmentAge >= GRACE_PERIOD_HOURS;
             const assignedByCurrentUser = isAssigned && task.updated_by_user?.id === user?.id;
             const wasEdited =
               initiallyAssignedIds.current.has(task.id) || editedThisSession.current.has(task.id);
@@ -362,7 +362,7 @@ export function DesignerApplications() {
             const showAssignmentUI = !isAssigned || isEditing;
             const showAssignmentConfirmation = assignedByCurrentUser && !isEditing;
             const showGraceBox = isInGracePeriod && !isEditing && !assignedByCurrentUser;
-            const showReassignBox = canReassign && !isEditing && !assignedByCurrentUser;
+            const showLockedBox = isLocked && !isEditing && !assignedByCurrentUser;
 
             const visibleApplications = taskApplications.filter(
               (app) => app.applicant_user_id !== task.assigned_to_user_id
@@ -406,13 +406,13 @@ export function DesignerApplications() {
                   <span
                     className={`shrink-0 px-2 py-1 rounded-full text-xs font-medium ${
                       isAssigned
-                        ? assignedByCurrentUser || canReassign
+                        ? assignedByCurrentUser || isLocked
                           ? 'bg-green-100 text-green-700'
                           : 'bg-blue-100 text-blue-700'
                         : 'bg-gray-100 text-gray-700'
                     }`}
                   >
-                    {isAssigned ? (assignedByCurrentUser || canReassign ? 'Assigned' : 'Grace Period') : 'Open'}
+                    {isAssigned ? (assignedByCurrentUser || isLocked ? 'Assigned' : 'Grace Period') : 'Open'}
                   </span>
                 </div>
 
@@ -543,25 +543,28 @@ export function DesignerApplications() {
                         Assigned to: {task.assigned_to_user?.full_name || getDesignerName(task.assigned_to_user_id!)}
                       </span>
                     </div>
-                    <p className="text-xs text-blue-600">
-                      Within 2-day grace period. Reassignment is available after the designer has had 2 days to submit work.
-                    </p>
-                  </div>
-                ) : showReassignBox ? (
-                  <div className="rounded-lg border border-dashed border-green-300 bg-green-50 p-4 space-y-3">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-5 h-5 text-green-600" />
-                      <span className="text-sm font-medium text-green-800">
-                        Assigned to: {task.assigned_to_user?.full_name || getDesignerName(task.assigned_to_user_id!)}
-                      </span>
-                    </div>
                     <button
                       type="button"
                       onClick={() => startEditing(task.id, task.assigned_to_user_id ?? undefined)}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm"
                     >
                       Edit Assigned User
                     </button>
+                    <p className="text-xs text-blue-600">
+                      Within the 2-day editing window. Task updates are allowed while the assignment is less than 2 days old.
+                    </p>
+                  </div>
+                ) : showLockedBox ? (
+                  <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Lock className="w-5 h-5 text-gray-500" />
+                      <span className="text-sm font-medium text-gray-700">
+                        Assigned to: {task.assigned_to_user?.full_name || getDesignerName(task.assigned_to_user_id!)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      The 2-day editing window has expired. Task updates and reassignment are no longer allowed.
+                    </p>
                   </div>
                 ) : null}
               </div>
