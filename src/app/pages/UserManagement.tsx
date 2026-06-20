@@ -1,233 +1,273 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Users, Plus, Edit, Trash2, Search, Phone, Eye, EyeOff } from 'lucide-react';
+import { Users, Plus, Edit, Trash2, Search, Phone, Eye, EyeOff, Loader2 } from 'lucide-react';
+import userApi, { UserItem, CreateUserPayload, UpdateUserPayload } from '../../api/userApi';
 
-// Updated role type with the new roles
-type UserRole =
-  | 'ceo'
-  | 'marketing_lead'
-  | 'general_manager'
-  | 'finance'
-  | 'data_collector'
-  | 'designer'
-  | 'quantity_surveyor';
+type BackendRole = 'ceo' | 'general_manager' | 'marketing' | 'finance' | 'designer' | 'quantity_surveyor' | 'data_collector';
 
-// Role display names
-const ROLE_LABELS: Record<UserRole, string> = {
+const ROLE_LABELS: Record<BackendRole, string> = {
   ceo: 'CEO',
-  marketing_lead: 'Marketing Lead',
   general_manager: 'General Manager',
+  marketing: 'Marketing',
   finance: 'Finance',
-  data_collector: 'Data Collector',
   designer: 'Designer',
   quantity_surveyor: 'Quantity Surveyor',
+  data_collector: 'Data Collector',
 };
 
-// Helper to get display name (replaces getRoleName from AuthContext)
-function getRoleName(role: UserRole): string {
-  return ROLE_LABELS[role] || role;
-}
-
-interface UserData {
-  id: string;
-  username: string;
-  name: string; // Full name
-  role: UserRole;
-  email: string;
-  phone?: string;
-  passwordHashed?: string; // stored after hashing
-  status: 'active' | 'inactive' | 'deleted';
-  deletedAt?: string;
-}
-
-// Mock data with new roles
-const mockUsers: UserData[] = [
-  {
-    id: '1',
-    username: 'sarah.j',
-    name: 'Sarah Johnson',
-    role: 'marketing_lead',
-    email: 'sarah@company.com',
-    phone: '+1 555 1001',
-    status: 'active',
-  },
-  {
-    id: '2',
-    username: 'john.s',
-    name: 'John Smith',
-    role: 'general_manager',
-    email: 'john@company.com',
-    phone: '+1 555 1002',
-    status: 'active',
-  },
-  {
-    id: '3',
-    username: 'emily.c',
-    name: 'Emily Chen',
-    role: 'designer',
-    email: 'emily@company.com',
-    phone: '+1 555 1003',
-    status: 'active',
-  },
-  {
-    id: '4',
-    username: 'mike.b',
-    name: 'Michael Brown',
-    role: 'designer',
-    email: 'michael@company.com',
-    phone: '+1 555 1004',
-    status: 'active',
-  },
-  {
-    id: '5',
-    username: 'david.w',
-    name: 'David Wilson',
-    role: 'quantity_surveyor',
-    email: 'david@company.com',
-    phone: '+1 555 1005',
-    status: 'active',
-  },
-  {
-    id: '6',
-    username: 'lisa.m',
-    name: 'Lisa Martinez',
-    role: 'finance',
-    email: 'lisa@company.com',
-    phone: '+1 555 1006',
-    status: 'active',
-  },
-  {
-    id: '7',
-    username: 'robert.t',
-    name: 'Robert Taylor',
-    role: 'data_collector',
-    email: 'robert@company.com',
-    phone: '+1 555 1007',
-    status: 'active',
-  },
-  
-];
-
-// Simple hash simulation (in real app this would be done server-side)
-const hashPassword = (password: string): string => {
-  // Simulate a hashed output, e.g., bcrypt style placeholder
-  return `$2b$10$${btoa(password)}`;
+const ROLE_COLORS: Record<BackendRole, string> = {
+  ceo: 'bg-red-100 text-red-700',
+  general_manager: 'bg-blue-100 text-blue-700',
+  marketing: 'bg-purple-100 text-purple-700',
+  finance: 'bg-green-100 text-green-700',
+  designer: 'bg-cyan-100 text-cyan-700',
+  quantity_surveyor: 'bg-orange-100 text-orange-700',
+  data_collector: 'bg-yellow-100 text-yellow-700',
 };
+
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\da-zA-Z]).{8,128}$/;
+
+function validateEmail(email: string): string | null {
+  if (!email.trim()) return 'Email is required';
+  if (!email.includes('@')) return 'Invalid email format';
+  return null;
+}
+
+function validateFullName(name: string): string | null {
+  if (!name.trim()) return 'Full name is required';
+  return null;
+}
+
+function validatePassword(password: string): string | null {
+  if (password.length < 8) return 'Password must be at least 8 characters';
+  if (!PASSWORD_REGEX.test(password)) {
+    return 'Password must include uppercase, lowercase, digit, and special character';
+  }
+  return null;
+}
+
+function getRoleName(role: string): string {
+  return ROLE_LABELS[role as BackendRole] || role;
+}
+
+function getRoleColor(role: string): string {
+  return ROLE_COLORS[role as BackendRole] || 'bg-gray-100 text-gray-700';
+}
 
 export function UserManagement() {
   const { user } = useAuth();
-  const [users, setUsers] = useState<UserData[]>(mockUsers);
+
+  const [users, setUsers] = useState<UserItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showNewUser, setShowNewUser] = useState(false);
-  const [editingUser, setEditingUser] = useState<UserData | null>(null);
-  const [selectedStatus, setSelectedStatus] = useState<'active' | 'inactive'>('active');
-  const [selectedRole, setSelectedRole] = useState<UserRole>('marketing_lead');
 
-  // Form state for adding a new user
-  const [newUser, setNewUser] = useState({
-    name: '',
-    username: '',
-    email: '',
-    phone: '',
-    password: '',
-    role: 'marketing_lead' as UserRole,
-  });
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserItem | null>(null);
+  const [deletingUser, setDeletingUser] = useState<UserItem | null>(null);
 
+  const [formName, setFormName] = useState('');
+  const [formEmail, setFormEmail] = useState('');
+  const [formPhone, setFormPhone] = useState('');
+  const [formPassword, setFormPassword] = useState('');
+  const [formRole, setFormRole] = useState<BackendRole>('designer');
+  const [formIsActive, setFormIsActive] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Edit form state
-  const [editName, setEditName] = useState('');
-  const [editEmail, setEditEmail] = useState('');
-  const [editPhone, setEditPhone] = useState('');
-  const [editPassword, setEditPassword] = useState('');
-  const [showEditPassword, setShowEditPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  // Reset form
-  const resetNewUserForm = () => {
-    setNewUser({
-      name: '',
-      username: '',
-      email: '',
-      phone: '',
-      password: '',
-      role: 'marketing_lead',
-    });
-  };
-
-  const handleAddUser = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const hashedPwd = hashPassword(newUser.password);
-
-    const newUserData: UserData = {
-      id: Date.now().toString(), // simple unique ID
-      username: newUser.username,
-      name: newUser.name,
-      role: newUser.role,
-      email: newUser.email,
-      phone: newUser.phone,
-      passwordHashed: hashedPwd,
-      status: 'active',
-    };
-
-    setUsers((prev) => [...prev, newUserData]);
-    setShowNewUser(false);
-    resetNewUserForm();
-  };
-
-  const openStatusEditor = (userData: UserData) => {
-    if (userData.status === 'deleted') return;
-    setEditingUser(userData);
-    setSelectedStatus(userData.status);
-    setSelectedRole(userData.role);
-    setEditName(userData.name);
-    setEditEmail(userData.email);
-    setEditPhone(userData.phone || '');
-    setEditPassword('');
-    setShowEditPassword(false);
-  };
-
-  const saveUserStatus = () => {
-    if (!editingUser) return;
-
-    let newHashed = editingUser.passwordHashed;
-    if (editPassword) {
-      try {
-        newHashed = hashPassword(editPassword);
-      } catch (err) {
-        console.error('hash error', err);
+  const fetchUsers = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setLoadError(null);
+      const response = await userApi.getUsers({ limit: 100 });
+      if (response.success) {
+        setUsers(response.data);
+      } else {
+        setLoadError('Failed to load users');
       }
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } } };
+      setLoadError(err?.response?.data?.message || 'Failed to load users');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  const resetCreateForm = () => {
+    setFormName('');
+    setFormEmail('');
+    setFormPhone('');
+    setFormPassword('');
+    setFormRole('designer');
+    setShowPassword(false);
+    setFormError(null);
+  };
+
+  const openCreateModal = () => {
+    resetCreateForm();
+    setShowCreateModal(true);
+  };
+
+  const closeCreateModal = () => {
+    setShowCreateModal(false);
+    resetCreateForm();
+  };
+
+  const openEditModal = (u: UserItem) => {
+    setEditingUser(u);
+    setFormName(u.full_name);
+    setFormEmail(u.email);
+    setFormPhone(u.phone || '');
+    setFormPassword('');
+    setFormRole(u.role as BackendRole);
+    setFormIsActive(u.is_active);
+    setShowPassword(false);
+    setFormError(null);
+  };
+
+  const closeEditModal = () => {
+    setEditingUser(null);
+    setFormError(null);
+  };
+
+  const openDeleteModal = (u: UserItem) => {
+    setDeletingUser(u);
+    setDeleteError(null);
+  };
+
+  const closeDeleteModal = () => {
+    setDeletingUser(null);
+    setDeleteError(null);
+  };
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError(null);
+
+    const nameError = validateFullName(formName);
+    if (nameError) { setFormError(nameError); return; }
+
+    const emailError = validateEmail(formEmail);
+    if (emailError) { setFormError(emailError); return; }
+
+    const passwordError = validatePassword(formPassword);
+    if (passwordError) { setFormError(passwordError); return; }
+
+    const payload: CreateUserPayload = {
+      full_name: formName.trim(),
+      email: formEmail.trim(),
+      password: formPassword,
+      role: formRole,
+    };
+    if (formPhone.trim()) {
+      payload.phone = formPhone.trim();
     }
 
-    setUsers((currentUsers) =>
-      currentUsers.map((u) =>
-        u.id === editingUser.id
-          ? {
-              ...u,
-              name: editName,
-              email: editEmail,
-              phone: editPhone,
-              role: selectedRole,
-              status: selectedStatus,
-              passwordHashed: newHashed,
-            }
-          : u
-      )
-    );
-    setEditingUser(null);
+    try {
+      setIsSubmitting(true);
+      const response = await userApi.createUser(payload);
+      if (response.success) {
+        closeCreateModal();
+        fetchUsers();
+      } else {
+        setFormError(response.message || 'Failed to create user');
+      }
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } } };
+      setFormError(err?.response?.data?.message || 'Failed to create user');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const markUserAsDeleted = (userData: UserData) => {
-    if (userData.status === 'deleted') return;
-    const shouldDelete = window.confirm(`Mark ${userData.name} as deleted?`);
-    if (!shouldDelete) return;
-    setUsers((currentUsers) =>
-      currentUsers.map((u) =>
-        u.id === userData.id
-          ? { ...u, status: 'deleted', deletedAt: new Date().toISOString() }
-          : u
-      )
-    );
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    setFormError(null);
+
+    const nameError = validateFullName(formName);
+    if (nameError) { setFormError(nameError); return; }
+
+    const emailError = validateEmail(formEmail);
+    if (emailError) { setFormError(emailError); return; }
+
+    if (formPassword && formPassword.length > 0) {
+      const passwordError = validatePassword(formPassword);
+      if (passwordError) { setFormError(passwordError); return; }
+    }
+
+    const payload: UpdateUserPayload = {};
+
+    if (formName.trim() !== editingUser.full_name) {
+      payload.full_name = formName.trim();
+    }
+    if (formEmail.trim() !== editingUser.email) {
+      payload.email = formEmail.trim();
+    }
+    if (formRole !== editingUser.role) {
+      payload.role = formRole;
+    }
+    const originalPhone = editingUser.phone || '';
+    const currentPhone = formPhone.trim();
+    if (currentPhone !== originalPhone) {
+      payload.phone = currentPhone || undefined;
+    }
+    if (formPassword) {
+      payload.password = formPassword;
+    }
+    if (formIsActive !== editingUser.is_active) {
+      payload.is_active = formIsActive;
+    }
+
+    if (Object.keys(payload).length === 0) {
+      closeEditModal();
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const response = await userApi.updateUser(editingUser.id, payload);
+      if (response.success) {
+        closeEditModal();
+        fetchUsers();
+      } else {
+        setFormError(response.message || 'Failed to update user');
+      }
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } } };
+      setFormError(err?.response?.data?.message || 'Failed to update user');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!deletingUser) return;
+    setDeleteError(null);
+
+    try {
+      setIsDeleting(true);
+      const response = await userApi.deleteUser(deletingUser.id);
+      if (response.success) {
+        closeDeleteModal();
+        fetchUsers();
+      } else {
+        setDeleteError(response.message || 'Failed to delete user');
+      }
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } } };
+      setDeleteError(err?.response?.data?.message || 'Failed to delete user');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   if (!user || user.role !== 'ceo') {
@@ -241,25 +281,14 @@ export function UserManagement() {
   let filteredUsers = users;
   if (searchTerm) {
     const term = searchTerm.toLowerCase();
-    filteredUsers = filteredUsers.filter(
+    filteredUsers = users.filter(
       (u) =>
-        u.name.toLowerCase().includes(term) ||
-        u.username.toLowerCase().includes(term) ||
+        u.full_name.toLowerCase().includes(term) ||
         u.email.toLowerCase().includes(term) ||
-        (u.phone && u.phone.includes(term))
+        (u.phone && u.phone.includes(term)) ||
+        getRoleName(u.role).toLowerCase().includes(term)
     );
   }
-
-  // Updated color map with new roles
-  const roleColors: Record<UserRole, string> = {
-    ceo: 'bg-red-100 text-red-700',
-    marketing_lead: 'bg-purple-100 text-purple-700',
-    general_manager: 'bg-blue-100 text-blue-700',
-    finance: 'bg-green-100 text-green-700',
-    data_collector: 'bg-yellow-100 text-yellow-700',
-    designer: 'bg-cyan-100 text-cyan-700',
-    quantity_surveyor: 'bg-orange-100 text-orange-700',
-  };
 
   return (
     <div className="space-y-6">
@@ -270,8 +299,9 @@ export function UserManagement() {
           <p className="text-gray-600 mt-1">Manage system users and their roles</p>
         </div>
         <button
-          onClick={() => setShowNewUser(true)}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+          onClick={openCreateModal}
+          disabled={isLoading}
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg transition-colors"
         >
           <Plus className="w-5 h-5" />
           <span className="hidden sm:inline">Add User</span>
@@ -284,7 +314,7 @@ export function UserManagement() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             type="text"
-            placeholder="Search users..."
+            placeholder="Search users by name, email, phone, or role..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -292,146 +322,156 @@ export function UserManagement() {
         </div>
       </div>
 
-      {/* User cards */}
-      <div className="grid grid-cols-1 gap-4">
-        {filteredUsers.map((userData) => (
-          <div
-            key={userData.id}
-            className={`bg-white rounded-xl p-4 shadow-sm border border-gray-200 ${
-              userData.status === 'deleted' ? 'opacity-80' : ''
-            }`}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <span className="text-blue-600 font-medium text-sm">
-                    {userData.name.split(' ').map((n) => n[0]).join('')}
-                  </span>
-                </div>
-                <div className="min-w-0">
-                  <p className="font-semibold text-gray-900 truncate">{userData.name}</p>
-                  <p className="text-xs text-gray-500 truncate">@{userData.username}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => openStatusEditor(userData)}
-                  disabled={userData.status === 'deleted'}
-                  className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg disabled:text-gray-400 disabled:cursor-not-allowed"
-                  title={userData.status === 'deleted' ? 'Deleted users cannot be edited' : 'Edit status and role'}
-                >
-                  <Edit className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => markUserAsDeleted(userData)}
-                  disabled={userData.status === 'deleted'}
-                  className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg disabled:text-gray-400 disabled:cursor-not-allowed"
-                  title={userData.status === 'deleted' ? 'User already deleted' : 'Delete user'}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-4 space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Role</span>
-                <span className={`px-2 py-1 rounded text-xs font-medium ${roleColors[userData.role]}`}>
-                  {getRoleName(userData.role)}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Status</span>
-                <span
-                  className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    userData.status === 'active'
-                      ? 'bg-green-100 text-green-700'
-                      : userData.status === 'inactive'
-                      ? 'bg-red-100 text-red-700'
-                      : 'bg-gray-200 text-gray-700'
-                  }`}
-                >
-                  {userData.status}
-                </span>
-              </div>
-
-              <div className="border-t border-gray-100 pt-3 space-y-1">
-                <div>
-                  <p className="text-xs text-gray-500">Email</p>
-                  <p className="text-sm text-gray-700 break-all">{userData.email}</p>
-                </div>
-                {userData.phone && (
-                  <div className="flex items-center gap-1">
-                    <Phone className="w-3 h-3 text-gray-400" />
-                    <p className="text-xs text-gray-600">{userData.phone}</p>
-                  </div>
-                )}
-              </div>
-
-              {userData.status === 'deleted' && userData.deletedAt && (
-                <p className="text-xs text-gray-500">
-                  Deleted on {new Date(userData.deletedAt).toLocaleDateString()}
-                </p>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {filteredUsers.length === 0 && (
+      {/* Loading state */}
+      {isLoading && (
         <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
-          <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-500">No users found</p>
+          <Loader2 className="w-8 h-8 text-blue-500 animate-spin mx-auto mb-3" />
+          <p className="text-gray-500">Loading users...</p>
         </div>
       )}
 
-      {/* Add User Modal */}
-      {showNewUser && (
+      {/* Error state */}
+      {!isLoading && loadError && (
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-red-200 text-center">
+          <p className="text-red-600 mb-3">{loadError}</p>
+          <button
+            onClick={fetchUsers}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* User cards */}
+      {!isLoading && !loadError && (
+        <div className="grid grid-cols-1 gap-4">
+          {filteredUsers.map((u) => (
+            <div
+              key={u.id}
+              className={`bg-white rounded-xl p-4 shadow-sm border border-gray-200 ${
+                !u.is_active ? 'opacity-80' : ''
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <span className="text-blue-600 font-medium text-sm">
+                      {u.full_name
+                        .split(' ')
+                        .map((n) => n[0])
+                        .join('')
+                        .slice(0, 2)
+                        .toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-900 truncate">{u.full_name}</p>
+                    <p className="text-xs text-gray-500 truncate">{u.email}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => openEditModal(u)}
+                    className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-colors"
+                    title="Edit user"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => openDeleteModal(u)}
+                    className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Delete user"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Role</span>
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${getRoleColor(u.role)}`}>
+                    {getRoleName(u.role)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Status</span>
+                  <span
+                    className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      u.is_active
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-red-100 text-red-700'
+                    }`}
+                  >
+                    {u.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+
+                <div className="border-t border-gray-100 pt-3 space-y-1">
+                  {u.phone && (
+                    <div className="flex items-center gap-1">
+                      <Phone className="w-3 h-3 text-gray-400" />
+                      <p className="text-xs text-gray-600">{u.phone}</p>
+                    </div>
+                  )}
+                  {u.last_login_at && (
+                    <p className="text-xs text-gray-400">
+                      Last login: {new Date(u.last_login_at).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!isLoading && !loadError && filteredUsers.length === 0 && (
+        <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+          <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <p className="text-gray-500">
+            {searchTerm ? 'No users match your search' : 'No users found'}
+          </p>
+        </div>
+      )}
+
+      {/* Create User Modal */}
+      {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl p-6 w-full max-w-lg">
             <h3 className="text-xl font-semibold mb-4">Add New User</h3>
-            <form onSubmit={handleAddUser} className="space-y-4">
+            <form onSubmit={handleCreateUser} className="space-y-4">
               {/* Full Name */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Full Name
+                  Full Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  value={newUser.name}
-                  onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
-                />
-              </div>
-
-              {/* Username */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Username
-                </label>
-                <input
-                  type="text"
-                  value={newUser.username}
-                  onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
+                  disabled={isSubmitting}
                 />
               </div>
 
               {/* Email */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email Address
+                  Email Address <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="email"
-                  value={newUser.email}
-                  onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                  value={formEmail}
+                  onChange={(e) => setFormEmail(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -442,47 +482,51 @@ export function UserManagement() {
                 </label>
                 <input
                   type="tel"
-                  value={newUser.phone}
-                  onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
+                  value={formPhone}
+                  onChange={(e) => setFormPhone(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="+1 555 1234"
+                  placeholder="+1234567890"
+                  disabled={isSubmitting}
                 />
               </div>
 
               {/* Role */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Role
+                  Role <span className="text-red-500">*</span>
                 </label>
                 <select
-                  value={newUser.role}
-                  onChange={(e) =>
-                    setNewUser({ ...newUser, role: e.target.value as UserRole })
-                  }
+                  value={formRole}
+                  onChange={(e) => setFormRole(e.target.value as BackendRole)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
+                  disabled={isSubmitting}
                 >
-                  {Object.entries(ROLE_LABELS).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
+                  {Object.entries(ROLE_LABELS)
+                    .filter(([value]) => value !== 'ceo')
+                    .map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
                 </select>
+                <p className="text-xs text-gray-400 mt-1">CEO role cannot be created through this form.</p>
               </div>
 
               {/* Password */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Password
+                  Password <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
-                    value={newUser.password}
-                    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                    value={formPassword}
+                    onChange={(e) => setFormPassword(e.target.value)}
                     className="w-full pr-10 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
-                    placeholder="Will be hashed on save"
+                    disabled={isSubmitting}
+                    placeholder="Min 8 chars, upper+lower+digit+special"
                   />
                   <button
                     type="button"
@@ -494,27 +538,34 @@ export function UserManagement() {
                   </button>
                 </div>
                 <p className="text-xs text-gray-400 mt-1">
-                  Password is hashed before storage.
+                  Must include uppercase, lowercase, digit, and special character.
                 </p>
               </div>
+
+              {/* Form error */}
+              {formError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-700">{formError}</p>
+                </div>
+              )}
 
               {/* Buttons */}
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowNewUser(false);
-                    resetNewUserForm();
-                  }}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={closeCreateModal}
+                  disabled={isSubmitting}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                  disabled={isSubmitting}
+                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
                 >
-                  Add User
+                  {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {isSubmitting ? 'Creating...' : 'Add User'}
                 </button>
               </div>
             </form>
@@ -524,59 +575,66 @@ export function UserManagement() {
 
       {/* Edit User Modal */}
       {editingUser && (
-        <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50">
-          <div className="bg-white rounded-t-2xl p-5 w-full max-w-sm shadow-2xl border border-gray-200 border-b-0">
-            <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-1">Edit User</h3>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg">
+            <h3 className="text-xl font-semibold mb-1">Edit User</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Update role and status for {editingUser.name}
+              Editing {editingUser.full_name}
             </p>
 
-            <form
-              className="space-y-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                saveUserStatus();
-              }}
-            >
+            <form onSubmit={handleUpdateUser} className="space-y-4">
+              {/* Full Name */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Full Name <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
+                  disabled={isSubmitting}
                 />
               </div>
 
+              {/* Email */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email Address <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="email"
-                  value={editEmail}
-                  onChange={(e) => setEditEmail(e.target.value)}
+                  value={formEmail}
+                  onChange={(e) => setFormEmail(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
+                  disabled={isSubmitting}
                 />
               </div>
 
+              {/* Phone Number */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Phone Number
+                </label>
                 <input
                   type="tel"
-                  value={editPhone}
-                  onChange={(e) => setEditPhone(e.target.value)}
+                  value={formPhone}
+                  onChange={(e) => setFormPhone(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={isSubmitting}
                 />
               </div>
 
+              {/* Role */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
                 <select
-                  value={selectedRole}
-                  onChange={(e) => setSelectedRole(e.target.value as UserRole)}
+                  value={formRole}
+                  onChange={(e) => setFormRole(e.target.value as BackendRole)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={isSubmitting}
                 >
                   {Object.entries(ROLE_LABELS).map(([value, label]) => (
                     <option key={value} value={value}>
@@ -586,55 +644,113 @@ export function UserManagement() {
                 </select>
               </div>
 
+              {/* Password */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
                 <div className="relative">
                   <input
-                    type={showEditPassword ? 'text' : 'password'}
-                    value={editPassword}
-                    onChange={(e) => setEditPassword(e.target.value)}
+                    type={showPassword ? 'text' : 'password'}
+                    value={formPassword}
+                    onChange={(e) => setFormPassword(e.target.value)}
                     className="w-full pr-10 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Leave blank to keep current password"
+                    disabled={isSubmitting}
                   />
                   <button
                     type="button"
-                    onClick={() => setShowEditPassword((s) => !s)}
+                    onClick={() => setShowPassword((s) => !s)}
                     className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-700"
-                    aria-label={showEditPassword ? 'Hide password' : 'Show password'}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
-                    {showEditPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                <p className="text-xs text-gray-400 mt-1">Provide a new password to change it.</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Provide a new password only to change it.
+                </p>
               </div>
 
+              {/* Account Status */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Account Status</label>
                 <select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value as 'active' | 'inactive')}
+                  value={formIsActive ? 'active' : 'inactive'}
+                  onChange={(e) => setFormIsActive(e.target.value === 'active')}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={isSubmitting}
                 >
-                  <option value="active">active</option>
-                  <option value="inactive">inactive</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
                 </select>
               </div>
-            </form>
 
-            <div className="grid grid-cols-2 gap-3 pt-5">
+              {/* Form error */}
+              {formError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-700">{formError}</p>
+                </div>
+              )}
+
+              {/* Buttons */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  disabled={isSubmitting}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
+                  {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {isSubmitting ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <h3 className="text-xl font-semibold mb-2">Delete User</h3>
+            <p className="text-gray-600 mb-1">
+              Are you sure you want to delete{' '}
+              <span className="font-semibold text-gray-900">{deletingUser.full_name}</span>?
+            </p>
+            <p className="text-sm text-gray-500 mb-4">
+              The account will be deactivated. This action can be reversed by re-activating the user.
+            </p>
+
+            {deleteError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg mb-4">
+                <p className="text-sm text-red-700">{deleteError}</p>
+              </div>
+            )}
+
+            <div className="flex gap-3">
               <button
                 type="button"
-                onClick={() => setEditingUser(null)}
-                className="px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                onClick={closeDeleteModal}
+                disabled={isDeleting}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={saveUserStatus}
-                className="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                onClick={handleDeleteUser}
+                disabled={isDeleting}
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
               >
-                Save Changes
+                {isDeleting && <Loader2 className="w-4 h-4 animate-spin" />}
+                {isDeleting ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>
