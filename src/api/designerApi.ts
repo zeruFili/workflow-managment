@@ -275,6 +275,15 @@ const designerApi = {
     );
     return response.data;
   },
+
+  deleteDesignerTask: async (
+    taskId: string
+  ): Promise<{ success: boolean; message?: string }> => {
+    const response = await api.delete<{ success: boolean; message?: string }>(
+      `/designer-tasks/${taskId}`
+    );
+    return response.data;
+  },
 };
 
 export default designerApi;

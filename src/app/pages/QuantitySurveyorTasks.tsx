@@ -30,6 +30,7 @@ import {
   X,
   Database,
   Paperclip,
+  Trash2,
 } from 'lucide-react';
 import AttachmentViewer from '../components/AttachmentViewer';
 
@@ -113,6 +114,20 @@ function hasNestedNotifications(task: QuantitySurveyorTaskItem): boolean {
       (w) => w.hasNotification || (w.submission?.reviews || []).some((r) => r.hasNotification)
     )
   );
+}
+
+function canDeleteQuantitySurveyorTask(task: QuantitySurveyorTaskItem): boolean {
+  const hasSubmissions = (task.submissionsWithReviews?.submissions || []).length > 0;
+  if (hasSubmissions) return false;
+
+  if (task.assigned_to_user_id) {
+    const assignmentDate = task.updated_at ? new Date(task.updated_at) : null;
+    if (assignmentDate) {
+      const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+      if (Date.now() - assignmentDate.getTime() > threeDaysMs) return false;
+    }
+  }
+  return true;
 }
 
 const ROWS_PER_DISPLAY = 10;
@@ -422,6 +437,12 @@ export function QuantitySurveyorTasks() {
   const [editFormErrors, setEditFormErrors] = useState<Record<string, string>>({});
   const [editError, setEditError] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+
+  // ── Delete Task state ──
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   const seenThisSession = useRef<Set<string>>(new Set());
   const observedElements = useRef<Set<string>>(new Set());
@@ -1050,6 +1071,42 @@ export function QuantitySurveyorTasks() {
     }
   };
 
+  const openDeleteConfirm = (taskId: string) => {
+    setDeletingTaskId(taskId);
+    setDeleteError('');
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteTask = async () => {
+    if (!deletingTaskId) return;
+    setIsDeleting(true);
+    setDeleteError('');
+
+    try {
+      const response = await quantitySurveyorApi.deleteTask(deletingTaskId);
+      if (response.success) {
+        const local = loadLocalTasks();
+        persistLocalTasks(local.filter((t) => t.id !== deletingTaskId));
+        setTaskSuccessMsg(response.message || 'Quantity surveyor task deleted successfully');
+        setShowDeleteConfirm(false);
+        setDeletingTaskId(null);
+        cachedTasks = null;
+        cachedMeta = null;
+        await fetchTasks(apiPage, true);
+      } else {
+        setDeleteError(response.message || 'Failed to delete task');
+      }
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined;
+      setDeleteError(msg || 'Unable to delete task. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1267,6 +1324,16 @@ export function QuantitySurveyorTasks() {
                       >
                         <Edit className="w-3.5 h-3.5" />
                         Edit Task
+                      </button>
+                    )}
+                    {canManage && canDeleteQuantitySurveyorTask(task) && (
+                      <button
+                        type="button"
+                        onClick={() => openDeleteConfirm(task.id)}
+                        className="text-sm text-red-600 hover:underline flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Delete Task
                       </button>
                     )}
                   </div>
@@ -2014,6 +2081,50 @@ export function QuantitySurveyorTasks() {
                 <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{editError}</p>
               )}
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && deletingTaskId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Delete Task</h3>
+              <button
+                onClick={() => { if (!isDeleting) { setShowDeleteConfirm(false); setDeletingTaskId(null); setDeleteError(''); } }}
+                className="p-2 rounded-lg hover:bg-gray-100"
+                disabled={isDeleting}
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <div className="px-6 py-5">
+              <p className="text-sm text-gray-700">
+                Are you sure you want to delete this task? This action cannot be undone.
+              </p>
+              {deleteError && (
+                <p className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{deleteError}</p>
+              )}
+              <div className="flex justify-end gap-3 mt-5">
+                <button
+                  type="button"
+                  onClick={() => { setShowDeleteConfirm(false); setDeletingTaskId(null); setDeleteError(''); }}
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200"
+                  disabled={isDeleting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteTask}
+                  className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:bg-red-300"
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

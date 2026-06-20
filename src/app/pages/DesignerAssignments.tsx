@@ -41,6 +41,8 @@ import {
   Star,
   Paperclip,
   PauseCircle,
+  Trash2,
+  X,
 } from 'lucide-react';
 import AttachmentViewer from '../components/AttachmentViewer';
 
@@ -436,6 +438,12 @@ export function DesignerAssignments() {
   const [editError, setEditError] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // ── Delete Task state ──
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
   // Pagination
   const [apiPage, setApiPage] = useState(1);
   const [meta, setMeta] = useState<DesignerTaskListMeta | null>(null);
@@ -730,6 +738,19 @@ export function DesignerAssignments() {
     );
   };
 
+  const canDeleteDesignerTask = (task: DesignerTaskItem): boolean => {
+    if (hasDesignerSubmissions(task)) return false;
+
+    if (task.assigned_to_user_id) {
+      const assignmentDate = task.assigned_at ? new Date(task.assigned_at) : (task.updated_at ? new Date(task.updated_at) : null);
+      if (assignmentDate) {
+        const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+        if (Date.now() - assignmentDate.getTime() > threeDaysMs) return false;
+      }
+    }
+    return true;
+  };
+
   const openEditTask = (task: DesignerTaskItem) => {
     setEditingTaskId(task.id);
     setEditForm({
@@ -834,6 +855,38 @@ export function DesignerAssignments() {
       setEditError(msg || 'Unable to update task. Please try again.');
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const openDeleteConfirm = (taskId: string) => {
+    setDeletingTaskId(taskId);
+    setDeleteError('');
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteTask = async () => {
+    if (!deletingTaskId) return;
+    setIsDeleting(true);
+    setDeleteError('');
+
+    try {
+      const response = await designerApi.deleteDesignerTask(deletingTaskId);
+      if (response.success) {
+        setTaskSuccessMsg(response.message || 'Designer task deleted successfully');
+        setShowDeleteConfirm(false);
+        setDeletingTaskId(null);
+        await fetchTasks(apiPage);
+      } else {
+        setDeleteError(response.message || 'Failed to delete task');
+      }
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined;
+      setDeleteError(msg || 'Unable to delete task. Please try again.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -1504,6 +1557,16 @@ export function DesignerAssignments() {
                       >
                         <Edit className="w-3.5 h-3.5" />
                         Edit Task
+                      </button>
+                    )}
+                    {canCreateTask && canDeleteDesignerTask(task) && (
+                      <button
+                        type="button"
+                        onClick={() => openDeleteConfirm(task.id)}
+                        className="text-sm text-red-600 hover:underline flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Delete Task
                       </button>
                     )}
                   </div>
@@ -2411,6 +2474,50 @@ export function DesignerAssignments() {
                 <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{editError}</p>
               )}
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && deletingTaskId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Delete Task</h3>
+              <button
+                onClick={() => { if (!isDeleting) { setShowDeleteConfirm(false); setDeletingTaskId(null); setDeleteError(''); } }}
+                className="p-2 rounded-lg hover:bg-gray-100"
+                disabled={isDeleting}
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <div className="px-6 py-5">
+              <p className="text-sm text-gray-700">
+                Are you sure you want to delete this task? This action cannot be undone.
+              </p>
+              {deleteError && (
+                <p className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{deleteError}</p>
+              )}
+              <div className="flex justify-end gap-3 mt-5">
+                <button
+                  type="button"
+                  onClick={() => { setShowDeleteConfirm(false); setDeletingTaskId(null); setDeleteError(''); }}
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200"
+                  disabled={isDeleting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteTask}
+                  className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:bg-red-300"
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

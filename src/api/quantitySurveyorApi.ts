@@ -196,6 +196,15 @@ const quantitySurveyorApi = {
     );
     return response.data;
   },
+
+  deleteTask: async (
+    taskId: string
+  ): Promise<{ success: boolean; message?: string }> => {
+    const response = await api.delete<{ success: boolean; message?: string }>(
+      `/qs-tasks/${taskId}`
+    );
+    return response.data;
+  },
 };
 
 export default quantitySurveyorApi;

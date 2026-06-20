@@ -207,6 +207,15 @@ const dataCollectorApi = {
     );
     return response.data;
   },
+
+  deleteDataCollectorTask: async (
+    taskId: string
+  ): Promise<{ success: boolean; message?: string }> => {
+    const response = await api.delete<{ success: boolean; message?: string }>(
+      `/data-collector-tasks/${taskId}`
+    );
+    return response.data;
+  },
 };
 
 export default dataCollectorApi;

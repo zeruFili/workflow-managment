@@ -12,7 +12,7 @@ const api: AxiosInstance = axios.create({ baseURL: BASE_URL });
 
 api.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
-    if (!(config.data instanceof FormData)) {
+    if (!(config.data instanceof FormData) && config.method !== "delete") {
       config.headers["Content-Type"] = "application/json";
     }
 
