@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { PaidCustomer, PaymentProof, PaymentVerificationStatus } from '../types';
 import {
@@ -10,6 +11,7 @@ import {
   CircleAlert,
   ClipboardList,
   Clock,
+  CircleDollarSign,
   FileText,
   Image,
   LayoutGrid,
@@ -955,10 +957,19 @@ export function FinanceVerifications() {
               </p>
             )}
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm min-w-[240px]">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Viewing as</p>
-            <p className="mt-1 font-medium text-slate-900">{user.full_name}</p>
-            <p className="text-sm text-slate-500">{categoryLabel}</p>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm min-w-[240px]">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Viewing as</p>
+              <p className="mt-1 font-medium text-slate-900">{user.full_name}</p>
+              <p className="text-sm text-slate-500">{categoryLabel}</p>
+            </div>
+            <Link
+              to="/paid-customers"
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 text-sm font-medium transition-colors shadow-sm whitespace-nowrap"
+            >
+              <CircleDollarSign className="h-4 w-4" />
+              Paid Customers
+            </Link>
           </div>
         </div>
       </div>

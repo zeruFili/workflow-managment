@@ -207,7 +207,7 @@ function AppContent() {
         <Route
           path="/paid-customers"
           element={
-            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'marketing_lead']}>
+            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'marketing_lead', 'finance_officer']}>
               <Layout>
                 <PaidCustomers />
               </Layout>

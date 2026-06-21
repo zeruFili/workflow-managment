@@ -120,7 +120,7 @@ export function PaidCustomers() {
   const [reviewError, setReviewError] = useState<Record<string, string>>({});
 
   const fetchMarketingTasks = useCallback(async () => {
-    if (!user || (user.role !== 'marketing_lead' && user.role !== 'ceo' && user.role !== 'general_manager')) return;
+    if (!user || (user.role !== 'marketing_lead' && user.role !== 'ceo' && user.role !== 'general_manager' && user.role !== 'finance_officer')) return;
     setMarketingTasksLoading(true);
     try {
       const response = await marketingApi.getMarketingTasks({ limit: 100 });
@@ -179,7 +179,7 @@ export function PaidCustomers() {
     if (notifIds.length > 0) {
       notificationApi.bulkMarkRead(notifIds).catch(() => {});
       viewedMarketingCards.add(task.id);
-      publishMarketingBadgeCount(
+      publishBadgeCount(
         [...marketingNotificationIds].filter((id) => !viewedMarketingCards.has(id)).length
       );
     }
@@ -317,7 +317,8 @@ export function PaidCustomers() {
 
   const canAccess =
     user.role === 'marketing_lead' || user.role === 'ceo' ||
-    user.role === 'general_manager' || user.role === 'system_administrator';
+    user.role === 'general_manager' || user.role === 'finance_officer' ||
+    user.role === 'system_administrator';
 
   if (!canAccess) {
     return (
