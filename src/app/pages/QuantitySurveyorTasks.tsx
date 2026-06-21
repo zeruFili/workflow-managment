@@ -329,6 +329,7 @@ const seedTasks: QuantitySurveyorTaskItem[] = [
             attachment_urls: ['https://placehold.co/800x480/475569/e2e8f0?text=VE+Analysis'],
             created_at: '2026-05-18T16:00:00Z',
             updated_at: null,
+            review_status: 'REVISION_REQUIRED',
             reviews: [
               {
                 id: 'qs-rev-3',
@@ -408,6 +409,7 @@ export function QuantitySurveyorTasks() {
 
   const [draftNote, setDraftNote] = useState<Record<string, string>>({});
   const [draftScreenshots, setDraftScreenshots] = useState<Record<string, string | null>>({});
+  const [draftStatus, setDraftStatus] = useState<Record<string, string>>({});
   const draftFilesRef = useRef<Record<string, File[]>>({});
   const [submissionDraftLoading, setSubmissionDraftLoading] = useState<Record<string, boolean>>({});
   const [submissionError, setSubmissionError] = useState<Record<string, string>>({});
@@ -712,6 +714,7 @@ export function QuantitySurveyorTasks() {
     setSelectedTask(task);
     setDraftNote((prev) => ({ ...prev, [task.id]: '' }));
     setDraftScreenshots((prev) => ({ ...prev, [task.id]: null }));
+    setDraftStatus((prev) => ({ ...prev, [task.id]: '' }));
     draftFilesRef.current = { ...draftFilesRef.current, [task.id]: [] };
     setExpandedSubmissionId(null);
     setShowDetail(true);
@@ -846,6 +849,7 @@ export function QuantitySurveyorTasks() {
     setEditingSubmissionId(subId);
     setDraftNote((prev) => ({ ...prev, [taskId]: sub.description || '' }));
     setDraftScreenshots((prev) => ({ ...prev, [taskId]: sub.attachment_urls?.[0] || null }));
+    setDraftStatus((prev) => ({ ...prev, [taskId]: sub.review_status || '' }));
     draftFilesRef.current = { ...draftFilesRef.current, [taskId]: [] };
     setExpandedSubmissionId(subId);
     setSubmissionError((prev) => ({ ...prev, [taskId]: '' }));
@@ -864,6 +868,7 @@ export function QuantitySurveyorTasks() {
       const all = loadLocalTasks().length > 0 ? loadLocalTasks() : seedTasks;
       const now = new Date().toISOString();
       const subId = `qs-sub-${Date.now()}`;
+      const statusVal = draftStatus[taskId] || undefined;
       const newWrapper: QuantitySurveyorSubmissionWrapper = {
         submissionId: subId,
         hasNotification: true,
@@ -875,6 +880,7 @@ export function QuantitySurveyorTasks() {
           attachment_urls: files.length > 0 ? files.map((f) => URL.createObjectURL(f)) : null,
           created_at: now,
           updated_at: null,
+          review_status: statusVal,
           reviews: [],
         },
       };
@@ -928,6 +934,10 @@ export function QuantitySurveyorTasks() {
       for (const file of files) {
         formData.append('attachmentFiles', file);
       }
+      const statusVal = draftStatus[taskId];
+      if (statusVal) {
+        formData.append('status', statusVal);
+      }
 
       const response = isEditing
         ? await quantitySurveyorApi.updateSubmission(editingSubmissionId!, formData)
@@ -962,6 +972,7 @@ export function QuantitySurveyorTasks() {
         if (oldUrl && oldUrl.startsWith('blob:')) URL.revokeObjectURL(oldUrl);
         setDraftScreenshots((prev) => ({ ...prev, [taskId]: null }));
         setDraftNote((prev) => ({ ...prev, [taskId]: '' }));
+        setDraftStatus((prev) => ({ ...prev, [taskId]: '' }));
         draftFilesRef.current = { ...draftFilesRef.current, [taskId]: [] };
       }
     } else {
@@ -970,6 +981,7 @@ export function QuantitySurveyorTasks() {
       if (oldUrl && oldUrl.startsWith('blob:')) URL.revokeObjectURL(oldUrl);
       setDraftScreenshots((prev) => ({ ...prev, [taskId]: null }));
       setDraftNote((prev) => ({ ...prev, [taskId]: '' }));
+      setDraftStatus((prev) => ({ ...prev, [taskId]: '' }));
       draftFilesRef.current = { ...draftFilesRef.current, [taskId]: [] };
     }
   };
@@ -1546,6 +1558,19 @@ export function QuantitySurveyorTasks() {
                                   </div>
                                 )}
 
+                                {sub.review_status && sub.review_status !== 'PENDING_REVIEW' && (
+                                  <div>
+                                    <h6 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Status</h6>
+                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                      sub.review_status === 'APPROVED'
+                                        ? 'bg-green-100 text-green-700'
+                                        : 'bg-yellow-100 text-yellow-700'
+                                    }`}>
+                                      {sub.review_status === 'APPROVED' ? 'Approved' : 'Revision Required'}
+                                    </span>
+                                  </div>
+                                )}
+
                                 {sub.attachment_urls && sub.attachment_urls.length > 0 && (
                                   <div>
                                     <h6 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Attachments</h6>
@@ -1562,6 +1587,7 @@ export function QuantitySurveyorTasks() {
                                           setEditingSubmissionId(null);
                                           setDraftNote((prev) => ({ ...prev, [selectedTask.id]: '' }));
                                           setDraftScreenshots((prev) => ({ ...prev, [selectedTask.id]: null }));
+                                          setDraftStatus((prev) => ({ ...prev, [selectedTask.id]: '' }));
                                           draftFilesRef.current = { ...draftFilesRef.current, [selectedTask.id]: [] };
                                         }}
                                         className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 font-medium"
@@ -1737,6 +1763,25 @@ export function QuantitySurveyorTasks() {
                           placeholder="Describe your submission..."
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          Status <span className="text-gray-400 text-xs ml-1">(optional)</span>
+                        </label>
+                        <select
+                          value={draftStatus[selectedTask.id] ?? ''}
+                          onChange={(e) =>
+                            setDraftStatus((prev) => ({
+                              ...prev,
+                              [selectedTask.id]: e.target.value,
+                            }))
+                          }
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value="">No status</option>
+                          <option value="REVISION_REQUIRED">Revision Required</option>
+                          <option value="APPROVED">Approved</option>
+                        </select>
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-600 mb-1">
