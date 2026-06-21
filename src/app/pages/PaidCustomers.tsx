@@ -328,7 +328,7 @@ export function PaidCustomers() {
     );
   }
 
-  const canReview = user?.role === 'ceo' || user?.role === 'general_manager';
+  const canReview = user?.role === 'ceo' || user?.role === 'general_manager' || user?.role === 'finance_officer';
 
   return (
     <div className="space-y-6">
