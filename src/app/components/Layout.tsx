@@ -16,7 +16,6 @@ import {
   LogOut,
   Menu,
   X,
-  Briefcase,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY } from '../pages/designerAssignmentHighlights';
@@ -41,7 +40,6 @@ export const PAID_CUSTOMERS_NOTIFICATIONS_KEY = 'paid-customers-notifications-v2
 export const DATA_COLLECTOR_NOTIFICATIONS_KEY = 'data-collector-notifications-v2';
 export const QUANTITY_SURVEYOR_NOTIFICATIONS_KEY = 'quantity-surveyor-notifications-v2';
 export const FINANCE_VERIFICATIONS_NOTIFICATIONS_KEY = 'finance-verifications-notifications-v2';
-export const MARKETING_NOTIFICATIONS_KEY = 'marketing-tasks-notifications-updated';
 
 export function Layout({ children }: LayoutProps) {
   const { user, logout } = useAuth();
@@ -58,7 +56,6 @@ export function Layout({ children }: LayoutProps) {
   const [openJobPostingsNotifications, setOpenJobPostingsNotifications] = useState(3);
   const [designerAssignmentsNotifications, setDesignerAssignmentsNotifications] = useState(3);
   const [designerTasksNotifications, setDesignerTasksNotifications] = useState(3);
-  const [marketingTasksNotifications, setMarketingTasksNotifications] = useState(3);
 
   // ── New state for Site Engineer notifications ──────────────────────────────
   const [siteEngineerNotifications, setSiteEngineerNotifications] = useState(
@@ -105,11 +102,6 @@ export function Layout({ children }: LayoutProps) {
       setSiteEngineerNotifications(customEvent.detail ?? 0);
     };
 
-    const onMarketingTasks = (e: Event) => {
-      const customEvent = e as CustomEvent<number>;
-      setMarketingTasksNotifications(customEvent.detail ?? 0);
-    };
-
     window.addEventListener('paid-customers-notifications-updated', onPaidCustomers);
     window.addEventListener('data-collector-notifications-updated', onDataCollector);
     window.addEventListener('quantity-surveyor-notifications-updated', onQuantitySurveyor);
@@ -121,7 +113,6 @@ export function Layout({ children }: LayoutProps) {
 
     // ── Register the Site Engineer event ─────────────────────────────────
     window.addEventListener(SITE_ENGINEER_NOTIFICATIONS_KEY, onSiteEngineer);
-    window.addEventListener(MARKETING_NOTIFICATIONS_KEY, onMarketingTasks);
 
     return () => {
       window.removeEventListener('paid-customers-notifications-updated', onPaidCustomers);
@@ -135,7 +126,6 @@ export function Layout({ children }: LayoutProps) {
 
       // ── Clean up the Site Engineer event ───────────────────────────────
       window.removeEventListener(SITE_ENGINEER_NOTIFICATIONS_KEY, onSiteEngineer);
-      window.removeEventListener(MARKETING_NOTIFICATIONS_KEY, onMarketingTasks);
     };
   }, []);
 
@@ -182,12 +172,6 @@ export function Layout({ children }: LayoutProps) {
 
     if (user.role === 'marketing_lead' || user.role === 'ceo') {
       navigationItems.push({
-        path: '/marketing-tasks',
-        label: 'Marketing Tasks',
-        icon: Briefcase,
-        badge: marketingTasksNotifications > 0 ? marketingTasksNotifications : undefined,
-      });
-      navigationItems.push({
         path: '/customer-data',
         label: 'Customer Requests',
         icon: ClipboardList,
@@ -228,12 +212,6 @@ export function Layout({ children }: LayoutProps) {
         label: 'Data Collector Tasks',
         icon: Database,
         badge: dataCollectorNotifications > 0 ? dataCollectorNotifications : undefined,
-      });
-      addNavigationItem({
-        path: '/marketing-tasks',
-        label: 'Marketing Tasks',
-        icon: Briefcase,
-        badge: marketingTasksNotifications > 0 ? marketingTasksNotifications : undefined,
       });
       addNavigationItem({ path: '/job-postings', label: 'Job Postings', icon: FolderKanban });
       addNavigationItem({

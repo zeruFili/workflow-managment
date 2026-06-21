@@ -71,7 +71,21 @@ function getSubmissions(task: MarketingTaskItem): MarketingSubmissionRaw[] {
 }
 
 function getSubmissionWrappers(task: MarketingTaskItem): MarketingSubmissionWrapper[] {
-  return task.submissionsWithReviews?.submissions || [];
+  const items = task.submissionsWithReviews?.submissions || [];
+  return items.map((s: any) => ({
+    submissionId: s.id,
+    hasNotification: s.hasNotification || false,
+    notificationId: s.notificationId || null,
+    submission: {
+      id: s.id,
+      marketing_task_id: s.marketing_task_id,
+      description: s.description,
+      attachment_urls: s.attachment_urls,
+      created_at: s.created_at,
+      updated_at: s.updated_at,
+      reviews: s.reviews || [],
+    },
+  }));
 }
 
 const ROWS_PER_DISPLAY = 10;
@@ -424,7 +438,7 @@ export function MarketingTasks() {
           swr?.taskNotification?.hasNotification ||
           t.hasNestedNotification ||
           (swr?.submissions || []).some(
-            (w) => w.hasNotification || (w.submission?.reviews || []).some((r) => r.hasNotification)
+            (w: any) => w.hasNotification || (w.reviews || []).some((r) => r.hasNotification)
           )
         );
       }).map((t) => t.id)
@@ -454,7 +468,7 @@ export function MarketingTasks() {
             swr?.taskNotification?.hasNotification ||
             t.hasNestedNotification ||
             (swr?.submissions || []).some(
-              (w) => w.hasNotification || (w.submission?.reviews || []).some((r) => r.hasNotification)
+              (w: any) => w.hasNotification || (w.reviews || []).some((r) => r.hasNotification)
             )
           );
         }).map((t) => t.id)
@@ -480,7 +494,7 @@ export function MarketingTasks() {
             swr?.taskNotification?.hasNotification ||
             t.hasNestedNotification ||
             (swr?.submissions || []).some(
-              (w) => w.hasNotification || (w.submission?.reviews || []).some((r) => r.hasNotification)
+              (w: any) => w.hasNotification || (w.reviews || []).some((r) => r.hasNotification)
             )
           );
         }).map((t) => t.id)
@@ -625,9 +639,9 @@ export function MarketingTasks() {
     if (swr?.taskNotification?.hasNotification && swr.taskNotification.notificationId) {
       notifIds.push(swr.taskNotification.notificationId);
     }
-    (swr?.submissions || []).forEach((w) => {
+    (swr?.submissions || []).forEach((w: any) => {
       if (w.hasNotification && w.notificationId) notifIds.push(w.notificationId);
-      (w.submission?.reviews || []).forEach((r) => {
+      (w.reviews || []).forEach((r) => {
         if (r.hasNotification && r.notificationId) notifIds.push(r.notificationId);
       });
     });
@@ -645,7 +659,7 @@ export function MarketingTasks() {
               notificationId: null,
               submission: {
                 ...w.submission,
-                reviews: (w.submission.reviews || []).map((r) => ({
+                reviews: (w.submission?.reviews || []).map((r) => ({
                   ...r,
                   hasNotification: false,
                   notificationId: null,
@@ -700,7 +714,11 @@ export function MarketingTasks() {
   };
 
   const handleSubmitSubmission = async (taskId: string) => {
-    const note = draftNote[taskId] ?? '';
+    const note = (draftNote[taskId] ?? '').trim();
+    if (!note) {
+      setSubmissionError((prev) => ({ ...prev, [taskId]: 'Submission description is required.' }));
+      return;
+    }
     const files = draftFilesRef.current[taskId] ?? [];
 
     setSubmissionDraftLoading((prev) => ({ ...prev, [taskId]: true }));
@@ -712,7 +730,7 @@ export function MarketingTasks() {
 
     try {
       const formData = new FormData();
-      formData.append('description', note.trim() || 'Marketing submission');
+      formData.append('description', note);
       for (const file of files) {
         formData.append('attachmentFiles', file);
       }
@@ -722,6 +740,14 @@ export function MarketingTasks() {
         : await marketingApi.createSubmission(taskId, formData);
 
       if (response.success) {
+        setSubmissionError((prev) => ({ ...prev, [taskId]: '' }));
+        setSubmissionDraftLoading((prev) => ({ ...prev, [taskId]: false }));
+        setEditingSubmissionId(null);
+        const oldUrl = draftScreenshots[taskId] ?? null;
+        if (oldUrl && oldUrl.startsWith('blob:')) URL.revokeObjectURL(oldUrl);
+        setDraftScreenshots((prev) => ({ ...prev, [taskId]: null }));
+        setDraftNote((prev) => ({ ...prev, [taskId]: '' }));
+        draftFilesRef.current = { ...draftFilesRef.current, [taskId]: [] };
         await fetchTasks(apiPage, true);
         if (cachedTasks) {
           const refreshed = cachedTasks.find((t) => t.id === taskId);
@@ -833,12 +859,15 @@ export function MarketingTasks() {
     const errors: Record<string, string> = {};
     if (!title) errors.title = 'Title is required.';
     else if (title.length > 500) errors.title = 'Title must be 500 characters or fewer.';
-    if (!description) errors.description = 'Description is required.';
-    else if (description.length > 5000) errors.description = 'Description must be 5000 characters or fewer.';
     if (!customer_name) errors.customer_name = 'Customer name is required.';
     if (!customer_phone) errors.customer_phone = 'Customer phone is required.';
     if (!customer_address) errors.customer_address = 'Customer address is required.';
-    if (!service_description) errors.service_description = 'Service description is required.';
+    if (!description && !service_description) {
+      errors.description = 'At least one of Description or Service Description is required.';
+      errors.service_description = 'At least one of Description or Service Description is required.';
+    }
+    if (description && description.length > 5000) errors.description = 'Description must be 5000 characters or fewer.';
+    if (service_description && service_description.length > 5000) errors.service_description = 'Service Description must be 5000 characters or fewer.';
 
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
@@ -938,12 +967,15 @@ export function MarketingTasks() {
     const errors: Record<string, string> = {};
     if (!title) errors.title = 'Title is required.';
     else if (title.length > 500) errors.title = 'Title must be 500 characters or fewer.';
-    if (!description) errors.description = 'Description is required.';
-    else if (description.length > 5000) errors.description = 'Description must be 5000 characters or fewer.';
     if (!customer_name) errors.customer_name = 'Customer name is required.';
     if (!customer_phone) errors.customer_phone = 'Customer phone is required.';
     if (!customer_address) errors.customer_address = 'Customer address is required.';
-    if (!service_description) errors.service_description = 'Service description is required.';
+    if (!description && !service_description) {
+      errors.description = 'At least one of Description or Service Description is required.';
+      errors.service_description = 'At least one of Description or Service Description is required.';
+    }
+    if (description && description.length > 5000) errors.description = 'Description must be 5000 characters or fewer.';
+    if (service_description && service_description.length > 5000) errors.service_description = 'Service Description must be 5000 characters or fewer.';
 
     setEditFormErrors(errors);
     if (Object.keys(errors).length > 0) return;
@@ -1306,15 +1338,15 @@ export function MarketingTasks() {
                     <div className="space-y-4">
                       {(() => {
                         const wrappers = getSubmissionWrappers(selectedTask);
-                        const hasAnyReview = wrappers.some((w) => (w.submission.reviews || []).length > 0);
-                        const latestSubmissionId = wrappers.length > 0 ? wrappers[wrappers.length - 1].submission.id : null;
-                        const editableWrappers = wrappers.filter((w) => (w.submission.reviews || []).length === 0);
+                        const hasAnyReview = wrappers.some((w) => (w.submission?.reviews || []).length > 0);
+                        const latestSubmissionId = wrappers.length > 0 ? wrappers[wrappers.length - 1].submission?.id : null;
+                        const editableWrappers = wrappers.filter((w) => (w.submission?.reviews || []).length === 0);
                         const latestEditable = editableWrappers.length > 0 ? editableWrappers[editableWrappers.length - 1] : null;
                         const taskActive = selectedTask.task_state === 'active';
                         const taskRejected = selectedTask.status === 'rejected';
                         const isMarketingOwner = user?.role === 'marketing_lead' && selectedTask.marketing_user_id === user.id;
                         const canEditSubmission = latestEditable && taskActive && !taskRejected && isMarketingOwner;
-                        const latestEditableId = canEditSubmission ? latestEditable!.submission.id : null;
+                        const latestEditableId = canEditSubmission ? latestEditable!.submission?.id : null;
                         const isEditingThis = editingSubmissionId !== null;
 
                         return wrappers.map((wrapper, idx) => {

@@ -91,7 +91,7 @@ function getSubmissions(task: DataCollectorTaskItem): DataCollectorSubmissionRaw
 }
 
 function getSubmissionWrappers(task: DataCollectorTaskItem): DataCollectorSubmissionWrapper[] {
-  return task.submissionsWithReviews?.submissions || [];
+  return (task.submissionsWithReviews?.submissions || []).filter((w) => w.submission != null);
 }
 
 function anyNotification(task: DataCollectorTaskItem): boolean {
@@ -750,7 +750,7 @@ export function DataCollectorTasks() {
               notificationId: null,
               submission: {
                 ...w.submission,
-                reviews: (w.submission.reviews || []).map((r) => ({
+                reviews: (w.submission?.reviews || []).map((r) => ({
                   ...r,
                   hasNotification: false,
                   notificationId: null,
@@ -1489,13 +1489,13 @@ export function DataCollectorTasks() {
                     <div className="space-y-4">
                       {(() => {
                         const wrappers = getSubmissionWrappers(selectedTask);
-                        const latestSubmissionId = wrappers.length > 0 ? wrappers[wrappers.length - 1].submission.id : null;
-                        const editableWrappers = wrappers.filter((w) => w.submission.reviews.length === 0);
+                        const latestSubmissionId = wrappers.length > 0 ? wrappers[wrappers.length - 1].submission?.id : null;
+                        const editableWrappers = wrappers.filter((w) => (w.submission?.reviews || []).length === 0);
                         const latestEditable = editableWrappers.length > 0 ? editableWrappers[editableWrappers.length - 1] : null;
                         const taskActive = selectedTask.task_state === 'active';
                         const taskRejected = selectedTask.status === 'rejected';
                         const canEditSubmission = latestEditable && taskActive && !taskRejected && user?.role === 'data_collector';
-                        const latestEditableId = canEditSubmission ? latestEditable!.submission.id : null;
+                        const latestEditableId = canEditSubmission ? latestEditable!.submission?.id : null;
                         const isEditingThis = editingSubmissionId !== null;
                         const taskApproved = selectedTask.status === 'approved';
                         const updatedAt = selectedTask.updated_at ? new Date(selectedTask.updated_at).getTime() : 0;
@@ -1606,7 +1606,7 @@ export function DataCollectorTasks() {
                                         const reviewTs = new Date(review.created_at).getTime();
                                         const hoursSinceCreation = (Date.now() - reviewTs) / (1000 * 60 * 60);
                                         const hasNewerReview = wrappers.some((w) =>
-                                          (w.submission.reviews || []).some((r) => new Date(r.created_at).getTime() > reviewTs)
+                                          (w.submission?.reviews || []).some((r) => new Date(r.created_at).getTime() > reviewTs)
                                         );
                                         const hasNewerSubmission = wrappers.some((w) =>
                                           new Date(w.submission.created_at).getTime() > reviewTs

@@ -109,7 +109,7 @@ function MarketingQuickAccess() {
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <DashboardButton
           to="/customer-data"
           label="Customer Requests"
@@ -124,13 +124,6 @@ function MarketingQuickAccess() {
           badgeCount={paidCustomerCount}
           iconBgClass="bg-orange-100"
           iconTextClass="text-orange-600"
-        />
-        <DashboardButton
-          to="/marketing-tasks"
-          label="Marketing Tasks"
-          icon={Briefcase}
-          iconBgClass="bg-purple-100"
-          iconTextClass="text-purple-600"
         />
         <DashboardButton
           to="/approvals"
