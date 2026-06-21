@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import {
   CustomerRequest,
@@ -7,6 +7,7 @@ import {
   PaidCustomer,
   PaymentProof,
 } from '../types';
+import marketingApi, { MarketingTaskItem } from '../../api/marketingApi';
 import {
   Calendar,
   CheckCircle2,
@@ -17,6 +18,10 @@ import {
   User,
   Users,
   X,
+  FileText,
+  Send,
+  Tag,
+  DollarSign,
 } from 'lucide-react';
 
 const STORAGE_KEY = 'customer-requests';
@@ -134,6 +139,20 @@ export function CustomerData() {
   const [proofFiles, setProofFiles] = useState<File[]>([]);
   const [proofError, setProofError] = useState('');
 
+  // Marketing tasks state
+  const [marketingTasks, setMarketingTasks] = useState<MarketingTaskItem[]>([]);
+  const [marketingTasksLoading, setMarketingTasksLoading] = useState(false);
+  const [showCreateMarketingTask, setShowCreateMarketingTask] = useState(false);
+  const [marketingForm, setMarketingForm] = useState({
+    title: '', description: '', customer_name: '', customer_phone: '',
+    customer_email: '', customer_address: '', category: 'home_design',
+    service_description: '', preferred_start_date: '', budget: '', notes: '',
+  });
+  const [marketingFormErrors, setMarketingFormErrors] = useState<Record<string, string>>({});
+  const [marketingFormError, setMarketingFormError] = useState('');
+  const [marketingFormSuccess, setMarketingFormSuccess] = useState('');
+  const [isCreatingMarketing, setIsCreatingMarketing] = useState(false);
+
   // Add Request modal state
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState(emptyForm);
@@ -171,6 +190,31 @@ export function CustomerData() {
   useEffect(() => {
     localStorage.setItem(PAID_STORAGE_KEY, JSON.stringify(paidCustomers));
   }, [paidCustomers]);
+
+  // Fetch marketing tasks (for marketing_lead and ceo)
+  const fetchMarketingTasks = useCallback(async () => {
+    if (!user || (user.role !== 'marketing_lead' && user.role !== 'ceo')) return;
+    setMarketingTasksLoading(true);
+    try {
+      const response = await marketingApi.getMarketingTasks({ limit: 100 });
+      if (response.success) {
+        setMarketingTasks(response.data);
+      }
+    } catch {
+      // silent fail
+    } finally {
+      setMarketingTasksLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchMarketingTasks();
+  }, [fetchMarketingTasks]);
+
+  // Marketing tasks with no submissions (shown on Customer Requests page)
+  const marketingTasksNoSubmissions = marketingTasks.filter(
+    (t) => (t.submissionsWithReviews?.submissions || []).length === 0
+  );
 
   // Cleanup object URLs on unmount
   useEffect(() => {
@@ -302,6 +346,56 @@ export function CustomerData() {
     setIsSubmitting(false);
   };
 
+  const handleCreateMarketingTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const errors: Record<string, string> = {};
+    if (!marketingForm.title.trim()) errors.title = 'Title is required.';
+    if (!marketingForm.description.trim()) errors.description = 'Description is required.';
+    if (!marketingForm.customer_name.trim()) errors.customer_name = 'Customer name is required.';
+    if (!marketingForm.customer_phone.trim()) errors.customer_phone = 'Customer phone is required.';
+    if (!marketingForm.customer_address.trim()) errors.customer_address = 'Customer address is required.';
+    if (!marketingForm.service_description.trim()) errors.service_description = 'Service description is required.';
+    setMarketingFormErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
+    setIsCreatingMarketing(true);
+    setMarketingFormError('');
+    setMarketingFormSuccess('');
+
+    try {
+      const formData = new FormData();
+      formData.append('title', marketingForm.title.trim());
+      formData.append('description', marketingForm.description.trim());
+      formData.append('customer_name', marketingForm.customer_name.trim());
+      formData.append('customer_phone', marketingForm.customer_phone.trim());
+      if (marketingForm.customer_email.trim()) formData.append('customer_email', marketingForm.customer_email.trim());
+      formData.append('customer_address', marketingForm.customer_address.trim());
+      formData.append('category', marketingForm.category);
+      formData.append('service_description', marketingForm.service_description.trim());
+      if (marketingForm.preferred_start_date) formData.append('preferred_start_date', marketingForm.preferred_start_date);
+      if (marketingForm.budget) formData.append('budget', String(Number(marketingForm.budget)));
+      if (marketingForm.notes.trim()) formData.append('notes', marketingForm.notes.trim());
+
+      const response = await marketingApi.createMarketingTask(formData);
+      if (response.success) {
+        setMarketingFormSuccess('Marketing task created successfully');
+        setMarketingForm({ title: '', description: '', customer_name: '', customer_phone: '', customer_email: '', customer_address: '', category: 'home_design', service_description: '', preferred_start_date: '', budget: '', notes: '' });
+        setMarketingFormErrors({});
+        setTimeout(() => setShowCreateMarketingTask(false), 800);
+        fetchMarketingTasks();
+      } else {
+        setMarketingFormError(response.message || 'Failed to create marketing task');
+      }
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'response' in err
+        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+        : undefined;
+      setMarketingFormError(msg || 'Unable to create task. Please try again.');
+    } finally {
+      setIsCreatingMarketing(false);
+    }
+  };
+
   const canTransferToPaid = currentUser.role === 'marketing_lead' ;
 
   // Only marketing lead / sys admin may access this page
@@ -340,6 +434,57 @@ export function CustomerData() {
           </div>
         </div>
       </div>
+
+      {/* Marketing Tasks Section (no submissions) */}
+      {(user?.role === 'marketing_lead' || user?.role === 'ceo') && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-lg text-gray-900">Marketing Tasks</h3>
+              <p className="text-sm text-gray-500">Newly created tasks without submissions yet. Submit to move them to Paid Customers.</p>
+              {marketingTasksLoading && <p className="text-xs text-blue-600 mt-1">Loading...</p>}
+            </div>
+            {user.role === 'marketing_lead' && (
+              <button
+                onClick={() => { setShowCreateMarketingTask(true); setMarketingFormError(''); setMarketingFormSuccess(''); setMarketingFormErrors({}); }}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors text-sm"
+              >
+                <Plus className="w-4 h-4" />
+                Create Marketing Task
+              </button>
+            )}
+          </div>
+
+          {marketingTasksNoSubmissions.length === 0 ? (
+            <p className="text-sm text-gray-400 py-4 text-center">No marketing tasks pending submission.</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-3">
+              {marketingTasksNoSubmissions.map((task) => (
+                <div key={task.id} className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h4 className="font-medium text-gray-900">{task.title}</h4>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Customer: {task.customer_name} · {task.category}
+                      </p>
+                    </div>
+                    {task.budget != null && (
+                      <span className="text-xs font-medium text-emerald-700 bg-emerald-100 px-2 py-1 rounded-full">
+                        AED {task.budget.toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-600 mt-2 line-clamp-2">{task.service_description}</p>
+                  <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
+                    <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{task.customer_phone}</span>
+                    <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(task.created_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Request list */}
       <div className="grid grid-cols-1 gap-4">
@@ -683,6 +828,102 @@ export function CustomerData() {
                 <Plus className="w-5 h-5" />
                 Create Request
               </button>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Create Marketing Task Modal */}
+      {showCreateMarketingTask && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold">Create Marketing Task</h3>
+              <button onClick={() => { setShowCreateMarketingTask(false); setMarketingFormErrors({}); setMarketingFormError(''); }} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form className="space-y-4" onSubmit={handleCreateMarketingTask}>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Title <span className="text-red-500">*</span></label>
+                <input value={marketingForm.title} onChange={(e) => { setMarketingForm({ ...marketingForm, title: e.target.value }); if (marketingFormErrors.title) setMarketingFormErrors((prev) => { const n = { ...prev }; delete n.title; return n; }); }}
+                  className={`w-full px-4 py-2 border rounded-lg ${marketingFormErrors.title ? 'border-red-400 bg-red-50' : 'border-gray-300'} focus:ring-2 focus:ring-blue-500`} disabled={isCreatingMarketing} />
+                {marketingFormErrors.title && <p className="text-xs text-red-600 mt-1">{marketingFormErrors.title}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Description <span className="text-red-500">*</span></label>
+                <textarea value={marketingForm.description} onChange={(e) => { setMarketingForm({ ...marketingForm, description: e.target.value }); if (marketingFormErrors.description) setMarketingFormErrors((prev) => { const n = { ...prev }; delete n.description; return n; }); }}
+                  rows={3} className={`w-full px-4 py-2 border rounded-lg ${marketingFormErrors.description ? 'border-red-400 bg-red-50' : 'border-gray-300'} focus:ring-2 focus:ring-blue-500`} disabled={isCreatingMarketing} />
+                {marketingFormErrors.description && <p className="text-xs text-red-600 mt-1">{marketingFormErrors.description}</p>}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Customer Name <span className="text-red-500">*</span></label>
+                  <input value={marketingForm.customer_name} onChange={(e) => { setMarketingForm({ ...marketingForm, customer_name: e.target.value }); if (marketingFormErrors.customer_name) setMarketingFormErrors((prev) => { const n = { ...prev }; delete n.customer_name; return n; }); }}
+                    className={`w-full px-4 py-2 border rounded-lg ${marketingFormErrors.customer_name ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} disabled={isCreatingMarketing} />
+                  {marketingFormErrors.customer_name && <p className="text-xs text-red-600 mt-1">{marketingFormErrors.customer_name}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone <span className="text-red-500">*</span></label>
+                  <input value={marketingForm.customer_phone} onChange={(e) => { setMarketingForm({ ...marketingForm, customer_phone: e.target.value }); if (marketingFormErrors.customer_phone) setMarketingFormErrors((prev) => { const n = { ...prev }; delete n.customer_phone; return n; }); }}
+                    className={`w-full px-4 py-2 border rounded-lg ${marketingFormErrors.customer_phone ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} disabled={isCreatingMarketing} />
+                  {marketingFormErrors.customer_phone && <p className="text-xs text-red-600 mt-1">{marketingFormErrors.customer_phone}</p>}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                  <input type="email" value={marketingForm.customer_email} onChange={(e) => setMarketingForm({ ...marketingForm, customer_email: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg" disabled={isCreatingMarketing} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Address <span className="text-red-500">*</span></label>
+                  <input value={marketingForm.customer_address} onChange={(e) => { setMarketingForm({ ...marketingForm, customer_address: e.target.value }); if (marketingFormErrors.customer_address) setMarketingFormErrors((prev) => { const n = { ...prev }; delete n.customer_address; return n; }); }}
+                    className={`w-full px-4 py-2 border rounded-lg ${marketingFormErrors.customer_address ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} disabled={isCreatingMarketing} />
+                  {marketingFormErrors.customer_address && <p className="text-xs text-red-600 mt-1">{marketingFormErrors.customer_address}</p>}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                <select value={marketingForm.category} onChange={(e) => setMarketingForm({ ...marketingForm, category: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg" disabled={isCreatingMarketing}>
+                  {Object.entries(categoryLabels).map(([value, label]) => (<option key={value} value={value}>{label}</option>))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Service Description <span className="text-red-500">*</span></label>
+                <textarea value={marketingForm.service_description} onChange={(e) => { setMarketingForm({ ...marketingForm, service_description: e.target.value }); if (marketingFormErrors.service_description) setMarketingFormErrors((prev) => { const n = { ...prev }; delete n.service_description; return n; }); }}
+                  rows={3} className={`w-full px-4 py-2 border rounded-lg ${marketingFormErrors.service_description ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} disabled={isCreatingMarketing} />
+                {marketingFormErrors.service_description && <p className="text-xs text-red-600 mt-1">{marketingFormErrors.service_description}</p>}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Budget (AED)</label>
+                  <input type="number" value={marketingForm.budget} onChange={(e) => setMarketingForm({ ...marketingForm, budget: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg" disabled={isCreatingMarketing} min="0" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Preferred Start Date</label>
+                  <input type="date" value={marketingForm.preferred_start_date} onChange={(e) => setMarketingForm({ ...marketingForm, preferred_start_date: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg" disabled={isCreatingMarketing} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                  <input value={marketingForm.notes} onChange={(e) => setMarketingForm({ ...marketingForm, notes: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg" disabled={isCreatingMarketing} />
+                </div>
+              </div>
+
+              {marketingFormError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{marketingFormError}</p>}
+              {marketingFormSuccess && <p className="text-sm text-green-600 bg-green-50 border border-green-200 rounded-lg px-3 py-2">{marketingFormSuccess}</p>}
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => { setShowCreateMarketingTask(false); setMarketingFormErrors({}); setMarketingFormError(''); }}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50" disabled={isCreatingMarketing}>Cancel</button>
+                <button type="submit" className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg flex items-center justify-center gap-2" disabled={isCreatingMarketing}>
+                  {isCreatingMarketing ? 'Creating...' : <><Send className="w-4 h-4" />Create Task</>}
+                </button>
+              </div>
             </form>
           </div>
         </div>

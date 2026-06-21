@@ -169,6 +169,63 @@ export interface DesignerTaskApplication {
   reviewNote?: string;
 }
 
+// ── Marketing types ──
+
+export type MarketingTaskStatus = 'pending' | 'approved' | 'rejected' | 'feedback';
+
+export interface MarketingTaskAttachment {
+  name: string;
+  type: string;
+  size: string;
+  dataUrl: string;
+}
+
+export interface MarketingSubmissionReview {
+  id: string;
+  reviewerId: string;
+  reviewerName: string;
+  reviewOutcome: MarketingTaskStatus;
+  description: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface MarketingSubmission {
+  id: string;
+  taskId: string;
+  description: string;
+  attachmentUrls: string[];
+  createdAt: string;
+  updatedAt?: string;
+  reviews: MarketingSubmissionReview[];
+}
+
+export interface MarketingTask {
+  id: string;
+  marketingUserId: string;
+  marketingUserName: string;
+  title: string;
+  description: string;
+  status: MarketingTaskStatus;
+  taskState: 'active' | 'deactive';
+  dueDate?: string;
+  attachmentUrls: string[];
+  updatedBy?: string;
+  updatedByName?: string;
+  createdAt: string;
+  updatedAt?: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string;
+  customerAddress: string;
+  category: string;
+  serviceDescription: string;
+  preferredStartDate?: string;
+  budget?: number;
+  notes?: string;
+  submissions: MarketingSubmission[];
+}
+
 export interface Document {
   id: string;
   projectId: string;

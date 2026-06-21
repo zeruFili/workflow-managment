@@ -22,6 +22,7 @@ import { QuantitySurveyorDashboard } from './pages/QuantitySurveyorDashboard';
 import { SiteEngineerTasks } from './pages/SiteEngineerTasks';
 import { UserRole } from './types';
 import { DesignerTasks } from './pages/DesignerTasks';
+import { MarketingTasks } from './pages/MarketingTasks';
 
 function ProtectedRoute({
   children,
@@ -163,6 +164,17 @@ function AppContent() {
             <ProtectedRoute allowedRoles={['site_engineer']}>
               <Layout>
                 <SiteEngineerTasks />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/marketing-tasks"
+          element={
+            <ProtectedRoute allowedRoles={['marketing_lead', 'ceo', 'general_manager']}>
+              <Layout>
+                <MarketingTasks />
               </Layout>
             </ProtectedRoute>
           }

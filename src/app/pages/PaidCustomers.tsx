@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { PaidCustomer, CustomerRequestCategory } from '../types';
+import marketingApi, { MarketingTaskItem } from '../../api/marketingApi';
 import {
   Calendar,
   Mail,
@@ -9,6 +10,11 @@ import {
   User,
   Users,
   FileText,
+  Tag,
+  DollarSign,
+  Clock,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 const PAID_STORAGE_KEY = 'paid-customers-v2';
@@ -170,6 +176,11 @@ export function PaidCustomers() {
   const { user } = useAuth();
   const [paidCustomers, setPaidCustomers] = useState<PaidCustomer[]>([]);
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
+
+  // Marketing tasks state
+  const [marketingTasks, setMarketingTasks] = useState<MarketingTaskItem[]>([]);
+  const [marketingTasksLoading, setMarketingTasksLoading] = useState(false);
+  const [expandedMarketingTaskId, setExpandedMarketingTaskId] = useState<string | null>(null);
   
   // Track which highlighted cards have been scrolled into view this session
   const seenThisSession = useRef<Set<string>>(new Set());
@@ -277,6 +288,31 @@ export function PaidCustomers() {
     }
   }, [paidCustomers]);
 
+  // Fetch marketing tasks with submissions
+  const fetchMarketingTasks = useCallback(async () => {
+    if (!user || (user.role !== 'marketing_lead' && user.role !== 'ceo' && user.role !== 'general_manager')) return;
+    setMarketingTasksLoading(true);
+    try {
+      const response = await marketingApi.getMarketingTasks({ limit: 100 });
+      if (response.success) {
+        setMarketingTasks(response.data);
+      }
+    } catch {
+      // silent fail
+    } finally {
+      setMarketingTasksLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchMarketingTasks();
+  }, [fetchMarketingTasks]);
+
+  // Marketing tasks with at least one submission (shown on Paid Customers page)
+  const marketingTasksWithSubmissions = marketingTasks.filter(
+    (t) => (t.submissionsWithReviews?.submissions || []).length >= 1
+  );
+
   if (!user) return null;
 
   const canAccess =
@@ -332,6 +368,138 @@ export function PaidCustomers() {
           </div>
         </div>
       </div>
+
+      {/* Marketing Tasks with Submissions */}
+      {(user?.role === 'marketing_lead' || user?.role === 'ceo' || user?.role === 'general_manager') && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-4">
+          <div>
+            <h3 className="font-semibold text-lg text-gray-900">Marketing Tasks with Submissions</h3>
+            <p className="text-sm text-gray-500">Marketing tasks that have received at least one submission.</p>
+            {marketingTasksLoading && <p className="text-xs text-blue-600 mt-1">Loading...</p>}
+          </div>
+
+          {marketingTasksWithSubmissions.length === 0 ? (
+            <p className="text-sm text-gray-400 py-4 text-center">No marketing tasks with submissions yet.</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-3">
+              {marketingTasksWithSubmissions.map((task) => {
+                const submissions = task.submissionsWithReviews?.submissions || [];
+                const isExpanded = expandedMarketingTaskId === task.id;
+                const statusBg = task.status === 'approved' ? 'bg-green-100 text-green-700' : task.status === 'rejected' ? 'bg-red-100 text-red-700' : task.status === 'feedback' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700';
+                return (
+                  <div key={task.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedMarketingTaskId(isExpanded ? null : task.id)}
+                      className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div>
+                          <h4 className="font-medium text-gray-900">{task.title}</h4>
+                          <p className="text-xs text-gray-500">
+                            Customer: {task.customer_name} · {submissions.length} submission{submissions.length !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusBg}`}>
+                          {task.status || 'pending'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {task.budget != null && (
+                          <span className="text-xs font-medium text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full hidden sm:inline">
+                            AED {task.budget.toLocaleString()}
+                          </span>
+                        )}
+                        {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                      </div>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="px-4 py-3 border-t border-gray-100 bg-gray-50 space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                          <div className="flex items-center gap-2 text-gray-700">
+                            <User className="w-4 h-4 text-gray-400" />
+                            <span className="font-medium">{task.customer_name}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-gray-700">
+                            <Phone className="w-4 h-4 text-gray-400" />
+                            <span>{task.customer_phone}</span>
+                          </div>
+                          {task.customer_email && (
+                            <div className="flex items-center gap-2 text-gray-700">
+                              <Mail className="w-4 h-4 text-gray-400" />
+                              <span>{task.customer_email}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-2 text-gray-700 sm:col-span-2">
+                            <MapPin className="w-4 h-4 text-gray-400" />
+                            <span>{task.customer_address}</span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Service Description</p>
+                          <p className="text-sm text-gray-700">{task.service_description}</p>
+                        </div>
+
+                        {task.notes && (
+                          <div>
+                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Notes</p>
+                            <p className="text-sm text-gray-700">{task.notes}</p>
+                          </div>
+                        )}
+
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Submissions ({submissions.length})</p>
+                          <div className="space-y-2">
+                            {submissions.map((wrapper, idx) => {
+                              const sub = wrapper.submission;
+                              const reviews = sub.reviews || [];
+                              return (
+                                <div key={sub.id} className="bg-white border border-gray-200 rounded-lg p-3">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-xs font-medium text-gray-700">Submission {idx + 1}</span>
+                                    <span className="text-xs text-gray-500">{new Date(sub.created_at).toLocaleString()}</span>
+                                  </div>
+                                  <p className="text-sm text-gray-600">{sub.description || 'No description'}</p>
+                                  {sub.attachment_urls && sub.attachment_urls.length > 0 && (
+                                    <p className="text-xs text-blue-600 mt-1">{sub.attachment_urls.length} attachment(s)</p>
+                                  )}
+                                  {reviews.length > 0 && (
+                                    <div className="mt-2 pt-2 border-t border-gray-100">
+                                      <p className="text-xs font-medium text-gray-500 mb-1">Reviews:</p>
+                                      {reviews.map((review) => {
+                                        const outcomeColor = review.review_outcome === 'approved' ? 'text-green-700' : review.review_outcome === 'rejected' ? 'text-red-700' : 'text-yellow-700';
+                                        return (
+                                          <div key={review.id} className="text-xs text-gray-600 ml-2">
+                                            <span className={`font-medium ${outcomeColor}`}>{review.review_outcome}</span>
+                                            <span className="text-gray-400"> by {review.reviewer_user?.full_name || 'Unknown'}</span>
+                                            <span className="text-gray-400"> · {new Date(review.created_at).toLocaleDateString()}</span>
+                                            {review.description && <p className="mt-0.5 text-gray-500">{review.description}</p>}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="flex gap-4 text-xs text-gray-500">
+                          <span className="flex items-center gap-1"><Clock className="w-3 h-3" />Created: {new Date(task.created_at).toLocaleDateString()}</span>
+                          {task.preferred_start_date && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />Preferred Start: {new Date(task.preferred_start_date).toLocaleDateString()}</span>}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4">
         {sortedCustomers.map((customer) => {
