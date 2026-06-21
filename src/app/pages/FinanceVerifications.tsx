@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { PaidCustomer, PaymentProof, PaymentVerificationStatus } from '../types';
 import {
@@ -40,11 +40,8 @@ function publishFinanceBadgeCount(count: number) {
 }
 
 type FinanceTab =
-  | 'unapproved-request'
-  | 'verified-records'
-  | 'rejected-records'
-  | 'ceo-approved-requests'
-  | 'request-clarification-task';
+  | 'paid-customers'
+  | 'ceo-approved-requests';
 
 type FinanceAction = 'verify' | 'reject' | 'clarify' | 'edit' | 'ceo-approve';
 
@@ -522,6 +519,7 @@ function RecordList({
 
 export function FinanceVerifications() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [records, setRecords] = useState<FinanceRecord[]>([]);
   const [currentView, setCurrentView] = useState<FinanceTab | null>(null);
   const [reviewedEvidence, setReviewedEvidence] = useState<Record<string, boolean>>({});
@@ -610,6 +608,10 @@ export function FinanceVerifications() {
   // Wrapper for view changing to guarantee immediate processing before unmounts
   const handleViewChange = (newView: FinanceTab | null) => {
     commitSeenSession();
+    if (newView === 'paid-customers') {
+      navigate('/paid-customers');
+      return;
+    }
     setCurrentView(newView);
   };
 
@@ -675,38 +677,17 @@ export function FinanceVerifications() {
 
   const summary = useMemo(
     () => ({
-      unapprovedTasks: records.filter((r) => r.paymentVerificationStatus === 'pending').length,
-      clarificationTasks: records.filter((r) => r.paymentVerificationStatus === 'request_clarification').length,
-      verifiedPayments: records.filter((r) => isVerified(r.paymentVerificationStatus)).length,
-      rejectedPayments: records.filter((r) => r.paymentVerificationStatus === 'rejected').length,
       ceoApprovedRequests: records.filter((r) => r.transferredByName === 'CEO' && !isVerified(r.paymentVerificationStatus)).length,
     }),
     [records]
   );
 
-  const activeDesktopTab: FinanceTab = currentView ?? 'unapproved-request';
+  const activeDesktopTab: FinanceTab = currentView ?? 'ceo-approved-requests';
 
   const filteredRecords = useMemo(() => {
-    const tab = currentView ?? 'unapproved-request';
-    const base = (() => {
-      switch (tab) {
-        case 'unapproved-request':
-          return records.filter((r) => r.paymentVerificationStatus === 'pending');
-        case 'request-clarification-task':
-          return records.filter((r) => r.paymentVerificationStatus === 'request_clarification');
-        case 'verified-records':
-          return records.filter((r) => isVerified(r.paymentVerificationStatus));
-        case 'rejected-records':
-          return records.filter((r) => r.paymentVerificationStatus === 'rejected');
-        case 'ceo-approved-requests':
-          return records.filter((r) => r.transferredByName === 'CEO' && !isVerified(r.paymentVerificationStatus)).length > 0
-            ? records.filter((r) => r.transferredByName === 'CEO' && !isVerified(r.paymentVerificationStatus))
-            : [];
-        default:
-          return [];
-      }
-    })();
-
+    const tab = currentView ?? 'ceo-approved-requests';
+    if (tab === 'paid-customers') return [];
+    const base = records.filter((r) => r.transferredByName === 'CEO' && !isVerified(r.paymentVerificationStatus));
     return [...base].sort((a, b) => {
       const aHL = highlightedIds.has(a.id) ? 1 : 0;
       const bHL = highlightedIds.has(b.id) ? 1 : 0;
@@ -716,12 +697,9 @@ export function FinanceVerifications() {
   }, [currentView, records, highlightedIds]);
 
   const viewLabel = useMemo(() => {
-    const tab = currentView ?? 'unapproved-request';
+    const tab = currentView ?? 'ceo-approved-requests';
     switch (tab) {
-      case 'unapproved-request': return 'Unapproved Requests';
-      case 'request-clarification-task': return 'Request Clarification Tasks';
-      case 'verified-records': return 'Verified Records';
-      case 'rejected-records': return 'Rejected Records';
+      case 'paid-customers': return 'Paid Customers';
       case 'ceo-approved-requests': return 'CEO Approved Requests';
       default: return '';
     }
@@ -927,11 +905,8 @@ export function FinanceVerifications() {
   };
 
   const tiles = [
-    { label: 'Unapproved Request', value: summary.unapprovedTasks, icon: ClipboardList, tone: 'bg-blue-50 text-blue-700', activeTone: 'ring-2 ring-blue-400', tab: 'unapproved-request' as FinanceTab },
-    { label: 'Request Clarification', value: summary.clarificationTasks, icon: CircleAlert, tone: 'bg-amber-50 text-amber-700', activeTone: 'ring-2 ring-amber-400', tab: 'request-clarification-task' as FinanceTab },
-    { label: 'Verified Payments', value: summary.verifiedPayments, icon: CheckCircle2, tone: 'bg-green-50 text-green-700', activeTone: 'ring-2 ring-green-400', tab: 'verified-records' as FinanceTab },
-    { label: 'Rejected Payments', value: summary.rejectedPayments, icon: Ban, tone: 'bg-red-50 text-red-700', activeTone: 'ring-2 ring-red-400', tab: 'rejected-records' as FinanceTab },
-    { label: 'Approve CEO-transferred', value: summary.ceoApprovedRequests, icon: Bell, tone: 'bg-amber-50 text-amber-700', activeTone: 'ring-2 ring-amber-400', tab: 'ceo-approved-requests' as FinanceTab },
+    { label: 'Paid Customers', value: 0, icon: CircleDollarSign, tone: 'bg-emerald-50 text-emerald-700', activeTone: 'ring-2 ring-emerald-400', tab: 'paid-customers' as FinanceTab },
+    { label: 'CEO-transferred', value: summary.ceoApprovedRequests, icon: Bell, tone: 'bg-amber-50 text-amber-700', activeTone: 'ring-2 ring-amber-400', tab: 'ceo-approved-requests' as FinanceTab },
   ];
 
   return (
@@ -957,19 +932,10 @@ export function FinanceVerifications() {
               </p>
             )}
           </div>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm min-w-[240px]">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Viewing as</p>
-              <p className="mt-1 font-medium text-slate-900">{user.full_name}</p>
-              <p className="text-sm text-slate-500">{categoryLabel}</p>
-            </div>
-            <Link
-              to="/paid-customers"
-              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 text-sm font-medium transition-colors shadow-sm whitespace-nowrap"
-            >
-              <CircleDollarSign className="h-4 w-4" />
-              Paid Customers
-            </Link>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm min-w-[240px]">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Viewing as</p>
+            <p className="mt-1 font-medium text-slate-900">{user.full_name}</p>
+            <p className="text-sm text-slate-500">{categoryLabel}</p>
           </div>
         </div>
       </div>
@@ -992,9 +958,9 @@ export function FinanceVerifications() {
                       <Icon className="h-5 w-5" />
                     </div>
                     <span className="text-sm font-medium text-slate-700">{tile.label}</span>
-                    {tile.tab === 'unapproved-request' && highlightedIds.size > 0 && (
+                    {tile.tab === 'ceo-approved-requests' && tile.value > 0 && (
                       <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-blue-600 px-2 py-0.5 text-xs font-semibold text-white">
-                        {highlightedIds.size}
+                        {tile.value}
                       </span>
                     )}
                   </div>
@@ -1021,7 +987,7 @@ export function FinanceVerifications() {
 
       {/* ── DESKTOP VIEW ── */}
       <div className="hidden lg:block space-y-6">
-        <div className="grid grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           {tiles.map((tile) => {
             const Icon = tile.icon;
             const isActive = activeDesktopTab === tile.tab;
@@ -1038,9 +1004,9 @@ export function FinanceVerifications() {
                   <Icon className="h-5 w-5" />
                 </div>
                 <p className="mt-4 text-sm text-slate-500">{tile.label}</p>
-                {tile.tab === 'unapproved-request' && highlightedIds.size > 0 && (
+                {tile.tab === 'ceo-approved-requests' && tile.value > 0 && (
                   <span className="mt-3 inline-flex min-w-7 items-center justify-center rounded-full bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white">
-                    {highlightedIds.size}
+                    {tile.value}
                   </span>
                 )}
               </button>

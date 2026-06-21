@@ -3,6 +3,8 @@ import { useAuth } from '../contexts/AuthContext';
 import marketingApi, {
   MarketingTaskItem,
   MarketingSubmissionWrapper,
+  MarketingSubmissionRaw,
+  MarketingReviewRaw,
 } from '../../api/marketingApi';
 import notificationApi from '../../api/notificationApi';
 import {
@@ -79,10 +81,10 @@ function getLatestActivity(task: MarketingTaskItem): {
 function getSubmissionWrappers(task: MarketingTaskItem): MarketingSubmissionWrapper[] {
   const items = task.submissionsWithReviews?.submissions || [];
   return items.map((s: any) => ({
-    submissionId: s.id,
+    submissionId: s.submissionId || s.id,
     hasNotification: s.hasNotification || false,
     notificationId: s.notificationId || null,
-    submission: {
+    submission: s.submission || {
       id: s.id,
       marketing_task_id: s.marketing_task_id,
       description: s.description,
@@ -105,6 +107,7 @@ export function PaidCustomers() {
   const [marketingTasksLoading, setMarketingTasksLoading] = useState(true);
 
   const [selectedTask, setSelectedTask] = useState<MarketingTaskItem | null>(null);
+  const [taskDetailLoading, setTaskDetailLoading] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
   const [expandedSubmissionId, setExpandedSubmissionId] = useState<string | null>(null);
   const [editingSubmissionId, setEditingSubmissionId] = useState<string | null>(null);
@@ -124,8 +127,12 @@ export function PaidCustomers() {
     setMarketingTasksLoading(true);
     try {
       const response = await marketingApi.getMarketingTasks({ limit: 100 });
+      console.log('[PaidCustomers] GET /marketing-tasks response:', response);
       if (response.success) {
         setMarketingTasks(response.data);
+        response.data.forEach((t, i) => {
+          console.log(`[PaidCustomers] Task ${i + 1}: id=${t.id}, title="${t.title}", submissions=${t.submissionsWithReviews?.submissions?.length || 0}`);
+        });
         marketingNotificationIds = new Set(
           response.data.filter((t) => {
             const swr = t.submissionsWithReviews;
@@ -134,7 +141,7 @@ export function PaidCustomers() {
               swr?.taskNotification?.hasNotification ||
               t.hasNestedNotification ||
               (swr?.submissions || []).some(
-                (w: any) => w.hasNotification || (w.reviews || []).some((r: any) => r.hasNotification)
+                (w: any) => w.hasNotification || (w.submission?.reviews || []).some((r: any) => r.hasNotification)
               )
             );
           }).map((t) => t.id)
@@ -148,11 +155,14 @@ export function PaidCustomers() {
 
   useEffect(() => { fetchMarketingTasks(); }, [fetchMarketingTasks]);
 
-  const marketingTasksWithSubmissions = marketingTasks.filter(
-    (t) => (t.submissionsWithReviews?.submissions || []).length >= 1
-  );
-
-  const openDetail = (task: MarketingTaskItem) => {
+  const openDetail = async (task: MarketingTaskItem) => {
+    console.log('[PaidCustomers] openDetail clicked:', {
+      taskId: task.id,
+      title: task.title,
+      rawSubmissions: JSON.stringify(task.submissionsWithReviews?.submissions),
+      rawSubmissionsCount: task.submissionsWithReviews?.submissions?.length || 0,
+      wrappersCount: getSubmissionWrappers(task).length,
+    });
     setSelectedTask(task);
     setDraftNote((prev) => ({ ...prev, [task.id]: '' }));
     setDraftScreenshots((prev) => ({ ...prev, [task.id]: null }));
@@ -171,7 +181,7 @@ export function PaidCustomers() {
     if (swr?.taskNotification?.hasNotification && swr.taskNotification.notificationId) notifIds.push(swr.taskNotification.notificationId);
     (swr?.submissions || []).forEach((w: any) => {
       if (w.hasNotification && w.notificationId) notifIds.push(w.notificationId);
-      (w.reviews || []).forEach((r: any) => {
+      (w.submission?.reviews || []).forEach((r: any) => {
         if (r.hasNotification && r.notificationId) notifIds.push(r.notificationId);
       });
     });
@@ -183,6 +193,50 @@ export function PaidCustomers() {
         [...marketingNotificationIds].filter((id) => !viewedMarketingCards.has(id)).length
       );
     }
+
+    setTaskDetailLoading(true);
+    try {
+      const res = await marketingApi.getMarketingTaskById(task.id);
+      if (res.success) {
+        let fullTask = res.data;
+
+        if ((fullTask.submissionsWithReviews?.submissions || []).length === 0) {
+          try {
+            const subsRes = await marketingApi.getSubmissions(task.id);
+            if (subsRes.success && subsRes.data.length > 0) {
+              const subsWithReviews = await Promise.all(
+                subsRes.data.map(async (sub) => {
+                  let reviews: any[] = [];
+                  try {
+                    const revRes = await marketingApi.getReviews(sub.id);
+                    if (revRes.success) reviews = revRes.data;
+                  } catch { /* keep empty reviews */ }
+                  return {
+                    submissionId: sub.id,
+                    hasNotification: false,
+                    notificationId: null,
+                    submission: { ...sub, reviews },
+                  };
+                })
+              );
+              fullTask = {
+                ...fullTask,
+                submissionsWithReviews: {
+                  submissions: subsWithReviews,
+                  latestActivityTs: Date.now(),
+                },
+              };
+            }
+          } catch { /* keep task data as-is */ }
+        }
+
+        setSelectedTask(fullTask);
+        const wrappers = getSubmissionWrappers(fullTask);
+        const latestSub = wrappers.length > 0 ? wrappers[wrappers.length - 1].submission : null;
+        setExpandedSubmissionId(latestSub?.id || null);
+      }
+    } catch { /* silently keep the initial task data */ }
+    finally { setTaskDetailLoading(false); }
   };
 
   const closeDetail = () => {
@@ -193,6 +247,7 @@ export function PaidCustomers() {
     }
     setSelectedTask(null);
     setShowDetail(false);
+    setTaskDetailLoading(false);
     setExpandedSubmissionId(null);
     setEditingSubmissionId(null);
   };
@@ -332,7 +387,6 @@ export function PaidCustomers() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-col lg:flex-row">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Paid Customers</h2>
@@ -353,26 +407,25 @@ export function PaidCustomers() {
         </div>
       </div>
 
-      {/* Content */}
       {marketingTasksLoading ? (
         <div className="flex justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         </div>
-      ) : marketingTasksWithSubmissions.length === 0 ? (
+      ) : marketingTasks.length === 0 ? (
         <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
           <p className="text-gray-500">No paid customer records yet.</p>
-          <p className="text-sm text-gray-400 mt-1">Marketing tasks appear here once they receive their first submission.</p>
+          <p className="text-sm text-gray-400 mt-1">Marketing tasks will appear here once they are created.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {marketingTasksWithSubmissions.map((task) => {
+          {marketingTasks.map((task) => {
             const submissions = getSubmissionWrappers(task);
             const hasNotification =
               (task as any).taskNotification?.hasNotification ||
               task.submissionsWithReviews?.taskNotification?.hasNotification ||
               task.hasNestedNotification ||
               (task.submissionsWithReviews?.submissions || []).some(
-                (w: any) => w.hasNotification || (w.reviews || []).some((r: any) => r.hasNotification)
+                (w: any) => w.hasNotification || (w.submission?.reviews || []).some((r: any) => r.hasNotification)
               );
 
             return (
@@ -476,7 +529,6 @@ export function PaidCustomers() {
         </div>
       )}
 
-      {/* Open Submission Detail Modal */}
       {showDetail && selectedTask && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-6 overflow-y-auto">
           <div className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl max-h-[92vh] overflow-y-auto">
@@ -492,7 +544,6 @@ export function PaidCustomers() {
 
             <div className="grid grid-cols-1 gap-6 px-6 py-5 lg:grid-cols-3">
               <div className="lg:col-span-2 space-y-5">
-                {/* Task Info */}
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -518,7 +569,6 @@ export function PaidCustomers() {
                   </div>
                 </section>
 
-                {/* Customer Details */}
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-3">Customer Details</h5>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
@@ -529,13 +579,11 @@ export function PaidCustomers() {
                   </div>
                 </section>
 
-                {/* Description */}
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Description</h5>
                   <p className="mt-2 text-sm text-gray-700">{selectedTask.description}</p>
                 </section>
 
-                {/* Service Description */}
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Service Description</h5>
                   <p className="mt-2 text-sm text-gray-700">{selectedTask.service_description}</p>
@@ -557,12 +605,15 @@ export function PaidCustomers() {
                   </section>
                 )}
 
-                {/* Submissions & Reviews */}
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-4">
                     Submissions &amp; Review Feedback
                   </h5>
-                  {getSubmissionWrappers(selectedTask).length === 0 ? (
+                  {taskDetailLoading ? (
+                    <div className="flex justify-center py-6">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
+                    </div>
+                  ) : getSubmissionWrappers(selectedTask).length === 0 ? (
                     <p className="text-sm text-gray-500">No submissions yet.</p>
                   ) : (
                     <div className="space-y-4">
@@ -707,7 +758,6 @@ export function PaidCustomers() {
                   )}
                 </section>
 
-                {/* Submission Form (for Marketing owner) */}
                 {user?.role === 'marketing_lead' && selectedTask.marketing_user_id === user.id && selectedTask.status !== 'rejected' && selectedTask.task_state === 'active' && (
                   <section className="rounded-xl border border-dashed border-gray-300 bg-blue-50/50 p-4">
                     <h6 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
@@ -767,7 +817,6 @@ export function PaidCustomers() {
                 )}
               </div>
 
-              {/* Sidebar */}
               <aside className="space-y-4">
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Timeline</h5>
