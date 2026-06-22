@@ -16,6 +16,7 @@ import {
   LogOut,
   Menu,
   X,
+  Send,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY } from '../pages/designerAssignmentHighlights';
@@ -207,6 +208,11 @@ export function Layout({ children }: LayoutProps) {
       user.role === 'ceo' ||
       user.role === 'general_manager'
     ) {
+      addNavigationItem({
+        path: '/ceo-transfers',
+        label: 'CEO Transfers',
+        icon: Send,
+      });
       addNavigationItem({
         path: '/data-collector-tasks',
         label: 'Data Collector Tasks',

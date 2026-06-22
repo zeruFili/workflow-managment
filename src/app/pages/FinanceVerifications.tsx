@@ -612,6 +612,10 @@ export function FinanceVerifications() {
       navigate('/paid-customers');
       return;
     }
+    if (newView === 'ceo-approved-requests') {
+      navigate('/ceo-transfers');
+      return;
+    }
     setCurrentView(newView);
   };
 

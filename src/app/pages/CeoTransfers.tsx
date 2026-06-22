@@ -35,6 +35,7 @@ export function CeoTransfers() {
   const [formSuccess, setFormSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [ceoUsers, setCeoUsers] = useState<UserItem[]>([]);
+  const [ceoUsersError, setCeoUsersError] = useState('');
 
   const canManage = user?.role === 'ceo' || user?.role === 'general_manager' || user?.role === 'finance_officer';
 
@@ -56,10 +57,16 @@ export function CeoTransfers() {
   useEffect(() => { fetchTransfers(page); }, [page, fetchTransfers]);
 
   const fetchCeoUsers = async () => {
+    setCeoUsersError('');
     try {
       const res = await userApi.getUsers({ role: 'ceo', is_active: true, limit: 100 });
       if (res.success) setCeoUsers(res.data);
-    } catch { /* silent */ }
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'response' in err
+        ? (err as { response?: { status?: number; data?: { message?: string } } }).response?.data?.message
+        : undefined;
+      setCeoUsersError(msg || 'Unable to load CEO users. Check your connection.');
+    }
   };
 
   const openDetail = async (id: string) => {
@@ -84,6 +91,7 @@ export function CeoTransfers() {
     setFormErrors({});
     setFormError('');
     setFormSuccess('');
+    setCeoUsersError('');
     setShowForm(true);
   };
 
@@ -98,6 +106,7 @@ export function CeoTransfers() {
     setFormErrors({});
     setFormError('');
     setFormSuccess('');
+    setCeoUsersError('');
     setShowForm(true);
   };
 
@@ -107,6 +116,7 @@ export function CeoTransfers() {
     setShowForm(false);
     setEditingId(null);
     setFormErrors({});
+    setCeoUsersError('');
   };
 
   const handleFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -261,6 +271,8 @@ export function CeoTransfers() {
                   {ceoUsers.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
                 </select>
                 {formErrors.ceo_user_id && <p className="text-xs text-red-600 mt-1">{formErrors.ceo_user_id}</p>}
+                {ceoUsersError && <p className="text-xs text-red-600 mt-1">{ceoUsersError}</p>}
+                {!ceoUsersError && ceoUsers.length === 0 && !isSubmitting && <p className="text-xs text-amber-600 mt-1">No CEO users found. Make sure the backend is running.</p>}
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium">Description <span className="text-red-500">*</span></label>

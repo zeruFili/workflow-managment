@@ -22,6 +22,7 @@ import { QuantitySurveyorDashboard } from './pages/QuantitySurveyorDashboard';
 import { SiteEngineerTasks } from './pages/SiteEngineerTasks';
 import { UserRole } from './types';
 import { DesignerTasks } from './pages/DesignerTasks';
+import { CeoTransfers } from './pages/CeoTransfers';
 
 function ProtectedRoute({
   children,
@@ -221,6 +222,17 @@ function AppContent() {
             <ProtectedRoute allowedRoles={['finance_officer', 'ceo', 'general_manager']}>
               <Layout>
                 <FinanceVerifications />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/ceo-transfers"
+          element={
+            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'finance_officer']}>
+              <Layout>
+                <CeoTransfers />
               </Layout>
             </ProtectedRoute>
           }
