@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import ceoTransferApi, { CeoTransferItem, CeoTransferListMeta } from '../../api/ceoTransferApi';
 import userApi, { UserItem } from '../../api/userApi';
 import {
-  ArrowLeft, Calendar, Clock, Edit, Plus, Send, Upload, User, X, ChevronLeft, ChevronRight,
+  ArrowLeft, Calendar, Clock, Edit, Plus, Send, Trash2, Upload, User, X, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import AttachmentViewer from '../components/AttachmentViewer';
@@ -36,6 +36,11 @@ export function CeoTransfers() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [ceoUsers, setCeoUsers] = useState<UserItem[]>([]);
   const [ceoUsersError, setCeoUsersError] = useState('');
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   const canManage = user?.role === 'ceo' || user?.role === 'general_manager' || user?.role === 'finance_officer';
 
@@ -171,6 +176,41 @@ export function CeoTransfers() {
     } finally { setIsSubmitting(false); }
   };
 
+  const openDeleteConfirm = (id: string) => {
+    setDeletingId(id);
+    setDeleteError('');
+    setShowDeleteConfirm(true);
+  };
+
+  const closeDeleteConfirm = () => {
+    setShowDeleteConfirm(false);
+    setDeletingId(null);
+    setDeleteError('');
+  };
+
+  const handleDelete = async () => {
+    if (!deletingId) return;
+    setIsDeleting(true);
+    setDeleteError('');
+    try {
+      const response = await ceoTransferApi.deleteCeoTransfer(deletingId);
+      if (response.success) {
+        cachedTransfers = null; cachedMeta = null;
+        setShowDeleteConfirm(false);
+        setDeletingId(null);
+        if (selectedTransfer && selectedTransfer.id === deletingId) {
+          setSelectedTransfer(null);
+          setShowDetail(false);
+        }
+        fetchTransfers(page);
+      } else setDeleteError(response.message || 'Failed to delete.');
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'response' in err
+        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message : undefined;
+      setDeleteError(msg || 'Unable to connect.');
+    } finally { setIsDeleting(false); }
+  };
+
   if (!user) return null;
   if (!canManage) return <div className="bg-white rounded-xl p-12 shadow-sm border text-center"><p className="text-gray-500">Access denied.</p></div>;
 
@@ -249,6 +289,7 @@ export function CeoTransfers() {
                 <section className="rounded-xl border p-4"><h5 className="text-sm font-medium uppercase text-gray-500 mb-3">Attachments</h5><AttachmentViewer attachments={selectedTransfer.attachment_urls} /></section>
               )}
               <div className="flex justify-end gap-3 pt-2">
+                <button onClick={() => openDeleteConfirm(selectedTransfer.id)} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm"><Trash2 className="h-4 w-4" />Delete</button>
                 <button onClick={() => { closeDetail(); openEdit(selectedTransfer); }} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm"><Edit className="h-4 w-4" />Edit</button>
               </div>
             </div>
@@ -304,6 +345,24 @@ export function CeoTransfers() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="px-6 py-5">
+              <h3 className="text-lg font-semibold text-gray-900">Delete CEO Transfer</h3>
+              <p className="mt-2 text-sm text-gray-600">Are you sure you want to delete this transfer? This action cannot be undone.</p>
+              {deleteError && <p className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{deleteError}</p>}
+            </div>
+            <div className="flex justify-end gap-3 px-6 py-4 border-t">
+              <button onClick={closeDeleteConfirm} disabled={isDeleting} className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200">Cancel</button>
+              <button onClick={handleDelete} disabled={isDeleting} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium disabled:bg-red-300">
+                {isDeleting ? 'Deleting...' : <><Trash2 className="h-4 w-4" />Delete</>}
+              </button>
+            </div>
           </div>
         </div>
       )}

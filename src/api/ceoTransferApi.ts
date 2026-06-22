@@ -70,6 +70,11 @@ const ceoTransferApi = {
     const response = await api.patch<CeoTransferActionResponse>(`/ceo-transfers/${id}`, data);
     return response.data;
   },
+
+  deleteCeoTransfer: async (id: string): Promise<CeoTransferActionResponse> => {
+    const response = await api.delete<CeoTransferActionResponse>(`/ceo-transfers/${id}`);
+    return response.data;
+  },
 };
 
 export default ceoTransferApi;
