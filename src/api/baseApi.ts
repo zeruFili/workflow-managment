@@ -32,7 +32,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       Cookies.remove("token");
       Cookies.remove("user");
-      window.location.hash = "#/";
+      window.dispatchEvent(new CustomEvent('auth:session-expired'));
     }
 
     return Promise.reject(error);

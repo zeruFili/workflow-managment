@@ -158,6 +158,10 @@ export function PaidCustomers() {
 
   useEffect(() => { fetchMarketingTasks(); }, [fetchMarketingTasks]);
 
+  const marketingTasksWithSubmissions = marketingTasks.filter(
+    (t) => (t.submissionsWithReviews?.submissions || []).length >= 1
+  );
+
   const openDetail = async (task: MarketingTaskItem) => {
     console.log('[PaidCustomers] openDetail clicked:', {
       taskId: task.id,
@@ -417,14 +421,14 @@ export function PaidCustomers() {
         <div className="flex justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         </div>
-      ) : marketingTasks.length === 0 ? (
+      ) : marketingTasksWithSubmissions.length === 0 ? (
         <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
           <p className="text-gray-500">No paid customer records yet.</p>
-          <p className="text-sm text-gray-400 mt-1">Marketing tasks will appear here once they are created.</p>
+          <p className="text-sm text-gray-400 mt-1">Marketing tasks appear here once they receive their first submission.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {marketingTasks.map((task) => {
+          {marketingTasksWithSubmissions.map((task) => {
             const submissions = getSubmissionWrappers(task);
             const hasNotification =
               (task as any).taskNotification?.hasNotification ||
@@ -630,7 +634,7 @@ export function PaidCustomers() {
                         const latestEditable = editableWrappers.length > 0 ? editableWrappers[editableWrappers.length - 1] : null;
                         const taskActive = selectedTask.task_state === 'active';
                         const taskRejected = selectedTask.status === 'rejected';
-                        const isMarketingOwner = user?.role === 'marketing_lead' && selectedTask.marketing_user_id === user.id;
+                        const isMarketingOwner = (user?.role === 'marketing_lead' || user?.role === 'ceo') && selectedTask.marketing_user_id === user.id;
                         const canEditSubmission = latestEditable && taskActive && !taskRejected && isMarketingOwner;
                         const latestEditableId = canEditSubmission ? latestEditable!.submission?.id : null;
                         const isEditingThis = editingSubmissionId !== null;
@@ -764,7 +768,7 @@ export function PaidCustomers() {
                   )}
                 </section>
 
-                {user?.role === 'marketing_lead' && selectedTask.marketing_user_id === user.id && selectedTask.status !== 'rejected' && selectedTask.task_state === 'active' && (
+                {(user?.role === 'marketing_lead' || user?.role === 'ceo') && selectedTask.marketing_user_id === user.id && selectedTask.status !== 'rejected' && selectedTask.task_state === 'active' && (
                   <section className="rounded-xl border border-dashed border-gray-300 bg-blue-50/50 p-4">
                     <h6 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
                       <MessageSquare className="w-4 h-4" />

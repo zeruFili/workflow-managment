@@ -183,6 +183,15 @@ const marketingApi = {
     return response.data;
   },
 
+  deleteMarketingTask: async (
+    taskId: string
+  ): Promise<{ success: boolean; message?: string }> => {
+    const response = await api.delete<{ success: boolean; message?: string }>(
+      `/marketing-tasks/${taskId}`
+    );
+    return response.data;
+  },
+
   createSubmission: async (
     taskId: string,
     data: FormData

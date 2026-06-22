@@ -2,12 +2,15 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import marketingApi, { MarketingTaskItem } from '../../api/marketingApi';
 import {
+  ArrowLeft,
   Calendar,
   CheckCircle2,
+  Edit,
   Mail,
   MapPin,
   Phone,
   Plus,
+  Trash2,
   Users,
   X,
   Send,
@@ -43,6 +46,23 @@ export function CustomerData() {
   const [isSubmittingToTask, setIsSubmittingToTask] = useState(false);
   const submissionObjUrlsRef = useRef<string[]>([]);
 
+  // ── Edit / Delete state ──
+  const [editingTask, setEditingTask] = useState<MarketingTaskItem | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    title: '', description: '', customer_name: '', customer_phone: '',
+    customer_email: '', customer_address: '', category: 'home_design',
+    service_description: '', preferred_start_date: '', budget: '', notes: '',
+  });
+  const [editErrors, setEditErrors] = useState<Record<string, string>>({});
+  const [editError, setEditError] = useState('');
+  const [editSuccess, setEditSuccess] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const fetchMarketingTasks = useCallback(async () => {
     if (!user || (user.role !== 'marketing_lead' && user.role !== 'ceo')) return;
     setMarketingTasksLoading(true);
@@ -66,6 +86,96 @@ export function CustomerData() {
   if (!user) return null;
 
   const canAccess = user.role === 'marketing_lead' || user.role === 'ceo';
+  const canManage = user.role === 'marketing_lead' || user.role === 'ceo';
+
+  const openEdit = (task: MarketingTaskItem) => {
+    setEditingTask(task);
+    setEditFormData({
+      title: task.title,
+      description: task.description,
+      customer_name: task.customer_name,
+      customer_phone: task.customer_phone,
+      customer_email: task.customer_email || '',
+      customer_address: task.customer_address,
+      category: task.category,
+      service_description: task.service_description,
+      preferred_start_date: task.preferred_start_date || '',
+      budget: task.budget != null ? String(task.budget) : '',
+      notes: task.notes || '',
+    });
+    setEditErrors({});
+    setEditError('');
+    setEditSuccess('');
+    setShowEditModal(true);
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTask) return;
+    const errors: Record<string, string> = {};
+    if (!editFormData.title.trim()) errors.title = 'Title is required.';
+    if (!editFormData.customer_name.trim()) errors.customer_name = 'Customer name is required.';
+    if (!editFormData.customer_phone.trim()) errors.customer_phone = 'Customer phone is required.';
+    if (!editFormData.customer_address.trim()) errors.customer_address = 'Customer address is required.';
+    setEditErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
+    setIsUpdating(true);
+    setEditError('');
+    setEditSuccess('');
+    try {
+      const fd = new FormData();
+      fd.append('title', editFormData.title.trim());
+      if (editFormData.description.trim()) fd.append('description', editFormData.description.trim());
+      fd.append('customer_name', editFormData.customer_name.trim());
+      fd.append('customer_phone', editFormData.customer_phone.trim());
+      if (editFormData.customer_email.trim()) fd.append('customer_email', editFormData.customer_email.trim());
+      fd.append('customer_address', editFormData.customer_address.trim());
+      fd.append('category', editFormData.category);
+      if (editFormData.service_description.trim()) fd.append('service_description', editFormData.service_description.trim());
+      if (editFormData.preferred_start_date) fd.append('preferred_start_date', editFormData.preferred_start_date);
+      if (editFormData.budget) fd.append('budget', String(Number(editFormData.budget)));
+      if (editFormData.notes.trim()) fd.append('notes', editFormData.notes.trim());
+
+      const response = await marketingApi.updateMarketingTask(editingTask.id, fd);
+      if (response.success) {
+        setEditSuccess('Task updated successfully.');
+        setTimeout(() => { setShowEditModal(false); setEditingTask(null); fetchMarketingTasks(); }, 800);
+      } else {
+        setEditError(response.message || 'Failed to update task.');
+      }
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'response' in err
+        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+        : undefined;
+      setEditError(msg || 'Unable to update.');
+    } finally { setIsUpdating(false); }
+  };
+
+  const confirmDelete = (taskId: string) => {
+    setDeletingTaskId(taskId);
+    setDeleteError('');
+  };
+
+  const handleDelete = async () => {
+    if (!deletingTaskId) return;
+    setIsDeleting(true);
+    setDeleteError('');
+    try {
+      const response = await marketingApi.deleteMarketingTask(deletingTaskId);
+      if (response.success) {
+        setDeletingTaskId(null);
+        fetchMarketingTasks();
+      } else {
+        setDeleteError(response.message || 'Failed to delete.');
+      }
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'response' in err
+        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+        : undefined;
+      setDeleteError(msg || 'Unable to delete.');
+    } finally { setIsDeleting(false); }
+  };
   if (!canAccess) {
     return (
       <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
@@ -225,7 +335,7 @@ export function CustomerData() {
           <p className="text-gray-600 mt-1">Marketing tasks without submissions. Submit to move them to Paid Customers.</p>
         </div>
         <div className="flex items-center gap-4">
-          {user.role === 'marketing_lead' && (
+          {(user.role === 'marketing_lead' || user.role === 'ceo') && (
             <button
               onClick={() => { setShowCreateMarketingTask(true); setMarketingFormError(''); setMarketingFormSuccess(''); setMarketingFormErrors({}); }}
               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
@@ -300,13 +410,31 @@ export function CustomerData() {
                       <span className="flex items-center gap-1">Preferred: {new Date(task.preferred_start_date).toLocaleDateString()}</span>
                     )}
                   </div>
-                  <button
-                    onClick={() => openSubmissionModal(task.id)}
-                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    Submit &amp; Move to Paid
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {canManage && (
+                      <>
+                        <button
+                          onClick={() => openEdit(task)}
+                          className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => confirmDelete(task.id)}
+                          className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-red-200 text-sm text-red-600 hover:bg-red-50"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
+                    <button
+                      onClick={() => openSubmissionModal(task.id)}
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      Submit &amp; Move to Paid
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -461,6 +589,107 @@ export function CustomerData() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Task Modal */}
+      {showEditModal && editingTask && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold">Edit Marketing Task</h3>
+              <button onClick={() => { setShowEditModal(false); setEditingTask(null); }} className="p-2 hover:bg-gray-100 rounded-lg" disabled={isUpdating}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form className="space-y-4" onSubmit={handleEdit}>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Title <span className="text-red-500">*</span></label>
+                <input value={editFormData.title} onChange={(e) => { setEditFormData({ ...editFormData, title: e.target.value }); if (editErrors.title) setEditErrors((prev) => { const n = { ...prev }; delete n.title; return n; }); }}
+                  className={`w-full px-4 py-2 border rounded-lg ${editErrors.title ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} disabled={isUpdating} />
+                {editErrors.title && <p className="text-xs text-red-600 mt-1">{editErrors.title}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                <textarea value={editFormData.description} onChange={(e) => { setEditFormData({ ...editFormData, description: e.target.value }); if (editErrors.description) setEditErrors((prev) => { const n = { ...prev }; delete n.description; delete n.service_description; return n; }); }}
+                  rows={3} className={`w-full px-4 py-2 border rounded-lg ${editErrors.description ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} disabled={isUpdating} placeholder="At least one of Description or Service Description is required" />
+                {editErrors.description && <p className="text-xs text-red-600 mt-1">{editErrors.description}</p>}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Customer Name <span className="text-red-500">*</span></label>
+                  <input value={editFormData.customer_name} onChange={(e) => { setEditFormData({ ...editFormData, customer_name: e.target.value }); if (editErrors.customer_name) setEditErrors((prev) => { const n = { ...prev }; delete n.customer_name; return n; }); }}
+                    className={`w-full px-4 py-2 border rounded-lg ${editErrors.customer_name ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} disabled={isUpdating} />
+                  {editErrors.customer_name && <p className="text-xs text-red-600 mt-1">{editErrors.customer_name}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone <span className="text-red-500">*</span></label>
+                  <input value={editFormData.customer_phone} onChange={(e) => { setEditFormData({ ...editFormData, customer_phone: e.target.value }); if (editErrors.customer_phone) setEditErrors((prev) => { const n = { ...prev }; delete n.customer_phone; return n; }); }}
+                    className={`w-full px-4 py-2 border rounded-lg ${editErrors.customer_phone ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} disabled={isUpdating} />
+                  {editErrors.customer_phone && <p className="text-xs text-red-600 mt-1">{editErrors.customer_phone}</p>}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                  <input type="email" value={editFormData.customer_email} onChange={(e) => setEditFormData({ ...editFormData, customer_email: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg" disabled={isUpdating} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Address <span className="text-red-500">*</span></label>
+                  <input value={editFormData.customer_address} onChange={(e) => { setEditFormData({ ...editFormData, customer_address: e.target.value }); if (editErrors.customer_address) setEditErrors((prev) => { const n = { ...prev }; delete n.customer_address; return n; }); }}
+                    className={`w-full px-4 py-2 border rounded-lg ${editErrors.customer_address ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} disabled={isUpdating} />
+                  {editErrors.customer_address && <p className="text-xs text-red-600 mt-1">{editErrors.customer_address}</p>}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                <select value={editFormData.category} onChange={(e) => setEditFormData({ ...editFormData, category: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg" disabled={isUpdating}>
+                  {Object.entries(categoryLabels).map(([value, label]) => (<option key={value} value={value}>{label}</option>))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Service Description</label>
+                <textarea value={editFormData.service_description} onChange={(e) => { setEditFormData({ ...editFormData, service_description: e.target.value }); if (editErrors.service_description) setEditErrors((prev) => { const n = { ...prev }; delete n.service_description; delete n.description; return n; }); }}
+                  rows={3} className={`w-full px-4 py-2 border rounded-lg ${editErrors.service_description ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} disabled={isUpdating} placeholder="At least one of Description or Service Description is required" />
+                {editErrors.service_description && <p className="text-xs text-red-600 mt-1">{editErrors.service_description}</p>}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div><label className="block text-sm font-medium text-gray-700 mb-2">Budget (AED)</label>
+                  <input type="number" value={editFormData.budget} onChange={(e) => setEditFormData({ ...editFormData, budget: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg" disabled={isUpdating} min="0" /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-2">Preferred Start</label>
+                  <input type="date" value={editFormData.preferred_start_date} onChange={(e) => setEditFormData({ ...editFormData, preferred_start_date: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg" disabled={isUpdating} /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                  <input value={editFormData.notes} onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg" disabled={isUpdating} /></div>
+              </div>
+              {editError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{editError}</p>}
+              {editSuccess && <p className="text-sm text-green-600 bg-green-50 border border-green-200 rounded-lg px-3 py-2">{editSuccess}</p>}
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => { setShowEditModal(false); setEditingTask(null); }} className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50" disabled={isUpdating}>Cancel</button>
+                <button type="submit" className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg flex items-center justify-center gap-2" disabled={isUpdating}>
+                  {isUpdating ? 'Updating...' : 'Update Task'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation */}
+      {deletingTaskId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-3">Delete Marketing Task</h3>
+            <p className="text-sm text-gray-600 mb-4">Are you sure you want to delete this task? This action cannot be undone.</p>
+            {deleteError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{deleteError}</p>}
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setDeletingTaskId(null)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm" disabled={isDeleting}>Cancel</button>
+              <button onClick={handleDelete} className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg text-sm" disabled={isDeleting}>
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
           </div>
         </div>
       )}

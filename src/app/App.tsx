@@ -57,297 +57,292 @@ function AppContent() {
     }
   }, [isReady, webApp]);
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="text-center">
-          <div className="inline-block w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-          <p className="mt-4 text-gray-600 text-sm">Restoring session...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <HashRouter>
-      <Routes>
-        <Route
-          path="/"
-          element={
-            user ? <Navigate to="/dashboard" replace /> : <Login />
-          }
-        />
+      {isLoading ? (
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+          <div className="text-center">
+            <div className="inline-block w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+            <p className="mt-4 text-gray-600 text-sm">Restoring session...</p>
+          </div>
+        </div>
+      ) : (
+        <Routes>
+          <Route
+            path="/"
+            element={
+              user ? <Navigate to="/dashboard" replace /> : <Login />
+            }
+          />
 
-        {/* Dashboard route – role-specific landing pages */}
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              {user?.role === 'quantity_surveyor' || user?.role === 'finance_officer' ? (
+          {/* Dashboard route – role-specific landing pages */}
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                {user?.role === 'quantity_surveyor' || user?.role === 'finance_officer' ? (
+                  <Layout>
+                    {user?.role === 'finance_officer' ? <FinanceVerifications /> : <QuantitySurveyorDashboard />}
+                  </Layout>
+                ) : user?.role === 'site_engineer' ? (
+                  <Layout>
+                    <SiteEngineerTasks />
+                  </Layout>
+                ) : (
+                  <Layout>
+                    <Dashboard />
+                  </Layout>
+                )}
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/quantity-surveyor-live"
+            element={
+              <ProtectedRoute allowedRoles={['quantity_surveyor']}>
                 <Layout>
-                  {user?.role === 'finance_officer' ? <FinanceVerifications /> : <QuantitySurveyorDashboard />}
+                  <QuantitySurveyorDashboard />
                 </Layout>
-              ) : user?.role === 'site_engineer' ? (
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/quantity-surveyor-review"
+            element={
+              <ProtectedRoute allowedRoles={['quantity_surveyor']}>
+                <Layout>
+                  <QuantitySurveyorDashboard />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/projects"
+            element={
+              <ProtectedRoute>
+                <Navigate to="/dashboard" replace />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/projects/:id"
+            element={
+              <ProtectedRoute>
+                <Navigate to="/dashboard" replace />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/tasks"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  'marketing_lead',
+                  'designer',
+                  'finance_officer',
+                  'data_collector',
+                  'quantity_surveyor',
+                ]}
+              >
+                <Layout>
+                  <Tasks />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/site-engineer-tasks"
+            element={
+              <ProtectedRoute allowedRoles={['site_engineer']}>
                 <Layout>
                   <SiteEngineerTasks />
                 </Layout>
-              ) : (
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/approvals"
+            element={
+              <ProtectedRoute>
                 <Layout>
-                  <Dashboard />
+                  <Approvals />
                 </Layout>
-              )}
-            </ProtectedRoute>
-          }
-        />
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/quantity-surveyor-live"
-          element={
-            <ProtectedRoute allowedRoles={['quantity_surveyor']}>
-              <Layout>
-                <QuantitySurveyorDashboard />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/users"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <UserManagement />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/quantity-surveyor-review"
-          element={
-            <ProtectedRoute allowedRoles={['quantity_surveyor']}>
-              <Layout>
-                <QuantitySurveyorDashboard />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/customer-data"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <CustomerData />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/projects"
-          element={
-            <ProtectedRoute>
-              <Navigate to="/dashboard" replace />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/projects/:id"
-          element={
-            <ProtectedRoute>
-              <Navigate to="/dashboard" replace />
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/paid-customers"
+            element={
+              <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'marketing_lead', 'finance_officer']}>
+                <Layout>
+                  <PaidCustomers />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/tasks"
-          element={
-            <ProtectedRoute
-              allowedRoles={[
-                'marketing_lead',
-                'designer',
-                'finance_officer',
-                'data_collector',
-                'quantity_surveyor',
-              ]}
-            >
-              <Layout>
-                <Tasks />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/finance-verifications"
+            element={
+              <ProtectedRoute allowedRoles={['finance_officer', 'ceo', 'general_manager']}>
+                <Layout>
+                  <FinanceVerifications />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/site-engineer-tasks"
-          element={
-            <ProtectedRoute allowedRoles={['site_engineer']}>
-              <Layout>
-                <SiteEngineerTasks />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/ceo-transfers"
+            element={
+              <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'finance_officer']}>
+                <Layout>
+                  <CeoTransfers />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
 
-       
-        <Route
-          path="/approvals"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <Approvals />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/data-collector-tasks"
+            element={
+              <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'data_collector']}>
+                <Layout>
+                  <DataCollectorTasks />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/users"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <UserManagement />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/job-postings"
+            element={
+              <ProtectedRoute allowedRoles={['ceo', 'general_manager']}>
+                <Layout>
+                  <JobPostings />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
 
+          <Route
+            path="/designer-applications"
+            element={
+              <ProtectedRoute allowedRoles={['ceo', 'general_manager']}>
+                <Layout>
+                  <DesignerApplications />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
 
+          <Route
+            path="/designer-assignments"
+            element={
+              <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'designer']}>
+                <Layout>
+                  <DesignerAssignments />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/customer-data"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <CustomerData />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/quantity-surveyor-tasks"
+            element={
+              <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'quantity_surveyor']}>
+                <Layout>
+                  <QuantitySurveyorTasks />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/paid-customers"
-          element={
-            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'marketing_lead', 'finance_officer']}>
-              <Layout>
-                <PaidCustomers />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/designer-tasks"
+            element={
+              <ProtectedRoute allowedRoles={['designer']}>
+                <Layout>
+                  <DesignerTasks />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/finance-verifications"
-          element={
-            <ProtectedRoute allowedRoles={['finance_officer', 'ceo', 'general_manager']}>
-              <Layout>
-                <FinanceVerifications />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/open-job-postings"
+            element={
+              <ProtectedRoute allowedRoles={['designer', 'ceo', 'general_manager']}>
+                <Layout>
+                  <DesignerOpenJobPostings />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/ceo-transfers"
-          element={
-            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'finance_officer']}>
-              <Layout>
-                <CeoTransfers />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/task-applications"
+            element={
+              <ProtectedRoute allowedRoles={['ceo', 'general_manager']}>
+                <Navigate to="/designer-applications" replace />
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/data-collector-tasks"
-          element={
-            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'data_collector']}>
-              <Layout>
-                <DataCollectorTasks />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/performance-ratings"
+            element={
+              <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'designer']}>
+                <Layout>
+                  <DesignerPerformanceDashboard />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/job-postings"
-          element={
-            <ProtectedRoute allowedRoles={['ceo', 'general_manager']}>
-              <Layout>
-                <JobPostings />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/designer-performance"
+            element={
+              <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'designer']}>
+                <Layout>
+                  <DesignerPerformanceDashboard />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/designer-applications"
-          element={
-            <ProtectedRoute allowedRoles={['ceo', 'general_manager']}>
-              <Layout>
-                <DesignerApplications />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/designer-assignments"
-          element={
-            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'designer']}>
-              <Layout>
-                <DesignerAssignments />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/quantity-surveyor-tasks"
-          element={
-            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'quantity_surveyor']}>
-              <Layout>
-                <QuantitySurveyorTasks />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/designer-tasks"
-          element={
-            <ProtectedRoute allowedRoles={['designer']}>
-              <Layout>
-                <DesignerTasks />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/open-job-postings"
-          element={
-            <ProtectedRoute allowedRoles={['designer', 'ceo', 'general_manager']}>
-              <Layout>
-                <DesignerOpenJobPostings />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/task-applications"
-          element={
-            <ProtectedRoute allowedRoles={['ceo', 'general_manager']}>
-              <Navigate to="/designer-applications" replace />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/performance-ratings"
-          element={
-            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'designer']}>
-              <Layout>
-                <DesignerPerformanceDashboard />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/designer-performance"
-          element={
-            <ProtectedRoute allowedRoles={['ceo', 'general_manager', 'designer']}>
-              <Layout>
-                <DesignerPerformanceDashboard />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      )}
     </HashRouter>
   );
 }
