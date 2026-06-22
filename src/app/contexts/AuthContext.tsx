@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import Cookies from 'js-cookie';
 import { User, UserRole } from '../types';
 import { loginUser, LoginResult } from '../../controllers/loginController';
@@ -42,7 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const login = async (email: string, password: string): Promise<LoginResult> => {
+  const login = useCallback(async (email: string, password: string): Promise<LoginResult> => {
     const result = await loginUser(email, password);
 
     if (result.success && result.user) {
@@ -50,16 +50,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     return result;
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     setUser(null);
     Cookies.remove('user');
     Cookies.remove('token');
-  };
+  }, []);
+
+  const value = useMemo(
+    () => ({ user, login, logout, isAuthenticated: !!user, isLoading }),
+    [user, login, logout, isLoading]
+  );
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, isLoading }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

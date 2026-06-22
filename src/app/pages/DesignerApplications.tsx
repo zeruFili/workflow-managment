@@ -2,7 +2,9 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext';
 import { CheckCircle2, User, Users, Loader2, AlertCircle, Clock, Edit, XCircle, Image, Lock, Trash2, X } from 'lucide-react';
 import designerApi, { DesignerTaskItem, DesignerApplicationItem } from '../../api/designerApi';
+import { designerTaskCache } from '../data/designerTaskCache';
 import userApi, { UserItem } from '../../api/userApi';
+import { userCache } from '../data/userCache';
 
 const reviewRoles = new Set(['ceo', 'general_manager']);
 const GRACE_PERIOD_HOURS = 48;
@@ -56,14 +58,13 @@ export function DesignerApplications() {
       setLoading(true);
       setError(null);
 
-      const [tasksRes, usersRes] = await Promise.all([
-        designerApi.getDesignerTasks({ limit: 100 }),
-        userApi.getDesigners(),
+      const [fetchedTasks, users] = await Promise.all([
+        designerTaskCache.fetch({ limit: 100 }),
+        userCache.fetch({ role: 'designer' }),
       ]);
 
-      const fetchedTasks = tasksRes.data;
       setTasks(fetchedTasks);
-      setDesigners(usersRes.data);
+      setDesigners(users);
       initiallyAssignedIds.current = new Set(
         fetchedTasks.filter((t) => t.assigned_to_user_id).map((t) => t.id)
       );

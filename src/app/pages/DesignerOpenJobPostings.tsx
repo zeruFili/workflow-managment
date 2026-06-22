@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { Calendar, CheckCircle2, Clock, Landmark, Megaphone, ShieldCheck, Send, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import designerApi, { DesignerTaskItem } from '../../api/designerApi';
+import { designerTaskCache } from '../data/designerTaskCache';
 import notificationApi from '../../api/notificationApi';
 
 const API_POSTINGS_CACHE_KEY = 'designer-open-job-postings-api';
@@ -103,12 +104,7 @@ export function DesignerOpenJobPostings() {
     try {
       setLoading(true);
       setError(null);
-      const response = await designerApi.getDesignerTasks({
-        isPublic: true,
-        assignedTo: '__unassigned__',
-        limit: 100,
-      });
-      const tasks = response.data;
+      const tasks = await designerTaskCache.fetch({ isPublic: true, assignedTo: '__unassigned__', limit: 100 });
       setPostings(tasks);
       cachePostingsForBadge(tasks);
     } catch (err: any) {

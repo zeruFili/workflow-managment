@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import marketingApi, { MarketingTaskItem } from '../../api/marketingApi';
+import { fetchMarketingTasks, getCachedMarketingTasks, isMarketingTasksLoading } from '../data/marketingTaskCache';
 import {
   ArrowLeft,
   Calendar,
@@ -20,8 +21,8 @@ import {
 export function CustomerData() {
   const { user } = useAuth();
 
-  const [marketingTasks, setMarketingTasks] = useState<MarketingTaskItem[]>([]);
-  const [marketingTasksLoading, setMarketingTasksLoading] = useState(false);
+  const [marketingTasks, setMarketingTasks] = useState<MarketingTaskItem[]>(() => getCachedMarketingTasks() ?? []);
+  const [marketingTasksLoading, setMarketingTasksLoading] = useState(() => !getCachedMarketingTasks());
 
   // ── Create Marketing Task modal ──
   const [showCreateMarketingTask, setShowCreateMarketingTask] = useState(false);
@@ -63,21 +64,20 @@ export function CustomerData() {
   const [deleteError, setDeleteError] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const fetchMarketingTasks = useCallback(async () => {
-    if (!user || (user.role !== 'marketing_lead' && user.role !== 'ceo')) return;
-    setMarketingTasksLoading(true);
-    try {
-      const response = await marketingApi.getMarketingTasks({ limit: 100 });
-      if (response.success) {
-        setMarketingTasks(response.data);
-      }
-    } catch { /* silent */ }
-    finally { setMarketingTasksLoading(false); }
-  }, [user]);
-
   useEffect(() => {
-    fetchMarketingTasks();
-  }, [fetchMarketingTasks]);
+    if (!user || (user.role !== 'marketing_lead' && user.role !== 'ceo')) return;
+    const cached = getCachedMarketingTasks();
+    if (cached) {
+      setMarketingTasks(cached);
+      setMarketingTasksLoading(false);
+      return;
+    }
+    setMarketingTasksLoading(true);
+    fetchMarketingTasks().then((tasks) => {
+      setMarketingTasks(tasks);
+      setMarketingTasksLoading(false);
+    });
+  }, [user]);
 
   const marketingTasksNoSubmissions = marketingTasks.filter(
     (t) => (t.submissionsWithReviews?.submissions || []).length === 0

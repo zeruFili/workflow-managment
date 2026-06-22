@@ -6,6 +6,7 @@ import marketingApi, {
   MarketingSubmissionRaw,
   MarketingReviewRaw,
 } from '../../api/marketingApi';
+import { fetchMarketingTasks, getCachedMarketingTasks, isMarketingTasksLoading } from '../data/marketingTaskCache';
 import notificationApi from '../../api/notificationApi';
 import {
   ArrowLeft,
@@ -106,8 +107,8 @@ export function PaidCustomers() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [marketingTasks, setMarketingTasks] = useState<MarketingTaskItem[]>([]);
-  const [marketingTasksLoading, setMarketingTasksLoading] = useState(true);
+  const [marketingTasks, setMarketingTasks] = useState<MarketingTaskItem[]>(() => getCachedMarketingTasks() ?? []);
+  const [marketingTasksLoading, setMarketingTasksLoading] = useState(() => !getCachedMarketingTasks());
 
   const [selectedTask, setSelectedTask] = useState<MarketingTaskItem | null>(null);
   const [taskDetailLoading, setTaskDetailLoading] = useState(false);
@@ -125,38 +126,39 @@ export function PaidCustomers() {
   const [submissionSuccess, setSubmissionSuccess] = useState<Record<string, string | null>>({});
   const [reviewError, setReviewError] = useState<Record<string, string>>({});
 
-  const fetchMarketingTasks = useCallback(async () => {
+  useEffect(() => {
     if (!user || (user.role !== 'marketing_lead' && user.role !== 'ceo' && user.role !== 'general_manager' && user.role !== 'finance_officer')) return;
+    const cached = getCachedMarketingTasks();
+    if (cached) {
+      applyTasks(cached);
+      setMarketingTasksLoading(false);
+      return;
+    }
     setMarketingTasksLoading(true);
-    try {
-      const response = await marketingApi.getMarketingTasks({ limit: 100 });
-      console.log('[PaidCustomers] GET /marketing-tasks response:', response);
-      if (response.success) {
-        setMarketingTasks(response.data);
-        response.data.forEach((t, i) => {
-          console.log(`[PaidCustomers] Task ${i + 1}: id=${t.id}, title="${t.title}", submissions=${t.submissionsWithReviews?.submissions?.length || 0}`);
-        });
-        marketingNotificationIds = new Set(
-          response.data.filter((t) => {
-            const swr = t.submissionsWithReviews;
-            return !!(
-              (t as any).taskNotification?.hasNotification ||
-              swr?.taskNotification?.hasNotification ||
-              t.hasNestedNotification ||
-              (swr?.submissions || []).some(
-                (w: any) => w.hasNotification || (w.submission?.reviews || []).some((r: any) => r.hasNotification)
-              )
-            );
-          }).map((t) => t.id)
-        );
-        const unseen = [...marketingNotificationIds].filter((id) => !viewedMarketingCards.has(id));
-        publishBadgeCount(unseen.length);
-      }
-    } catch { /* silent */ }
-    finally { setMarketingTasksLoading(false); }
+    fetchMarketingTasks().then((tasks) => {
+      applyTasks(tasks);
+      setMarketingTasksLoading(false);
+    });
   }, [user]);
 
-  useEffect(() => { fetchMarketingTasks(); }, [fetchMarketingTasks]);
+  function applyTasks(tasks: MarketingTaskItem[]) {
+    setMarketingTasks(tasks);
+    marketingNotificationIds = new Set(
+      tasks.filter((t) => {
+        const swr = t.submissionsWithReviews;
+        return !!(
+          (t as any).taskNotification?.hasNotification ||
+          swr?.taskNotification?.hasNotification ||
+          t.hasNestedNotification ||
+          (swr?.submissions || []).some(
+            (w: any) => w.hasNotification || (w.submission?.reviews || []).some((r: any) => r.hasNotification)
+          )
+        );
+      }).map((t) => t.id)
+    );
+    const unseen = [...marketingNotificationIds].filter((id) => !viewedMarketingCards.has(id));
+    publishBadgeCount(unseen.length);
+  }
 
   const marketingTasksWithSubmissions = marketingTasks.filter(
     (t) => (t.submissionsWithReviews?.submissions || []).length >= 1

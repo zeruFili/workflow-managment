@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Users, Plus, Edit, Trash2, Search, Phone, Eye, EyeOff, Loader2 } from 'lucide-react';
 import userApi, { UserItem, CreateUserPayload, UpdateUserPayload } from '../../api/userApi';
+import { userCache } from '../data/userCache';
 
 type BackendRole = 'ceo' | 'general_manager' | 'marketing' | 'finance' | 'designer' | 'quantity_surveyor' | 'data_collector';
 
@@ -83,12 +84,8 @@ export function UserManagement() {
     try {
       setIsLoading(true);
       setLoadError(null);
-      const response = await userApi.getUsers({ limit: 100 });
-      if (response.success) {
-        setUsers(response.data);
-      } else {
-        setLoadError('Failed to load users');
-      }
+      const data = await userCache.fetch({ limit: 100 });
+      setUsers(data);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } } };
       setLoadError(err?.response?.data?.message || 'Failed to load users');

@@ -17,6 +17,7 @@ import designerApi, {
   SubmissionItem,
   SubmissionsWithReviewsData,
 } from '../../api/designerApi';
+import { designerTaskCache } from '../data/designerTaskCache';
 import notificationApi from '../../api/notificationApi';
 import userApi, { UserItem } from '../../api/userApi';
 import { DesignerTaskApplication, TaskStatus } from '../types';
@@ -507,34 +508,28 @@ export function DesignerAssignments() {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await designerApi.getDesignerTasks({ page, limit: apiLimit });
-      if (response.success) {
-        setTasks(response.data);
-        setMeta(response.meta);
-        setDisplayOffset(0);
+      const data = await designerTaskCache.fetch({ page, limit: apiLimit });
+      setTasks(data);
+      setMeta((meta: any) => ({ ...meta, page, limit: apiLimit, total: data.length } as any));
+      setDisplayOffset(0);
 
-        // Sync submission progress from API data so phase status badges reflect backend
-        const progressUpdates: SubmissionProgress = {};
-        for (const task of response.data) {
-          if (task.submissionsWithReviews) {
-            progressUpdates[task.id] = apiSubmissionsToProgress(task.submissionsWithReviews);
-          }
+      const progressUpdates: SubmissionProgress = {};
+      for (const task of data) {
+        if (task.submissionsWithReviews) {
+          progressUpdates[task.id] = apiSubmissionsToProgress(task.submissionsWithReviews);
         }
-        if (Object.keys(progressUpdates).length > 0) {
-          setSubmissionProgress((prev) => ({ ...prev, ...progressUpdates }));
-        }
-
-        // Compute highlighted task IDs from notifications
-        const notifIds = new Set(
-          response.data
-            .filter((t) => designerTaskHasAnyNotification(t))
-            .map((t) => t.id)
-        );
-        setDesignerAssignmentNotificationIds(notifIds);
-        return response.data;
-      } else {
-        setError(response.message || 'Failed to load tasks');
       }
+      if (Object.keys(progressUpdates).length > 0) {
+        setSubmissionProgress((prev) => ({ ...prev, ...progressUpdates }));
+      }
+
+      const notifIds = new Set(
+        data
+          .filter((t) => designerTaskHasAnyNotification(t))
+          .map((t) => t.id)
+      );
+      setDesignerAssignmentNotificationIds(notifIds);
+      return data;
     } catch (err: unknown) {
       const msg =
         err && typeof err === 'object' && 'response' in err
