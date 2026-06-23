@@ -74,6 +74,16 @@ function getSubmissionWrappers(task: MarketingTaskItem): MarketingSubmissionWrap
   return (task.submissionsWithReviews?.submissions || []).filter((w: any) => w.submission != null);
 }
 
+function hasNestedNotifications(task: MarketingTaskItem): boolean {
+  const swr = task.submissionsWithReviews;
+  return (
+    task.hasNestedNotification ||
+    (swr?.submissions || []).some(
+      (w: any) => w.hasNotification || (w.submission?.reviews || []).some((r: any) => r.hasNotification)
+    )
+  );
+}
+
 const ROWS_PER_DISPLAY = 10;
 
 const STORAGE_KEY = 'marketing-tasks-v1';
@@ -552,8 +562,12 @@ export function MarketingTasks() {
 
   const commitSeenSession = () => {
     if (seenThisSession.current.size === 0) return;
+    const currentTasks = tasksRef.current;
     seenThisSession.current.forEach((id) => {
-      viewedMarketingCards.add(id);
+      const task = currentTasks.find((t) => t.id === id);
+      if (!task || !hasNestedNotifications(task)) {
+        viewedMarketingCards.add(id);
+      }
     });
     seenThisSession.current.clear();
     observedElements.current.clear();

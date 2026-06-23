@@ -185,10 +185,35 @@ export function PaidCustomers() {
 
     if (notifIds.length > 0) {
       notificationApi.bulkMarkRead(notifIds).catch(() => {});
-      viewedMarketingCards.add(task.id);
-      publishBadgeCount(
-        [...marketingNotificationIds].filter((id) => !viewedMarketingCards.has(id)).length
+
+      const clearedSwr = swr
+        ? {
+            ...swr,
+            taskNotification: { hasNotification: false, notificationId: null },
+            submissions: swr.submissions.map((w) => ({
+              ...w,
+              hasNotification: false,
+              notificationId: null,
+              submission: {
+                ...w.submission,
+                reviews: (w.submission?.reviews || []).map((r) => ({
+                  ...r,
+                  hasNotification: false,
+                  notificationId: null,
+                })),
+              },
+            })),
+          }
+        : swr;
+
+      const clearedTask = { ...task, taskNotification: null, hasNestedNotification: false, submissionsWithReviews: clearedSwr } as MarketingTaskItem;
+
+      const updatedTasks = marketingTasks.map((t) =>
+        t.id === task.id ? clearedTask : t
       );
+      applyTasks(updatedTasks);
+
+      viewedMarketingCards.add(task.id);
     }
 
     setTaskDetailLoading(true);
