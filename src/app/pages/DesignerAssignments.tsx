@@ -20,6 +20,11 @@ import designerApi, {
 import { designerTaskCache } from '../data/designerTaskCache';
 import notificationApi from '../../api/notificationApi';
 import userApi, { UserItem } from '../../api/userApi';
+import {
+  createGeneralNotification,
+  loadQuantityReviewNotifications,
+  saveQuantityReviewNotifications,
+} from '../data/quantitySurveyorWorkflow';
 import { DesignerTaskApplication, TaskStatus } from '../types';
 import {
   AlertCircle,
@@ -964,6 +969,19 @@ export function DesignerAssignments() {
         setFieldErrors({});
         setShowCreateTask(false);
         await fetchTasks(apiPage, true);
+
+        if (user?.role !== 'general_manager') {
+          const existing = loadQuantityReviewNotifications();
+          saveQuantityReviewNotifications([
+            createGeneralNotification({
+              type: 'designer_task_created',
+              taskId: response.data?.id || `dt-${Date.now()}`,
+              message: 'New designer task created',
+              description: `Designer task created: ${title}`,
+            }),
+            ...existing,
+          ]);
+        }
       } else {
         setNewTaskError(response.message || 'Failed to create task');
       }
@@ -1285,6 +1303,20 @@ export function DesignerAssignments() {
             setSubmissionProgress((prev) => ({ ...prev, [taskId]: freshProgress }));
           }
         }
+      }
+
+      if (user?.role !== 'general_manager') {
+        const existing = loadQuantityReviewNotifications();
+        const phaseLabel = PHASES.find((p) => p.key === phase)?.label || phase;
+        saveQuantityReviewNotifications([
+          createGeneralNotification({
+            type: 'designer_review',
+            taskId,
+            message: `Designer task reviewed: ${outcome} (${phaseLabel})`,
+            description: `Review submitted for designer task ${selectedTaskDetail?.title || taskId} (${phaseLabel}: ${outcome})`,
+          }),
+          ...existing,
+        ]);
       }
     } catch (err: unknown) {
       const msg =

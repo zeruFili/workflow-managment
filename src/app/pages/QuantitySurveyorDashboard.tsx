@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import {
   createEvaluationSubmittedNotification,
   createDecisionMadeNotification,
+  createGeneralNotification,
   createQuantityReviewEvaluationId,
   loadQuantityReviewEvaluations,
   loadQuantityReviewNotifications,
@@ -263,6 +264,22 @@ export function QuantitySurveyorDashboard() {
       createDecisionMadeNotification(selectedTask, nextEvaluation),
       ...notifications,
     ]);
+
+    if (user.role !== 'general_manager') {
+      const latest = loadQuantityReviewNotifications();
+      saveQuantityReviewNotifications([
+        createGeneralNotification({
+          type: 'qs_review',
+          taskId: selectedTask.id,
+          jobId: selectedTask.jobId,
+          message: isApproved ? 'Quantity review record approved' : 'Quantity review feedback provided',
+          description: isApproved
+            ? `Quantity review record for ${selectedTask.description} was approved by ${user.full_name}.`
+            : `Feedback provided on quantity review record for ${selectedTask.description} by ${user.full_name}.`,
+        }),
+        ...latest,
+      ]);
+    }
     setDecisionFeedback(nextEvaluation.decisionNotes ?? '');
     setToast(
       isApproved

@@ -6,7 +6,18 @@ export type QuantityReviewRecommendation = 'recommended_for_approval' | 'recomme
 
 export type QuantityReviewDecision = 'pending' | 'approved' | 'feedback';
 
-export type QuantityReviewNotificationType = 'task_assigned' | 'evaluation_submitted' | 'decision_made';
+export type QuantityReviewNotificationType =
+  | 'task_assigned'
+  | 'evaluation_submitted'
+  | 'decision_made'
+  | 'dc_submission'
+  | 'dc_review'
+  | 'designer_submission'
+  | 'designer_review'
+  | 'designer_task_created'
+  | 'designer_assigned'
+  | 'qs_submission'
+  | 'qs_review';
 
 export interface QuantityReviewTask {
   id: string;
@@ -367,6 +378,51 @@ export function createDecisionMadeNotification(
     targetRoles: ['quantity_surveyor'],
     readByRoles: [],
   };
+}
+
+export function createGeneralNotification(params: {
+  type: QuantityReviewNotificationType;
+  taskId: string;
+  jobId?: string;
+  message: string;
+  description: string;
+  evaluationId?: string;
+  telegramScreenshot?: string;
+}): QuantityReviewNotification {
+  return {
+    id: createQuantityReviewNotificationId(),
+    type: params.type,
+    taskId: params.taskId,
+    evaluationId: params.evaluationId,
+    jobId: params.jobId || '',
+    message: params.message,
+    description: params.description,
+    telegramScreenshot: params.telegramScreenshot,
+    createdAt: new Date().toISOString(),
+    targetRoles: ['general_manager'],
+    readByRoles: [],
+  };
+}
+
+export function getGeneralManagerNotificationCount(
+  notifications: QuantityReviewNotification[]
+): number {
+  return notifications.filter((n) => {
+    const isGM = n.targetRoles.includes('general_manager');
+    const isUnread = !n.readByRoles.includes('general_manager');
+    return isGM && isUnread;
+  }).length;
+}
+
+export function markGeneralManagerNotificationsRead(
+  notifications: QuantityReviewNotification[]
+): QuantityReviewNotification[] {
+  return notifications.map((n) => {
+    if (!n.targetRoles.includes('general_manager') || n.readByRoles.includes('general_manager')) {
+      return n;
+    }
+    return { ...n, readByRoles: [...n.readByRoles, 'general_manager'] };
+  });
 }
 
 export function getQuantityReviewerName(role: UserRole): string {

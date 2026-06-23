@@ -5,6 +5,11 @@ import designerApi, { DesignerTaskItem, DesignerApplicationItem } from '../../ap
 import { designerTaskCache } from '../data/designerTaskCache';
 import userApi, { UserItem } from '../../api/userApi';
 import { userCache } from '../data/userCache';
+import {
+  createGeneralNotification,
+  loadQuantityReviewNotifications,
+  saveQuantityReviewNotifications,
+} from '../data/quantitySurveyorWorkflow';
 
 const reviewRoles = new Set(['ceo', 'general_manager']);
 const GRACE_PERIOD_HOURS = 48;
@@ -186,6 +191,20 @@ export function DesignerApplications() {
         delete next[taskId];
         return next;
       });
+
+      if (user?.role !== 'general_manager') {
+        const existing = loadQuantityReviewNotifications();
+        const assignedTask = tasks.find((t) => t.id === taskId);
+        saveQuantityReviewNotifications([
+          createGeneralNotification({
+            type: 'designer_assigned',
+            taskId,
+            message: 'Designer assigned to task',
+            description: `Designer ${chosenDesigner?.full_name || selectedDesignerId} assigned to task: ${assignedTask?.title || taskId}`,
+          }),
+          ...existing,
+        ]);
+      }
     } catch (err: any) {
       setAssignError(err?.response?.data?.message || err?.message || 'Failed to assign designer');
     } finally {

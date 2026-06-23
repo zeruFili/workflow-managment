@@ -11,6 +11,11 @@ import designerApi, {
 } from '../../api/designerApi';
 import notificationApi from '../../api/notificationApi';
 import {
+  createGeneralNotification,
+  loadQuantityReviewNotifications,
+  saveQuantityReviewNotifications,
+} from '../data/quantitySurveyorWorkflow';
+import {
   AlertCircle,
   Calendar,
   CheckCircle2,
@@ -973,6 +978,20 @@ export function DesignerTasks() {
       ...draftFilesRef.current,
       [taskId]: { ...draftFilesRef.current[taskId], [phase]: [] },
     };
+
+    if (user?.role !== 'general_manager') {
+      const existing = loadQuantityReviewNotifications();
+      const stageLabel = PHASES.find((p) => p.key === phase)?.label || phase;
+      saveQuantityReviewNotifications([
+        createGeneralNotification({
+          type: 'designer_submission',
+          taskId,
+          message: `New designer submission for ${stageLabel}`,
+          description: `Designer submitted work for ${stageLabel} phase on task: ${task?.title || taskId}`,
+        }),
+        ...existing,
+      ]);
+    }
   };
 
   // ── Pause / Resume ──

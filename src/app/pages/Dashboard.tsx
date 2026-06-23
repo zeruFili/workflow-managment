@@ -3,9 +3,9 @@ import { useAuth, getRoleName } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
 import { mockProjects, mockTasks, mockApprovals } from '../data/mockData';
 import {
-  getRoleNotificationCount,
+  getGeneralManagerNotificationCount,
+  markGeneralManagerNotificationsRead,
   loadQuantityReviewNotifications,
-  markRoleNotificationsRead,
   QuantityReviewNotification,
   saveQuantityReviewNotifications,
 } from '../data/quantitySurveyorWorkflow';
@@ -349,15 +349,14 @@ export function Dashboard() {
     a.status === 'pending' && user.role === 'general_manager'
   );
   const leadershipRoles = user.role === 'general_manager' || user.role === 'ceo';
-  const unreadQuantityReviewCount = getRoleNotificationCount(quantityNotifications, user.role, 'evaluation_submitted');
-  const quantityReviewItems = quantityNotifications.filter(
+  const unreadQuantityReviewCount = getGeneralManagerNotificationCount(quantityNotifications);
+  const gmNotifications = quantityNotifications.filter(
     (notification) =>
-      notification.type === 'evaluation_submitted' &&
-      notification.targetRoles.includes(user.role)
+      notification.targetRoles.includes('general_manager')
   );
 
   const markQuantityNotificationsRead = () => {
-    const nextNotifications = markRoleNotificationsRead(quantityNotifications, user.role, 'evaluation_submitted');
+    const nextNotifications = markGeneralManagerNotificationsRead(quantityNotifications);
     setQuantityNotifications(nextNotifications);
     saveQuantityReviewNotifications(nextNotifications);
   };
@@ -401,6 +400,13 @@ export function Dashboard() {
       color: 'text-red-600',
       bgColor: 'bg-red-100'
     });
+    stats.push({
+      label: 'Unread Notifications',
+      value: unreadQuantityReviewCount,
+      icon: Briefcase,
+      color: 'text-indigo-600',
+      bgColor: 'bg-indigo-100'
+    });
   }
 
   return (
@@ -412,6 +418,42 @@ export function Dashboard() {
       </div>
 
       {isMarketingDashboard ? <MarketingQuickAccess /> : isDesignerDashboard ? <DesignerQuickAccess /> : leadershipRoles && <LeadershipQuickAccess />}
+
+      {user.role === 'general_manager' && gmNotifications.length > 0 && (
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-lg">Recent Notifications</h3>
+            <button
+              onClick={markQuantityNotificationsRead}
+              className="text-sm text-blue-600 hover:text-blue-700"
+            >
+              Mark all as read
+            </button>
+          </div>
+          <div className="space-y-3">
+            {gmNotifications.slice(0, 8).map((n) => (
+              <div
+                key={n.id}
+                className={`p-3 rounded-lg transition-colors ${
+                  !n.readByRoles.includes('general_manager')
+                    ? 'bg-indigo-50 border border-indigo-100'
+                    : 'bg-gray-50'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900 text-sm">{n.message}</p>
+                    <p className="text-xs text-gray-500 mt-0.5 truncate">{n.description}</p>
+                  </div>
+                  <span className="text-xs text-gray-400 whitespace-nowrap">
+                    {new Date(n.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {!leadershipRoles && !isMarketingDashboard && !isDesignerDashboard && (
         <>

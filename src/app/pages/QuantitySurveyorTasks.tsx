@@ -10,6 +10,11 @@ import quantitySurveyorApi, {
 import notificationApi from '../../api/notificationApi';
 import userApi, { UserItem } from '../../api/userApi';
 import {
+  createGeneralNotification,
+  loadQuantityReviewNotifications,
+  saveQuantityReviewNotifications,
+} from '../data/quantitySurveyorWorkflow';
+import {
   AlertCircle,
   Calendar,
   CheckCircle2,
@@ -838,6 +843,20 @@ export function QuantitySurveyorTasks() {
         const refreshed = cachedTasks.find((t) => t.id === taskId);
         if (refreshed) setSelectedTask(refreshed);
       }
+
+      if (user?.role !== 'general_manager') {
+        const existing = loadQuantityReviewNotifications();
+        const taskTitle = selectedTask?.title || `Task ${taskId}`;
+        saveQuantityReviewNotifications([
+          createGeneralNotification({
+            type: 'qs_review',
+            taskId,
+            message: `Quantity surveyor task reviewed: ${outcome}`,
+            description: `Review submitted for quantity surveyor task: ${taskTitle} (${outcome})`,
+          }),
+          ...existing,
+        ]);
+      }
     }
   };
 
@@ -983,6 +1002,20 @@ export function QuantitySurveyorTasks() {
       setDraftNote((prev) => ({ ...prev, [taskId]: '' }));
       setDraftStatus((prev) => ({ ...prev, [taskId]: '' }));
       draftFilesRef.current = { ...draftFilesRef.current, [taskId]: [] };
+
+      if (user?.role !== 'general_manager') {
+        const existing = loadQuantityReviewNotifications();
+        const taskTitle = selectedTask?.title || note.trim() || 'Quantity surveyor submission';
+        saveQuantityReviewNotifications([
+          createGeneralNotification({
+            type: 'qs_submission',
+            taskId,
+            message: 'New quantity surveyor submission',
+            description: `Quantity surveyor submitted work for task: ${taskTitle}`,
+          }),
+          ...existing,
+        ]);
+      }
     }
   };
 
