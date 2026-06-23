@@ -82,21 +82,7 @@ function getLatestActivity(task: MarketingTaskItem): {
 }
 
 function getSubmissionWrappers(task: MarketingTaskItem): MarketingSubmissionWrapper[] {
-  const items = task.submissionsWithReviews?.submissions || [];
-  return items.map((s: any) => ({
-    submissionId: s.submissionId || s.id,
-    hasNotification: s.hasNotification || false,
-    notificationId: s.notificationId || null,
-    submission: s.submission || {
-      id: s.id,
-      marketing_task_id: s.marketing_task_id,
-      description: s.description,
-      attachment_urls: s.attachment_urls,
-      created_at: s.created_at,
-      updated_at: s.updated_at,
-      reviews: s.reviews || [],
-    },
-  }));
+  return (task.submissionsWithReviews?.submissions || []).filter((w: any) => w.submission != null);
 }
 
 export function getUnseenPaidCustomerCount() {
@@ -228,6 +214,7 @@ export function PaidCustomers() {
                   };
                 })
               );
+              subsWithReviews.sort((a, b) => new Date(a.submission.created_at).getTime() - new Date(b.submission.created_at).getTime());
               fullTask = {
                 ...fullTask,
                 submissionsWithReviews: {

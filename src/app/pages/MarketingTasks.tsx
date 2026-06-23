@@ -71,21 +71,7 @@ function getSubmissions(task: MarketingTaskItem): MarketingSubmissionRaw[] {
 }
 
 function getSubmissionWrappers(task: MarketingTaskItem): MarketingSubmissionWrapper[] {
-  const items = task.submissionsWithReviews?.submissions || [];
-  return items.map((s: any) => ({
-    submissionId: s.id,
-    hasNotification: s.hasNotification || false,
-    notificationId: s.notificationId || null,
-    submission: {
-      id: s.id,
-      marketing_task_id: s.marketing_task_id,
-      description: s.description,
-      attachment_urls: s.attachment_urls,
-      created_at: s.created_at,
-      updated_at: s.updated_at,
-      reviews: s.reviews || [],
-    },
-  }));
+  return (task.submissionsWithReviews?.submissions || []).filter((w: any) => w.submission != null);
 }
 
 const ROWS_PER_DISPLAY = 10;
@@ -438,7 +424,7 @@ export function MarketingTasks() {
           swr?.taskNotification?.hasNotification ||
           t.hasNestedNotification ||
           (swr?.submissions || []).some(
-            (w: any) => w.hasNotification || (w.reviews || []).some((r) => r.hasNotification)
+            (w: any) => w.hasNotification || (w.submission?.reviews || []).some((r: any) => r.hasNotification)
           )
         );
       }).map((t) => t.id)
@@ -468,7 +454,7 @@ export function MarketingTasks() {
             swr?.taskNotification?.hasNotification ||
             t.hasNestedNotification ||
             (swr?.submissions || []).some(
-              (w: any) => w.hasNotification || (w.reviews || []).some((r) => r.hasNotification)
+              (w: any) => w.hasNotification || (w.submission?.reviews || []).some((r: any) => r.hasNotification)
             )
           );
         }).map((t) => t.id)
@@ -494,7 +480,7 @@ export function MarketingTasks() {
             swr?.taskNotification?.hasNotification ||
             t.hasNestedNotification ||
             (swr?.submissions || []).some(
-              (w: any) => w.hasNotification || (w.reviews || []).some((r) => r.hasNotification)
+              (w: any) => w.hasNotification || (w.submission?.reviews || []).some((r: any) => r.hasNotification)
             )
           );
         }).map((t) => t.id)
@@ -641,7 +627,7 @@ export function MarketingTasks() {
     }
     (swr?.submissions || []).forEach((w: any) => {
       if (w.hasNotification && w.notificationId) notifIds.push(w.notificationId);
-      (w.reviews || []).forEach((r) => {
+      (w.submission?.reviews || []).forEach((r: any) => {
         if (r.hasNotification && r.notificationId) notifIds.push(r.notificationId);
       });
     });
@@ -726,6 +712,66 @@ export function MarketingTasks() {
 
     const isEditing = editingSubmissionId !== null;
 
+    const addLocalSubmission = () => {
+      const all = loadLocalTasks().length > 0 ? loadLocalTasks() : seedTasks;
+      const now = new Date().toISOString();
+      const subId = `mkt-sub-${Date.now()}`;
+      const newWrapper: MarketingSubmissionWrapper = {
+        submissionId: subId,
+        hasNotification: true,
+        notificationId: `notif-mkt-${Date.now()}`,
+        submission: {
+          id: subId,
+          marketing_task_id: taskId,
+          description: note,
+          attachment_urls: files.length > 0 ? files.map((f) => URL.createObjectURL(f)) : null,
+          created_at: now,
+          updated_at: null,
+          reviews: [],
+        },
+      };
+      const updated = all.map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              updated_at: now,
+              hasNestedNotification: true,
+              taskNotification: { hasNotification: true, notificationId: t.taskNotification?.notificationId || `notif-mkt-t${Date.now()}` },
+              submissionsWithReviews: {
+                ...t.submissionsWithReviews,
+                submissions: [...(t.submissionsWithReviews?.submissions || []), newWrapper],
+                latestActivityTs: Date.now(),
+              },
+            }
+          : t
+      );
+      persistLocalTasks(updated);
+
+      const existingIds = new Set(marketingNotificationIds);
+      existingIds.add(taskId);
+      marketingNotificationIds = existingIds;
+
+      const updatedCache = (cachedTasks || all).map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              updated_at: now,
+              hasNestedNotification: true,
+              taskNotification: { hasNotification: true, notificationId: t.taskNotification?.notificationId || `notif-mkt-t${Date.now()}` },
+              submissionsWithReviews: {
+                ...t.submissionsWithReviews,
+                submissions: [...(t.submissionsWithReviews?.submissions || []), newWrapper],
+                latestActivityTs: Date.now(),
+              },
+            }
+          : t
+      );
+      cachedTasks = updatedCache;
+      setTasks(updatedCache);
+      const updatedSelected = updatedCache.find((t) => t.id === taskId);
+      if (updatedSelected) setSelectedTask(updatedSelected);
+    };
+
     let errorMsg: string | null = null;
 
     try {
@@ -740,14 +786,6 @@ export function MarketingTasks() {
         : await marketingApi.createSubmission(taskId, formData);
 
       if (response.success) {
-        setSubmissionError((prev) => ({ ...prev, [taskId]: '' }));
-        setSubmissionDraftLoading((prev) => ({ ...prev, [taskId]: false }));
-        setEditingSubmissionId(null);
-        const oldUrl = draftScreenshots[taskId] ?? null;
-        if (oldUrl && oldUrl.startsWith('blob:')) URL.revokeObjectURL(oldUrl);
-        setDraftScreenshots((prev) => ({ ...prev, [taskId]: null }));
-        setDraftNote((prev) => ({ ...prev, [taskId]: '' }));
-        draftFilesRef.current = { ...draftFilesRef.current, [taskId]: [] };
         await fetchTasks(apiPage, true);
         if (cachedTasks) {
           const refreshed = cachedTasks.find((t) => t.id === taskId);
@@ -755,8 +793,10 @@ export function MarketingTasks() {
         }
       } else {
         errorMsg = response.message || 'Submission failed. Please try again.';
+        if (!isEditing) addLocalSubmission();
       }
     } catch (err: unknown) {
+      if (!isEditing) addLocalSubmission();
       errorMsg =
         (err && typeof err === 'object' && 'response' in err
           ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
@@ -768,6 +808,14 @@ export function MarketingTasks() {
 
     if (errorMsg) {
       setSubmissionError((prev) => ({ ...prev, [taskId]: errorMsg! }));
+      if (!isEditing) {
+        setEditingSubmissionId(null);
+        const oldUrl = draftScreenshots[taskId] ?? null;
+        if (oldUrl && oldUrl.startsWith('blob:')) URL.revokeObjectURL(oldUrl);
+        setDraftScreenshots((prev) => ({ ...prev, [taskId]: null }));
+        setDraftNote((prev) => ({ ...prev, [taskId]: '' }));
+        draftFilesRef.current = { ...draftFilesRef.current, [taskId]: [] };
+      }
     } else {
       setEditingSubmissionId(null);
       const oldUrl = draftScreenshots[taskId] ?? null;
