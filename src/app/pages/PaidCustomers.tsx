@@ -148,7 +148,11 @@ export function PaidCustomers() {
   }
 
   const marketingTasksWithSubmissions = marketingTasks.filter(
-    (t) => (t.submissionsWithReviews?.submissions || []).length >= 1
+    (t) => {
+      if ((t.submissionsWithReviews?.submissions || []).length === 0) return false;
+      if (user?.role === 'general_manager' && t.status !== 'approved') return false;
+      return true;
+    }
   );
 
   const openDetail = async (task: MarketingTaskItem) => {
@@ -461,7 +465,7 @@ export function PaidCustomers() {
     );
   }
 
-  const canReview = user?.role === 'ceo' || user?.role === 'general_manager' || user?.role === 'finance_officer';
+  const canReview = user?.role === 'ceo' || user?.role === 'finance_officer';
 
   return (
     <div className="space-y-6">
