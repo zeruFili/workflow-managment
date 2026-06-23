@@ -101,6 +101,7 @@ export function PaidCustomers() {
   const [showDetail, setShowDetail] = useState(false);
   const [expandedSubmissionId, setExpandedSubmissionId] = useState<string | null>(null);
   const [editingSubmissionId, setEditingSubmissionId] = useState<string | null>(null);
+  const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
   const [reviewDraft, setReviewDraft] = useState<Record<string, string>>({});
 
   const [draftNote, setDraftNote] = useState<Record<string, string>>({});
@@ -164,6 +165,7 @@ export function PaidCustomers() {
     draftFilesRef.current = { ...draftFilesRef.current, [task.id]: [] };
     setExpandedSubmissionId(null);
     setEditingSubmissionId(null);
+    setEditingReviewId(null);
     setShowDetail(true);
     setSubmissionError((prev) => ({ ...prev, [task.id]: '' }));
     setSubmissionSuccess((prev) => ({ ...prev, [task.id]: null }));
@@ -246,6 +248,7 @@ export function PaidCustomers() {
     setTaskDetailLoading(false);
     setExpandedSubmissionId(null);
     setEditingSubmissionId(null);
+    setEditingReviewId(null);
   };
 
   const handleFilesChange = (taskId: string, fileList: FileList | null) => {
@@ -339,10 +342,15 @@ export function PaidCustomers() {
     let errorMsg: string | null = null;
 
     try {
-      await marketingApi.createReview(subId, {
+      const payload = {
         description: note.trim() || `Review: ${outcome}`,
         review_outcome: outcome,
-      });
+      };
+      if (editingReviewId) {
+        await marketingApi.updateReview(editingReviewId, payload);
+      } else {
+        await marketingApi.createReview(subId, payload);
+      }
     } catch (err: unknown) {
       errorMsg = (err && typeof err === 'object' && 'response' in err
         ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
@@ -352,6 +360,7 @@ export function PaidCustomers() {
     if (errorMsg) {
       setReviewError((prev) => ({ ...prev, [taskId]: errorMsg! }));
     } else {
+      setEditingReviewId(null);
       setReviewDraft((prev) => ({ ...prev, [taskId]: '' }));
       await fetchMarketingTasks();
       if (selectedTask?.id === taskId) {
@@ -701,6 +710,17 @@ export function PaidCustomers() {
                                           const ReviewIcon = isApproved ? ThumbsUp : isRejected ? ThumbsDown : MessageSquare;
                                           const entryColor = isApproved ? 'bg-green-100 text-green-700' : isRejected ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700';
                                           const statusLabel = isApproved ? 'Approved' : isRejected ? 'Rejected' : 'Feedback Given';
+                                          const reviewTs = new Date(review.created_at).getTime();
+                                          const hasNewerReview = wrappers.some((w) =>
+                                            (w.submission?.reviews || []).some((r) => new Date(r.created_at).getTime() > reviewTs)
+                                          );
+                                          const hasNewerSubmission = wrappers.some((w) =>
+                                            new Date(w.submission.created_at).getTime() > reviewTs
+                                          );
+                                          const canEditReview = review.reviewer_user_id === user?.id
+                                            && selectedTask.task_state === 'active'
+                                            && !hasNewerReview
+                                            && !hasNewerSubmission;
                                           return (
                                             <div key={review.id} className={`border rounded-lg overflow-hidden ${review.hasNotification ? 'border-blue-400 ring-1 ring-blue-100' : 'border-gray-200'}`}>
                                               <div className="flex items-center gap-2 px-3 py-2 bg-gray-50">
@@ -710,6 +730,18 @@ export function PaidCustomers() {
                                                 </span>
                                                 <span className="text-xs text-gray-500">{new Date(review.created_at).toLocaleString()}</span>
                                                 <span className="text-xs text-gray-400">by {review.reviewer_user?.full_name || `User ${review.reviewer_user_id.slice(0, 8)}`}</span>
+                                                {canEditReview && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                      setEditingReviewId(review.id);
+                                                      setReviewDraft((prev) => ({ ...prev, [selectedTask.id]: review.description || '' }));
+                                                    }}
+                                                    className="ml-auto flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                                                  >
+                                                    <Edit className="w-3 h-3" /> Edit
+                                                  </button>
+                                                )}
                                               </div>
                                               {review.description && (
                                                 <div className="px-3 py-2"><p className="text-sm text-gray-800 whitespace-pre-wrap">{review.description}</p></div>
@@ -723,7 +755,9 @@ export function PaidCustomers() {
 
                                   {canReview && isLatestSubmission && selectedTask.task_state === 'active' && (
                                     <div className="border-t border-gray-100 pt-3">
-                                      <h6 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Review &amp; Decision</h6>
+                                      <h6 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                                        {editingReviewId ? 'Update Review' : 'Review &amp; Decision'}
+                                      </h6>
                                       <textarea rows={2} value={reviewDraft[selectedTask.id] ?? ''}
                                         onChange={(e) => setReviewDraft((prev) => ({ ...prev, [selectedTask.id]: e.target.value }))}
                                         placeholder="Your feedback or reason..."
@@ -739,7 +773,7 @@ export function PaidCustomers() {
                                         </button>
                                         <button type="button" onClick={() => handleReviewSubmission(selectedTask.id, sub.id, 'feedback')}
                                           className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-100">
-                                          <Send className="w-3.5 h-3.5" />Feedback
+                                          <Send className="w-3.5 h-3.5" />{editingReviewId ? 'Update Feedback' : 'Feedback'}
                                         </button>
                                       </div>
                                       {reviewError[selectedTask.id] && (
