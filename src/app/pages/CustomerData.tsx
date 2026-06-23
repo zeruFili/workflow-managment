@@ -327,13 +327,25 @@ export function CustomerData() {
     const note = reviewDraft[taskId] ?? '';
     setReviewDetailError((prev) => ({ ...prev, [taskId]: '' }));
     let errorMsg: string | null = null;
+
+    let effectiveReviewId = editingReviewId;
+    if (effectiveReviewId && selectedTask) {
+      const wrappers = getSubmissionWrappers(selectedTask);
+      const targetWrapper = wrappers.find((w) => w.submission?.id === subId);
+      const belongsToCurrentSubmission = (targetWrapper?.submission?.reviews || []).some((r) => r.id === effectiveReviewId);
+      if (!belongsToCurrentSubmission) {
+        effectiveReviewId = null;
+        setEditingReviewId(null);
+      }
+    }
+
     try {
       const payload = {
         description: note.trim() || 'Review: ' + outcome,
         review_outcome: outcome,
       };
-      if (editingReviewId) {
-        await marketingApi.updateReview(editingReviewId, payload);
+      if (effectiveReviewId) {
+        await marketingApi.updateReview(effectiveReviewId, payload);
       } else {
         await marketingApi.createReview(subId, payload);
       }
@@ -981,6 +993,7 @@ export function CustomerData() {
                           const isSubExpanded = expandedSubmissionId === sub.id;
                           const isThisLatestEditable = sub.id === latestEditableId;
                           const isLatestSubmission = sub.id === latestSubmissionId;
+                          const editingBelongsToThisSub = editingReviewId !== null && (sub.reviews || []).some((r) => r.id === editingReviewId);
 
                           return (
                             <div key={sub.id} className={`border rounded-lg overflow-hidden ${subHasNotification ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200'}`}>
@@ -1082,12 +1095,26 @@ export function CustomerData() {
                                   {canReview && isLatestSubmission && selectedTask.task_state === 'active' && (
                                     <div className="border-t border-gray-100 pt-3">
                                       <h6 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-                                        {editingReviewId ? 'Update Review' : 'Review &amp; Decision'}
+                                        {editingBelongsToThisSub ? 'Update Review' : 'Review &amp; Decision'}
                                       </h6>
                                       <textarea rows={2} value={reviewDraft[selectedTask.id] ?? ''}
                                         onChange={(e) => setReviewDraft((prev) => ({ ...prev, [selectedTask.id]: e.target.value }))}
                                         placeholder="Your feedback or reason..."
                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm mb-2" />
+                                      {editingBelongsToThisSub && (
+                                        <div className="mb-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setEditingReviewId(null);
+                                              setReviewDraft((prev) => ({ ...prev, [selectedTask.id]: '' }));
+                                            }}
+                                            className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 font-medium"
+                                          >
+                                            <X className="w-3.5 h-3.5" /> Cancel Edit
+                                          </button>
+                                        </div>
+                                      )}
                                       <div className="flex flex-wrap gap-2">
                                         <button type="button" onClick={() => handleReviewSubmission(selectedTask.id, sub.id, 'approved')}
                                           className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-300 hover:bg-green-100 transition-colors">
@@ -1099,7 +1126,7 @@ export function CustomerData() {
                                         </button>
                                         <button type="button" onClick={() => handleReviewSubmission(selectedTask.id, sub.id, 'feedback')}
                                           className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-100 transition-colors">
-                                          <Send className="w-3.5 h-3.5" />{editingReviewId ? 'Update Feedback' : 'Feedback'}
+                                          <Send className="w-3.5 h-3.5" />{editingBelongsToThisSub ? 'Update Feedback' : 'Feedback'}
                                         </button>
                                       </div>
                                       {reviewDetailError[selectedTask.id] && (

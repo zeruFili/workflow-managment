@@ -1585,6 +1585,20 @@ export function MarketingTasks() {
                                         placeholder="Your feedback or reason..."
                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm mb-2"
                                       />
+                                      {editingReviewId && (
+                                        <div className="mb-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setEditingReviewId(null);
+                                              setReviewDraft((prev) => ({ ...prev, [selectedTask.id]: '' }));
+                                            }}
+                                            className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 font-medium"
+                                          >
+                                            <X className="w-3.5 h-3.5" /> Cancel Edit
+                                          </button>
+                                        </div>
+                                      )}
                                       <div className="flex flex-wrap gap-2">
                                         <button
                                           type="button"

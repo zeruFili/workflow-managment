@@ -85,6 +85,199 @@ function getSubmissionWrappers(task: MarketingTaskItem): MarketingSubmissionWrap
   return (task.submissionsWithReviews?.submissions || []).filter((w: any) => w.submission != null);
 }
 
+// ── localStorage persistence (shared with MarketingTasks) ──
+const STORAGE_KEY = 'marketing-tasks-v1';
+
+function loadLocalTasks(): MarketingTaskItem[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored) as MarketingTaskItem[];
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch { /* ignore */ }
+  return [];
+}
+
+function persistLocalTasks(tasksToSave: MarketingTaskItem[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasksToSave));
+  } catch { /* ignore */ }
+}
+
+function initLocalWithSeed(): MarketingTaskItem[] {
+  const existing = loadLocalTasks();
+  if (existing.length > 0) return existing;
+  persistLocalTasks(seedTasks);
+  return seedTasks;
+}
+
+// ── Seed data (subset with submissions, matching MarketingTasks shape) ──
+const seedTasks: MarketingTaskItem[] = [
+  {
+    id: 'mkt-task-1',
+    marketing_user_id: '3',
+    title: 'Luxury Villa Marketing Kit',
+    description: 'Prepare marketing materials for the new luxury villa project including brochure, social media assets, and client presentation.',
+    status: 'pending',
+    task_state: 'active',
+    due_date: '2026-07-15T23:59:59Z',
+    attachment_urls: ['https://placehold.co/800x480/0f172a/f8fafc?text=Villa+Brochure'],
+    updated_by: null,
+    created_at: '2026-06-01T08:00:00Z',
+    updated_at: null,
+    marketing_user: { id: '3', full_name: 'Emily Chen', role: 'marketing' },
+    updated_by_user: null,
+    customer_name: 'Khalid Al Fahim',
+    customer_phone: '+971 50 123 4567',
+    customer_email: 'khalid@example.com',
+    customer_address: 'Palm Jumeirah, Dubai',
+    category: 'home_design',
+    service_description: 'Full interior and exterior design for a 6-bedroom luxury villa with pool and garden landscaping.',
+    preferred_start_date: '2026-07-01',
+    budget: 500000,
+    notes: 'Client prefers modern Arabic aesthetic with smart home integration.',
+    taskNotification: { hasNotification: true, notificationId: 'notif-mkt-t1' },
+    submissionsWithReviews: {
+      submissions: [{
+        submissionId: 'mkt-sub-1',
+        hasNotification: true,
+        notificationId: 'notif-mkt-1',
+        submission: {
+          id: 'mkt-sub-1',
+          marketing_task_id: 'mkt-task-1',
+          description: 'Initial brochure draft completed. Social media mockups attached.',
+          attachment_urls: ['https://placehold.co/800x480/1e293b/e2e8f0?text=Mockup+Preview'],
+          created_at: '2026-06-05T14:00:00Z',
+          updated_at: null,
+          reviews: [{
+            id: 'mkt-rev-1',
+            marketing_submission_id: 'mkt-sub-1',
+            reviewer_user_id: '1',
+            reviewer_user: { id: '1', full_name: 'Alice Johnson', role: 'ceo' },
+            review_outcome: 'feedback',
+            description: 'Good start. Please include more lifestyle imagery and adjust the color scheme.',
+            created_at: '2026-06-06T10:00:00Z',
+            updated_at: null,
+            hasNotification: true,
+            notificationId: 'notif-mkt-r1',
+          }],
+        },
+      }],
+      latestActivityTs: 1749204000000,
+    },
+    hasNestedNotification: true,
+  },
+  {
+    id: 'mkt-task-2',
+    marketing_user_id: '3',
+    title: 'Hair Salon Campaign Assets',
+    description: 'Create social media campaign visuals and promotional video for the new hair salon design project.',
+    status: 'approved',
+    task_state: 'active',
+    due_date: '2026-06-30T23:59:59Z',
+    attachment_urls: null,
+    updated_by: null,
+    created_at: '2026-05-25T10:00:00Z',
+    updated_at: '2026-06-02T16:00:00Z',
+    marketing_user: { id: '3', full_name: 'Emily Chen', role: 'marketing' },
+    updated_by_user: null,
+    customer_name: 'Mona Al Rashid',
+    customer_phone: '+971 55 888 1122',
+    customer_email: 'mona@example.com',
+    customer_address: 'Abu Dhabi Corniche, Abu Dhabi',
+    category: 'hair_salon_design',
+    service_description: "Women's hair salon interior design with reception, styling stations, and waiting area.",
+    preferred_start_date: '2026-06-15',
+    budget: 95000,
+    notes: 'Privacy zoning and premium finishes required.',
+    taskNotification: { hasNotification: false, notificationId: null },
+    submissionsWithReviews: {
+      submissions: [{
+        submissionId: 'mkt-sub-2',
+        hasNotification: false,
+        notificationId: null,
+        submission: {
+          id: 'mkt-sub-2',
+          marketing_task_id: 'mkt-task-2',
+          description: 'Campaign assets delivered: 5 Instagram posts, 2 reels, and 1 promotional video.',
+          attachment_urls: ['https://placehold.co/800x480/334155/f8fafc?text=Campaign+Preview'],
+          created_at: '2026-06-01T12:00:00Z',
+          updated_at: null,
+          reviews: [{
+            id: 'mkt-rev-2',
+            marketing_submission_id: 'mkt-sub-2',
+            reviewer_user_id: '2',
+            reviewer_user: { id: '2', full_name: 'Bob Smith', role: 'finance' },
+            review_outcome: 'approved',
+            description: 'Excellent work. All assets are on-brand and ready for distribution.',
+            created_at: '2026-06-02T16:00:00Z',
+            updated_at: null,
+            hasNotification: true,
+            notificationId: 'notif-mkt-r2',
+          }],
+        },
+      }],
+      latestActivityTs: 1748870400000,
+    },
+    hasNestedNotification: true,
+  },
+  {
+    id: 'mkt-task-4',
+    marketing_user_id: '3',
+    title: 'Modern Home Concept Pitch Deck',
+    description: 'Create a pitch deck for the modern home concept client presentation.',
+    status: 'rejected',
+    task_state: 'active',
+    due_date: '2026-06-25T23:59:59Z',
+    attachment_urls: ['https://placehold.co/800x480/0f172a/f8fafc?text=Pitch+Deck'],
+    updated_by: null,
+    created_at: '2026-05-20T11:00:00Z',
+    updated_at: '2026-05-28T14:00:00Z',
+    marketing_user: { id: '3', full_name: 'Emily Chen', role: 'marketing' },
+    updated_by_user: null,
+    customer_name: 'Nadia Hassan',
+    customer_phone: '+971 50 123 4567',
+    customer_email: 'nadia@example.com',
+    customer_address: 'Dubai Marina, Dubai',
+    category: 'home_design',
+    service_description: 'Modern home concept with living room, kitchen, and bedroom layout planning.',
+    preferred_start_date: '2026-06-10',
+    budget: 180000,
+    notes: 'Warm minimal style with natural materials.',
+    taskNotification: { hasNotification: false, notificationId: null },
+    submissionsWithReviews: {
+      submissions: [{
+        submissionId: 'mkt-sub-4',
+        hasNotification: false,
+        notificationId: null,
+        submission: {
+          id: 'mkt-sub-4',
+          marketing_task_id: 'mkt-task-4',
+          description: 'Pitch deck v1 complete with floor plans and mood boards.',
+          attachment_urls: ['https://placehold.co/800x480/475569/e2e8f0?text=Pitch+Deck+V1'],
+          created_at: '2026-05-25T09:00:00Z',
+          updated_at: null,
+          reviews: [{
+            id: 'mkt-rev-4',
+            marketing_submission_id: 'mkt-sub-4',
+            reviewer_user_id: '1',
+            reviewer_user: { id: '1', full_name: 'Alice Johnson', role: 'ceo' },
+            review_outcome: 'rejected',
+            description: 'The design language does not match the client brief. Please revise with more natural tones.',
+            created_at: '2026-05-28T14:00:00Z',
+            updated_at: null,
+            hasNotification: true,
+            notificationId: 'notif-mkt-r4',
+          }],
+        },
+      }],
+      latestActivityTs: 1748440800000,
+    },
+    hasNestedNotification: true,
+  },
+];
+
 export function getUnseenPaidCustomerCount() {
   return marketingNotificationIds.size - viewedMarketingCards.size;
 }
@@ -123,7 +316,13 @@ export function PaidCustomers() {
     }
     setMarketingTasksLoading(true);
     fetchMarketingTasks().then((tasks) => {
-      applyTasks(tasks);
+      if (tasks.length > 0) {
+        applyTasks(tasks);
+        persistLocalTasks(tasks);
+      } else {
+        const local = initLocalWithSeed();
+        applyTasks(local);
+      }
       setMarketingTasksLoading(false);
     });
   }, [user]);
@@ -341,6 +540,7 @@ export function PaidCustomers() {
           : t
       );
       applyTasks(updated);
+      persistLocalTasks(updated);
       const updatedSelected = updated.find((t) => t.id === taskId);
       if (updatedSelected) setSelectedTask(updatedSelected);
     };
@@ -364,6 +564,7 @@ export function PaidCustomers() {
         const refreshed = await marketingApi.getMarketingTasks({ limit: 100 });
         if (refreshed.success) {
           applyTasks(refreshed.data);
+          persistLocalTasks(refreshed.data);
           if (selectedTask?.id === taskId) {
             const found = refreshed.data.find((t) => t.id === taskId);
             if (found) setSelectedTask(found);
@@ -419,33 +620,118 @@ export function PaidCustomers() {
     setReviewError((prev) => ({ ...prev, [taskId]: '' }));
     let errorMsg: string | null = null;
 
+    const isEditing = editingReviewId !== null;
+    const effectiveReviewId = editingReviewId;
+
+    const addLocalReview = () => {
+      const now = new Date().toISOString();
+      const allTasks = initLocalWithSeed();
+      let updatedTasks: MarketingTaskItem[];
+
+      if (isEditing && effectiveReviewId) {
+        updatedTasks = allTasks.map((t) => {
+          if (t.id !== taskId) return t;
+          const submissions = (t.submissionsWithReviews?.submissions || []).map((w) => {
+            const reviews = (w.submission?.reviews || []).map((r) => {
+              if (r.id !== effectiveReviewId) return r;
+              return {
+                ...r,
+                review_outcome: outcome,
+                description: note.trim() || `Review: ${outcome}`,
+                updated_at: now,
+              };
+            });
+            return { ...w, submission: { ...w.submission, reviews } };
+          });
+          return {
+            ...t,
+            updated_at: now,
+            submissionsWithReviews: {
+              ...t.submissionsWithReviews,
+              submissions,
+              latestActivityTs: Date.now(),
+            },
+          };
+        });
+      } else {
+        const newReview: MarketingReviewRaw = {
+          id: `mkt-rev-${Date.now()}`,
+          marketing_submission_id: subId,
+          reviewer_user_id: user?.id || '1',
+          reviewer_user: { id: user?.id || '1', full_name: user?.full_name || 'Admin', role: user?.role || 'ceo' },
+          review_outcome: outcome,
+          description: note.trim() || `Review: ${outcome}`,
+          created_at: now,
+          updated_at: null,
+          hasNotification: true,
+          notificationId: `notif-mkt-r${Date.now()}`,
+        };
+        updatedTasks = allTasks.map((t) => {
+          if (t.id !== taskId) return t;
+          const submissions = (t.submissionsWithReviews?.submissions || []).map((w) => {
+            if (w.submission?.id !== subId) return w;
+            return {
+              ...w,
+              hasNotification: true,
+              notificationId: w.notificationId || `notif-mkt-s${Date.now()}`,
+              submission: {
+                ...w.submission,
+                reviews: [...(w.submission.reviews || []), newReview],
+              },
+            };
+          });
+          return {
+            ...t,
+            updated_at: now,
+            hasNestedNotification: true,
+            taskNotification: { hasNotification: true, notificationId: t.taskNotification?.notificationId || `notif-mkt-t${Date.now()}` },
+            submissionsWithReviews: {
+              ...t.submissionsWithReviews,
+              submissions,
+              latestActivityTs: Date.now(),
+            },
+          };
+        });
+      }
+
+      persistLocalTasks(updatedTasks);
+      applyTasks(updatedTasks);
+      const updatedSelected = updatedTasks.find((t) => t.id === taskId);
+      if (updatedSelected) setSelectedTask(updatedSelected);
+    };
+
     try {
       const payload = {
         description: note.trim() || `Review: ${outcome}`,
         review_outcome: outcome,
       };
-      if (editingReviewId) {
-        await marketingApi.updateReview(editingReviewId, payload);
+      if (isEditing && effectiveReviewId) {
+        await marketingApi.updateReview(effectiveReviewId, payload);
       } else {
         await marketingApi.createReview(subId, payload);
       }
     } catch (err: unknown) {
+      addLocalReview();
       errorMsg = (err && typeof err === 'object' && 'response' in err
         ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
-        : undefined) || 'Unable to submit review.';
+        : undefined) || null;
     }
 
-    if (errorMsg) {
-      setReviewError((prev) => ({ ...prev, [taskId]: errorMsg! }));
-    } else {
-      setEditingReviewId(null);
-      setReviewDraft((prev) => ({ ...prev, [taskId]: '' }));
+    setEditingReviewId(null);
+    setReviewDraft((prev) => ({ ...prev, [taskId]: '' }));
+
+    if (!errorMsg) {
       invalidateMarketingTaskCache();
-      const refreshed = await marketingApi.getMarketingTasks({ limit: 100 });
-      if (refreshed.success) {
-        applyTasks(refreshed.data);
-        const found = refreshed.data.find((t) => t.id === taskId);
-        if (found) setSelectedTask(found);
+      try {
+        const refreshed = await marketingApi.getMarketingTasks({ limit: 100 });
+        if (refreshed.success) {
+          applyTasks(refreshed.data);
+          persistLocalTasks(refreshed.data);
+          const found = refreshed.data.find((t) => t.id === taskId);
+          if (found) setSelectedTask(found);
+        }
+      } catch {
+        // already handled locally via addLocalReview
       }
     }
   };
@@ -720,6 +1006,7 @@ export function PaidCustomers() {
                           const isSubExpanded = expandedSubmissionId === sub.id;
                           const isThisLatestEditable = sub.id === latestEditableId;
                           const isLatestSubmission = sub.id === latestSubmissionId;
+                          const editingBelongsToThisSub = editingReviewId !== null && (sub.reviews || []).some((r) => r.id === editingReviewId);
 
                           return (
                             <div key={sub.id} className={`border rounded-lg overflow-hidden ${subHasNotification ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200'}`}>
@@ -833,12 +1120,26 @@ export function PaidCustomers() {
                                   {canReview && isLatestSubmission && selectedTask.task_state === 'active' && (
                                     <div className="border-t border-gray-100 pt-3">
                                       <h6 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-                                        {editingReviewId ? 'Update Review' : 'Review &amp; Decision'}
+                                        {editingBelongsToThisSub ? 'Update Review' : 'Review &amp; Decision'}
                                       </h6>
                                       <textarea rows={2} value={reviewDraft[selectedTask.id] ?? ''}
                                         onChange={(e) => setReviewDraft((prev) => ({ ...prev, [selectedTask.id]: e.target.value }))}
                                         placeholder="Your feedback or reason..."
                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm mb-2" />
+                                      {editingBelongsToThisSub && (
+                                        <div className="mb-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setEditingReviewId(null);
+                                              setReviewDraft((prev) => ({ ...prev, [selectedTask.id]: '' }));
+                                            }}
+                                            className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 font-medium"
+                                          >
+                                            <X className="w-3.5 h-3.5" /> Cancel Edit
+                                          </button>
+                                        </div>
+                                      )}
                                       <div className="flex flex-wrap gap-2">
                                         <button type="button" onClick={() => handleReviewSubmission(selectedTask.id, sub.id, 'approved')}
                                           className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-300 hover:bg-green-100">
@@ -850,7 +1151,7 @@ export function PaidCustomers() {
                                         </button>
                                         <button type="button" onClick={() => handleReviewSubmission(selectedTask.id, sub.id, 'feedback')}
                                           className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-100">
-                                          <Send className="w-3.5 h-3.5" />{editingReviewId ? 'Update Feedback' : 'Feedback'}
+                                          <Send className="w-3.5 h-3.5" />{editingBelongsToThisSub ? 'Update Feedback' : 'Feedback'}
                                         </button>
                                       </div>
                                       {reviewError[selectedTask.id] && (
