@@ -722,6 +722,8 @@ export function DataCollectorTasks() {
     setDraftScreenshots((prev) => ({ ...prev, [task.id]: null }));
     draftFilesRef.current = { ...draftFilesRef.current, [task.id]: [] };
     setExpandedSubmissionId(null);
+    setEditingSubmissionId(null);
+    setEditingReviewId(null);
     setShowDetail(true);
     setSubmissionError((prev) => ({ ...prev, [task.id]: '' }));
     setReviewError((prev) => ({ ...prev, [task.id]: '' }));
@@ -790,6 +792,8 @@ export function DataCollectorTasks() {
     setSelectedTask(null);
     setShowDetail(false);
     setExpandedSubmissionId(null);
+    setEditingSubmissionId(null);
+    setEditingReviewId(null);
   };
 
   const handleFilesChange = (taskId: string, fileList: FileList | null) => {
@@ -814,14 +818,25 @@ export function DataCollectorTasks() {
 
     let errorMsg: string | null = null;
 
+    let effectiveReviewId = editingReviewId;
+    if (effectiveReviewId && selectedTask) {
+      const wrappers = getSubmissionWrappers(selectedTask);
+      const targetWrapper = wrappers.find((w) => w.submission?.id === subId);
+      const belongsToCurrentSubmission = (targetWrapper?.submission?.reviews || []).some((r) => r.id === effectiveReviewId);
+      if (!belongsToCurrentSubmission) {
+        effectiveReviewId = null;
+        setEditingReviewId(null);
+      }
+    }
+
     try {
       const payload = {
         description: note.trim() || `Review: ${outcome}`,
         review_outcome: outcome,
         task_state: selectedTask?.task_state || 'active',
       };
-      if (editingReviewId) {
-        await dataCollectorApi.updateReview(editingReviewId, payload);
+      if (effectiveReviewId) {
+        await dataCollectorApi.updateReview(effectiveReviewId, payload);
       } else {
         await dataCollectorApi.createReview(subId, payload);
       }
@@ -1542,6 +1557,7 @@ export function DataCollectorTasks() {
                         const isSubExpanded = expandedSubmissionId === sub.id;
                         const isThisLatestEditable = sub.id === latestEditableId;
                         const isLatestSubmission = sub.id === latestSubmissionId;
+                        const editingBelongsToThisSub = editingReviewId !== null && (sub.reviews || []).some((r) => r.id === editingReviewId);
 
                         return (
                           <div key={sub.id} className={`border rounded-lg overflow-hidden ${subHasNotification ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200'}`}>
@@ -1693,7 +1709,7 @@ export function DataCollectorTasks() {
                                 {canManage && isLatestSubmission && canReview && (
                                   <div className="border-t border-gray-100 pt-3">
                                     <h6 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-                                      {editingReviewId ? 'Update Review' : 'Review &amp; Decision'}
+                                      {editingBelongsToThisSub ? 'Update Review' : 'Review &amp; Decision'}
                                     </h6>
                                     <textarea
                                       rows={2}
@@ -1722,7 +1738,7 @@ export function DataCollectorTasks() {
                                         onClick={() => handleReviewSubmission(selectedTask.id, sub.id, 'feedback')}
                                         className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-100 transition-colors"
                                       >
-                                        <Send className="w-3.5 h-3.5" /> {editingReviewId ? 'Update Feedback' : 'Feedback'}
+                                        <Send className="w-3.5 h-3.5" /> {editingBelongsToThisSub ? 'Update Feedback' : 'Feedback'}
                                       </button>
                                     </div>
                                     {reviewError[selectedTask.id] && (
