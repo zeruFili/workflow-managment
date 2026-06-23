@@ -503,12 +503,16 @@ export function DesignerAssignments() {
   const apiLimit = isLeadership ? 20 : 10;
 
   // ── Fetch tasks from API ──
-  const fetchTasks = useCallback(async (page: number): Promise<DesignerTaskItem[] | undefined> => {
+  const fetchTasks = useCallback(async (page: number, force = false): Promise<DesignerTaskItem[] | undefined> => {
     if (!user) return;
     setIsLoading(true);
     setError(null);
     try {
-      const data = await designerTaskCache.fetch({ page, limit: apiLimit });
+      let data: DesignerTaskItem[];
+      if (force) {
+        designerTaskCache.invalidate({ page, limit: apiLimit });
+      }
+      data = await designerTaskCache.fetch({ page, limit: apiLimit });
       setTasks(data);
       setMeta((meta: any) => ({ ...meta, page, limit: apiLimit, total: data.length } as any));
       setDisplayOffset(0);
@@ -838,7 +842,7 @@ export function DesignerAssignments() {
         setShowEditTask(false);
         setEditingTaskId(null);
         setEditFormErrors({});
-        await fetchTasks(apiPage);
+        await fetchTasks(apiPage, true);
       } else {
         setEditError(response.message || 'Failed to update task');
       }
@@ -870,7 +874,7 @@ export function DesignerAssignments() {
         setTaskSuccessMsg(response.message || 'Designer task deleted successfully');
         setShowDeleteConfirm(false);
         setDeletingTaskId(null);
-        await fetchTasks(apiPage);
+        await fetchTasks(apiPage, true);
       } else {
         setDeleteError(response.message || 'Failed to delete task');
       }
@@ -959,7 +963,7 @@ export function DesignerAssignments() {
         newTaskImageFileRef.current = null;
         setFieldErrors({});
         setShowCreateTask(false);
-        await fetchTasks(apiPage);
+        await fetchTasks(apiPage, true);
       } else {
         setNewTaskError(response.message || 'Failed to create task');
       }
@@ -1271,7 +1275,7 @@ export function DesignerAssignments() {
         await designerApi.createReview(latestSubmission.id, payload);
       }
       updateDraft(taskId, phase, '');
-      const refreshedTasks = await fetchTasks(apiPage);
+      const refreshedTasks = await fetchTasks(apiPage, true);
       if (refreshedTasks) {
         const refreshed = refreshedTasks.find((t) => t.id === taskId);
         if (refreshed) {
