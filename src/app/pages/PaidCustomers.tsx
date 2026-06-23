@@ -6,7 +6,7 @@ import marketingApi, {
   MarketingSubmissionRaw,
   MarketingReviewRaw,
 } from '../../api/marketingApi';
-import { fetchMarketingTasks, getCachedMarketingTasks, isMarketingTasksLoading } from '../data/marketingTaskCache';
+import { fetchMarketingTasks, getCachedMarketingTasks, isMarketingTasksLoading, invalidateMarketingTaskCache } from '../data/marketingTaskCache';
 import notificationApi from '../../api/notificationApi';
 import {
   ArrowLeft,
@@ -278,6 +278,44 @@ export function PaidCustomers() {
     setSubmissionSuccess((prev) => ({ ...prev, [taskId]: null }));
 
     const isEditing = editingSubmissionId !== null;
+
+    const addLocalSubmission = () => {
+      const now = new Date().toISOString();
+      const subId = `mkt-sub-${Date.now()}`;
+      const newWrapper: MarketingSubmissionWrapper = {
+        submissionId: subId,
+        hasNotification: true,
+        notificationId: `notif-mkt-${Date.now()}`,
+        submission: {
+          id: subId,
+          marketing_task_id: taskId,
+          description: note,
+          attachment_urls: files.length > 0 ? files.map((f) => URL.createObjectURL(f)) : null,
+          created_at: now,
+          updated_at: null,
+          reviews: [],
+        },
+      };
+      const updated = marketingTasks.map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              updated_at: now,
+              hasNestedNotification: true,
+              taskNotification: { hasNotification: true, notificationId: t.taskNotification?.notificationId || `notif-mkt-t${Date.now()}` },
+              submissionsWithReviews: {
+                ...t.submissionsWithReviews,
+                submissions: [...(t.submissionsWithReviews?.submissions || []), newWrapper],
+                latestActivityTs: Date.now(),
+              },
+            }
+          : t
+      );
+      applyTasks(updated);
+      const updatedSelected = updated.find((t) => t.id === taskId);
+      if (updatedSelected) setSelectedTask(updatedSelected);
+    };
+
     let errorMsg: string | null = null;
     let isSuccess = false;
 
@@ -293,18 +331,21 @@ export function PaidCustomers() {
       if (response.success) {
         isSuccess = true;
         setSubmissionSuccess((prev) => ({ ...prev, [taskId]: 'Submission has been sent successfully.' }));
-        await fetchMarketingTasks();
-        if (selectedTask?.id === taskId) {
-          const refreshed = await marketingApi.getMarketingTasks({ limit: 100 });
-          if (refreshed.success) {
+        invalidateMarketingTaskCache();
+        const refreshed = await marketingApi.getMarketingTasks({ limit: 100 });
+        if (refreshed.success) {
+          applyTasks(refreshed.data);
+          if (selectedTask?.id === taskId) {
             const found = refreshed.data.find((t) => t.id === taskId);
             if (found) setSelectedTask(found);
           }
         }
       } else {
         errorMsg = response.message || 'Submission failed.';
+        if (!isEditing) addLocalSubmission();
       }
     } catch (err: unknown) {
+      if (!isEditing) addLocalSubmission();
       errorMsg = (err && typeof err === 'object' && 'response' in err
         ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
         : undefined) || 'Unable to connect to server.';
@@ -314,6 +355,14 @@ export function PaidCustomers() {
 
     if (errorMsg) {
       setSubmissionError((prev) => ({ ...prev, [taskId]: errorMsg! }));
+      if (!isEditing) {
+        setEditingSubmissionId(null);
+        const oldUrl = draftScreenshots[taskId] ?? null;
+        if (oldUrl && oldUrl.startsWith('blob:')) URL.revokeObjectURL(oldUrl);
+        setDraftScreenshots((prev) => ({ ...prev, [taskId]: null }));
+        setDraftNote((prev) => ({ ...prev, [taskId]: '' }));
+        draftFilesRef.current = { ...draftFilesRef.current, [taskId]: [] };
+      }
     } else if (isSuccess) {
       setEditingSubmissionId(null);
       const oldUrl = draftScreenshots[taskId] ?? null;
@@ -362,13 +411,12 @@ export function PaidCustomers() {
     } else {
       setEditingReviewId(null);
       setReviewDraft((prev) => ({ ...prev, [taskId]: '' }));
-      await fetchMarketingTasks();
-      if (selectedTask?.id === taskId) {
-        const refreshed = await marketingApi.getMarketingTasks({ limit: 100 });
-        if (refreshed.success) {
-          const found = refreshed.data.find((t) => t.id === taskId);
-          if (found) setSelectedTask(found);
-        }
+      invalidateMarketingTaskCache();
+      const refreshed = await marketingApi.getMarketingTasks({ limit: 100 });
+      if (refreshed.success) {
+        applyTasks(refreshed.data);
+        const found = refreshed.data.find((t) => t.id === taskId);
+        if (found) setSelectedTask(found);
       }
     }
   };
