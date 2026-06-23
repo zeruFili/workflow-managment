@@ -126,7 +126,9 @@ export function CustomerData() {
     });
   }, [user]);
 
-  const marketingTasksNoSubmissions = marketingTasks;
+  const marketingTasksNoSubmissions = marketingTasks.filter(
+    (t) => (t.submissionsWithReviews?.submissions || []).length === 0
+  );
 
   if (!user) return null;
 
