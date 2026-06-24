@@ -3,8 +3,8 @@ import { useAuth, getRoleName } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
 import { mockProjects, mockTasks, mockApprovals } from '../data/mockData';
 import {
-  getGeneralManagerNotificationCount,
-  markGeneralManagerNotificationsRead,
+  getLeadershipNotificationCount,
+  markLeadershipNotificationsRead,
   loadQuantityReviewNotifications,
   QuantityReviewNotification,
   saveQuantityReviewNotifications,
@@ -349,14 +349,14 @@ export function Dashboard() {
     a.status === 'pending' && user.role === 'general_manager'
   );
   const leadershipRoles = user.role === 'general_manager' || user.role === 'ceo';
-  const unreadQuantityReviewCount = getGeneralManagerNotificationCount(quantityNotifications);
-  const gmNotifications = quantityNotifications.filter(
+  const unreadQuantityReviewCount = getLeadershipNotificationCount(quantityNotifications, user.role);
+  const leadershipNotifications = quantityNotifications.filter(
     (notification) =>
-      notification.targetRoles.includes('general_manager')
+      notification.targetRoles.includes(user.role)
   );
 
   const markQuantityNotificationsRead = () => {
-    const nextNotifications = markGeneralManagerNotificationsRead(quantityNotifications);
+    const nextNotifications = markLeadershipNotificationsRead(quantityNotifications, user.role);
     setQuantityNotifications(nextNotifications);
     saveQuantityReviewNotifications(nextNotifications);
   };
@@ -400,6 +400,9 @@ export function Dashboard() {
       color: 'text-red-600',
       bgColor: 'bg-red-100'
     });
+  }
+
+  if (leadershipRoles) {
     stats.push({
       label: 'Unread Notifications',
       value: unreadQuantityReviewCount,
@@ -419,7 +422,7 @@ export function Dashboard() {
 
       {isMarketingDashboard ? <MarketingQuickAccess /> : isDesignerDashboard ? <DesignerQuickAccess /> : leadershipRoles && <LeadershipQuickAccess />}
 
-      {user.role === 'general_manager' && gmNotifications.length > 0 && (
+      {leadershipRoles && leadershipNotifications.length > 0 && (
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-lg">Recent Notifications</h3>
@@ -431,11 +434,11 @@ export function Dashboard() {
             </button>
           </div>
           <div className="space-y-3">
-            {gmNotifications.slice(0, 8).map((n) => (
+            {leadershipNotifications.slice(0, 8).map((n) => (
               <div
                 key={n.id}
                 className={`p-3 rounded-lg transition-colors ${
-                  !n.readByRoles.includes('general_manager')
+                  !n.readByRoles.includes(user.role)
                     ? 'bg-indigo-50 border border-indigo-100'
                     : 'bg-gray-50'
                 }`}

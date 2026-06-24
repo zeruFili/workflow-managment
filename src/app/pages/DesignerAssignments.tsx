@@ -970,12 +970,13 @@ export function DesignerAssignments() {
         setShowCreateTask(false);
         await fetchTasks(apiPage, true);
 
-        if (user?.role !== 'general_manager') {
+        if (user) {
           const existing = loadQuantityReviewNotifications();
           saveQuantityReviewNotifications([
             createGeneralNotification({
               type: 'designer_task_created',
               taskId: response.data?.id || `dt-${Date.now()}`,
+              actorRole: user.role,
               message: 'New designer task created',
               description: `Designer task created: ${title}`,
             }),
@@ -1305,13 +1306,14 @@ export function DesignerAssignments() {
         }
       }
 
-      if (user?.role !== 'general_manager') {
+      if (user) {
         const existing = loadQuantityReviewNotifications();
         const phaseLabel = PHASES.find((p) => p.key === phase)?.label || phase;
         saveQuantityReviewNotifications([
           createGeneralNotification({
             type: 'designer_review',
             taskId,
+            actorRole: user.role,
             message: `Designer task reviewed: ${outcome} (${phaseLabel})`,
             description: `Review submitted for designer task ${selectedTaskDetail?.title || taskId} (${phaseLabel}: ${outcome})`,
           }),

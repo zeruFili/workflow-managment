@@ -388,7 +388,13 @@ export function createGeneralNotification(params: {
   description: string;
   evaluationId?: string;
   telegramScreenshot?: string;
+  actorRole?: UserRole;
 }): QuantityReviewNotification {
+  const leadershipRoles: UserRole[] = ['general_manager', 'ceo'];
+  const targetRoles = params.actorRole
+    ? leadershipRoles.filter((r) => r !== params.actorRole)
+    : leadershipRoles;
+
   return {
     id: createQuantityReviewNotificationId(),
     type: params.type,
@@ -399,29 +405,31 @@ export function createGeneralNotification(params: {
     description: params.description,
     telegramScreenshot: params.telegramScreenshot,
     createdAt: new Date().toISOString(),
-    targetRoles: ['general_manager'],
+    targetRoles,
     readByRoles: [],
   };
 }
 
-export function getGeneralManagerNotificationCount(
-  notifications: QuantityReviewNotification[]
+export function getLeadershipNotificationCount(
+  notifications: QuantityReviewNotification[],
+  role: UserRole
 ): number {
   return notifications.filter((n) => {
-    const isGM = n.targetRoles.includes('general_manager');
-    const isUnread = !n.readByRoles.includes('general_manager');
-    return isGM && isUnread;
+    const matchesRole = n.targetRoles.includes(role);
+    const isUnread = !n.readByRoles.includes(role);
+    return matchesRole && isUnread;
   }).length;
 }
 
-export function markGeneralManagerNotificationsRead(
-  notifications: QuantityReviewNotification[]
+export function markLeadershipNotificationsRead(
+  notifications: QuantityReviewNotification[],
+  role: UserRole
 ): QuantityReviewNotification[] {
   return notifications.map((n) => {
-    if (!n.targetRoles.includes('general_manager') || n.readByRoles.includes('general_manager')) {
+    if (!n.targetRoles.includes(role) || n.readByRoles.includes(role)) {
       return n;
     }
-    return { ...n, readByRoles: [...n.readByRoles, 'general_manager'] };
+    return { ...n, readByRoles: [...n.readByRoles, role] };
   });
 }
 

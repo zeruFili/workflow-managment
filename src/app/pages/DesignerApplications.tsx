@@ -192,13 +192,14 @@ export function DesignerApplications() {
         return next;
       });
 
-      if (user?.role !== 'general_manager') {
+      if (user) {
         const existing = loadQuantityReviewNotifications();
         const assignedTask = tasks.find((t) => t.id === taskId);
         saveQuantityReviewNotifications([
           createGeneralNotification({
             type: 'designer_assigned',
             taskId,
+            actorRole: user.role,
             message: 'Designer assigned to task',
             description: `Designer ${chosenDesigner?.full_name || selectedDesignerId} assigned to task: ${assignedTask?.title || taskId}`,
           }),

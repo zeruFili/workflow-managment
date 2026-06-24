@@ -844,13 +844,14 @@ export function QuantitySurveyorTasks() {
         if (refreshed) setSelectedTask(refreshed);
       }
 
-      if (user?.role !== 'general_manager') {
+      if (user) {
         const existing = loadQuantityReviewNotifications();
         const taskTitle = selectedTask?.title || `Task ${taskId}`;
         saveQuantityReviewNotifications([
           createGeneralNotification({
             type: 'qs_review',
             taskId,
+            actorRole: user.role,
             message: `Quantity surveyor task reviewed: ${outcome}`,
             description: `Review submitted for quantity surveyor task: ${taskTitle} (${outcome})`,
           }),
@@ -1003,13 +1004,14 @@ export function QuantitySurveyorTasks() {
       setDraftStatus((prev) => ({ ...prev, [taskId]: '' }));
       draftFilesRef.current = { ...draftFilesRef.current, [taskId]: [] };
 
-      if (user?.role !== 'general_manager') {
+      if (user) {
         const existing = loadQuantityReviewNotifications();
         const taskTitle = selectedTask?.title || note.trim() || 'Quantity surveyor submission';
         saveQuantityReviewNotifications([
           createGeneralNotification({
             type: 'qs_submission',
             taskId,
+            actorRole: user.role,
             message: 'New quantity surveyor submission',
             description: `Quantity surveyor submitted work for task: ${taskTitle}`,
           }),

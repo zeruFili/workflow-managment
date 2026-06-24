@@ -859,13 +859,14 @@ export function DataCollectorTasks() {
         if (refreshed) setSelectedTask(refreshed);
       }
 
-      if (user?.role !== 'general_manager') {
+      if (user) {
         const existing = loadQuantityReviewNotifications();
         const taskTitle = selectedTask?.title || `Task ${taskId}`;
         saveQuantityReviewNotifications([
           createGeneralNotification({
             type: 'dc_review',
             taskId,
+            actorRole: user.role,
             message: `Data collector task reviewed: ${outcome}`,
             description: `Review submitted for data collector task: ${taskTitle} (${outcome})`,
           }),
@@ -1009,13 +1010,14 @@ export function DataCollectorTasks() {
       setDraftNote((prev) => ({ ...prev, [taskId]: '' }));
       draftFilesRef.current = { ...draftFilesRef.current, [taskId]: [] };
 
-      if (user?.role !== 'general_manager') {
+      if (user) {
         const existing = loadQuantityReviewNotifications();
         const taskTitle = selectedTask?.title || note.trim() || 'Data collector submission';
         saveQuantityReviewNotifications([
           createGeneralNotification({
             type: 'dc_submission',
             taskId,
+            actorRole: user.role,
             message: 'New data collector submission',
             description: `Data collector submitted work for task: ${taskTitle}`,
           }),

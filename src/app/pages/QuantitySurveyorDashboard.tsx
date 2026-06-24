@@ -265,13 +265,13 @@ export function QuantitySurveyorDashboard() {
       ...notifications,
     ]);
 
-    if (user.role !== 'general_manager') {
       const latest = loadQuantityReviewNotifications();
       saveQuantityReviewNotifications([
         createGeneralNotification({
           type: 'qs_review',
           taskId: selectedTask.id,
           jobId: selectedTask.jobId,
+          actorRole: user.role,
           message: isApproved ? 'Quantity review record approved' : 'Quantity review feedback provided',
           description: isApproved
             ? `Quantity review record for ${selectedTask.description} was approved by ${user.full_name}.`
@@ -279,7 +279,6 @@ export function QuantitySurveyorDashboard() {
         }),
         ...latest,
       ]);
-    }
     setDecisionFeedback(nextEvaluation.decisionNotes ?? '');
     setToast(
       isApproved

@@ -979,13 +979,14 @@ export function DesignerTasks() {
       [taskId]: { ...draftFilesRef.current[taskId], [phase]: [] },
     };
 
-    if (user?.role !== 'general_manager') {
+    if (user) {
       const existing = loadQuantityReviewNotifications();
       const stageLabel = PHASES.find((p) => p.key === phase)?.label || phase;
       saveQuantityReviewNotifications([
         createGeneralNotification({
           type: 'designer_submission',
           taskId,
+          actorRole: user.role,
           message: `New designer submission for ${stageLabel}`,
           description: `Designer submitted work for ${stageLabel} phase on task: ${task?.title || taskId}`,
         }),
