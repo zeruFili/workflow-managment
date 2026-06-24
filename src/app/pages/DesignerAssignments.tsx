@@ -487,6 +487,7 @@ export function DesignerAssignments() {
     if (user && !hasResetForSession.current) {
       resetDesignerAssignmentsHighlightState();
       markedTaskNotificationIds.clear();
+      designerTaskCache.invalidate();
       hasResetForSession.current = true;
     }
     if (!user) {
