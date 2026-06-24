@@ -32,7 +32,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import AttachmentViewer from '../components/AttachmentViewer';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 export const MARKETING_NOTIFICATIONS_KEY = 'marketing-tasks-notifications-updated';
 
@@ -326,6 +326,22 @@ export function PaidCustomers() {
       setMarketingTasksLoading(false);
     });
   }, [user]);
+
+  // ── Auto-open detail from query parameter ──
+  const [searchParams, setSearchParams] = useSearchParams();
+  const autoOpenTaskId = searchParams.get('openDetail');
+  const autoOpenedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!autoOpenTaskId || autoOpenedRef.current === autoOpenTaskId || marketingTasksLoading) return;
+    const task = marketingTasks.find((t) => t.id === autoOpenTaskId);
+    if (task) {
+      autoOpenedRef.current = autoOpenTaskId;
+      openDetail(task);
+      searchParams.delete('openDetail');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [autoOpenTaskId, marketingTasksLoading, marketingTasks]);
 
   function applyTasks(tasks: MarketingTaskItem[]) {
     setMarketingTasks(tasks);

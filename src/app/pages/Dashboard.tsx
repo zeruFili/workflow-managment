@@ -16,6 +16,7 @@ import {
   AlertCircle,
   TrendingUp,
   CheckCircle,
+  CheckCircle2,
   Plus,
   Upload,
   ClipboardCheck,
@@ -23,6 +24,10 @@ import {
   CircleDollarSign,
   Briefcase,
   Megaphone,
+  MessageSquare,
+  ThumbsUp,
+  ThumbsDown,
+  XCircle,
 } from 'lucide-react';
 import { LeadershipQuickAccess } from '../components/LeadershipQuickAccess';
 import { getUnseenApprovalsCount } from '../pages/Approvals';
@@ -36,6 +41,11 @@ import {
 } from '../pages/DesignerOpenJobPostings';
 import designerApi, { DesignerTaskItem } from '../../api/designerApi';
 import { designerTaskCache } from '../data/designerTaskCache';
+import marketingApi, {
+  MarketingTaskItem,
+  MarketingSubmissionWrapper,
+} from '../../api/marketingApi';
+import { fetchMarketingTasks, getCachedMarketingTasks, isMarketingTasksLoading } from '../data/marketingTaskCache';
 
 type DashboardButtonProps = {
   to: string;
@@ -76,10 +86,68 @@ function DashboardButton({
   );
 }
 
+function getSubmissionWrappers(task: MarketingTaskItem): MarketingSubmissionWrapper[] {
+  return (task.submissionsWithReviews?.submissions || []).filter((w: any) => w.submission != null);
+}
+
+function getLatestActivity(task: MarketingTaskItem): {
+  description: string;
+  kind: 'review' | 'submission';
+  outcome: string;
+} | null {
+  const wrappers = getSubmissionWrappers(task);
+  let latestTs = 0;
+  let latest: { description: string; kind: 'review' | 'submission'; outcome: string } | null = null;
+  for (const w of wrappers) {
+    const s = w.submission;
+    if (!s) continue;
+    const sTs = Math.max(new Date(s.created_at).getTime(), s.updated_at ? new Date(s.updated_at).getTime() : 0);
+    if (sTs > latestTs) {
+      latestTs = sTs;
+      latest = { description: s.description || '', kind: 'submission', outcome: 'pending' };
+    }
+    for (const r of (s.reviews || [])) {
+      const rTs = Math.max(new Date(r.created_at).getTime(), r.updated_at ? new Date(r.updated_at).getTime() : 0);
+      if (rTs > latestTs) {
+        latestTs = rTs;
+        latest = { description: r.description || '', kind: 'review', outcome: r.review_outcome };
+      }
+    }
+  }
+  return latest;
+}
+
+function statusColor(status: string | null): string {
+  switch (status) {
+    case 'approved': return 'bg-green-100 text-green-700';
+    case 'rejected': return 'bg-red-100 text-red-700';
+    case 'feedback': return 'bg-yellow-100 text-yellow-700';
+    default: return 'bg-gray-100 text-gray-700';
+  }
+}
+
 function MarketingQuickAccess() {
+  const { user } = useAuth();
   const [paidCustomerCount, setPaidCustomerCount] = useState(() => getUnseenPaidCustomerCount());
   const [approvalCount, setApprovalCount] = useState(() => getUnseenApprovalsCount());
-  const pendingMarketingApprovals = mockApprovals.filter((approval) => approval.status === 'pending');
+  const [marketingTasks, setMarketingTasks] = useState<MarketingTaskItem[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    const cached = getCachedMarketingTasks();
+    if (cached) {
+      setMarketingTasks(cached);
+      return;
+    }
+    fetchMarketingTasks()
+      .then((data) => setMarketingTasks(data))
+      .catch(() => {});
+  }, [user]);
+
+  const tasksWithSubmissions = marketingTasks
+    .filter((t) => (t.submissionsWithReviews?.submissions || []).some((w: any) => w.submission != null))
+    .sort((a, b) => (b.submissionsWithReviews?.latestActivityTs || 0) - (a.submissionsWithReviews?.latestActivityTs || 0))
+    .slice(0, 8);
 
   useEffect(() => {
     const onPaidCustomersUpdated = (event: Event) => {
@@ -139,36 +207,75 @@ function MarketingQuickAccess() {
       <div className="rounded-xl border border-gray-200 bg-white">
         <div className="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <h4 className="text-sm font-semibold text-gray-900 sm:text-base">Marketing Approvals</h4>
-            <p className="text-sm text-gray-500">Pending approval items that need marketing attention.</p>
+            <h4 className="text-sm font-semibold text-gray-900 sm:text-base">Marketing Tasks</h4>
+            <p className="text-sm text-gray-500">Recent tasks with submissions that need review.</p>
           </div>
-          <Link to="/approvals" className="text-sm font-medium text-blue-600 hover:text-blue-700 sm:shrink-0">
+          <Link to="/paid-customers" className="text-sm font-medium text-blue-600 hover:text-blue-700 sm:shrink-0">
             Open full page
           </Link>
         </div>
 
         <div className="divide-y divide-gray-100">
-          {pendingMarketingApprovals.length === 0 ? (
-            <div className="px-4 py-8 text-center text-sm text-gray-500">No pending marketing approvals.</div>
+          {tasksWithSubmissions.length === 0 ? (
+            <div className="px-4 py-8 text-center text-sm text-gray-500">No marketing tasks with submissions yet.</div>
           ) : (
-            pendingMarketingApprovals.map((approval) => {
-              const project = mockProjects.find((candidate) => candidate.id === approval.projectId);
+            tasksWithSubmissions.map((task) => {
+              const activity = getLatestActivity(task);
 
               return (
                 <Link
-                  key={approval.id}
-                  to="/approvals"
+                  key={task.id}
+                  to={`/paid-customers?openDetail=${task.id}`}
                   className="block px-4 py-4 transition-colors hover:bg-gray-50"
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                     <div className="min-w-0 flex-1">
-                      <h5 className="truncate font-medium text-gray-900">{project?.name ?? 'Unlinked project'}</h5>
-                      <p className="mt-1 text-sm text-gray-600">Stage: {approval.stage}</p>
-                      <p className="text-sm text-gray-500">Requested: {new Date(approval.requestedAt).toLocaleDateString()}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h5 className="truncate font-medium text-gray-900">{task.title}</h5>
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusColor(task.status)}`}>
+                          {task.status || 'pending'}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-gray-600 line-clamp-2">{task.description}</p>
+                      {activity && activity.description ? (
+                        (() => {
+                          const outcome = activity.outcome;
+                          const isApproved = outcome === 'approved';
+                          const isRejected = outcome === 'rejected';
+                          const isFeedback = outcome === 'feedback';
+                          const BadgeIcon = isApproved ? CheckCircle2 : isRejected ? XCircle : isFeedback ? AlertCircle : MessageSquare;
+                          const containerColor = isApproved
+                            ? 'bg-green-50 border-green-200'
+                            : isRejected
+                            ? 'bg-red-50 border-red-200'
+                            : isFeedback
+                            ? 'bg-yellow-50 border-yellow-200'
+                            : 'bg-blue-50 border-blue-200';
+                          const textColor = isApproved
+                            ? 'text-green-700' : isRejected
+                            ? 'text-red-700' : isFeedback
+                            ? 'text-yellow-700' : 'text-blue-700';
+                          const iconColor = isApproved
+                            ? 'text-green-600' : isRejected
+                            ? 'text-red-600' : isFeedback
+                            ? 'text-yellow-600' : 'text-blue-600';
+                          const statusLabel = isApproved ? 'Approved' : isRejected ? 'Rejected' : isFeedback ? 'Feedback Given' : 'Pending';
+                          return (
+                            <div className={`mt-2 p-3 rounded-lg border ${containerColor}`}>
+                              <div className="flex items-center gap-2 mb-1">
+                                <BadgeIcon className={`w-4 h-4 ${iconColor}`} />
+                                <p className={`text-sm font-medium ${textColor}`}>{statusLabel}</p>
+                              </div>
+                              <p className="text-sm text-gray-700">{activity.description}</p>
+                            </div>
+                          );
+                        })()
+                      ) : null}
+                      {task.due_date && (
+                        <p className="mt-2 text-sm text-gray-500">Due: {new Date(task.due_date).toLocaleDateString()}</p>
+                      )}
                     </div>
-                    <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
-                      Pending
-                    </span>
+                    <Briefcase className="h-5 w-5 shrink-0 text-gray-400 sm:mt-0.5" />
                   </div>
                 </Link>
               );
