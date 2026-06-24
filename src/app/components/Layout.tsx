@@ -53,7 +53,6 @@ export function Layout({ children }: LayoutProps) {
   const [dataCollectorNotifications, setDataCollectorNotifications] = useState(3);
   const [quantitySurveyorNotifications, setQuantitySurveyorNotifications] = useState(3);
   const [financeVerificationsNotifications, setFinanceVerificationsNotifications] = useState(2);
-  const [approvalsNotifications, setApprovalsNotifications] = useState(3);
   const [openJobPostingsNotifications, setOpenJobPostingsNotifications] = useState(3);
   const [designerAssignmentsNotifications, setDesignerAssignmentsNotifications] = useState(3);
   const [designerTasksNotifications, setDesignerTasksNotifications] = useState(3);
@@ -80,10 +79,6 @@ export function Layout({ children }: LayoutProps) {
       const customEvent = e as CustomEvent<number>;
       setFinanceVerificationsNotifications(customEvent.detail ?? 0);
     };
-    const onApprovalsNotifications = (e: Event) => {
-      const customEvent = e as CustomEvent<number>;
-      setApprovalsNotifications(customEvent.detail ?? 0);
-    };
     const onOpenJobPostingsNotifications = (e: Event) => {
       const customEvent = e as CustomEvent<number>;
       setOpenJobPostingsNotifications(customEvent.detail ?? 0);
@@ -107,7 +102,6 @@ export function Layout({ children }: LayoutProps) {
     window.addEventListener('data-collector-notifications-updated', onDataCollector);
     window.addEventListener('quantity-surveyor-notifications-updated', onQuantitySurveyor);
     window.addEventListener('finance-verifications-notifications-updated', onFinanceVerifications);
-    window.addEventListener('approvals-notifications-updated', onApprovalsNotifications);
     window.addEventListener('open-job-postings-notifications-updated', onOpenJobPostingsNotifications);
     window.addEventListener(DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY, onDesignerAssignments);
     window.addEventListener(DESIGNER_TASKS_NOTIFICATIONS_KEY, onDesignerTasks);
@@ -120,7 +114,6 @@ export function Layout({ children }: LayoutProps) {
       window.removeEventListener('data-collector-notifications-updated', onDataCollector);
       window.removeEventListener('quantity-surveyor-notifications-updated', onQuantitySurveyor);
       window.removeEventListener('finance-verifications-notifications-updated', onFinanceVerifications);
-      window.removeEventListener('approvals-notifications-updated', onApprovalsNotifications);
       window.removeEventListener('open-job-postings-notifications-updated', onOpenJobPostingsNotifications);
       window.removeEventListener(DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY, onDesignerAssignments);
       window.removeEventListener(DESIGNER_TASKS_NOTIFICATIONS_KEY, onDesignerTasks);
@@ -272,21 +265,6 @@ export function Layout({ children }: LayoutProps) {
         path: '/performance-ratings',
         label: 'Performance Ratings',
         icon: TrendingUp,
-      });
-    }
-
-    // ── Approvals: hidden for system_administrator, designer, site_engineer, general_manager, and ceo ──
-    if (
-      user.role !== 'designer' &&
-      user.role !== 'site_engineer' &&
-      user.role !== 'general_manager' &&
-      user.role !== 'ceo'
-    ) {
-      navigationItems.push({
-        path: '/approvals',
-        label: 'Approvals',
-        icon: ClipboardCheck,
-        badge: approvalsNotifications > 0 ? approvalsNotifications : undefined,
       });
     }
 

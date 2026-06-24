@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth, getRoleName } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
-import { mockProjects, mockTasks, mockApprovals } from '../data/mockData';
+import { mockProjects, mockTasks } from '../data/mockData';
 import {
   getLeadershipNotificationCount,
   markLeadershipNotificationsRead,
@@ -16,22 +16,12 @@ import {
   AlertCircle,
   TrendingUp,
   CheckCircle,
-  CheckCircle2,
   Plus,
   Upload,
-  ClipboardCheck,
-  ClipboardList,
-  CircleDollarSign,
   Briefcase,
   Megaphone,
-  MessageSquare,
-  ThumbsUp,
-  ThumbsDown,
-  XCircle,
 } from 'lucide-react';
 import { LeadershipQuickAccess } from '../components/LeadershipQuickAccess';
-import { getUnseenApprovalsCount } from '../pages/Approvals';
-import { getUnseenPaidCustomerCount } from '../pages/PaidCustomers';
 import {
   getUnseenDesignerTaskCount,
   getUnseenDesignerTaskHighlightedIds,
@@ -41,11 +31,6 @@ import {
 } from '../pages/DesignerOpenJobPostings';
 import designerApi, { DesignerTaskItem } from '../../api/designerApi';
 import { designerTaskCache } from '../data/designerTaskCache';
-import marketingApi, {
-  MarketingTaskItem,
-  MarketingSubmissionWrapper,
-} from '../../api/marketingApi';
-import { fetchMarketingTasks, getCachedMarketingTasks, isMarketingTasksLoading } from '../data/marketingTaskCache';
 
 type DashboardButtonProps = {
   to: string;
@@ -83,207 +68,6 @@ function DashboardButton({
         ) : null}
       </span>
     </Link>
-  );
-}
-
-function getSubmissionWrappers(task: MarketingTaskItem): MarketingSubmissionWrapper[] {
-  return (task.submissionsWithReviews?.submissions || []).filter((w: any) => w.submission != null);
-}
-
-function getLatestActivity(task: MarketingTaskItem): {
-  description: string;
-  kind: 'review' | 'submission';
-  outcome: string;
-} | null {
-  const wrappers = getSubmissionWrappers(task);
-  let latestTs = 0;
-  let latest: { description: string; kind: 'review' | 'submission'; outcome: string } | null = null;
-  for (const w of wrappers) {
-    const s = w.submission;
-    if (!s) continue;
-    const sTs = Math.max(new Date(s.created_at).getTime(), s.updated_at ? new Date(s.updated_at).getTime() : 0);
-    if (sTs > latestTs) {
-      latestTs = sTs;
-      latest = { description: s.description || '', kind: 'submission', outcome: 'pending' };
-    }
-    for (const r of (s.reviews || [])) {
-      const rTs = Math.max(new Date(r.created_at).getTime(), r.updated_at ? new Date(r.updated_at).getTime() : 0);
-      if (rTs > latestTs) {
-        latestTs = rTs;
-        latest = { description: r.description || '', kind: 'review', outcome: r.review_outcome };
-      }
-    }
-  }
-  return latest;
-}
-
-function statusColor(status: string | null): string {
-  switch (status) {
-    case 'approved': return 'bg-green-100 text-green-700';
-    case 'rejected': return 'bg-red-100 text-red-700';
-    case 'feedback': return 'bg-yellow-100 text-yellow-700';
-    default: return 'bg-gray-100 text-gray-700';
-  }
-}
-
-function MarketingQuickAccess() {
-  const { user } = useAuth();
-  const [paidCustomerCount, setPaidCustomerCount] = useState(() => getUnseenPaidCustomerCount());
-  const [approvalCount, setApprovalCount] = useState(() => getUnseenApprovalsCount());
-  const [marketingTasks, setMarketingTasks] = useState<MarketingTaskItem[]>([]);
-
-  useEffect(() => {
-    if (!user) return;
-    const cached = getCachedMarketingTasks();
-    if (cached) {
-      setMarketingTasks(cached);
-      return;
-    }
-    fetchMarketingTasks()
-      .then((data) => setMarketingTasks(data))
-      .catch(() => {});
-  }, [user]);
-
-  const tasksWithSubmissions = marketingTasks
-    .filter((t) => (t.submissionsWithReviews?.submissions || []).some((w: any) => w.submission != null))
-    .sort((a, b) => (b.submissionsWithReviews?.latestActivityTs || 0) - (a.submissionsWithReviews?.latestActivityTs || 0))
-    .slice(0, 8);
-
-  useEffect(() => {
-    const onPaidCustomersUpdated = (event: Event) => {
-      const customEvent = event as CustomEvent<number>;
-      setPaidCustomerCount(customEvent.detail ?? 0);
-    };
-
-    const onApprovalsUpdated = (event: Event) => {
-      const customEvent = event as CustomEvent<number>;
-      setApprovalCount(customEvent.detail ?? 0);
-    };
-
-    window.addEventListener('paid-customers-notifications-updated', onPaidCustomersUpdated);
-    window.addEventListener('approvals-notifications-updated', onApprovalsUpdated);
-
-    return () => {
-      window.removeEventListener('paid-customers-notifications-updated', onPaidCustomersUpdated);
-      window.removeEventListener('approvals-notifications-updated', onApprovalsUpdated);
-    };
-  }, []);
-
-  return (
-    <div className="space-y-5 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-      <div>
-        <h3 className="text-base font-semibold text-gray-900 sm:text-lg">Marketing</h3>
-        <p className="mt-1 text-sm text-gray-600">
-          Jump to the marketing workflow pages and review approval items currently waiting for action.
-        </p>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <DashboardButton
-          to="/customer-data"
-          label="Customer Requests"
-          icon={ClipboardList}
-          iconBgClass="bg-blue-100"
-          iconTextClass="text-blue-600"
-        />
-        <DashboardButton
-          to="/paid-customers"
-          label="Paid Customers"
-          icon={CircleDollarSign}
-          badgeCount={paidCustomerCount}
-          iconBgClass="bg-orange-100"
-          iconTextClass="text-orange-600"
-        />
-        <DashboardButton
-          to="/approvals"
-          label="Approvals"
-          icon={ClipboardCheck}
-          badgeCount={approvalCount}
-          iconBgClass="bg-emerald-100"
-          iconTextClass="text-emerald-600"
-        />
-      </div>
-
-      <div className="rounded-xl border border-gray-200 bg-white">
-        <div className="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <h4 className="text-sm font-semibold text-gray-900 sm:text-base">Marketing Tasks</h4>
-            <p className="text-sm text-gray-500">Recent tasks with submissions that need review.</p>
-          </div>
-          <Link to="/paid-customers" className="text-sm font-medium text-blue-600 hover:text-blue-700 sm:shrink-0">
-            Open full page
-          </Link>
-        </div>
-
-        <div className="divide-y divide-gray-100">
-          {tasksWithSubmissions.length === 0 ? (
-            <div className="px-4 py-8 text-center text-sm text-gray-500">No marketing tasks with submissions yet.</div>
-          ) : (
-            tasksWithSubmissions.map((task) => {
-              const activity = getLatestActivity(task);
-
-              return (
-                <Link
-                  key={task.id}
-                  to={`/paid-customers?openDetail=${task.id}`}
-                  className="block px-4 py-4 transition-colors hover:bg-gray-50"
-                >
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h5 className="truncate font-medium text-gray-900">{task.title}</h5>
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusColor(task.status)}`}>
-                          {task.status || 'pending'}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-sm text-gray-600 line-clamp-2">{task.description}</p>
-                      {activity && activity.description ? (
-                        (() => {
-                          const outcome = activity.outcome;
-                          const isApproved = outcome === 'approved';
-                          const isRejected = outcome === 'rejected';
-                          const isFeedback = outcome === 'feedback';
-                          const BadgeIcon = isApproved ? CheckCircle2 : isRejected ? XCircle : isFeedback ? AlertCircle : MessageSquare;
-                          const containerColor = isApproved
-                            ? 'bg-green-50 border-green-200'
-                            : isRejected
-                            ? 'bg-red-50 border-red-200'
-                            : isFeedback
-                            ? 'bg-yellow-50 border-yellow-200'
-                            : 'bg-blue-50 border-blue-200';
-                          const textColor = isApproved
-                            ? 'text-green-700' : isRejected
-                            ? 'text-red-700' : isFeedback
-                            ? 'text-yellow-700' : 'text-blue-700';
-                          const iconColor = isApproved
-                            ? 'text-green-600' : isRejected
-                            ? 'text-red-600' : isFeedback
-                            ? 'text-yellow-600' : 'text-blue-600';
-                          const statusLabel = isApproved ? 'Approved' : isRejected ? 'Rejected' : isFeedback ? 'Feedback Given' : 'Pending';
-                          return (
-                            <div className={`mt-2 p-3 rounded-lg border ${containerColor}`}>
-                              <div className="flex items-center gap-2 mb-1">
-                                <BadgeIcon className={`w-4 h-4 ${iconColor}`} />
-                                <p className={`text-sm font-medium ${textColor}`}>{statusLabel}</p>
-                              </div>
-                              <p className="text-sm text-gray-700">{activity.description}</p>
-                            </div>
-                          );
-                        })()
-                      ) : null}
-                      {task.due_date && (
-                        <p className="mt-2 text-sm text-gray-500">Due: {new Date(task.due_date).toLocaleDateString()}</p>
-                      )}
-                    </div>
-                    <Briefcase className="h-5 w-5 shrink-0 text-gray-400 sm:mt-0.5" />
-                  </div>
-                </Link>
-              );
-            })
-          )}
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -452,9 +236,6 @@ export function Dashboard() {
     return false;
   });
 
-  const pendingApprovals = mockApprovals.filter(a =>
-    a.status === 'pending' && user.role === 'general_manager'
-  );
   const leadershipRoles = user.role === 'general_manager' || user.role === 'ceo';
   const unreadQuantityReviewCount = getLeadershipNotificationCount(quantityNotifications, user.role);
   const leadershipNotifications = quantityNotifications.filter(
@@ -468,7 +249,6 @@ export function Dashboard() {
     saveQuantityReviewNotifications(nextNotifications);
   };
 
-  const isMarketingDashboard = user.role === 'marketing_lead';
   const isDesignerDashboard = user.role === 'designer';
 
   const activeProjects = userProjects.filter(p => p.status === 'active').length;
@@ -499,16 +279,6 @@ export function Dashboard() {
     },
   ];
 
-  if (user.role === 'general_manager') {
-    stats.push({
-      label: 'Pending Approvals',
-      value: pendingApprovals.length,
-      icon: AlertCircle,
-      color: 'text-red-600',
-      bgColor: 'bg-red-100'
-    });
-  }
-
   if (leadershipRoles) {
     stats.push({
       label: 'Unread Notifications',
@@ -527,7 +297,7 @@ export function Dashboard() {
         <p className="text-sm text-gray-500">{getRoleName(user.role)}</p>
       </div>
 
-      {isMarketingDashboard ? <MarketingQuickAccess /> : isDesignerDashboard ? <DesignerQuickAccess /> : leadershipRoles && <LeadershipQuickAccess />}
+      {isDesignerDashboard ? <DesignerQuickAccess /> : leadershipRoles && <LeadershipQuickAccess />}
 
       {leadershipRoles && leadershipNotifications.length > 0 && (
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
@@ -565,7 +335,7 @@ export function Dashboard() {
         </div>
       )}
 
-      {!leadershipRoles && !isMarketingDashboard && !isDesignerDashboard && (
+      {!leadershipRoles && !isDesignerDashboard && (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {stats.map((stat) => {
@@ -676,40 +446,6 @@ export function Dashboard() {
             </div>
           </div>
 
-          {user.role === 'general_manager' && pendingApprovals.length > 0 && (
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-lg">Pending Approvals</h3>
-                <Link to="/approvals" className="text-sm text-blue-600 hover:text-blue-700">
-                  View all
-                </Link>
-              </div>
-              <div className="space-y-3">
-                {pendingApprovals.map((approval) => {
-                  const project = mockProjects.find(p => p.id === approval.projectId);
-                  return (
-                    <Link
-                      key={approval.id}
-                      to="/approvals"
-                      className="block p-3 hover:bg-gray-50 rounded-lg transition-colors"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-gray-900">{project?.name}</p>
-                          <p className="text-sm text-gray-500 mt-1">
-                            Stage: {approval.stage} | Requested: {new Date(approval.requestedAt).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">
-                          Pending
-                        </span>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </>
       )}
 

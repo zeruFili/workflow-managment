@@ -6,7 +6,6 @@ import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Tasks } from './pages/Tasks';
-import { Approvals } from './pages/Approvals';
 import { UserManagement } from './pages/UserManagement';
 import { CustomerData } from './pages/CustomerData';
 import { PaidCustomers } from './pages/PaidCustomers';
@@ -22,6 +21,7 @@ import { QuantitySurveyorDashboard } from './pages/QuantitySurveyorDashboard';
 import { SiteEngineerTasks } from './pages/SiteEngineerTasks';
 import { UserRole } from './types';
 import { DesignerTasks } from './pages/DesignerTasks';
+import { MarketingDashboard } from './pages/MarketingDashboard';
 import { CeoTransfers } from './pages/CeoTransfers';
 
 function RoleGuard({ children, roles }: { children: React.ReactNode; roles: UserRole[] }) {
@@ -46,6 +46,8 @@ function DashboardRouter() {
       return <FinanceVerifications />;
     case 'site_engineer':
       return <SiteEngineerTasks />;
+    case 'marketing_lead':
+      return <MarketingDashboard />;
     default:
       return <Dashboard />;
   }
@@ -147,8 +149,6 @@ const router = createHashRouter([
               <SiteEngineerTasks />
             </RoleGuard>
           )},
-
-          { path: 'approvals', Component: Approvals },
 
           { path: 'users', Component: UserManagement },
 
