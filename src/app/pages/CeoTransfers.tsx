@@ -42,7 +42,7 @@ export function CeoTransfers() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
 
-  const canManage = user?.role === 'ceo' || user?.role === 'general_manager' || user?.role === 'finance_officer';
+  const canManage = user?.role === 'ceo' || user?.role === 'finance_officer';
 
   const fetchTransfers = useCallback(async (p: number) => {
     if (!user) return;

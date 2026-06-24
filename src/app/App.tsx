@@ -167,7 +167,7 @@ const router = createHashRouter([
           )},
 
           { path: 'ceo-transfers', element: (
-            <RoleGuard roles={['ceo', 'general_manager', 'finance_officer']}>
+            <RoleGuard roles={['ceo', 'finance_officer']}>
               <CeoTransfers />
             </RoleGuard>
           )},

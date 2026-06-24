@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { mockProjects } from '../data/mockData';
-import { getTaskAssigneeLabel, loadDesignerTasks } from '../pages/designerTaskShared';
+import { useAuth } from '../contexts/AuthContext';
+import { DesignerTaskItem } from '../../api/designerApi';
+import { designerTaskCache } from '../data/designerTaskCache';
 import { getUnseenDataCollectorCount } from '../pages/DataCollectorTasks';
 import { getUnseenQuantitySurveyorCount } from '../pages/QuantitySurveyorTasks';
 import {
@@ -53,22 +54,35 @@ function QuickAccessButton({
 }
 
 export function LeadershipQuickAccess() {
+  const { user } = useAuth();
   const [paidCustomersCount, setPaidCustomersCount] = useState(() => getUnseenPaidCustomerCount());
   const [dataCollectorCount, setDataCollectorCount] = useState(() => getUnseenDataCollectorCount());
   const [quantitySurveyorCount, setQuantitySurveyorCount] = useState(() => getUnseenQuantitySurveyorCount());
   const [designerAssignmentsCount, setDesignerAssignmentsCount] = useState(getPendingReviewCount());
-  const [designerTasks] = useState(() =>
-    loadDesignerTasks()
-      .filter((task) => !!task.assignedTo)
-      .sort((a, b) => {
-        const highlightedIds = getPendingReviewHighlightedIds();
-        const aHighlighted = highlightedIds.has(a.id) ? 1 : 0;
-        const bHighlighted = highlightedIds.has(b.id) ? 1 : 0;
+  const [designerTasks, setDesignerTasks] = useState<DesignerTaskItem[]>([]);
 
-        if (bHighlighted !== aHighlighted) return bHighlighted - aHighlighted;
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  useEffect(() => {
+    if (!user) return;
+    const cached = designerTaskCache.get({ limit: 50 });
+    if (cached) {
+      setDesignerTasks(cached.filter((task) => !!task.assigned_to_user_id));
+      return;
+    }
+    designerTaskCache.fetch({ limit: 50 })
+      .then((data) => {
+        setDesignerTasks(data.filter((task) => !!task.assigned_to_user_id));
       })
-  );
+      .catch(() => {});
+  }, [user]);
+
+  const sortedTasks = [...designerTasks].sort((a, b) => {
+    const highlightedIds = getPendingReviewHighlightedIds();
+    const aHighlighted = highlightedIds.has(a.id) ? 1 : 0;
+    const bHighlighted = highlightedIds.has(b.id) ? 1 : 0;
+
+    if (bHighlighted !== aHighlighted) return bHighlighted - aHighlighted;
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
 
   useEffect(() => {
     const onPaidCustomers = (event: Event) => {
@@ -162,17 +176,16 @@ export function LeadershipQuickAccess() {
         </div>
 
         <div className="divide-y divide-gray-100">
-          {designerTasks.length === 0 ? (
+          {sortedTasks.length === 0 ? (
             <div className="px-4 py-8 text-center text-sm text-gray-500">No assigned designer tasks yet.</div>
           ) : (
-            designerTasks.slice(0, 6).map((task) => {
+            sortedTasks.slice(0, 6).map((task) => {
               const isHighlighted = highlightedIds.has(task.id);
-              const project = mockProjects.find((candidate) => candidate.id === task.projectId);
 
               return (
                 <Link
                   key={task.id}
-                  to="/designer-assignments"
+                  to={`/designer-assignments?openDetail=${task.id}`}
                   className={`block px-4 py-4 transition-colors hover:bg-gray-50 ${isHighlighted ? 'bg-blue-50/70' : ''}`}
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
@@ -185,10 +198,12 @@ export function LeadershipQuickAccess() {
                           </span>
                         )}
                       </div>
-                      <p className="mt-1 text-sm text-gray-600">Assignee: {getTaskAssigneeLabel(task.assignedTo)}</p>
-                      <p className="text-sm text-gray-500">Project: {project?.name ?? 'Unlinked project'}</p>
-                      {task.deadline && (
-                        <p className="text-sm text-gray-500">Due: {new Date(task.deadline).toLocaleDateString()}</p>
+                      <p className="mt-1 text-sm text-gray-600 line-clamp-2">{task.description}</p>
+                      <p className="text-sm text-gray-500">
+                        Assigned to: {task.assigned_to_user?.full_name ?? `User ${(task.assigned_to_user_id || '').slice(0, 8)}`}
+                      </p>
+                      {task.due_date && (
+                        <p className="text-sm text-gray-500">Due: {new Date(task.due_date).toLocaleDateString()}</p>
                       )}
                     </div>
                     <Briefcase className="h-5 w-5 shrink-0 text-gray-400 sm:mt-0.5" />

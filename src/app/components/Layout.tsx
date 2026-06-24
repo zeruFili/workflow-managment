@@ -203,16 +203,20 @@ export function Layout({ children }: LayoutProps) {
       });
     }
 
-    // Other admin-level pages
-    if (
-      user.role === 'ceo' ||
-      user.role === 'general_manager'
-    ) {
+    // CEO Transfers
+    if (user.role === 'ceo') {
       addNavigationItem({
         path: '/ceo-transfers',
         label: 'CEO Transfers',
         icon: Send,
       });
+    }
+
+    // Other admin-level pages
+    if (
+      user.role === 'ceo' ||
+      user.role === 'general_manager'
+    ) {
       addNavigationItem({
         path: '/data-collector-tasks',
         label: 'Data Collector Tasks',
