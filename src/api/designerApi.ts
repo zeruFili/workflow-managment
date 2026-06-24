@@ -45,6 +45,21 @@ export interface SubmissionsWithReviewsData {
   finalStage: SubmissionItem[];
 }
 
+export interface TaskReviewData {
+  id: string;
+  reviewerName: string;
+  reviewer_user: SafeUserOutput;
+  reviewText: string;
+  ratings: {
+    creativity: number;
+    timeliness: number;
+    rendering: number;
+    clientUnderstanding: number;
+  };
+  submittedAt: string;
+  updatedAt: string | null;
+}
+
 export interface DesignerTaskItem {
   id: string;
   assigned_to_user_id: string | null;
@@ -68,6 +83,7 @@ export interface DesignerTaskItem {
   assigned_to_user: SafeUserOutput | null;
   updated_by_user: SafeUserOutput | null;
   submissionsWithReviews: SubmissionsWithReviewsData;
+  taskReview: TaskReviewData | null;
   taskNotification: {
     hasNotification: boolean;
     notificationId: string | null;
@@ -281,6 +297,28 @@ const designerApi = {
   ): Promise<{ success: boolean; message?: string }> => {
     const response = await api.delete<{ success: boolean; message?: string }>(
       `/designer-tasks/${taskId}`
+    );
+    return response.data;
+  },
+
+  createTaskReview: async (
+    taskId: string,
+    data: { Creativity: number; Timeliness: number; Rendering_quality: number; Client_understanding: number; description?: string }
+  ): Promise<{ success: boolean; data?: TaskReviewData; message?: string }> => {
+    const response = await api.post<{ success: boolean; data?: TaskReviewData; message?: string }>(
+      `/designer-tasks/${taskId}/review`,
+      data
+    );
+    return response.data;
+  },
+
+  updateTaskReview: async (
+    reviewId: string,
+    data: { Creativity?: number; Timeliness?: number; Rendering_quality?: number; Client_understanding?: number; description?: string }
+  ): Promise<{ success: boolean; data?: TaskReviewData; message?: string }> => {
+    const response = await api.patch<{ success: boolean; data?: TaskReviewData; message?: string }>(
+      `/designer-task-reviews/${reviewId}`,
+      data
     );
     return response.data;
   },

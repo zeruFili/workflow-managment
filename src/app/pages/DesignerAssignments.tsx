@@ -17,6 +17,7 @@ import designerApi, {
   DesignerTaskListMeta,
   SubmissionItem,
   SubmissionsWithReviewsData,
+  TaskReviewData,
 } from '../../api/designerApi';
 import { designerTaskCache } from '../data/designerTaskCache';
 import notificationApi from '../../api/notificationApi';
@@ -474,7 +475,8 @@ export function DesignerAssignments() {
   }>>({});
   const [reviewComments, setReviewComments] = useState<Record<string, string>>({});
   const [ratingSubmitted, setRatingSubmitted] = useState<Record<string, boolean>>({});
-
+  const [taskReviewIds, setTaskReviewIds] = useState<Record<string, string>>({});
+  const [reviewSubmitting, setReviewSubmitting] = useState<Record<string, boolean>>({});
   // IntersectionObserver
   const seenThisSession = useRef<Set<string>>(new Set());
   const observedElements = useRef<Set<string>>(new Set());
@@ -1417,22 +1419,72 @@ export function DesignerAssignments() {
     }));
   };
 
-  const submitRating = (taskId: string) => {
+  const submitRating = async (taskId: string) => {
     const ratings = reviewRatings[taskId];
     const comment = reviewComments[taskId]?.trim() || '';
     if (!ratings) return;
 
-    const reviewerName = user?.full_name || 'CEO';
-    const newReview: ReviewData = {
-      reviewerName,
-      reviewText: comment,
-      ratings: { ...ratings },
-      submittedAt: new Date().toISOString(),
-    };
+    setReviewSubmitting((prev) => ({ ...prev, [taskId]: true }));
+    try {
+      const existingId = taskReviewIds[taskId];
 
-    setReviews((prev) => ({ ...prev, [taskId]: newReview }));
-    setReviewTaskId(null);
-    setReviewComments((prev) => ({ ...prev, [taskId]: '' }));
+      if (existingId) {
+        // Update existing review via API
+        const response = await designerApi.updateTaskReview(existingId, {
+          Creativity: ratings.creativity,
+          Timeliness: ratings.timeliness,
+          Rendering_quality: ratings.rendering,
+          Client_understanding: ratings.clientUnderstanding,
+          description: comment || undefined,
+        });
+        if (response.success && response.data) {
+          const reviewerName = user?.full_name || 'CEO';
+          const newReview: ReviewData = {
+            reviewerName,
+            reviewText: comment,
+            ratings: { ...ratings },
+            submittedAt: response.data.submittedAt,
+          };
+          setReviews((prev) => ({ ...prev, [taskId]: newReview }));
+          setRatingSubmitted((prev) => ({ ...prev, [taskId]: true }));
+        }
+      } else {
+        // Create new review via API
+        const response = await designerApi.createTaskReview(taskId, {
+          Creativity: ratings.creativity,
+          Timeliness: ratings.timeliness,
+          Rendering_quality: ratings.rendering,
+          Client_understanding: ratings.clientUnderstanding,
+          description: comment || undefined,
+        });
+        if (response.success && response.data) {
+          const reviewerName = user?.full_name || 'CEO';
+          const newReview: ReviewData = {
+            reviewerName,
+            reviewText: comment,
+            ratings: { ...ratings },
+            submittedAt: response.data.submittedAt,
+          };
+          setReviews((prev) => ({ ...prev, [taskId]: newReview }));
+          setTaskReviewIds((prev) => ({ ...prev, [taskId]: response.data!.id }));
+          setRatingSubmitted((prev) => ({ ...prev, [taskId]: true }));
+        }
+      }
+    } catch {
+      // Fallback to localStorage only
+      const reviewerName = user?.full_name || 'CEO';
+      const newReview: ReviewData = {
+        reviewerName,
+        reviewText: comment,
+        ratings: { ...ratings },
+        submittedAt: new Date().toISOString(),
+      };
+      setReviews((prev) => ({ ...prev, [taskId]: newReview }));
+    } finally {
+      setReviewSubmitting((prev) => ({ ...prev, [taskId]: false }));
+      setReviewTaskId(null);
+      setReviewComments((prev) => ({ ...prev, [taskId]: '' }));
+    }
   };
 
   const toggleReviewPanel = (taskId: string) => {
@@ -1440,13 +1492,28 @@ export function DesignerAssignments() {
       setReviewTaskId(null);
       return;
     }
-    const existingReview = reviews[taskId];
+
+    // Check API-provided review first, then localStorage
+    const task = tasks.find((t) => t.id === taskId);
+    const apiReview = task?.taskReview;
+    const existingReview = apiReview
+      ? {
+          reviewerName: apiReview.reviewerName,
+          reviewText: apiReview.reviewText,
+          ratings: apiReview.ratings,
+          submittedAt: apiReview.submittedAt,
+        }
+      : reviews[taskId];
+
     if (existingReview) {
       setReviewRatings((prev) => ({
         ...prev,
         [taskId]: { ...existingReview.ratings },
       }));
       setReviewComments((prev) => ({ ...prev, [taskId]: existingReview.reviewText }));
+      if (apiReview?.id) {
+        setTaskReviewIds((prev) => ({ ...prev, [taskId]: apiReview.id }));
+      }
     } else {
       initializeRatingsForTask(taskId);
       setReviewComments((prev) => ({ ...prev, [taskId]: '' }));
@@ -1517,7 +1584,15 @@ export function DesignerAssignments() {
 
               const finalStageApproved = isFinalStageApproved(task.id);
               const showReview = finalStageApproved;
-              const existingReview = reviews[task.id];
+              const apiReview = task.taskReview;
+              const existingReview: ReviewData | null = apiReview
+                ? {
+                    reviewerName: apiReview.reviewerName,
+                    reviewText: apiReview.reviewText,
+                    ratings: apiReview.ratings,
+                    submittedAt: apiReview.submittedAt,
+                  }
+                : reviews[task.id] || null;
 
               return (
                 <div
@@ -1710,6 +1785,15 @@ export function DesignerAssignments() {
                               <span className="bg-gray-100 px-2 py-0.5 rounded-full">Client Understanding: {existingReview.ratings.clientUnderstanding}</span>
                               <span className="bg-gray-100 px-2 py-0.5 rounded-full">Rendering: {existingReview.ratings.rendering}</span>
                             </div>
+                            <div className="mt-2 pt-2 border-t border-dashed border-gray-200">
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 border border-indigo-200 rounded-full text-xs font-semibold text-indigo-700">
+                                <Star className="w-3 h-3 fill-indigo-500 text-indigo-500" />
+                                Average: {(() => {
+                                  const r = existingReview.ratings;
+                                  return ((r.creativity + r.timeliness + r.clientUnderstanding + r.rendering) / 4).toFixed(1);
+                                })()}
+                              </span>
+                            </div>
                           </div>
                           {existingReview.reviewText && (
                             <div className="mb-3">
@@ -1790,9 +1874,9 @@ export function DesignerAssignments() {
                             </div>
                           </div>
                           <div className="mt-4 flex gap-2 justify-end">
-                            <button onClick={() => setReviewTaskId(null)} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-100">Cancel</button>
-                            <button onClick={() => submitRating(task.id)} className="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
-                              {existingReview ? 'Update Review' : 'Submit Review'}
+                            <button onClick={() => setReviewTaskId(null)} disabled={reviewSubmitting[task.id]} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50">Cancel</button>
+                            <button onClick={() => submitRating(task.id)} disabled={reviewSubmitting[task.id]} className="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+                              {reviewSubmitting[task.id] ? 'Submitting...' : existingReview ? 'Update Review' : 'Submit Review'}
                             </button>
                           </div>
                           {ratingSubmitted[task.id] && (

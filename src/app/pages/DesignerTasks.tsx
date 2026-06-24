@@ -8,6 +8,7 @@ import designerApi, {
   SubmissionItem,
   SubmissionsWithReviewsData,
   CreateSubmissionResponse,
+  TaskReviewData,
 } from '../../api/designerApi';
 import notificationApi from '../../api/notificationApi';
 import {
@@ -34,6 +35,7 @@ import {
   Paperclip,
   PauseCircle,
   PlayCircle,
+  Star,
 } from 'lucide-react';
 import AttachmentViewer from '../components/AttachmentViewer';
 
@@ -62,6 +64,18 @@ export interface PhaseData {
 
 type SubmissionProgress = Record<string, Record<PhaseKey, PhaseData>>;
 
+interface ReviewData {
+  reviewerName: string;
+  reviewText: string;
+  ratings: {
+    creativity: number;
+    timeliness: number;
+    clientUnderstanding: number;
+    rendering: number;
+  };
+  submittedAt: string;
+}
+
 const PHASES: { key: PhaseKey; label: string; backendStage: string }[] = [
   { key: 'caseStudy', label: 'Case Study', backendStage: 'case study' },
   { key: 'designStage', label: 'Design Stage', backendStage: 'designing' },
@@ -76,6 +90,7 @@ function phaseToBackendStage(phase: PhaseKey): string {
 const REQUIRED_ATTACHMENT_STAGES: Set<PhaseKey> = new Set(['rendering', 'finalStage']);
 
 const STORAGE_KEY = 'designer-submission-progress';
+const REVIEW_STORAGE_KEY = 'designer-task-reviews';
 const PAUSED_SNAPSHOT_KEY = 'designer-paused-snapshots';
 const API_TASKS_CACHE_KEY = 'designer-api-tasks-cache';
 
@@ -136,6 +151,15 @@ function loadSubmissionProgress(): SubmissionProgress {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     return stored ? normalizeSubmissionProgress(JSON.parse(stored)) : {};
+  } catch {
+    return {};
+  }
+}
+
+function loadReviews(): Record<string, ReviewData> {
+  try {
+    const stored = localStorage.getItem(REVIEW_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : {};
   } catch {
     return {};
   }
@@ -345,6 +369,13 @@ function getCurrentStatus(phase: PhaseData): PhaseHistoryEntry['status'] | 'pend
   return history[history.length - 1].status;
 }
 
+function isFinalStageApprovedFromProgress(progress: Record<PhaseKey, PhaseData> | null): boolean {
+  if (!progress) return false;
+  const finalData = progress.finalStage;
+  if (!finalData || !finalData.history || finalData.history.length === 0) return false;
+  return getCurrentStatus(finalData) === 'approved';
+}
+
 function findFirstNonApprovedPhaseIndex(
   phases: typeof PHASES,
   progress: Record<PhaseKey, PhaseData> | null,
@@ -430,6 +461,9 @@ export function DesignerTasks() {
   // Submission progress (localStorage-backed user input + API submissions)
   const [submissionProgress, setSubmissionProgress] = useState<SubmissionProgress>({});
   const [submissionsLoading, setSubmissionsLoading] = useState<Record<string, boolean>>({});
+
+  // Review data (read-only for designer)
+  const [reviews] = useState<Record<string, ReviewData>>(loadReviews);
 
   // Modal UI state
   const [expandedPhase, setExpandedPhase] = useState<PhaseKey | null>(null);
@@ -742,6 +776,10 @@ export function DesignerTasks() {
       rendering: defaultPhase(),
       finalStage: defaultPhase(),
     };
+  };
+
+  const isFinalStageApproved = (taskId: string): boolean => {
+    return isFinalStageApprovedFromProgress(getDisplayProgress(taskId));
   };
 
   const openDetail = (task: DesignerTaskItem) => {
@@ -1437,6 +1475,83 @@ export function DesignerTasks() {
                       <span>Created: {new Date(task.created_at).toLocaleDateString()}</span>
                     </div>
                   </div>
+
+                  {/* Review Section (read-only for Designer) */}
+                  {isFinalStageApproved(task.id) && (() => {
+                    // Prefer API-provided review data, fall back to localStorage
+                    const apiReview = task.taskReview;
+                    const localReview = reviews[task.id];
+                    const existingReview: {
+                      reviewerName: string;
+                      reviewText: string;
+                      ratings: { creativity: number; timeliness: number; clientUnderstanding: number; rendering: number };
+                      submittedAt: string;
+                    } | null = apiReview
+                      ? {
+                          reviewerName: apiReview.reviewerName,
+                          reviewText: apiReview.reviewText,
+                          ratings: apiReview.ratings,
+                          submittedAt: apiReview.submittedAt,
+                        }
+                      : localReview
+                      ? {
+                          reviewerName: localReview.reviewerName,
+                          reviewText: localReview.reviewText,
+                          ratings: localReview.ratings,
+                          submittedAt: localReview.submittedAt,
+                        }
+                      : null;
+                    if (!existingReview) return null;
+                    return (
+                      <div className="mt-4 border-t pt-4">
+                        <div>
+                          <div className="flex items-center gap-2 text-sm text-green-700 mb-2">
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span className="font-medium">Reviewed by {existingReview.reviewerName}</span>
+                            <span className="text-gray-500 text-xs">
+                              {new Date(existingReview.submittedAt).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="mb-2">
+                            <p className="text-xs font-medium text-gray-500">Ratings:</p>
+                            <div className="flex flex-wrap gap-2 text-xs mt-1">
+                              <span className="bg-gray-100 px-2 py-0.5 rounded-full">
+                                <Star className="w-3 h-3 inline mr-0.5 text-yellow-500" />
+                                Creativity: {existingReview.ratings.creativity}
+                              </span>
+                              <span className="bg-gray-100 px-2 py-0.5 rounded-full">
+                                <Star className="w-3 h-3 inline mr-0.5 text-yellow-500" />
+                                Timeliness: {existingReview.ratings.timeliness}
+                              </span>
+                              <span className="bg-gray-100 px-2 py-0.5 rounded-full">
+                                <Star className="w-3 h-3 inline mr-0.5 text-yellow-500" />
+                                Client Understanding: {existingReview.ratings.clientUnderstanding}
+                              </span>
+                              <span className="bg-gray-100 px-2 py-0.5 rounded-full">
+                                <Star className="w-3 h-3 inline mr-0.5 text-yellow-500" />
+                                Rendering: {existingReview.ratings.rendering}
+                              </span>
+                            </div>
+                            <div className="mt-2 pt-2 border-t border-dashed border-gray-200">
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 border border-indigo-200 rounded-full text-xs font-semibold text-indigo-700">
+                                <Star className="w-3 h-3 fill-indigo-500 text-indigo-500" />
+                                Average: {(() => {
+                                  const r = existingReview.ratings;
+                                  return ((r.creativity + r.timeliness + r.clientUnderstanding + r.rendering) / 4).toFixed(1);
+                                })()}
+                              </span>
+                            </div>
+                          </div>
+                          {existingReview.reviewText && (
+                            <div>
+                              <p className="text-xs font-medium text-gray-500">Comment:</p>
+                              <p className="text-sm text-gray-700 italic mt-1">"{existingReview.reviewText}"</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}
