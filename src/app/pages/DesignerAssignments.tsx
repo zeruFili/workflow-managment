@@ -35,7 +35,6 @@ import {
   Clock,
   Edit,
   Image,
-  Plus,
   XCircle,
   Briefcase,
   ChevronDown,
@@ -419,7 +418,6 @@ function statusColorClass(status: string | null): string {
 
 export function DesignerAssignments() {
   const { user } = useAuth();
-  const [showCreateTask, setShowCreateTask] = useState(false);
   const [editingTask, setEditingTask] = useState<string | null>(null);
   const [selectedTaskDetail, setSelectedTaskDetail] = useState<DesignerTaskItem | null>(null);
   const [showDetail, setShowDetail] = useState(false);
@@ -427,13 +425,6 @@ export function DesignerAssignments() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [applications, setApplications] = useState<DesignerTaskApplication[]>(loadDesignerApplications);
-  const [newTask, setNewTask] = useState(emptyNewTask);
-  const [newTaskImagePreview, setNewTaskImagePreview] = useState<string | null>(null);
-  const newTaskImageFileRef = useRef<File | null>(null);
-  const [newTaskError, setNewTaskError] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
-  const [taskSuccessMsg, setTaskSuccessMsg] = useState('');
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [designers, setDesigners] = useState<UserItem[]>([]);
 
   // ── Edit Task state ──
@@ -727,30 +718,6 @@ export function DesignerAssignments() {
     setTasks(updatedTasks);
   };
 
-  const handleNewTaskImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (newTaskImagePreview) URL.revokeObjectURL(newTaskImagePreview);
-    newTaskImageFileRef.current = file;
-    const objectUrl = URL.createObjectURL(file);
-    setNewTaskImagePreview(objectUrl);
-    setNewTask((prev) => ({ ...prev, telegramScreenshot: '' }));
-  };
-
-  const openCreateModal = () => {
-    setNewTask(emptyNewTask);
-    setNewTaskImagePreview(null);
-    newTaskImageFileRef.current = null;
-    setNewTaskError('');
-    setTaskSuccessMsg('');
-    setFieldErrors({});
-    setShowCreateTask(true);
-    // Fetch designers list for assignment dropdown
-    userApi.getDesigners().then((res) => {
-      if (res.success) setDesigners(res.data);
-    }).catch(() => {});
-  };
-
   const hasDesignerSubmissions = (task: DesignerTaskItem): boolean => {
     const swr = task.submissionsWithReviews;
     if (!swr) return false;
@@ -911,109 +878,6 @@ export function DesignerAssignments() {
       setDeleteError(msg || 'Unable to delete task. Please try again.');
     } finally {
       setIsDeleting(false);
-    }
-  };
-
-  const createTask = async (event: React.FormEvent) => {
-    event.preventDefault();
-
-    const title = newTask.title.trim();
-    const description = newTask.description.trim();
-    const storyPointsRaw = newTask.storyPoints.trim();
-    const instruction = newTask.instruction.trim();
-    const deadline = newTask.deadline.trim();
-    const assignedTo = newTask.assigned_to_user_id.trim();
-
-    setNewTaskError('');
-    setTaskSuccessMsg('');
-
-    // Per-field validation
-    const errors: Record<string, string> = {};
-    if (!title) errors.title = 'Title is required.';
-    else if (title.length > 500) errors.title = 'Title must be 500 characters or fewer.';
-    if (!description) errors.description = 'Description is required.';
-    else if (description.length > 5000) errors.description = 'Description must be 5000 characters or fewer.';
-    if (!storyPointsRaw) {
-      errors.storyPoints = 'Story Points are required.';
-    } else {
-      const sp = Number(storyPointsRaw);
-      if (isNaN(sp) || sp < 1 || sp > 100) errors.storyPoints = 'Story Points must be a number between 1 and 100.';
-    }
-
-    setFieldErrors(errors);
-    if (Object.keys(errors).length > 0) return;
-
-    const storyPoints = Number(storyPointsRaw);
-    const file = newTaskImageFileRef.current;
-
-    // Build description: prepend instruction if provided (backend has no separate instruction field)
-    const fullDescription = instruction
-      ? `${description}\n\nInstructions:\n${instruction}`
-      : description;
-
-    setIsCreating(true);
-
-    try {
-      let response: { success: boolean; data?: DesignerTaskItem; message?: string };
-
-      if (file) {
-        const formData = new FormData();
-        formData.append('title', title);
-        formData.append('description', fullDescription);
-        formData.append('story_point', String(storyPoints));
-        formData.append('is_public', String(newTask.is_public));
-        if (deadline) formData.append('due_date', new Date(deadline).toISOString());
-        if (assignedTo) formData.append('assigned_to_user_id', assignedTo);
-        formData.append('attachmentFiles', file);
-
-        response = await designerApi.createDesignerTask(formData);
-      } else {
-        const payload: Record<string, unknown> = {
-          title,
-          description: fullDescription,
-          story_point: storyPoints,
-          is_public: newTask.is_public,
-        };
-        if (deadline) payload.due_date = new Date(deadline).toISOString();
-        if (assignedTo) payload.assigned_to_user_id = assignedTo;
-
-        response = await designerApi.createDesignerTask(payload);
-      }
-
-      if (response.success) {
-        setTaskSuccessMsg(response.message || 'Designer task created successfully');
-        if (newTaskImagePreview) URL.revokeObjectURL(newTaskImagePreview);
-        setNewTask(emptyNewTask);
-        setNewTaskImagePreview(null);
-        newTaskImageFileRef.current = null;
-        setFieldErrors({});
-        setShowCreateTask(false);
-        await fetchTasks(apiPage, true);
-
-        if (user) {
-          const existing = loadQuantityReviewNotifications();
-          saveQuantityReviewNotifications([
-            createGeneralNotification({
-              type: 'designer_task_created',
-              taskId: response.data?.id || `dt-${Date.now()}`,
-              actorRole: user.role,
-              message: 'New designer task created',
-              description: `Designer task created: ${title}`,
-            }),
-            ...existing,
-          ]);
-        }
-      } else {
-        setNewTaskError(response.message || 'Failed to create task');
-      }
-    } catch (err: unknown) {
-      const msg =
-        err && typeof err === 'object' && 'response' in err
-          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
-          : undefined;
-      setNewTaskError(msg || 'Unable to connect to server. Please try again.');
-    } finally {
-      setIsCreating(false);
     }
   };
 
@@ -1547,23 +1411,10 @@ export function DesignerAssignments() {
             </p>
           )}
         </div>
-        {canCreateTask && (
-          <button
-            onClick={openCreateModal}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Create Designer Task</span>
-          </button>
-        )}
       </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">{error}</div>
-      )}
-
-      {taskSuccessMsg && (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-green-700 text-sm">{taskSuccessMsg}</div>
       )}
 
       {/* Task Cards */}
@@ -2298,157 +2149,6 @@ export function DesignerAssignments() {
                 </section>
               </aside>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Create Task Modal */}
-      {showCreateTask && canCreateTask && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h3 className="text-xl font-semibold">Create Available Designer Task</h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  Fill in the task details below. Fields marked with <span className="text-red-500">*</span> are required.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => { if (newTaskImagePreview) URL.revokeObjectURL(newTaskImagePreview); setNewTask(emptyNewTask); setNewTaskImagePreview(null); newTaskImageFileRef.current = null; setNewTaskError(''); setFieldErrors({}); setShowCreateTask(false); }}
-                className="p-1.5 rounded-lg hover:bg-gray-100 shrink-0"
-                disabled={isCreating}
-              >
-                <XCircle className="w-5 h-5 text-gray-400 hover:text-gray-600" />
-              </button>
-            </div>
-            <form className="space-y-4" onSubmit={createTask}>
-              {newTaskError && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{newTaskError}</p>
-              )}
-
-              {/* Title */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Task Title <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text" value={newTask.title}
-                  onChange={(event) => { setNewTask({ ...newTask, title: event.target.value }); if (fieldErrors.title) setFieldErrors((prev) => { const n = { ...prev }; delete n.title; return n; }); }}
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${fieldErrors.title ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-                  placeholder="Enter task title" disabled={isCreating}
-                />
-                {fieldErrors.title && <p className="text-xs text-red-600 mt-1">{fieldErrors.title}</p>}
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  rows={4} value={newTask.description}
-                  onChange={(event) => { setNewTask({ ...newTask, description: event.target.value }); if (fieldErrors.description) setFieldErrors((prev) => { const n = { ...prev }; delete n.description; return n; }); }}
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${fieldErrors.description ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-                  placeholder="Describe the work to be done" disabled={isCreating}
-                />
-                {fieldErrors.description && <p className="text-xs text-red-600 mt-1">{fieldErrors.description}</p>}
-              </div>
-
-              {/* Story Points */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Story Points <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number" min="1" max="100" value={newTask.storyPoints}
-                  onChange={(event) => { setNewTask({ ...newTask, storyPoints: event.target.value }); if (fieldErrors.storyPoints) setFieldErrors((prev) => { const n = { ...prev }; delete n.storyPoints; return n; }); }}
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${fieldErrors.storyPoints ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-                  placeholder="Enter story points (1-100)" disabled={isCreating}
-                />
-                {fieldErrors.storyPoints && <p className="text-xs text-red-600 mt-1">{fieldErrors.storyPoints}</p>}
-              </div>
-
-              {/* Assign To */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Assign To (optional)</label>
-                <select
-                  value={newTask.assigned_to_user_id}
-                  onChange={(event) => setNewTask({ ...newTask, assigned_to_user_id: event.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                  disabled={isCreating}
-                >
-                  <option value="">Open for application (unassigned)</option>
-                  {designers.map((d) => (
-                    <option key={d.id} value={d.id}>{d.full_name}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Is Public */}
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="is_public"
-                  checked={newTask.is_public}
-                  onChange={(event) => setNewTask({ ...newTask, is_public: event.target.checked })}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  disabled={isCreating}
-                />
-                <label htmlFor="is_public" className="text-sm font-medium text-gray-700">
-                  Public Task (visible to all designers)
-                </label>
-              </div>
-
-              {/* Telegram Screenshot */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Telegram Screenshot (optional)</label>
-                <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-sm text-gray-700">
-                    <Image className="w-4 h-4" />Choose Image
-                    <input type="file" accept="image/*" onChange={handleNewTaskImageUpload} className="hidden" disabled={isCreating} />
-                  </label>
-                  {newTaskImagePreview && (
-                    <button type="button" onClick={() => { URL.revokeObjectURL(newTaskImagePreview); setNewTask((prev) => ({ ...prev, telegramScreenshot: '' })); setNewTaskImagePreview(null); newTaskImageFileRef.current = null; }} className="text-sm text-red-600 hover:underline" disabled={isCreating}>Remove</button>
-                  )}
-                </div>
-                {newTaskImagePreview && (
-                  <div className="mt-3">
-                    <p className="text-xs text-gray-500 mb-1">Preview:</p>
-                    <img src={newTaskImagePreview} alt="preview" className="max-w-full h-auto max-h-48 rounded-lg border object-contain" />
-                  </div>
-                )}
-              </div>
-
-              {/* Instruction */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Instruction (optional)</label>
-                <textarea
-                  rows={4} value={newTask.instruction}
-                  onChange={(event) => setNewTask({ ...newTask, instruction: event.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Describe what the designer must collect or measure" disabled={isCreating}
-                />
-              </div>
-
-              {/* Deadline */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Deadline (optional)</label>
-                <input
-                  type="date" value={newTask.deadline}
-                  min={new Date().toISOString().split('T')[0]}
-                  onChange={(event) => setNewTask({ ...newTask, deadline: event.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" disabled={isCreating}
-                />
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => { if (newTaskImagePreview) URL.revokeObjectURL(newTaskImagePreview); setNewTask(emptyNewTask); setNewTaskImagePreview(null); newTaskImageFileRef.current = null; setNewTaskError(''); setFieldErrors({}); setShowCreateTask(false); }} className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors" disabled={isCreating}>Cancel</button>
-                <button type="submit" className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:bg-blue-300" disabled={isCreating}>
-                  {isCreating ? 'Creating...' : 'Create Task'}
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}
