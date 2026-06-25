@@ -399,7 +399,14 @@ export function DesignerApplications() {
         setEditSuccess(response.message || 'Designer task deleted successfully');
         setShowDeleteConfirm(false);
         setDeletingTaskId(null);
-        fetchData();
+        // Immediately remove the task from local state
+        setTasks((prev) => prev.filter((t) => t.id !== deletingTaskId));
+        setApplicationsByTask((prev) => {
+          const next = { ...prev };
+          delete next[deletingTaskId];
+          return next;
+        });
+        designerTaskCache.invalidate();
       } else {
         setDeleteError(response.message || 'Failed to delete task');
       }
