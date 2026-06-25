@@ -5,6 +5,7 @@ import designerApi, { DesignerTaskItem, DesignerApplicationItem } from '../../ap
 import { designerTaskCache } from '../data/designerTaskCache';
 import userApi, { UserItem } from '../../api/userApi';
 import { userCache } from '../data/userCache';
+import notificationApi from '../../api/notificationApi';
 import {
   createGeneralNotification,
   loadQuantityReviewNotifications,
@@ -13,6 +14,54 @@ import {
 
 const reviewRoles = new Set(['ceo', 'general_manager']);
 const GRACE_PERIOD_HOURS = 48;
+
+const API_APPLICATIONS_CACHE_KEY = 'designer-applications-api';
+
+function cacheApplicationsForBadge(tasks: DesignerTaskItem[]) {
+  const minimal = tasks.map((t) => ({ id: t.id, createdAt: t.created_at }));
+  localStorage.setItem(API_APPLICATIONS_CACHE_KEY, JSON.stringify(minimal));
+}
+
+function getCachedApplications(): { id: string; createdAt: string }[] {
+  try {
+    const raw = localStorage.getItem(API_APPLICATIONS_CACHE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+// Helper function to get the most recent timestamp for a task
+function getMostRecentTimestamp(task: DesignerTaskItem): number {
+  const createdTime = task.created_at ? new Date(task.created_at).getTime() : 0;
+  const updatedTime = task.updated_at ? new Date(task.updated_at).getTime() : 0;
+  return Math.max(createdTime, updatedTime);
+}
+
+const viewedDesignerApplicationCards = new Set<string>();
+const markedApplicationNotificationIds = new Set<string>();
+
+export function resetDesignerApplicationsHighlightState() {
+  viewedDesignerApplicationCards.clear();
+  markedApplicationNotificationIds.clear();
+}
+
+export function getUnseenDesignerApplicationHighlightedIds() {
+  const tasks = getCachedApplications();
+  return new Set(
+    tasks.filter((t) => !viewedDesignerApplicationCards.has(t.id)).map((t) => t.id)
+  );
+}
+
+export function getUnseenDesignerApplicationCount() {
+  return getUnseenDesignerApplicationHighlightedIds().size;
+}
+
+function publishDesignerApplicationsBadgeCount(count: number) {
+  window.dispatchEvent(
+    new CustomEvent('designer-applications-notifications-updated', { detail: count })
+  );
+}
 
 const emptyNewTask = {
   title: '',
@@ -91,6 +140,7 @@ export function DesignerApplications() {
       ]);
 
       setTasks(fetchedTasks);
+      cacheApplicationsForBadge(fetchedTasks);
       setDesigners(users);
       initiallyAssignedIds.current = new Set(
         fetchedTasks.filter((t) => t.assigned_to_user_id).map((t) => t.id)
@@ -123,14 +173,155 @@ export function DesignerApplications() {
     fetchData();
   }, [fetchData]);
 
-  const groupedApplications = useMemo(
-    () =>
-      tasks.map((task) => ({
-        task,
-        applications: applicationsByTask[task.id] || [],
-      })),
-    [tasks, applicationsByTask]
-  );
+  const highlightedIds = useMemo(() => {
+    if (tasks.length === 0) return new Set<string>();
+    return new Set(
+      tasks
+        .filter(
+          (t) =>
+            (t.taskNotification?.hasNotification || t.hasNestedNotification) &&
+            !viewedDesignerApplicationCards.has(t.id)
+        )
+        .map((t) => t.id)
+    );
+  }, [tasks]);
+
+  useEffect(() => {
+    publishDesignerApplicationsBadgeCount(highlightedIds.size);
+  }, [highlightedIds]);
+
+  const seenThisSession = useRef<Set<string>>(new Set());
+  const observedElements = useRef<Set<string>>(new Set());
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const pendingTaskNotifIds = useRef<Map<string, string>>(new Map());
+  const tasksRef = useRef(tasks);
+  useEffect(() => { tasksRef.current = tasks; }, [tasks]);
+
+  const hasResetForSession = useRef(false);
+  useEffect(() => {
+    if (user && !hasResetForSession.current) {
+      resetDesignerApplicationsHighlightState();
+      hasResetForSession.current = true;
+    }
+    if (!user) {
+      hasResetForSession.current = false;
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+      observedElements.current.clear();
+    }
+    if (highlightedIds.size === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const id = (entry.target as HTMLElement).dataset.highlightedId;
+          if (!id || !highlightedIds.has(id)) return;
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.7) {
+            if (!observedElements.current.has(id)) {
+              observedElements.current.add(id);
+              seenThisSession.current.add(id);
+              const task = tasksRef.current.find((t) => t.id === id);
+              const topNotif = task?.taskNotification;
+              const swrNotif = task?.submissionsWithReviews?.taskNotification;
+              if (
+                (topNotif?.hasNotification && topNotif.notificationId) ||
+                (swrNotif?.hasNotification && swrNotif.notificationId)
+              ) {
+                pendingTaskNotifIds.current.set(
+                  id,
+                  topNotif?.notificationId || swrNotif!.notificationId
+                );
+              }
+            }
+          }
+        });
+      },
+      { threshold: [0.7] }
+    );
+
+    observerRef.current = observer;
+
+    highlightedIds.forEach((id) => {
+      const el = document.querySelector(`[data-highlighted-id="${id}"]`);
+      if (el && !observedElements.current.has(id)) {
+        observer.observe(el);
+      }
+    });
+
+    return () => {
+      observer.disconnect();
+      observedElements.current.clear();
+    };
+  }, [highlightedIds]);
+
+  useEffect(() => {
+    return () => {
+      if (seenThisSession.current.size === 0 && pendingTaskNotifIds.current.size === 0) return;
+
+      const currentTasks = tasksRef.current;
+
+      seenThisSession.current.forEach((id) => {
+        const task = currentTasks.find((t) => t.id === id);
+        const hasRemainingNotif =
+          task?.hasNestedNotification ||
+          task?.taskNotification?.hasNotification ||
+          task?.submissionsWithReviews?.taskNotification?.hasNotification;
+        if (!hasRemainingNotif) {
+          viewedDesignerApplicationCards.add(id);
+        }
+      });
+      seenThisSession.current.clear();
+      observedElements.current.clear();
+
+      const pending = new Map(pendingTaskNotifIds.current);
+      pendingTaskNotifIds.current.clear();
+
+      for (const [taskId, notifId] of pending) {
+        if (markedApplicationNotificationIds.has(notifId)) continue;
+        markedApplicationNotificationIds.add(notifId);
+
+        notificationApi
+          .markRead(notifId)
+          .then(() => {
+            setTasks((prev) =>
+              prev.map((t) =>
+                t.id === taskId
+                  ? {
+                      ...t,
+                      taskNotification: null,
+                      submissionsWithReviews: {
+                        ...(t.submissionsWithReviews as any),
+                        taskNotification: { hasNotification: false, notificationId: null },
+                      },
+                    }
+                  : t
+              )
+            );
+          })
+          .catch(() => {
+            markedApplicationNotificationIds.delete(notifId);
+          });
+      }
+    };
+  }, []);
+
+  const groupedApplications = useMemo(() => {
+    const grouped = tasks.map((task) => ({
+      task,
+      applications: applicationsByTask[task.id] || [],
+    }));
+
+    // Sort only by most recent activity (latest of created_at or updated_at)
+    return [...grouped].sort((a, b) => {
+      const aLatest = getMostRecentTimestamp(a.task);
+      const bLatest = getMostRecentTimestamp(b.task);
+      return bLatest - aLatest; // Descending order (most recent first)
+    });
+  }, [tasks, applicationsByTask]);
 
   if (loading) {
     return (
@@ -399,7 +590,6 @@ export function DesignerApplications() {
         setEditSuccess(response.message || 'Designer task deleted successfully');
         setShowDeleteConfirm(false);
         setDeletingTaskId(null);
-        // Immediately remove the task from local state
         setTasks((prev) => prev.filter((t) => t.id !== deletingTaskId));
         setApplicationsByTask((prev) => {
           const next = { ...prev };
@@ -514,12 +704,12 @@ export function DesignerApplications() {
         setFieldErrors({});
         setShowCreateTask(false);
 
-        // Immediately add the new task to the local list without an API round-trip
         if (response.data) {
           setTasks((prev) => [response.data!, ...prev]);
           setApplicationsByTask((prev) => ({ ...prev, [response.data!.id]: [] }));
+          cacheApplicationsForBadge([response.data!, ...tasks]);
         }
-        // Invalidate cache so Designer Assignments page picks up the change
+        
         designerTaskCache.invalidate();
 
         if (user) {
@@ -565,6 +755,14 @@ export function DesignerApplications() {
           <p className="text-gray-600 mt-1">
             Review applications, assign designers to open tasks, and manage recent assignments.
           </p>
+          {highlightedIds.size > 0 && (
+            <p className="text-sm text-blue-600 mt-2 flex items-center gap-2">
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-semibold">
+                {highlightedIds.size}
+              </span>
+              new {highlightedIds.size === 1 ? 'application' : 'applications'} since your last visit
+            </p>
+          )}
         </div>
         <button
           onClick={openCreateModal}
@@ -610,6 +808,7 @@ export function DesignerApplications() {
             const showAssignmentConfirmation = assignedByCurrentUser && !isEditing;
             const showGraceBox = isInGracePeriod && !isEditing && !assignedByCurrentUser;
             const showLockedBox = isLocked && !isEditing && !assignedByCurrentUser;
+            const isHighlighted = highlightedIds.has(task.id);
 
             const visibleApplications = taskApplications.filter(
               (app) => app.applicant_user_id !== task.assigned_to_user_id
@@ -628,8 +827,23 @@ export function DesignerApplications() {
             return (
               <div
                 key={task.id}
-                className="bg-white rounded-xl p-5 shadow-sm border border-gray-200 space-y-4"
+                data-highlighted-id={isHighlighted ? task.id : undefined}
+                className={[
+                  'bg-white rounded-xl p-5 shadow-sm border space-y-4 transition-all duration-300',
+                  isHighlighted
+                    ? 'border-2 border-blue-400 ring-4 ring-blue-100 shadow-blue-100'
+                    : 'border-gray-200',
+                ].join(' ')}
               >
+                {isHighlighted && (
+                  <div className="mb-0">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                      New
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
                   <div>
                     <h3 className="font-semibold text-lg text-gray-900">{task.title}</h3>
