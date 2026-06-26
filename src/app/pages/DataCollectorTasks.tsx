@@ -45,6 +45,7 @@ export const DATA_COLLECTOR_NOTIFICATIONS_KEY = 'data-collector-notifications-up
 const viewedDataCollectorCards = new Set<string>();
 let dataCollectorNotificationIds = new Set<string>();
 const markedTaskNotificationIds = new Set<string>();
+let hasResetForSessionOnce = false;
 
 function publishBadgeCount(count: number) {
   window.dispatchEvent(
@@ -456,14 +457,13 @@ export function DataCollectorTasks() {
   const pendingTaskNotifIds = useRef<Map<string, string>>(new Map());
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
 
-  const hasResetForSession = useRef(false);
   useEffect(() => {
-    if (user && !hasResetForSession.current) {
+    if (user && !hasResetForSessionOnce) {
       resetDataCollectorHighlightState();
-      hasResetForSession.current = true;
+      hasResetForSessionOnce = true;
     }
     if (!user) {
-      hasResetForSession.current = false;
+      hasResetForSessionOnce = false;
     }
   }, [user]);
 

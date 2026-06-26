@@ -45,6 +45,7 @@ export const QUANTITY_SURVEYOR_NOTIFICATIONS_KEY = 'quantity-surveyor-notificati
 const viewedQuantitySurveyorCards = new Set<string>();
 let quantitySurveyorNotificationIds = new Set<string>();
 const markedTaskNotificationIds = new Set<string>();
+let hasResetForSessionOnce = false;
 
 function publishBadgeCount(count: number) {
   window.dispatchEvent(
@@ -458,14 +459,13 @@ export function QuantitySurveyorTasks() {
   const pendingTaskNotifIds = useRef<Map<string, string>>(new Map());
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
 
-  const hasResetForSession = useRef(false);
   useEffect(() => {
-    if (user && !hasResetForSession.current) {
+    if (user && !hasResetForSessionOnce) {
       resetQuantitySurveyorHighlightState();
-      hasResetForSession.current = true;
+      hasResetForSessionOnce = true;
     }
     if (!user) {
-      hasResetForSession.current = false;
+      hasResetForSessionOnce = false;
     }
   }, [user]);
 

@@ -100,6 +100,7 @@ export const DESIGNER_TASKS_NOTIFICATIONS_KEY = 'designer-tasks-notifications-up
 const viewedDesignerTaskCards = new Set<string>();
 let designerTaskNotificationIds = new Set<string>();
 const markedTaskNotificationIds = new Set<string>();
+let hasResetForSessionOnce = false;
 
 // ──────────── PAUSED TASK SNAPSHOTS ────────────
 type PausedSnapshotData = Record<string, SubmissionsWithReviewsData>;
@@ -494,14 +495,13 @@ export function DesignerTasks() {
   const pendingTaskNotifIds = useRef<Map<string, string>>(new Map());
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
 
-  const hasResetForSession = useRef(false);
   useEffect(() => {
-    if (user && !hasResetForSession.current) {
+    if (user && !hasResetForSessionOnce) {
       resetDesignerTasksHighlightState();
-      hasResetForSession.current = true;
+      hasResetForSessionOnce = true;
     }
     if (!user) {
-      hasResetForSession.current = false;
+      hasResetForSessionOnce = false;
     }
   }, [user]);
 

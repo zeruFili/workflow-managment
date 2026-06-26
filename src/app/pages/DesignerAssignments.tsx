@@ -113,6 +113,7 @@ const REVIEW_STORAGE_KEY = 'designer-task-reviews';
 const ROWS_PER_DISPLAY = 10;
 
 const markedTaskNotificationIds = new Set<string>();
+let hasResetForSessionOnce = false;
 
 // ---------- Helpers ----------
 function loadSubmissionProgress(): SubmissionProgress {
@@ -476,16 +477,15 @@ export function DesignerAssignments() {
   const pendingTaskNotifIds = useRef<Map<string, string>>(new Map());
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
 
-  const hasResetForSession = useRef(false);
   useEffect(() => {
-    if (user && !hasResetForSession.current) {
+    if (user && !hasResetForSessionOnce) {
       resetDesignerAssignmentsHighlightState();
       markedTaskNotificationIds.clear();
       designerTaskCache.invalidate();
-      hasResetForSession.current = true;
+      hasResetForSessionOnce = true;
     }
     if (!user) {
-      hasResetForSession.current = false;
+      hasResetForSessionOnce = false;
     }
   }, [user]);
 

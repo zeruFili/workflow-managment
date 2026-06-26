@@ -23,6 +23,7 @@ function getCachedPostings(): { id: string; createdAt: string }[] {
 
 const viewedOpenJobPostingCards = new Set<string>();
 const markedTaskNotificationIds = new Set<string>();
+let hasResetForSessionOnce = false;
 
 export function resetDesignerOpenJobPostingsHighlightState() {
   viewedOpenJobPostingCards.clear();
@@ -89,14 +90,13 @@ export function DesignerOpenJobPostings() {
   const postingsRef = useRef(postings);
   useEffect(() => { postingsRef.current = postings; }, [postings]);
 
-  const hasResetForSession = useRef(false);
   useEffect(() => {
-    if (user && !hasResetForSession.current) {
+    if (user && !hasResetForSessionOnce) {
       resetDesignerOpenJobPostingsHighlightState();
-      hasResetForSession.current = true;
+      hasResetForSessionOnce = true;
     }
     if (!user) {
-      hasResetForSession.current = false;
+      hasResetForSessionOnce = false;
     }
   }, [user]);
 
