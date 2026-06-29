@@ -6,6 +6,24 @@ import { designerTaskCache } from '../data/designerTaskCache';
 import notificationApi from '../../api/notificationApi';
 
 const API_POSTINGS_CACHE_KEY = 'designer-open-job-postings-api';
+const VIEWED_CARDS_STORAGE_KEY = 'designer-open-job-postings-viewed-cards';
+
+function loadViewedCards(): Set<string> {
+  try {
+    const stored = localStorage.getItem(VIEWED_CARDS_STORAGE_KEY);
+    return new Set(stored ? JSON.parse(stored) : []);
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function saveViewedCards(cards: Set<string>) {
+  try {
+    localStorage.setItem(VIEWED_CARDS_STORAGE_KEY, JSON.stringify([...cards]));
+  } catch {
+    // Ignore storage errors
+  }
+}
 
 function cachePostingsForBadge(postings: DesignerTaskItem[]) {
   const minimal = postings.map((p) => ({ id: p.id, createdAt: p.created_at }));
@@ -21,12 +39,13 @@ function getCachedPostings(): { id: string; createdAt: string }[] {
   }
 }
 
-const viewedOpenJobPostingCards = new Set<string>();
+const viewedOpenJobPostingCards = loadViewedCards();
 const markedTaskNotificationIds = new Set<string>();
 let hasResetForSessionOnce = false;
 
 export function resetDesignerOpenJobPostingsHighlightState() {
   viewedOpenJobPostingCards.clear();
+  saveViewedCards(viewedOpenJobPostingCards);
   markedTaskNotificationIds.clear();
 }
 
@@ -105,7 +124,12 @@ export function DesignerOpenJobPostings() {
       setLoading(true);
       setError(null);
       const tasks = await designerTaskCache.fetch({ isPublic: true, assignedTo: '__unassigned__', limit: 100 });
-      setPostings(tasks);
+      const processedTasks = tasks.map((t) =>
+        viewedOpenJobPostingCards.has(t.id) && (t.taskNotification?.hasNotification || t.hasNestedNotification)
+          ? { ...t, taskNotification: null, hasNestedNotification: false }
+          : t
+      );
+      setPostings(processedTasks);
       cachePostingsForBadge(tasks);
     } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || 'Failed to load job postings');
@@ -178,6 +202,7 @@ export function DesignerOpenJobPostings() {
           viewedOpenJobPostingCards.add(id);
         }
       });
+      saveViewedCards(viewedOpenJobPostingCards);
       seenThisSession.current.clear();
       observedElements.current.clear();
 
@@ -190,6 +215,8 @@ export function DesignerOpenJobPostings() {
 
         notificationApi.markRead(notifId)
           .then(() => {
+            viewedOpenJobPostingCards.add(postingId);
+            saveViewedCards(viewedOpenJobPostingCards);
             setPostings((prev) =>
               prev.map((p) =>
                 p.id === postingId
