@@ -123,7 +123,8 @@ export function DesignerOpenJobPostings() {
     try {
       setLoading(true);
       setError(null);
-      const tasks = await designerTaskCache.fetch({ isPublic: true, assignedTo: '__unassigned__', limit: 100 });
+      const result = await designerTaskCache.fetch({ isPublic: true, assignedTo: '__unassigned__', limit: 100 });
+      const tasks = result.data;
       const processedTasks = tasks.map((t) =>
         viewedOpenJobPostingCards.has(t.id) && (t.taskNotification?.hasNotification || t.hasNestedNotification)
           ? { ...t, taskNotification: null, hasNestedNotification: false }

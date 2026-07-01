@@ -181,10 +181,11 @@ export function DesignerApplications() {
       setLoading(true);
       setError(null);
 
-      const [fetchedTasks, users] = await Promise.all([
+      const [fetchedResult, users] = await Promise.all([
         designerTaskCache.fetch({ limit: 100 }),
         userCache.fetch({ role: 'designer' }),
       ]);
+      const fetchedTasks = fetchedResult.data;
 
       console.log('[DesignerApplications] ========== FETCHED TASKS ==========');
       console.log('[DesignerApplications] Total tasks:', fetchedTasks.length);

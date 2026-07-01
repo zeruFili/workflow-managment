@@ -512,9 +512,10 @@ export function DesignerAssignments() {
       if (force) {
         designerTaskCache.invalidate({ page, limit: apiLimit });
       }
-      data = await designerTaskCache.fetch({ page, limit: apiLimit });
+      const result = await designerTaskCache.fetch({ page, limit: apiLimit });
+      data = result.data;
       setTasks(data);
-      setMeta((meta: any) => ({ ...meta, page, limit: apiLimit, total: data.length } as any));
+      setMeta((meta: any) => ({ ...meta, page, limit: apiLimit, total: result.total } as any));
       setDisplayOffset(0);
 
       const progressUpdates: SubmissionProgress = {};

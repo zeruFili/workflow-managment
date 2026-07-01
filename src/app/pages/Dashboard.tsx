@@ -82,13 +82,13 @@ function DesignerQuickAccess() {
     if (!user) return;
     const cached = designerTaskCache.get({ limit: 50 });
     if (cached) {
-      const assigned = cached.filter((task) => task.assigned_to_user_id === user.id);
+      const assigned = cached.data.filter((task) => task.assigned_to_user_id === user.id);
       setDesignerTasks(assigned);
       return;
     }
     designerTaskCache.fetch({ limit: 50 })
-      .then((data) => {
-        const assigned = data.filter((task) => task.assigned_to_user_id === user.id);
+      .then((result) => {
+        const assigned = result.data.filter((task) => task.assigned_to_user_id === user.id);
         setDesignerTasks(assigned);
       })
       .catch(() => {});

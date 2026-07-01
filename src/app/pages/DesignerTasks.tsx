@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { designerRoles } from './designerTaskShared';
+import { designerTaskCache } from '../data/designerTaskCache';
 import designerApi, {
   DesignerTaskItem,
   DesignerTaskListMeta,
@@ -430,9 +431,6 @@ function getCreatorDisplayName(task: DesignerTaskItem): string {
 
 const ROWS_PER_DISPLAY = 10;
 
-// Module-level cache — survives HashRouter navigation but resets on full page refresh
-let cachedTasks: DesignerTaskItem[] | null = null;
-let cachedMeta: DesignerTaskListMeta | null = null;
 let cachedRawData: Record<string, SubmissionsWithReviewsData> | null = null;
 let cachedProgress: SubmissionProgress | null = null;
 
@@ -440,8 +438,7 @@ export function resetDesignerTasksHighlightState() {
   viewedDesignerTaskCards.clear();
   designerTaskNotificationIds = new Set<string>();
   markedTaskNotificationIds.clear();
-  cachedTasks = null;
-  cachedMeta = null;
+  designerTaskCache.invalidate();
   cachedRawData = null;
   cachedProgress = null;
 }
@@ -526,35 +523,45 @@ export function DesignerTasks() {
   // ── Fetch tasks from API ──
   const fetchTasks = useCallback(async (page: number, force = false) => {
     if (!user) return;
-    if (!force && cachedTasks && cachedMeta) {
-      setTasks(cachedTasks);
-      setMeta(cachedMeta);
-      if (cachedRawData) setSubmissionsRawData(cachedRawData);
-      if (cachedProgress) setSubmissionProgress(cachedProgress);
-      designerTaskNotificationIds = new Set(
-        cachedTasks.filter((t) => designerTaskHasAnyNotification(t)).map((t) => t.id)
-      );
-      setIsLoading(false);
-      return;
+    const cacheParams = { page, limit: apiLimit };
+    if (!force) {
+      const cached = designerTaskCache.get(cacheParams);
+      if (cached) {
+        setTasks(cached.data);
+        setMeta({
+          total: cached.total,
+          page,
+          limit: apiLimit,
+          totalPages: Math.ceil(cached.total / apiLimit),
+        });
+        if (cachedRawData) setSubmissionsRawData(cachedRawData);
+        if (cachedProgress) setSubmissionProgress(cachedProgress);
+        designerTaskNotificationIds = new Set(
+          cached.data.filter((t) => designerTaskHasAnyNotification(t)).map((t) => t.id)
+        );
+        setIsLoading(false);
+        return;
+      }
     }
     setIsLoading(true);
     setError(null);
     try {
-      const response = await designerApi.getDesignerTasks({ page, limit: apiLimit });
-      if (response.success) {
-        setTasks(response.data);
-        setMeta(response.meta);
-        cachedTasks = response.data;
-        cachedMeta = response.meta;
+      const result = await designerTaskCache.fetch(cacheParams);
+      if (result.data.length > 0 || result.total === 0) {
+        setTasks(result.data);
+        setMeta({
+          total: result.total,
+          page,
+          limit: apiLimit,
+          totalPages: Math.ceil(result.total / apiLimit),
+        });
         setDisplayOffset(0);
 
         const progressUpdates: SubmissionProgress = {};
         const rawDataUpdates: Record<string, SubmissionsWithReviewsData> = {};
         const currentSnapshots = loadPausedSnapshots();
         setPausedSnapshots(currentSnapshots);
-        for (const task of response.data) {
-          // For paused tasks with a snapshot, use the frozen snapshot data
-          // so the designer sees pre-pause state while CEO/GM can still review
+        for (const task of result.data) {
           const swr = task.is_paused && currentSnapshots[task.id]
             ? currentSnapshots[task.id]
             : task.submissionsWithReviews;
@@ -568,14 +575,11 @@ export function DesignerTasks() {
         setSubmissionsRawData((prev) => ({ ...prev, ...rawDataUpdates }));
         setSubmissionProgress((prev) => ({ ...prev, ...progressUpdates }));
 
-        // Compute highlighted task IDs from notifications
         designerTaskNotificationIds = new Set(
-          response.data
+          result.data
             .filter((t) => designerTaskHasAnyNotification(t))
             .map((t) => t.id)
         );
-      } else {
-        setError(response.message || 'Failed to load tasks');
       }
     } catch (err: unknown) {
       const msg =
@@ -705,20 +709,7 @@ export function DesignerTasks() {
           );
           setTasks(updatedTasks as DesignerTaskItem[]);
           tasksRef.current = updatedTasks as DesignerTaskItem[];
-          if (cachedTasks) {
-            cachedTasks = cachedTasks.map((t) =>
-              t.id === taskId
-                ? {
-                    ...t,
-                    taskNotification: null,
-                    submissionsWithReviews: {
-                      ...t.submissionsWithReviews,
-                      taskNotification: { hasNotification: false, notificationId: null },
-                    },
-                  }
-                : t
-            ) as DesignerTaskItem[];
-          }
+          designerTaskCache.invalidate();
         })
         .catch(() => {
           markedTaskNotificationIds.delete(notifId);
@@ -748,8 +739,7 @@ export function DesignerTasks() {
     if (displayOffset + ROWS_PER_DISPLAY < tasks.length) {
       setDisplayOffset(displayOffset + ROWS_PER_DISPLAY);
     } else {
-      cachedTasks = null;
-      cachedMeta = null;
+      designerTaskCache.invalidate({ page: apiPage, limit: apiLimit });
       cachedRawData = null;
       cachedProgress = null;
       setApiPage((p) => p + 1);
@@ -760,8 +750,7 @@ export function DesignerTasks() {
     if (displayOffset - ROWS_PER_DISPLAY >= 0) {
       setDisplayOffset(displayOffset - ROWS_PER_DISPLAY);
     } else {
-      cachedTasks = null;
-      cachedMeta = null;
+      designerTaskCache.invalidate({ page: apiPage, limit: apiLimit });
       cachedRawData = null;
       cachedProgress = null;
       setApiPage((p) => Math.max(1, p - 1));
@@ -872,9 +861,7 @@ export function DesignerTasks() {
       );
       setTasks(updatedTasks);
       tasksRef.current = updatedTasks;
-      if (cachedTasks) {
-        cachedTasks = cachedTasks.map((t) => (t.id === task.id ? clearedTask : t));
-      }
+      designerTaskCache.invalidate();
 
       viewedDesignerTaskCards.add(task.id);
     }
@@ -967,15 +954,13 @@ export function DesignerTasks() {
         setSubmissionsLoading((prev) => ({ ...prev, [taskId]: true }));
         try {
           await fetchTasks(apiPage, true);
-          if (cachedTasks) {
-            const refreshed = cachedTasks.find((t) => t.id === taskId);
-            if (refreshed) {
-              setSelectedTaskDetail(refreshed);
-              if (refreshed.submissionsWithReviews) {
-                const freshProgress = apiSubmissionsToProgress(refreshed.submissionsWithReviews);
-                setSubmissionProgress((prev) => ({ ...prev, [taskId]: freshProgress }));
-                setSubmissionsRawData((prev) => ({ ...prev, [taskId]: refreshed.submissionsWithReviews }));
-              }
+          const refreshed = tasks.find((t) => t.id === taskId);
+          if (refreshed) {
+            setSelectedTaskDetail(refreshed);
+            if (refreshed.submissionsWithReviews) {
+              const freshProgress = apiSubmissionsToProgress(refreshed.submissionsWithReviews);
+              setSubmissionProgress((prev) => ({ ...prev, [taskId]: freshProgress }));
+              setSubmissionsRawData((prev) => ({ ...prev, [taskId]: refreshed.submissionsWithReviews }));
             }
           }
         } finally {
@@ -1048,14 +1033,10 @@ export function DesignerTasks() {
           savePausedSnapshot(selectedTaskDetail.id, selectedTaskDetail.submissionsWithReviews);
           setPausedSnapshots((prev) => ({ ...prev, [selectedTaskDetail.id]: selectedTaskDetail.submissionsWithReviews }));
         }
-        // Update the selected task detail
         const pausedTask = response.data;
         setSelectedTaskDetail(pausedTask);
-        // Update in tasks list
         setTasks((prev) => prev.map((t) => (t.id === pausedTask.id ? pausedTask : t)));
-        if (cachedTasks) {
-          cachedTasks = cachedTasks.map((t) => (t.id === pausedTask.id ? pausedTask : t));
-        }
+        designerTaskCache.invalidate();
       } else {
         // Handle error silently for now
       }
@@ -1082,14 +1063,11 @@ export function DesignerTasks() {
           delete next[selectedTaskDetail.id];
           return next;
         });
-        // Force refresh to get latest data including reviews made while paused
-        cachedTasks = null;
-        cachedMeta = null;
+        designerTaskCache.invalidate();
         cachedRawData = null;
         cachedProgress = null;
         await fetchTasks(apiPage, true);
-        if (cachedTasks) {
-          const refreshed = cachedTasks.find((t) => t.id === selectedTaskDetail.id);
+        const refreshed = tasks.find((t) => t.id === selectedTaskDetail.id);
           if (refreshed) {
             setSelectedTaskDetail(refreshed);
             if (refreshed.submissionsWithReviews) {
@@ -1099,8 +1077,7 @@ export function DesignerTasks() {
             }
           }
         }
-      }
-    } catch {
+      } catch {
       // Handle error silently
     } finally {
       setResumeLoading((prev) => ({ ...prev, [selectedTaskDetail.id]: false }));

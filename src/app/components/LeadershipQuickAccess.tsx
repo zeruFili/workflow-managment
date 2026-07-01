@@ -65,12 +65,12 @@ export function LeadershipQuickAccess() {
     if (!user) return;
     const cached = designerTaskCache.get({ limit: 50 });
     if (cached) {
-      setDesignerTasks(cached.filter((task) => !!task.assigned_to_user_id));
+      setDesignerTasks(cached.data.filter((task) => !!task.assigned_to_user_id));
       return;
     }
     designerTaskCache.fetch({ limit: 50 })
-      .then((data) => {
-        setDesignerTasks(data.filter((task) => !!task.assigned_to_user_id));
+      .then((result) => {
+        setDesignerTasks(result.data.filter((task) => !!task.assigned_to_user_id));
       })
       .catch(() => {});
   }, [user]);
