@@ -38,6 +38,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import AttachmentViewer from '../components/AttachmentViewer';
+import { dataCollectorTaskCache } from '../data/dataCollectorTaskCache';
 
 // ------------ NOTIFICATIONS / HIGHLIGHT ------------
 export const DATA_COLLECTOR_NOTIFICATIONS_KEY = 'data-collector-notifications-updated';
@@ -358,16 +359,11 @@ const seedTasks: DataCollectorTaskItem[] = [
   },
 ];
 
-// Module-level cache
-let cachedTasks: DataCollectorTaskItem[] | null = null;
-let cachedMeta: DataCollectorTaskListMeta | null = null;
-
 export function resetDataCollectorHighlightState() {
   viewedDataCollectorCards.clear();
   dataCollectorNotificationIds = new Set<string>();
   markedTaskNotificationIds.clear();
-  cachedTasks = null;
-  cachedMeta = null;
+  dataCollectorTaskCache.invalidate();
 }
 
 function loadLocalTasks(): DataCollectorTaskItem[] {
@@ -489,14 +485,24 @@ export function DataCollectorTasks() {
 
   const fetchTasks = useCallback(async (page: number, force = false) => {
     if (!user) return;
-    if (!force && cachedTasks && cachedMeta) {
-      setTasks(cachedTasks);
-      setMeta(cachedMeta);
-      dataCollectorNotificationIds = new Set(
-        cachedTasks.filter((t) => anyNotification(t)).map((t) => t.id)
-      );
-      setIsLoading(false);
-      return;
+    const cacheParams = { page, limit: ROWS_PER_DISPLAY };
+
+    if (!force) {
+      const cached = dataCollectorTaskCache.get(cacheParams);
+      if (cached) {
+        setTasks(cached.data);
+        setMeta({
+          total: cached.total,
+          page,
+          limit: ROWS_PER_DISPLAY,
+          totalPages: Math.ceil(cached.total / ROWS_PER_DISPLAY),
+        });
+        dataCollectorNotificationIds = new Set(
+          cached.data.filter((t) => anyNotification(t)).map((t) => t.id)
+        );
+        setIsLoading(false);
+        return;
+      }
     }
     setIsLoading(true);
     setError(null);
@@ -504,8 +510,6 @@ export function DataCollectorTasks() {
     const applyTasks = (data: DataCollectorTaskItem[], total: number) => {
       setTasks(data);
       setMeta({ total, page, limit: ROWS_PER_DISPLAY, totalPages: Math.ceil(total / ROWS_PER_DISPLAY) });
-      cachedTasks = data;
-      cachedMeta = { total, page, limit: ROWS_PER_DISPLAY, totalPages: Math.ceil(total / ROWS_PER_DISPLAY) };
       setDisplayOffset(0);
 
       dataCollectorNotificationIds = new Set(
@@ -514,19 +518,8 @@ export function DataCollectorTasks() {
     };
 
     try {
-      const response = await dataCollectorApi.getDataCollectorTasks({ page, limit: ROWS_PER_DISPLAY });
-      if (response.success) {
-        applyTasks(response.data, response.meta.total);
-        // Sync API data back to localStorage as cache
-        persistLocalTasks(response.data);
-      } else {
-        // API returned error — fallback to localStorage
-        const local = initLocalWithSeed();
-        const start = (page - 1) * ROWS_PER_DISPLAY;
-        const paged = local.slice(start, start + ROWS_PER_DISPLAY);
-        applyTasks(paged, local.length);
-        setError(null); // clear error — we have fallback data
-      }
+      const result = await dataCollectorTaskCache.fetch(cacheParams);
+      applyTasks(result.data, result.total);
     } catch {
       // API unreachable — fallback to localStorage
       const local = initLocalWithSeed();
@@ -621,20 +614,7 @@ export function DataCollectorTasks() {
           );
           setTasks(updatedTasks as DataCollectorTaskItem[]);
           tasksRef.current = updatedTasks as DataCollectorTaskItem[];
-          if (cachedTasks) {
-            cachedTasks = cachedTasks.map((t) =>
-              t.id === taskId
-                ? {
-                    ...t,
-                    taskNotification: null,
-                    submissionsWithReviews: {
-                      ...t.submissionsWithReviews,
-                      taskNotification: { hasNotification: false, notificationId: null },
-                    },
-                  }
-                : t
-            ) as DataCollectorTaskItem[];
-          }
+          dataCollectorTaskCache.invalidate();
         })
         .catch(() => {
           markedTaskNotificationIds.delete(notifId);
@@ -674,8 +654,7 @@ export function DataCollectorTasks() {
     if (displayOffset + ROWS_PER_DISPLAY < sortedTasks.length) {
       setDisplayOffset(displayOffset + ROWS_PER_DISPLAY);
     } else {
-      cachedTasks = null;
-      cachedMeta = null;
+      dataCollectorTaskCache.invalidate({ page: apiPage, limit: ROWS_PER_DISPLAY });
       setApiPage((p) => p + 1);
     }
   };
@@ -684,8 +663,7 @@ export function DataCollectorTasks() {
     if (displayOffset - ROWS_PER_DISPLAY >= 0) {
       setDisplayOffset(displayOffset - ROWS_PER_DISPLAY);
     } else {
-      cachedTasks = null;
-      cachedMeta = null;
+      dataCollectorTaskCache.invalidate({ page: apiPage, limit: ROWS_PER_DISPLAY });
       setApiPage((p) => Math.max(1, p - 1));
     }
   };
@@ -775,9 +753,7 @@ export function DataCollectorTasks() {
       );
       setTasks(updatedTasks);
       tasksRef.current = updatedTasks;
-      if (cachedTasks) {
-        cachedTasks = cachedTasks.map((t) => (t.id === task.id ? clearedTask : t));
-      }
+      dataCollectorTaskCache.invalidate();
 
       viewedDataCollectorCards.add(task.id);
     }
@@ -854,10 +830,8 @@ export function DataCollectorTasks() {
       setEditingReviewId(null);
       setReviewDraft((prev) => ({ ...prev, [taskId]: '' }));
       await fetchTasks(apiPage, true);
-      if (cachedTasks) {
-        const refreshed = cachedTasks.find((t) => t.id === taskId);
-        if (refreshed) setSelectedTask(refreshed);
-      }
+      const refreshed = tasks.find((t) => t.id === taskId);
+      if (refreshed) setSelectedTask(refreshed);
 
       if (user) {
         const existing = loadQuantityReviewNotifications();
@@ -937,7 +911,7 @@ export function DataCollectorTasks() {
       existingIds.add(taskId);
       dataCollectorNotificationIds = existingIds;
 
-      const updatedCache = (cachedTasks || all).map((t) =>
+      const updatedCache = all.map((t) =>
         t.id === taskId
           ? {
               ...t,
@@ -952,7 +926,7 @@ export function DataCollectorTasks() {
             }
           : t
       );
-      cachedTasks = updatedCache;
+      dataCollectorTaskCache.invalidate();
       setTasks(updatedCache);
       const updatedSelected = updatedCache.find((t) => t.id === taskId);
       if (updatedSelected) setSelectedTask(updatedSelected);
@@ -973,10 +947,8 @@ export function DataCollectorTasks() {
 
       if (response.success) {
         await fetchTasks(apiPage, true);
-        if (cachedTasks) {
-          const refreshed = cachedTasks.find((t) => t.id === taskId);
-          if (refreshed) setSelectedTask(refreshed);
-        }
+        const refreshed = tasks.find((t) => t.id === taskId);
+        if (refreshed) setSelectedTask(refreshed);
       } else {
         errorMsg = response.message || 'Submission failed. Please refresh the page.';
         if (!isEditing) addLocalSubmission();
@@ -1108,8 +1080,7 @@ export function DataCollectorTasks() {
         setShowEditTask(false);
         setEditingTaskId(null);
         setEditFormErrors({});
-        cachedTasks = null;
-        cachedMeta = null;
+        dataCollectorTaskCache.invalidate();
         await fetchTasks(apiPage, true);
       } else {
         setEditError(response.message || 'Failed to update task');
@@ -1144,8 +1115,7 @@ export function DataCollectorTasks() {
         setTaskSuccessMsg(response.message || 'Data collector task deleted successfully');
         setShowDeleteConfirm(false);
         setDeletingTaskId(null);
-        cachedTasks = null;
-        cachedMeta = null;
+        dataCollectorTaskCache.invalidate();
         await fetchTasks(apiPage, true);
       } else {
         setDeleteError(response.message || 'Failed to delete task');
@@ -1223,8 +1193,7 @@ export function DataCollectorTasks() {
         screenshotFileRef.current = null;
         setFieldErrors({});
         setShowCreateModal(false);
-        cachedTasks = null;
-        cachedMeta = null;
+        dataCollectorTaskCache.invalidate();
         await fetchTasks(apiPage, true);
       } else {
         setError(response.message || 'Failed to create task');

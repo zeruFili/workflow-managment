@@ -2,6 +2,12 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import Cookies from 'js-cookie';
 import { User, UserRole } from '../types';
 import { loginUser, LoginResult } from '../../controllers/loginController';
+import { userCache } from '../data/userCache';
+import { designerTaskCache } from '../data/designerTaskCache';
+import { dataCollectorTaskCache } from '../data/dataCollectorTaskCache';
+import { quantitySurveyorTaskCache } from '../data/quantitySurveyorTaskCache';
+import { ceoTransferCache } from '../data/ceoTransferCache';
+import { invalidateMarketingTaskCache } from '../data/marketingTaskCache';
 
 interface AuthContextType {
   user: User | null;
@@ -35,6 +41,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const handleSessionExpired = () => {
       setUser(null);
+      userCache.invalidate();
+      designerTaskCache.invalidate();
+      dataCollectorTaskCache.invalidate();
+      quantitySurveyorTaskCache.invalidate();
+      ceoTransferCache.invalidate();
+      invalidateMarketingTaskCache();
     };
     window.addEventListener('auth:session-expired', handleSessionExpired);
     return () => {
@@ -56,6 +68,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     Cookies.remove('user');
     Cookies.remove('token');
+    userCache.invalidate();
+    designerTaskCache.invalidate();
+    dataCollectorTaskCache.invalidate();
+    quantitySurveyorTaskCache.invalidate();
+    ceoTransferCache.invalidate();
+    invalidateMarketingTaskCache();
   }, []);
 
   const value = useMemo(

@@ -38,6 +38,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import AttachmentViewer from '../components/AttachmentViewer';
+import { quantitySurveyorTaskCache } from '../data/quantitySurveyorTaskCache';
 
 // ------------ NOTIFICATIONS / HIGHLIGHT ------------
 export const QUANTITY_SURVEYOR_NOTIFICATIONS_KEY = 'quantity-surveyor-notifications-updated';
@@ -359,16 +360,11 @@ const seedTasks: QuantitySurveyorTaskItem[] = [
   },
 ];
 
-// Module-level cache
-let cachedTasks: QuantitySurveyorTaskItem[] | null = null;
-let cachedMeta: QuantitySurveyorTaskListMeta | null = null;
-
 export function resetQuantitySurveyorHighlightState() {
   viewedQuantitySurveyorCards.clear();
   quantitySurveyorNotificationIds = new Set<string>();
   markedTaskNotificationIds.clear();
-  cachedTasks = null;
-  cachedMeta = null;
+  quantitySurveyorTaskCache.invalidate();
 }
 
 function loadLocalTasks(): QuantitySurveyorTaskItem[] {
@@ -491,14 +487,24 @@ export function QuantitySurveyorTasks() {
 
   const fetchTasks = useCallback(async (page: number, force = false) => {
     if (!user) return;
-    if (!force && cachedTasks && cachedMeta) {
-      setTasks(cachedTasks);
-      setMeta(cachedMeta);
-      quantitySurveyorNotificationIds = new Set(
-        cachedTasks.filter((t) => anyNotification(t)).map((t) => t.id)
-      );
-      setIsLoading(false);
-      return;
+    const cacheParams = { page, limit: ROWS_PER_DISPLAY };
+
+    if (!force) {
+      const cached = quantitySurveyorTaskCache.get(cacheParams);
+      if (cached) {
+        setTasks(cached.data);
+        setMeta({
+          total: cached.total,
+          page,
+          limit: ROWS_PER_DISPLAY,
+          totalPages: Math.ceil(cached.total / ROWS_PER_DISPLAY),
+        });
+        quantitySurveyorNotificationIds = new Set(
+          cached.data.filter((t) => anyNotification(t)).map((t) => t.id)
+        );
+        setIsLoading(false);
+        return;
+      }
     }
     setIsLoading(true);
     setError(null);
@@ -506,8 +512,6 @@ export function QuantitySurveyorTasks() {
     const applyTasks = (data: QuantitySurveyorTaskItem[], total: number) => {
       setTasks(data);
       setMeta({ total, page, limit: ROWS_PER_DISPLAY, totalPages: Math.ceil(total / ROWS_PER_DISPLAY) });
-      cachedTasks = data;
-      cachedMeta = { total, page, limit: ROWS_PER_DISPLAY, totalPages: Math.ceil(total / ROWS_PER_DISPLAY) };
       setDisplayOffset(0);
 
       quantitySurveyorNotificationIds = new Set(
@@ -516,17 +520,8 @@ export function QuantitySurveyorTasks() {
     };
 
     try {
-      const response = await quantitySurveyorApi.getTasks({ page, limit: ROWS_PER_DISPLAY });
-      if (response.success) {
-        applyTasks(response.data, response.meta.total);
-        persistLocalTasks(response.data);
-      } else {
-        const local = initLocalWithSeed();
-        const start = (page - 1) * ROWS_PER_DISPLAY;
-        const paged = local.slice(start, start + ROWS_PER_DISPLAY);
-        applyTasks(paged, local.length);
-        setError(null);
-      }
+      const result = await quantitySurveyorTaskCache.fetch(cacheParams);
+      applyTasks(result.data, result.total);
     } catch {
       const local = initLocalWithSeed();
       const start = (page - 1) * ROWS_PER_DISPLAY;
@@ -620,20 +615,7 @@ export function QuantitySurveyorTasks() {
           );
           setTasks(updatedTasks as QuantitySurveyorTaskItem[]);
           tasksRef.current = updatedTasks as QuantitySurveyorTaskItem[];
-          if (cachedTasks) {
-            cachedTasks = cachedTasks.map((t) =>
-              t.id === taskId
-                ? {
-                    ...t,
-                    taskNotification: null,
-                    submissionsWithReviews: {
-                      ...t.submissionsWithReviews,
-                      taskNotification: { hasNotification: false, notificationId: null },
-                    },
-                  }
-                : t
-            ) as QuantitySurveyorTaskItem[];
-          }
+          quantitySurveyorTaskCache.invalidate();
         })
         .catch(() => {
           markedTaskNotificationIds.delete(notifId);
@@ -673,8 +655,7 @@ export function QuantitySurveyorTasks() {
     if (displayOffset + ROWS_PER_DISPLAY < sortedTasks.length) {
       setDisplayOffset(displayOffset + ROWS_PER_DISPLAY);
     } else {
-      cachedTasks = null;
-      cachedMeta = null;
+      quantitySurveyorTaskCache.invalidate({ page: apiPage, limit: ROWS_PER_DISPLAY });
       setApiPage((p) => p + 1);
     }
   };
@@ -683,8 +664,7 @@ export function QuantitySurveyorTasks() {
     if (displayOffset - ROWS_PER_DISPLAY >= 0) {
       setDisplayOffset(displayOffset - ROWS_PER_DISPLAY);
     } else {
-      cachedTasks = null;
-      cachedMeta = null;
+      quantitySurveyorTaskCache.invalidate({ page: apiPage, limit: ROWS_PER_DISPLAY });
       setApiPage((p) => Math.max(1, p - 1));
     }
   };
@@ -773,9 +753,7 @@ export function QuantitySurveyorTasks() {
       );
       setTasks(updatedTasks);
       tasksRef.current = updatedTasks;
-      if (cachedTasks) {
-        cachedTasks = cachedTasks.map((t) => (t.id === task.id ? clearedTask : t));
-      }
+      quantitySurveyorTaskCache.invalidate();
 
       viewedQuantitySurveyorCards.add(task.id);
     }
@@ -839,10 +817,8 @@ export function QuantitySurveyorTasks() {
       setEditingReviewId(null);
       setReviewDraft((prev) => ({ ...prev, [taskId]: '' }));
       await fetchTasks(apiPage, true);
-      if (cachedTasks) {
-        const refreshed = cachedTasks.find((t) => t.id === taskId);
-        if (refreshed) setSelectedTask(refreshed);
-      }
+      const refreshed = tasks.find((t) => t.id === taskId);
+      if (refreshed) setSelectedTask(refreshed);
 
       if (user) {
         const existing = loadQuantityReviewNotifications();
@@ -925,7 +901,7 @@ export function QuantitySurveyorTasks() {
       existingIds.add(taskId);
       quantitySurveyorNotificationIds = existingIds;
 
-      const updatedCache = (cachedTasks || all).map((t) =>
+      const updatedCache = all.map((t) =>
         t.id === taskId
           ? {
               ...t,
@@ -940,7 +916,7 @@ export function QuantitySurveyorTasks() {
             }
           : t
       );
-      cachedTasks = updatedCache;
+      quantitySurveyorTaskCache.invalidate();
       setTasks(updatedCache);
       const updatedSelected = updatedCache.find((t) => t.id === taskId);
       if (updatedSelected) setSelectedTask(updatedSelected);
@@ -965,10 +941,8 @@ export function QuantitySurveyorTasks() {
 
       if (response.success) {
         await fetchTasks(apiPage, true);
-        if (cachedTasks) {
-          const refreshed = cachedTasks.find((t) => t.id === taskId);
-          if (refreshed) setSelectedTask(refreshed);
-        }
+        const refreshed = tasks.find((t) => t.id === taskId);
+        if (refreshed) setSelectedTask(refreshed);
       } else {
         errorMsg = response.message || 'Submission failed. Please refresh the page.';
         if (!isEditing) addLocalSubmission();
@@ -1101,8 +1075,7 @@ export function QuantitySurveyorTasks() {
         setShowEditTask(false);
         setEditingTaskId(null);
         setEditFormErrors({});
-        cachedTasks = null;
-        cachedMeta = null;
+        quantitySurveyorTaskCache.invalidate();
         await fetchTasks(apiPage, true);
       } else {
         setEditError(response.message || 'Failed to update task');
@@ -1137,8 +1110,7 @@ export function QuantitySurveyorTasks() {
         setTaskSuccessMsg(response.message || 'Quantity surveyor task deleted successfully');
         setShowDeleteConfirm(false);
         setDeletingTaskId(null);
-        cachedTasks = null;
-        cachedMeta = null;
+        quantitySurveyorTaskCache.invalidate();
         await fetchTasks(apiPage, true);
       } else {
         setDeleteError(response.message || 'Failed to delete task');
@@ -1214,8 +1186,7 @@ export function QuantitySurveyorTasks() {
         screenshotFileRef.current = null;
         setFieldErrors({});
         setShowCreateModal(false);
-        cachedTasks = null;
-        cachedMeta = null;
+        quantitySurveyorTaskCache.invalidate();
         await fetchTasks(apiPage, true);
       } else {
         setError(response.message || 'Failed to create task');
