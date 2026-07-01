@@ -483,7 +483,7 @@ export function DataCollectorTasks() {
     ? selectedTask.status !== 'rejected' && selectedTask.task_state === 'active'
     : false;
 
-  const fetchTasks = useCallback(async (page: number, force = false) => {
+  const fetchTasks = useCallback(async (page: number, force = false): Promise<DataCollectorTaskItem[] | undefined> => {
     if (!user) return;
     const cacheParams = { page, limit: ROWS_PER_DISPLAY };
 
@@ -501,13 +501,15 @@ export function DataCollectorTasks() {
           cached.data.filter((t) => anyNotification(t)).map((t) => t.id)
         );
         setIsLoading(false);
-        return;
+        return cached.data;
       }
+    } else {
+      dataCollectorTaskCache.invalidate(cacheParams);
     }
     setIsLoading(true);
     setError(null);
 
-    const applyTasks = (data: DataCollectorTaskItem[], total: number) => {
+    const applyTasks = (data: DataCollectorTaskItem[], total: number): DataCollectorTaskItem[] => {
       setTasks(data);
       setMeta({ total, page, limit: ROWS_PER_DISPLAY, totalPages: Math.ceil(total / ROWS_PER_DISPLAY) });
       setDisplayOffset(0);
@@ -515,11 +517,12 @@ export function DataCollectorTasks() {
       dataCollectorNotificationIds = new Set(
         data.filter((t) => anyNotification(t)).map((t) => t.id)
       );
+      return data;
     };
 
     try {
       const result = await dataCollectorTaskCache.fetch(cacheParams);
-      applyTasks(result.data, result.total);
+      return applyTasks(result.data, result.total);
     } catch {
       // API unreachable — fallback to localStorage
       const local = initLocalWithSeed();
@@ -527,6 +530,7 @@ export function DataCollectorTasks() {
       const paged = local.slice(start, start + ROWS_PER_DISPLAY);
       applyTasks(paged, local.length);
       setError(null);
+      return paged;
     } finally {
       setIsLoading(false);
     }
@@ -805,6 +809,56 @@ export function DataCollectorTasks() {
       }
     }
 
+    const addLocalReview = () => {
+      const all = loadLocalTasks().length > 0 ? loadLocalTasks() : seedTasks;
+      const now = new Date().toISOString();
+      const reviewId = `dc-rev-${Date.now()}`;
+      const newReview: DataCollectorSubmissionReview = {
+        id: reviewId,
+        data_collector_submission_id: subId,
+        reviewer_user_id: user?.id || '',
+        reviewer_user: { id: user?.id || '', full_name: user?.full_name || 'Unknown', role: user?.role || '' },
+        review_outcome: outcome,
+        description: note.trim() || `Review: ${outcome}`,
+        created_at: now,
+        updated_at: null,
+        hasNotification: true,
+        notificationId: `notif-dc-${Date.now()}`,
+      };
+      const updated = all.map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              updated_at: now,
+              hasNestedNotification: true,
+              taskNotification: { hasNotification: true, notificationId: t.taskNotification?.notificationId || `notif-dc-t${Date.now()}` },
+              submissionsWithReviews: {
+                ...t.submissionsWithReviews,
+                submissions: (t.submissionsWithReviews?.submissions || []).map((w) =>
+                  w.submission?.id === subId
+                    ? {
+                        ...w,
+                        hasNotification: true,
+                        notificationId: `notif-dc-${Date.now()}`,
+                        submission: {
+                          ...w.submission,
+                          reviews: [...(w.submission?.reviews || []), newReview],
+                        },
+                      }
+                    : w
+                ),
+                latestActivityTs: Date.now(),
+              },
+            }
+          : t
+      );
+      persistLocalTasks(updated);
+      dataCollectorTaskCache.invalidate();
+      setTasks(updated);
+      const updatedSelected = updated.find((t) => t.id === taskId);
+      if (updatedSelected) setSelectedTask(updatedSelected);
+    };
+
     try {
       const payload = {
         description: note.trim() || `Review: ${outcome}`,
@@ -817,11 +871,16 @@ export function DataCollectorTasks() {
         await dataCollectorApi.createReview(subId, payload);
       }
     } catch (err: unknown) {
-      errorMsg =
-        (err && typeof err === 'object' && 'response' in err
-          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
-          : undefined) ||
-        'Unable to submit review. Please try again.';
+      if (effectiveReviewId) {
+        errorMsg =
+          (err && typeof err === 'object' && 'response' in err
+            ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+            : undefined) ||
+          'Unable to update review. Please try again.';
+      } else {
+        addLocalReview();
+        errorMsg = null;
+      }
     }
 
     if (errorMsg) {
@@ -829,9 +888,11 @@ export function DataCollectorTasks() {
     } else {
       setEditingReviewId(null);
       setReviewDraft((prev) => ({ ...prev, [taskId]: '' }));
-      await fetchTasks(apiPage, true);
-      const refreshed = tasks.find((t) => t.id === taskId);
-      if (refreshed) setSelectedTask(refreshed);
+      const refreshedList = await fetchTasks(apiPage, true);
+      if (refreshedList) {
+        const refreshed = refreshedList.find((t) => t.id === taskId);
+        if (refreshed) setSelectedTask(refreshed);
+      }
 
       if (user) {
         const existing = loadQuantityReviewNotifications();
@@ -946,20 +1007,26 @@ export function DataCollectorTasks() {
         : await dataCollectorApi.createSubmission(taskId, formData);
 
       if (response.success) {
-        await fetchTasks(apiPage, true);
-        const refreshed = tasks.find((t) => t.id === taskId);
-        if (refreshed) setSelectedTask(refreshed);
+        const refreshedList = await fetchTasks(apiPage, true);
+        if (refreshedList) {
+          const refreshed = refreshedList.find((t) => t.id === taskId);
+          if (refreshed) setSelectedTask(refreshed);
+        }
       } else {
         errorMsg = response.message || 'Submission failed. Please refresh the page.';
         if (!isEditing) addLocalSubmission();
       }
     } catch (err: unknown) {
-      if (!isEditing) addLocalSubmission();
-      errorMsg =
-        (err && typeof err === 'object' && 'response' in err
-          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
-          : undefined) ||
-        'Unable to connect to server. Please try again.';
+      if (!isEditing) {
+        addLocalSubmission();
+        errorMsg = null;
+      } else {
+        errorMsg =
+          (err && typeof err === 'object' && 'response' in err
+            ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+            : undefined) ||
+          'Unable to connect to server. Please try again.';
+      }
     } finally {
       setSubmissionDraftLoading((prev) => ({ ...prev, [taskId]: false }));
     }

@@ -485,7 +485,7 @@ export function QuantitySurveyorTasks() {
     ? selectedTask.status !== 'rejected' && selectedTask.task_state === 'active'
     : false;
 
-  const fetchTasks = useCallback(async (page: number, force = false) => {
+  const fetchTasks = useCallback(async (page: number, force = false): Promise<QuantitySurveyorTaskItem[] | undefined> => {
     if (!user) return;
     const cacheParams = { page, limit: ROWS_PER_DISPLAY };
 
@@ -503,13 +503,15 @@ export function QuantitySurveyorTasks() {
           cached.data.filter((t) => anyNotification(t)).map((t) => t.id)
         );
         setIsLoading(false);
-        return;
+        return cached.data;
       }
+    } else {
+      quantitySurveyorTaskCache.invalidate(cacheParams);
     }
     setIsLoading(true);
     setError(null);
 
-    const applyTasks = (data: QuantitySurveyorTaskItem[], total: number) => {
+    const applyTasks = (data: QuantitySurveyorTaskItem[], total: number): QuantitySurveyorTaskItem[] => {
       setTasks(data);
       setMeta({ total, page, limit: ROWS_PER_DISPLAY, totalPages: Math.ceil(total / ROWS_PER_DISPLAY) });
       setDisplayOffset(0);
@@ -517,17 +519,19 @@ export function QuantitySurveyorTasks() {
       quantitySurveyorNotificationIds = new Set(
         data.filter((t) => anyNotification(t)).map((t) => t.id)
       );
+      return data;
     };
 
     try {
       const result = await quantitySurveyorTaskCache.fetch(cacheParams);
-      applyTasks(result.data, result.total);
+      return applyTasks(result.data, result.total);
     } catch {
       const local = initLocalWithSeed();
       const start = (page - 1) * ROWS_PER_DISPLAY;
       const paged = local.slice(start, start + ROWS_PER_DISPLAY);
       applyTasks(paged, local.length);
       setError(null);
+      return paged;
     } finally {
       setIsLoading(false);
     }
@@ -792,6 +796,56 @@ export function QuantitySurveyorTasks() {
 
     let errorMsg: string | null = null;
 
+    const addLocalReview = () => {
+      const all = loadLocalTasks().length > 0 ? loadLocalTasks() : seedTasks;
+      const now = new Date().toISOString();
+      const reviewId = `qs-rev-${Date.now()}`;
+      const newReview: QuantitySurveyorSubmissionReview = {
+        id: reviewId,
+        quantity_surveyor_submission_id: subId,
+        reviewer_user_id: user?.id || '',
+        reviewer_user: { id: user?.id || '', full_name: user?.full_name || 'Unknown', role: user?.role || '' },
+        review_outcome: outcome,
+        description: note.trim() || `Review: ${outcome}`,
+        created_at: now,
+        updated_at: null,
+        hasNotification: true,
+        notificationId: `notif-qs-${Date.now()}`,
+      };
+      const updated = all.map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              updated_at: now,
+              hasNestedNotification: true,
+              taskNotification: { hasNotification: true, notificationId: t.taskNotification?.notificationId || `notif-qs-t${Date.now()}` },
+              submissionsWithReviews: {
+                ...t.submissionsWithReviews,
+                submissions: (t.submissionsWithReviews?.submissions || []).map((w) =>
+                  w.submission?.id === subId
+                    ? {
+                        ...w,
+                        hasNotification: true,
+                        notificationId: `notif-qs-${Date.now()}`,
+                        submission: {
+                          ...w.submission,
+                          reviews: [...(w.submission?.reviews || []), newReview],
+                        },
+                      }
+                    : w
+                ),
+                latestActivityTs: Date.now(),
+              },
+            }
+          : t
+      );
+      persistLocalTasks(updated);
+      quantitySurveyorTaskCache.invalidate();
+      setTasks(updated);
+      const updatedSelected = updated.find((t) => t.id === taskId);
+      if (updatedSelected) setSelectedTask(updatedSelected);
+    };
+
     try {
       const payload = {
         description: note.trim() || `Review: ${outcome}`,
@@ -804,11 +858,16 @@ export function QuantitySurveyorTasks() {
         await quantitySurveyorApi.createReview(subId, payload);
       }
     } catch (err: unknown) {
-      errorMsg =
-        (err && typeof err === 'object' && 'response' in err
-          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
-          : undefined) ||
-        'Unable to submit review. Please try again.';
+      if (editingReviewId) {
+        errorMsg =
+          (err && typeof err === 'object' && 'response' in err
+            ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+            : undefined) ||
+          'Unable to update review. Please try again.';
+      } else {
+        addLocalReview();
+        errorMsg = null;
+      }
     }
 
     if (errorMsg) {
@@ -816,9 +875,11 @@ export function QuantitySurveyorTasks() {
     } else {
       setEditingReviewId(null);
       setReviewDraft((prev) => ({ ...prev, [taskId]: '' }));
-      await fetchTasks(apiPage, true);
-      const refreshed = tasks.find((t) => t.id === taskId);
-      if (refreshed) setSelectedTask(refreshed);
+      const refreshedList = await fetchTasks(apiPage, true);
+      if (refreshedList) {
+        const refreshed = refreshedList.find((t) => t.id === taskId);
+        if (refreshed) setSelectedTask(refreshed);
+      }
 
       if (user) {
         const existing = loadQuantityReviewNotifications();
@@ -940,20 +1001,26 @@ export function QuantitySurveyorTasks() {
         : await quantitySurveyorApi.createSubmission(taskId, formData);
 
       if (response.success) {
-        await fetchTasks(apiPage, true);
-        const refreshed = tasks.find((t) => t.id === taskId);
-        if (refreshed) setSelectedTask(refreshed);
+        const refreshedList = await fetchTasks(apiPage, true);
+        if (refreshedList) {
+          const refreshed = refreshedList.find((t) => t.id === taskId);
+          if (refreshed) setSelectedTask(refreshed);
+        }
       } else {
         errorMsg = response.message || 'Submission failed. Please refresh the page.';
         if (!isEditing) addLocalSubmission();
       }
     } catch (err: unknown) {
-      if (!isEditing) addLocalSubmission();
-      errorMsg =
-        (err && typeof err === 'object' && 'response' in err
-          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
-          : undefined) ||
-        'Unable to connect to server. Please try again.';
+      if (!isEditing) {
+        addLocalSubmission();
+        errorMsg = null;
+      } else {
+        errorMsg =
+          (err && typeof err === 'object' && 'response' in err
+            ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+            : undefined) ||
+          'Unable to connect to server. Please try again.';
+      }
     } finally {
       setSubmissionDraftLoading((prev) => ({ ...prev, [taskId]: false }));
     }
