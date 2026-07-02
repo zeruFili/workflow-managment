@@ -46,6 +46,13 @@ export function NotificationCountsProvider({ children }: { children: React.React
     if (!user) return;
     try {
       const result = await notificationApi.getUnreadCounts();
+      console.log(
+        `[NotificationCounts] Backend response for role="${user.role}":`,
+        `marketingTasks=${result.marketingTasks ?? 0}`,
+        `dataCollectorTasks=${result.dataCollectorTasks ?? 0}`,
+        `quantitySurveyorTasks=${result.quantitySurveyorTasks ?? 0}`,
+        `designerTasks=${result.designerTasks ?? 0}`,
+      );
       setCounts({
         marketingTasks: result.marketingTasks ?? 0,
         dataCollectorTasks: result.dataCollectorTasks ?? 0,
@@ -53,6 +60,7 @@ export function NotificationCountsProvider({ children }: { children: React.React
         designerTasks: result.designerTasks ?? 0,
       });
     } catch {
+      console.warn("[NotificationCounts] Backend unreachable — counts set to 0");
       setCounts(defaultCounts);
     }
   }, [user]);
