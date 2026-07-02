@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { MarketingTaskItem } from '../../api/marketingApi';
+import { fetchMarketingTasks, getCachedMarketingTasks } from '../data/marketingTaskCache';
 import { PaidCustomer, PaymentProof, PaymentVerificationStatus } from '../types';
 import {
   BadgeCheck,
@@ -15,8 +17,10 @@ import {
   FileText,
   Image,
   LayoutGrid,
+  Mail,
   MessageSquare,
   Paperclip,
+  Phone,
   RefreshCcw,
   ShieldCheck,
   User,
@@ -25,7 +29,6 @@ import {
   XCircle,
   ChevronDown,
   ChevronUp,
-  ArrowLeft,
 } from 'lucide-react';
 
 const PAID_STORAGE_KEY = 'paid-customers';
@@ -528,6 +531,34 @@ export function FinanceVerifications() {
   const [selectedRecord, setSelectedRecord] = useState<FinanceRecord | null>(null);
   const [expandedSection, setExpandedSection] = useState<string | null>('evidence');
 
+  // ── Paid customer marketing tasks ──
+  const [marketingTasks, setMarketingTasks] = useState<MarketingTaskItem[]>(() => getCachedMarketingTasks() ?? []);
+  const [marketingTasksLoading, setMarketingTasksLoading] = useState(() => !getCachedMarketingTasks());
+
+  useEffect(() => {
+    if (!user || (user.role !== 'finance_officer' && user.role !== 'ceo' && user.role !== 'general_manager')) return;
+    const cached = getCachedMarketingTasks();
+    if (cached) {
+      setMarketingTasks(cached);
+      setMarketingTasksLoading(false);
+      return;
+    }
+    setMarketingTasksLoading(true);
+    fetchMarketingTasks().then((tasks) => {
+      if (tasks.length > 0) {
+        setMarketingTasks(tasks);
+      }
+      setMarketingTasksLoading(false);
+    });
+  }, [user]);
+
+  const marketingTasksWithSubmissions = marketingTasks.filter(
+    (t) => (t.submissionsWithReviews?.submissions || []).length > 0
+  );
+
+  const getSubmissionWrappers = (task: MarketingTaskItem) =>
+    (task.submissionsWithReviews?.submissions || []).filter((w: any) => w.submission != null);
+
   // ── Highlight / notification system ──
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
   const seenThisSession = useRef<Set<string>>(new Set());
@@ -686,11 +717,8 @@ export function FinanceVerifications() {
     [records]
   );
 
-  const activeDesktopTab: FinanceTab = currentView ?? 'ceo-approved-requests';
 
   const filteredRecords = useMemo(() => {
-    const tab = currentView ?? 'ceo-approved-requests';
-    if (tab === 'paid-customers') return [];
     const base = records.filter((r) => r.transferredByName === 'CEO' && !isVerified(r.paymentVerificationStatus));
     return [...base].sort((a, b) => {
       const aHL = highlightedIds.has(a.id) ? 1 : 0;
@@ -698,10 +726,10 @@ export function FinanceVerifications() {
       if (bHL !== aHL) return bHL - aHL;
       return new Date(b.transferredAt).getTime() - new Date(a.transferredAt).getTime();
     });
-  }, [currentView, records, highlightedIds]);
+  }, [records, highlightedIds]);
 
   const viewLabel = useMemo(() => {
-    const tab = currentView ?? 'ceo-approved-requests';
+    const tab = currentView ?? 'paid-customers';
     switch (tab) {
       case 'paid-customers': return 'Paid Customers';
       case 'ceo-approved-requests': return 'CEO Approved Requests';
@@ -909,7 +937,7 @@ export function FinanceVerifications() {
   };
 
   const tiles = [
-    { label: 'Paid Customers', value: 0, icon: CircleDollarSign, tone: 'bg-emerald-50 text-emerald-700', activeTone: 'ring-2 ring-emerald-400', tab: 'paid-customers' as FinanceTab },
+    { label: 'Paid Customers', value: marketingTasksWithSubmissions.length, icon: CircleDollarSign, tone: 'bg-emerald-50 text-emerald-700', activeTone: 'ring-2 ring-emerald-400', tab: 'paid-customers' as FinanceTab },
     { label: 'CEO-transferred', value: summary.ceoApprovedRequests, icon: Bell, tone: 'bg-amber-50 text-amber-700', activeTone: 'ring-2 ring-amber-400', tab: 'ceo-approved-requests' as FinanceTab },
   ];
 
@@ -946,47 +974,32 @@ export function FinanceVerifications() {
 
       {/* ── MOBILE VIEW ── */}
       <div className="block lg:hidden">
-        {currentView === null ? (
-          <div className="flex flex-col gap-3">
-            {tiles.map((tile) => {
-              const Icon = tile.icon;
-              return (
-                <button
-                  key={tile.label}
-                  type="button"
-                  onClick={() => handleViewChange(tile.tab)}
-                  className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm transition active:bg-slate-50"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`inline-flex rounded-xl p-2 ${tile.tone}`}>
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <span className="text-sm font-medium text-slate-700">{tile.label}</span>
-                    {tile.tab === 'ceo-approved-requests' && tile.value > 0 && (
-                      <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-blue-600 px-2 py-0.5 text-xs font-semibold text-white">
-                        {tile.value}
-                      </span>
-                    )}
+        <div className="flex flex-col gap-3">
+          {tiles.map((tile) => {
+            const Icon = tile.icon;
+            return (
+              <button
+                key={tile.label}
+                type="button"
+                onClick={() => handleViewChange(tile.tab)}
+                className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm transition active:bg-slate-50"
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`inline-flex rounded-xl p-2 ${tile.tone}`}>
+                    <Icon className="h-5 w-5" />
                   </div>
-                  <ChevronDown className="h-4 w-4 -rotate-90 text-slate-400" />
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="space-y-6">
-            <button
-              type="button"
-              onClick={() => handleViewChange(null)}
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 transition-colors"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Dashboard
-            </button>
-            <h3 className="text-xl font-semibold text-slate-900">{viewLabel}</h3>
-            <RecordList records={filteredRecords} highlightedIds={highlightedIds} onOpenDetail={openDetail} />
-          </div>
-        )}
+                  <span className="text-sm font-medium text-slate-700">{tile.label}</span>
+                  {tile.value > 0 && (
+                    <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-blue-600 px-2 py-0.5 text-xs font-semibold text-white">
+                      {tile.value}
+                    </span>
+                  )}
+                </div>
+                <ChevronDown className="h-4 w-4 -rotate-90 text-slate-400" />
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* ── DESKTOP VIEW ── */}
@@ -994,21 +1007,18 @@ export function FinanceVerifications() {
         <div className="grid grid-cols-2 gap-4">
           {tiles.map((tile) => {
             const Icon = tile.icon;
-            const isActive = activeDesktopTab === tile.tab;
             return (
               <button
                 key={tile.label}
                 type="button"
                 onClick={() => handleViewChange(tile.tab)}
-                className={`rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-                  isActive ? `border-slate-400 ${tile.activeTone}` : 'border-slate-200'
-                }`}
+                className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
               >
                 <div className={`inline-flex rounded-xl p-2 ${tile.tone}`}>
                   <Icon className="h-5 w-5" />
                 </div>
                 <p className="mt-4 text-sm text-slate-500">{tile.label}</p>
-                {tile.tab === 'ceo-approved-requests' && tile.value > 0 && (
+                {tile.value > 0 && (
                   <span className="mt-3 inline-flex min-w-7 items-center justify-center rounded-full bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white">
                     {tile.value}
                   </span>
@@ -1019,8 +1029,60 @@ export function FinanceVerifications() {
         </div>
 
         <div className="space-y-4">
-          <h3 className="text-xl font-semibold text-slate-900">{viewLabel}</h3>
-          <RecordList records={filteredRecords} highlightedIds={highlightedIds} onOpenDetail={openDetail} />
+          <h3 className="text-xl font-semibold text-slate-900">Paid Customers</h3>
+          {marketingTasksLoading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+            </div>
+          ) : marketingTasksWithSubmissions.length === 0 ? (
+            <div className="bg-white rounded-xl p-12 shadow-sm border border-slate-200 text-center">
+              <p className="text-slate-500">No paid customer records yet.</p>
+              <p className="text-sm text-slate-400 mt-1">Marketing tasks appear here once they receive their first submission.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              {marketingTasksWithSubmissions.map((task) => {
+                const submissions = getSubmissionWrappers(task);
+                return (
+                  <Link
+                    key={task.id}
+                    to={`/paid-customers?openDetail=${task.id}`}
+                    className="border border-slate-200 rounded-xl p-5 bg-white shadow-sm transition-all hover:shadow-md hover:border-slate-300"
+                  >
+                    <div className="flex items-start justify-between mb-3 gap-3">
+                      <div>
+                        <h3 className="font-semibold text-lg text-slate-900">{task.title}</h3>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Customer: {task.customer_name} · {task.category}
+                        </p>
+                      </div>
+                      <span className="px-2 py-1 rounded text-xs font-medium whitespace-nowrap bg-gray-100 text-gray-700">
+                        {task.status || 'pending'}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      <span className="px-2 py-1 rounded-full bg-gray-100 text-slate-700 text-xs font-medium">
+                        By {task.marketing_user?.full_name || 'Unknown'}
+                      </span>
+                      <span className="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium">
+                        {submissions.length} submission{submissions.length !== 1 ? 's' : ''}
+                      </span>
+                      {task.budget != null && (
+                        <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-medium">
+                          AED {task.budget.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-slate-600 mb-3">{task.description}</p>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                      <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{task.customer_phone}</span>
+                      {task.customer_email && <span className="flex items-center gap-1"><Mail className="w-3 h-3" />{task.customer_email}</span>}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
