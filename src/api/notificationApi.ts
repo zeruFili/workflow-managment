@@ -23,6 +23,13 @@ export interface MarkReadResponse {
   };
 }
 
+export interface UnreadCountsResponse {
+  marketingTasks: number;
+  dataCollectorTasks: number;
+  quantitySurveyorTasks: number;
+  designerTasks: number;
+}
+
 const notificationApi = {
   bulkMarkRead: async (ids: string[]): Promise<BulkMarkReadResponse> => {
     const response = await api.patch<BulkMarkReadResponse>(
@@ -36,6 +43,12 @@ const notificationApi = {
     const response = await api.patch<MarkReadResponse>(
       `/notifications/${notificationId}/read`
     );
+    return response.data;
+  },
+
+  getUnreadCounts: async (parentTypes?: string[]): Promise<UnreadCountsResponse> => {
+    const params = parentTypes?.length ? `?parentType=${parentTypes.join(",")}` : "";
+    const response = await api.get<UnreadCountsResponse>(`/notifications/unread-counts${params}`);
     return response.data;
   },
 };

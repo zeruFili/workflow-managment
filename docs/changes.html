@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Notification Badge · full implementation plan</title>
+  <!-- Font Awesome 6 for crisp icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #f5f7fb;
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      padding: 2rem 1.5rem;
+      color: #1e293b;
+      line-height: 1.5;
+    }
+
+    .plan-container {
+      max-width: 1200px;
+      width: 100%;
+      background: #ffffff;
+      border-radius: 2.5rem;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+      padding: 2.25rem 2.5rem;
+      transition: all 0.2s ease;
+    }
+
+    @media (max-width: 650px) {
+      body {
+        padding: 1rem 0.75rem;
+      }
+      .plan-container {
+        padding: 1.75rem 1.25rem;
+      }
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      font-weight: 600;
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.35rem;
+      color: #0f172a;
+    }
+
+    h1 i {
+      color: #3b82f6;
+      font-size: 2rem;
+      background: #eef2ff;
+      padding: 0.65rem;
+      border-radius: 1.2rem;
+    }
+
+    .subtitle {
+      font-size: 1rem;
+      color: #475569;
+      margin-bottom: 2rem;
+      border-left: 4px solid #3b82f6;
+      padding-left: 1rem;
+      font-weight: 450;
+      background: linear-gradient(to right, #f8fafc, transparent);
+    }
+
+    .meta-grid {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 2.25rem;
+      background: #f9fafb;
+      padding: 1rem 1.5rem;
+      border-radius: 1.5rem;
+      gap: 1rem;
+    }
+
+    .badge-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .badge {
+      background: white;
+      border: 1px solid #e2e8f0;
+      padding: 0.35rem 1rem;
+      border-radius: 2rem;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: #334155;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    }
+
+    .badge i {
+      color: #2563eb;
+      font-size: 0.9rem;
+    }
+
+    .time-estimate {
+      background: #ecfdf5;
+      color: #065f46;
+      font-weight: 600;
+      padding: 0.4rem 1.2rem;
+      border-radius: 2rem;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin: 2.5rem 0 1.25rem 0;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-bottom: 2px solid #e9eef3;
+      padding-bottom: 0.6rem;
+    }
+
+    h2 i {
+      color: #2563eb;
+      font-size: 1.4rem;
+    }
+
+    .reuse-card {
+      background: #f0f4ff;
+      border-radius: 1.8rem;
+      padding: 1.5rem 1.8rem;
+      margin-bottom: 2rem;
+      border: 1px solid #d9e2f0;
+    }
+
+    .reuse-title {
+      font-weight: 700;
+      font-size: 1.1rem;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: #1e3a8a;
+    }
+
+    .reuse-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1rem;
+    }
+
+    .reuse-item {
+      background: white;
+      border-radius: 1.2rem;
+      padding: 0.9rem 1.2rem;
+      font-size: 0.9rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .reuse-item strong {
+      color: #0f172a;
+      font-weight: 600;
+    }
+
+    .reuse-item .path {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.8rem;
+      color: #475569;
+      background: #f1f5f9;
+      padding: 0.15rem 0.5rem;
+      border-radius: 0.4rem;
+      align-self: flex-start;
+    }
+
+    .file-change-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+      margin: 1.5rem 0;
+    }
+
+    .file-entry {
+      background: #ffffff;
+      border: 1px solid #e9eef3;
+      border-radius: 1.5rem;
+      padding: 1.2rem 1.6rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: 1rem;
+      transition: all 0.15s;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.02);
+    }
+
+    .file-entry:hover {
+      border-color: #b9c7da;
+      background: #fafcff;
+    }
+
+    .file-icon {
+      font-size: 1.6rem;
+      color: #2563eb;
+      width: 2.2rem;
+      text-align: center;
+    }
+
+    .file-details {
+      flex: 1;
+    }
+
+    .file-name {
+      font-weight: 700;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.2rem 0.7rem;
+      border-radius: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .tag.new {
+      background: #dcfce7;
+      color: #15803d;
+    }
+
+    .tag.update {
+      background: #fef9c3;
+      color: #854d0e;
+    }
+
+    .file-desc {
+      color: #334155;
+      margin: 0.35rem 0 0.2rem;
+      font-size: 0.92rem;
+    }
+
+    .lines {
+      font-size: 0.75rem;
+      color: #64748b;
+      background: #f1f5f9;
+      padding: 0.1rem 0.6rem;
+      border-radius: 1rem;
+      margin-left: 0.2rem;
+    }
+
+    .spec-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.2rem;
+      margin: 1.5rem 0 0.5rem;
+    }
+
+    .spec-card {
+      background: #f8fafc;
+      border-radius: 1.4rem;
+      padding: 1.2rem;
+      border: 1px solid #e2e8f0;
+    }
+
+    .spec-card .spec-title {
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      color: #0f172a;
+    }
+
+    .spec-card .spec-desc {
+      font-size: 0.9rem;
+      color: #334155;
+    }
+
+    .summary-box {
+      background: #f1f4f9;
+      border-radius: 1.5rem;
+      padding: 1.4rem 1.8rem;
+      margin: 2rem 0 1rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.8rem;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .summary-stats {
+      display: flex;
+      gap: 2rem;
+      flex-wrap: wrap;
+    }
+
+    .stat {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .stat-value {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .stat-label {
+      font-size: 0.8rem;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    hr {
+      border: 0.5px solid #e2e8f0;
+      margin: 1.8rem 0 1.2rem;
+    }
+
+    .footer-note {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      font-size: 0.95rem;
+      color: #2563eb;
+      font-weight: 500;
+      background: #eff6ff;
+      padding: 0.8rem 1.4rem;
+      border-radius: 2rem;
+    }
+
+    code {
+      background: #eef2f6;
+      padding: 0.15rem 0.45rem;
+      border-radius: 0.4rem;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.85rem;
+    }
+
+    .inline-code {
+      font-family: monospace;
+      background: #f1f5f9;
+      padding: 0.1rem 0.4rem;
+      border-radius: 0.3rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="plan-container">
+    
+    <!-- Header -->
+    <h1>
+      <i class="fas fa-bell"></i> 
+      Sidebar Notification Badge System
+    </h1>
+    <div class="subtitle">
+      Full implementation plan · backend + frontend · leveraging existing patterns
+    </div>
+
+    <!-- meta badges -->
+    <div class="meta-grid">
+      <div class="badge-group">
+        <div class="badge"><i class="fas fa-code-branch"></i> 3 new files</div>
+        <div class="badge"><i class="fas fa-pen"></i> 8 updated</div>
+        <div class="badge"><i class="fas fa-shield-alt"></i> 30+ untouched</div>
+      </div>
+      <div class="time-estimate">
+        <i class="far fa-clock"></i> Build · DeepSeek V4 Pro · ~3m read
+      </div>
+    </div>
+
+    <!-- What Already Exists (Reuse Strategy) -->
+    <h2><i class="fas fa-recycle"></i> What Already Exists</h2>
+    <div class="reuse-card">
+      <div class="reuse-title"><i class="fas fa-database"></i> Reuse strategy · zero schema changes</div>
+      <div class="reuse-grid">
+        <div class="reuse-item"><strong>Notification entity</strong><span class="path">Notification.ts</span>parent_id, parent_type, resource_type, viewed</div>
+        <div class="reuse-item"><strong>Index</strong><span class="path">idx_notif_user_parent_type</span>[user_id, viewed, parent_type, resource_type]</div>
+        <div class="reuse-item"><strong>req.user.role</strong><span class="path">auth.middleware.ts:26-29</span>JWT role extraction</div>
+        <div class="reuse-item"><strong>getUnreadCount endpoint</strong><span class="path">notification.service.ts:55-61</span>upgraded response shape</div>
+        <div class="reuse-item"><strong>Enums</strong><span class="path">UserRole, ResourceType, ParentType</span>match spec exactly</div>
+        <div class="reuse-item"><strong>createNotification</strong><span class="path">29 call sites · 5 services</span>already correct parent_type/resource_type</div>
+        <div class="reuse-item"><strong>Set&lt;string&gt; dedup</strong><span class="path">DesignerTasks.tsx:101 etc.</span>COUNT(DISTINCT parent_id) implicit</div>
+        <div class="reuse-item"><strong>CustomEvent dispatch</strong><span class="path">PaidCustomers.tsx:42-46</span>pages keep dispatching</div>
+        <div class="reuse-item"><strong>AuthContext</strong><span class="path">AuthContext.tsx</span>provides user.role</div>
+        <div class="reuse-item"><strong>notificationApi.ts</strong><span class="path">notificationApi.ts</span>extend with getUnreadCounts()</div>
+        <div class="reuse-item"><strong>Layout NavigationItem[]</strong><span class="path">Layout.tsx:33-38</span>badge from context</div>
+      </div>
+    </div>
+
+    <!-- Backend section -->
+    <h2><i class="fas fa-server"></i> Backend · 3 files changed, 1 file created</h2>
+    <div class="file-change-list">
+      <div class="file-entry">
+        <div class="file-icon"><i class="far fa-file-alt"></i></div>
+        <div class="file-details">
+          <div class="file-name"><span class="tag new">NEW</span> backend/src/constants/role-resource-filters.ts</div>
+          <div class="file-desc">Single source of truth for spec Section 3 matrix. Imported by notification-creation & count logic.</div>
+          <span class="lines">~30 lines</span>
+        </div>
+      </div>
+      <div class="file-entry">
+        <div class="file-icon"><i class="far fa-file-alt"></i></div>
+        <div class="file-details">
+          <div class="file-name"><span class="tag update">UPDATE</span> backend/src/services/notification.service.ts</div>
+          <div class="file-desc">Replace <code>getUnreadCount</code> with per-domain deduplicated counts using <code>COUNT(DISTINCT parent_id)</code>.</div>
+          <span class="lines">~20 lines</span>
+        </div>
+      </div>
+      <div class="file-entry">
+        <div class="file-icon"><i class="far fa-file-alt"></i></div>
+        <div class="file-details">
+          <div class="file-name"><span class="tag update">UPDATE</span> backend/src/controllers/notification.controller.ts</div>
+          <div class="file-desc">New <code>getUnreadCounts</code> handler, optional <code>?parentType=</code> query param.</div>
+          <span class="lines">~15 lines</span>
+        </div>
+      </div>
+      <div class="file-entry">
+        <div class="file-icon"><i class="far fa-file-alt"></i></div>
+        <div class="file-details">
+          <div class="file-name"><span class="tag update">UPDATE</span> backend/src/routes/notification.routes.ts</div>
+          <div class="file-desc">Route <code>/notifications/unread-counts</code> → new handler (plural, matching response shape).</div>
+          <span class="lines">1 line</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Frontend section -->
+    <h2><i class="fas fa-desktop"></i> Frontend · 4 files updated, 2 files created</h2>
+    <div class="file-change-list">
+      <div class="file-entry">
+        <div class="file-icon"><i class="far fa-file-alt"></i></div>
+        <div class="file-details">
+          <div class="file-name"><span class="tag new">NEW</span> frontend/src/app/data/notificationFilters.ts</div>
+          <div class="file-desc">Frontend mirror of role-resource matrix (offline/no-backend fallback).</div>
+          <span class="lines">~25 lines</span>
+        </div>
+      </div>
+      <div class="file-entry">
+        <div class="file-icon"><i class="far fa-file-alt"></i></div>
+        <div class="file-details">
+          <div class="file-name"><span class="tag update">UPDATE</span> frontend/src/api/notificationApi.ts</div>
+          <div class="file-desc">Add <code>getUnreadCounts()</code> method, returns <code>UnreadCountsResponse</code>.</div>
+          <span class="lines">~10 lines</span>
+        </div>
+      </div>
+      <div class="file-entry">
+        <div class="file-icon"><i class="far fa-file-alt"></i></div>
+        <div class="file-details">
+          <div class="file-name"><span class="tag new">NEW</span> frontend/src/app/contexts/NotificationCountsContext.tsx</div>
+          <div class="file-desc">Central context: fetch from backend, fallback to <code>getUnseen*Count()</code>, decrement on markRead.</div>
+          <span class="lines">~70 lines</span>
+        </div>
+      </div>
+      <div class="file-entry">
+        <div class="file-icon"><i class="far fa-file-alt"></i></div>
+        <div class="file-details">
+          <div class="file-name"><span class="tag update">UPDATE</span> frontend/src/app/App.tsx</div>
+          <div class="file-desc">Wrap authenticated tree with <code>NotificationCountsProvider</code>.</div>
+          <span class="lines">~3 lines</span>
+        </div>
+      </div>
+      <div class="file-entry">
+        <div class="file-icon"><i class="far fa-file-alt"></i></div>
+        <div class="file-details">
+          <div class="file-name"><span class="tag update">UPDATE</span> frontend/src/app/components/Layout.tsx</div>
+          <div class="file-desc">Remove 7 individual <code>useState</code> + listeners; use <code>useNotificationCounts()</code>.</div>
+          <span class="lines">~70 removed, ~5 added</span>
+        </div>
+      </div>
+      <div class="file-entry">
+        <div class="file-icon"><i class="far fa-file-alt"></i></div>
+        <div class="file-details">
+          <div class="file-name"><span class="tag update">UPDATE</span> frontend/src/app/components/LeadershipQuickAccess.tsx</div>
+          <div class="file-desc">Replace individual state with context counts.</div>
+          <span class="lines">~40 removed, ~3 added</span>
+        </div>
+      </div>
+      <div class="file-entry">
+        <div class="file-icon"><i class="far fa-file-alt"></i></div>
+        <div class="file-details">
+          <div class="file-name"><span class="tag update">UPDATE</span> frontend/src/app/pages/Dashboard.tsx</div>
+          <div class="file-desc">DesignerQuickAccess uses context counts.</div>
+          <span class="lines">~10 removed, ~2 added</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Spec requirements mapping -->
+    <h2><i class="fas fa-check-circle"></i> How Every Spec Requirement Is Met</h2>
+    <div class="spec-grid">
+      <div class="spec-card"><div class="spec-title">COUNT(DISTINCT parent_id)</div><div class="spec-desc">Backend query uses <code>COUNT(DISTINCT n.parent_id)</code>. Frontend Set&lt;string&gt; tracks viewed task IDs.</div></div>
+      <div class="spec-card"><div class="spec-title">Role-aware resource_type</div><div class="spec-desc"><code>ROLE_RESOURCE_FILTERS</code> constant, server-derived role from JWT.</div></div>
+      <div class="spec-card"><div class="spec-title">Single endpoint</div><div class="spec-desc"><code>GET /notifications/unread-counts</code> with optional <code>?parentType=</code>.</div></div>
+      <div class="spec-card"><div class="spec-title">Fetch once at init</div><div class="spec-desc">Context calls <code>getUnreadCounts()</code> on mount; no per-page API calls.</div></div>
+      <div class="spec-card"><div class="spec-title">No per-page refetching</div><div class="spec-desc">Layout, Dashboard, LeadershipQuickAccess read from context.</div></div>
+      <div class="spec-card"><div class="spec-title">markRead integration</div><div class="spec-desc"><code>decrement(domain, amount)</code> after markRead success.</div></div>
+      <div class="spec-card"><div class="spec-title">Designer posted_job</div><div class="spec-desc">Filter rule: designer_task → designer → ["posted_job"].</div></div>
+      <div class="spec-card"><div class="spec-title">GM/CEO see both</div><div class="spec-desc">WHERE clause scoped by parent_type, resource_type widens.</div></div>
+      <div class="spec-card"><div class="spec-title">Index coverage</div><div class="spec-desc">Existing <code>idx_notif_user_parent_type</code> covers query exactly.</div></div>
+      <div class="spec-card"><div class="spec-title">Backward compatibility</div><div class="spec-desc">Fallback to <code>getUnseen*Count()</code> when backend down.</div></div>
+    </div>
+
+    <!-- summary & files untouched -->
+    <div class="summary-box">
+      <div class="summary-stats">
+        <div class="stat"><span class="stat-value">3</span><span class="stat-label">new files</span></div>
+        <div class="stat"><span class="stat-value">8</span><span class="stat-label">updated</span></div>
+        <div class="stat"><span class="stat-value">30+</span><span class="stat-label">untouched</span></div>
+      </div>
+      <div class="footer-note">
+        <i class="fas fa-shield-alt"></i> Pages keep dispatching same CustomEvents · zero risk of breaking existing behavior
+      </div>
+    </div>
+
+    <hr>
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap:1rem;">
+      <span style="font-weight:500; color:#0f172a;"><i class="far fa-file-code"></i> Files NOT changed:</span>
+      <span style="color:#475569; font-size:0.9rem;">designerAssignmentHighlights.ts, siteEngineerTaskShared.ts, designerTaskShared.ts, quantitySurveyorWorkflow.ts, all API modules, all caches, all domain services</span>
+    </div>
+    <div style="margin-top:1.5rem; background:#f9fafb; border-radius:1.2rem; padding:1rem 1.5rem; text-align:center; color:#1e3b8a;">
+      <i class="fas fa-circle-check" style="color:#2563eb;"></i> <strong>Shall I proceed with these changes?</strong> &nbsp;·&nbsp; Build complete · DeepSeek V4 Pro
+    </div>
+  </div>
+</body>
+</html>

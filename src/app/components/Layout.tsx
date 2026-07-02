@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth, getRoleName } from '../contexts/AuthContext';
+import { useNotificationCounts } from '../contexts/NotificationCountsContext';
 import {
   Home,
   FolderKanban,
@@ -19,8 +20,6 @@ import {
   Send,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY } from '../pages/designerAssignmentHighlights';
-import { DESIGNER_TASKS_NOTIFICATIONS_KEY } from '../pages/DesignerTasks';
 import {
   SITE_ENGINEER_NOTIFICATIONS_KEY,
   getInitialSiteEngineerNotificationCount,
@@ -37,95 +36,33 @@ type NavigationItem = {
   badge?: number;
 };
 
-export const PAID_CUSTOMERS_NOTIFICATIONS_KEY = 'paid-customers-notifications-v2';
-export const DATA_COLLECTOR_NOTIFICATIONS_KEY = 'data-collector-notifications-v2';
-export const QUANTITY_SURVEYOR_NOTIFICATIONS_KEY = 'quantity-surveyor-notifications-v2';
-export const FINANCE_VERIFICATIONS_NOTIFICATIONS_KEY = 'finance-verifications-notifications-v2';
-
 export function Layout({ children }: LayoutProps) {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { counts } = useNotificationCounts();
 
-  // Badge states – initialised to mock counts and updated via events
-  const [paidCustomerNotifications, setPaidCustomerNotifications] = useState(3);
-  const [dataCollectorNotifications, setDataCollectorNotifications] = useState(3);
-  const [quantitySurveyorNotifications, setQuantitySurveyorNotifications] = useState(3);
-  const [financeVerificationsNotifications, setFinanceVerificationsNotifications] = useState(2);
-  const [openJobPostingsNotifications, setOpenJobPostingsNotifications] = useState(3);
-  const [designerAssignmentsNotifications, setDesignerAssignmentsNotifications] = useState(3);
-  const [designerTasksNotifications, setDesignerTasksNotifications] = useState(3);
-
-  // ── New state for Site Engineer notifications ──────────────────────────────
   const [siteEngineerNotifications, setSiteEngineerNotifications] = useState(
     getInitialSiteEngineerNotificationCount()
   );
 
   useEffect(() => {
-    const onPaidCustomers = (e: Event) => {
-      const customEvent = e as CustomEvent<number>;
-      setPaidCustomerNotifications(customEvent.detail ?? 0);
-    };
-    const onDataCollector = (e: Event) => {
-      const customEvent = e as CustomEvent<number>;
-      setDataCollectorNotifications(customEvent.detail ?? 0);
-    };
-    const onQuantitySurveyor = (e: Event) => {
-      const customEvent = e as CustomEvent<number>;
-      setQuantitySurveyorNotifications(customEvent.detail ?? 0);
-    };
-    const onFinanceVerifications = (e: Event) => {
-      const customEvent = e as CustomEvent<number>;
-      setFinanceVerificationsNotifications(customEvent.detail ?? 0);
-    };
-    const onOpenJobPostingsNotifications = (e: Event) => {
-      const customEvent = e as CustomEvent<number>;
-      setOpenJobPostingsNotifications(customEvent.detail ?? 0);
-    };
-    const onDesignerAssignments = (e: Event) => {
-      const customEvent = e as CustomEvent<number>;
-      setDesignerAssignmentsNotifications(customEvent.detail ?? 0);
-    };
-    const onDesignerTasks = (e: Event) => {
-      const customEvent = e as CustomEvent<number>;
-      setDesignerTasksNotifications(customEvent.detail ?? 0);
-    };
-
-    // ── Listener for Site Engineer notifications ──────────────────────────
     const onSiteEngineer = (e: Event) => {
       const customEvent = e as CustomEvent<number>;
       setSiteEngineerNotifications(customEvent.detail ?? 0);
     };
 
-    window.addEventListener('paid-customers-notifications-updated', onPaidCustomers);
-    window.addEventListener('data-collector-notifications-updated', onDataCollector);
-    window.addEventListener('quantity-surveyor-notifications-updated', onQuantitySurveyor);
-    window.addEventListener('finance-verifications-notifications-updated', onFinanceVerifications);
-    window.addEventListener('open-job-postings-notifications-updated', onOpenJobPostingsNotifications);
-    window.addEventListener(DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY, onDesignerAssignments);
-    window.addEventListener(DESIGNER_TASKS_NOTIFICATIONS_KEY, onDesignerTasks);
-
-    // ── Register the Site Engineer event ─────────────────────────────────
     window.addEventListener(SITE_ENGINEER_NOTIFICATIONS_KEY, onSiteEngineer);
 
     return () => {
-      window.removeEventListener('paid-customers-notifications-updated', onPaidCustomers);
-      window.removeEventListener('data-collector-notifications-updated', onDataCollector);
-      window.removeEventListener('quantity-surveyor-notifications-updated', onQuantitySurveyor);
-      window.removeEventListener('finance-verifications-notifications-updated', onFinanceVerifications);
-      window.removeEventListener('open-job-postings-notifications-updated', onOpenJobPostingsNotifications);
-      window.removeEventListener(DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY, onDesignerAssignments);
-      window.removeEventListener(DESIGNER_TASKS_NOTIFICATIONS_KEY, onDesignerTasks);
-
-      // ── Clean up the Site Engineer event ───────────────────────────────
       window.removeEventListener(SITE_ENGINEER_NOTIFICATIONS_KEY, onSiteEngineer);
     };
   }, []);
 
   if (!user) return <>{children}</>;
 
-  // ── Updated: site_engineer also gets a sidebar‑less layout ────────────
+  // ════ Side‑less role only ════
   const isSidebarlessRole =
     user.role === 'finance_officer' ||
     user.role === 'site_engineer';
@@ -150,10 +87,10 @@ export function Layout({ children }: LayoutProps) {
         badge:
           user.role === 'site_engineer' && siteEngineerNotifications > 0
             ? siteEngineerNotifications
-            : user.role === 'data_collector' && dataCollectorNotifications > 0
-            ? dataCollectorNotifications
-            : user.role === 'quantity_surveyor' && quantitySurveyorNotifications > 0
-            ? quantitySurveyorNotifications
+            : user.role === 'data_collector' && counts.dataCollectorTasks > 0
+            ? counts.dataCollectorTasks
+            : user.role === 'quantity_surveyor' && counts.quantitySurveyorTasks > 0
+            ? counts.quantitySurveyorTasks
             : undefined,
       });
     }
@@ -182,7 +119,7 @@ export function Layout({ children }: LayoutProps) {
         path: '/paid-customers',
         label: 'Paid Customers',
         icon: CircleDollarSign,
-        badge: paidCustomerNotifications > 0 ? paidCustomerNotifications : undefined,
+        badge: counts.marketingTasks > 0 ? counts.marketingTasks : undefined,
       });
     }
 
@@ -192,7 +129,7 @@ export function Layout({ children }: LayoutProps) {
         path: '/finance-verifications',
         label: 'Finance Verifications',
         icon: ClipboardCheck,
-        badge: financeVerificationsNotifications > 0 ? financeVerificationsNotifications : undefined,
+        badge: counts.marketingTasks > 0 ? counts.marketingTasks : undefined,
       });
     }
 
@@ -214,7 +151,7 @@ export function Layout({ children }: LayoutProps) {
         path: '/data-collector-tasks',
         label: 'Data Collector Tasks',
         icon: Database,
-        badge: dataCollectorNotifications > 0 ? dataCollectorNotifications : undefined,
+        badge: counts.dataCollectorTasks > 0 ? counts.dataCollectorTasks : undefined,
       });
       addNavigationItem({ path: '/job-postings', label: 'Job Postings', icon: FolderKanban });
       addNavigationItem({
@@ -226,13 +163,13 @@ export function Layout({ children }: LayoutProps) {
         path: '/designer-assignments',
         label: 'Designer Assignments',
         icon: LayoutGrid,
-        badge: designerAssignmentsNotifications > 0 ? designerAssignmentsNotifications : undefined,
+        badge: counts.designerTasks > 0 ? counts.designerTasks : undefined,
       });
       addNavigationItem({
         path: '/quantity-surveyor-tasks',
         label: 'Quantity Surveyor Tasks',
         icon: CheckSquare,
-        badge: quantitySurveyorNotifications > 0 ? quantitySurveyorNotifications : undefined,
+        badge: counts.quantitySurveyorTasks > 0 ? counts.quantitySurveyorTasks : undefined,
       });
       addNavigationItem({
         path: '/performance-ratings',
@@ -246,13 +183,13 @@ export function Layout({ children }: LayoutProps) {
         path: '/designer-tasks',
         label: 'Designer Tasks',
         icon: LayoutGrid,
-        badge: designerTasksNotifications > 0 ? designerTasksNotifications : undefined,
+        badge: counts.designerTasks > 0 ? counts.designerTasks : undefined,
       });
       addNavigationItem({
         path: '/open-job-postings',
         label: 'Open Job Postings',
         icon: FolderKanban,
-        badge: openJobPostingsNotifications > 0 ? openJobPostingsNotifications : undefined,
+        badge: counts.designerTasks > 0 ? counts.designerTasks : undefined,
       });
     }
 

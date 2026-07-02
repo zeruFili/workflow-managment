@@ -1,16 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotificationCounts } from '../contexts/NotificationCountsContext';
 import { DesignerTaskItem } from '../../api/designerApi';
 import { designerTaskCache } from '../data/designerTaskCache';
-import { getUnseenDataCollectorCount } from '../pages/DataCollectorTasks';
-import { getUnseenQuantitySurveyorCount } from '../pages/QuantitySurveyorTasks';
 import {
-  DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY,
-  getPendingReviewCount,
   getPendingReviewHighlightedIds,
 } from '../pages/designerAssignmentHighlights';
-import { getUnseenPaidCustomerCount } from '../pages/PaidCustomers';
 import { ArrowRight, Briefcase, CircleDollarSign, Database, LayoutGrid } from 'lucide-react';
 
 type QuickAccessButtonProps = {
@@ -55,10 +51,7 @@ function QuickAccessButton({
 
 export function LeadershipQuickAccess() {
   const { user } = useAuth();
-  const [paidCustomersCount, setPaidCustomersCount] = useState(() => getUnseenPaidCustomerCount());
-  const [dataCollectorCount, setDataCollectorCount] = useState(() => getUnseenDataCollectorCount());
-  const [quantitySurveyorCount, setQuantitySurveyorCount] = useState(() => getUnseenQuantitySurveyorCount());
-  const [designerAssignmentsCount, setDesignerAssignmentsCount] = useState(getPendingReviewCount());
+  const { counts } = useNotificationCounts();
   const [designerTasks, setDesignerTasks] = useState<DesignerTaskItem[]>([]);
 
   useEffect(() => {
@@ -75,50 +68,15 @@ export function LeadershipQuickAccess() {
       .catch(() => {});
   }, [user]);
 
+  const highlightedIds = getPendingReviewHighlightedIds();
+
   const sortedTasks = [...designerTasks].sort((a, b) => {
-    const highlightedIds = getPendingReviewHighlightedIds();
     const aHighlighted = highlightedIds.has(a.id) ? 1 : 0;
     const bHighlighted = highlightedIds.has(b.id) ? 1 : 0;
 
     if (bHighlighted !== aHighlighted) return bHighlighted - aHighlighted;
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
-
-  useEffect(() => {
-    const onPaidCustomers = (event: Event) => {
-      const customEvent = event as CustomEvent<number>;
-      setPaidCustomersCount(customEvent.detail ?? 0);
-    };
-
-    const onDataCollector = (event: Event) => {
-      const customEvent = event as CustomEvent<number>;
-      setDataCollectorCount(customEvent.detail ?? 0);
-    };
-
-    const onQuantitySurveyor = (event: Event) => {
-      const customEvent = event as CustomEvent<number>;
-      setQuantitySurveyorCount(customEvent.detail ?? 0);
-    };
-
-    const onDesignerAssignments = (event: Event) => {
-      const customEvent = event as CustomEvent<number>;
-      setDesignerAssignmentsCount(customEvent.detail ?? 0);
-    };
-
-    window.addEventListener('paid-customers-notifications-updated', onPaidCustomers);
-    window.addEventListener('data-collector-notifications-updated', onDataCollector);
-    window.addEventListener('quantity-surveyor-notifications-updated', onQuantitySurveyor);
-    window.addEventListener(DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY, onDesignerAssignments);
-
-    return () => {
-      window.removeEventListener('paid-customers-notifications-updated', onPaidCustomers);
-      window.removeEventListener('data-collector-notifications-updated', onDataCollector);
-      window.removeEventListener('quantity-surveyor-notifications-updated', onQuantitySurveyor);
-      window.removeEventListener(DESIGNER_ASSIGNMENTS_NOTIFICATIONS_KEY, onDesignerAssignments);
-    };
-  }, []);
-
-  const highlightedIds = getPendingReviewHighlightedIds();
 
   return (
     <div className="space-y-5 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
@@ -134,7 +92,7 @@ export function LeadershipQuickAccess() {
           to="/designer-assignments"
           label="Designer Assignments"
           icon={LayoutGrid}
-          badgeCount={designerAssignmentsCount}
+          badgeCount={counts.designerTasks}
           iconBgClass="bg-blue-100"
           iconTextClass="text-blue-600"
         />
@@ -142,7 +100,7 @@ export function LeadershipQuickAccess() {
           to="/data-collector-tasks"
           label="Data Collector Tasks"
           icon={Database}
-          badgeCount={dataCollectorCount}
+          badgeCount={counts.dataCollectorTasks}
           iconBgClass="bg-green-100"
           iconTextClass="text-green-600"
         />
@@ -150,7 +108,7 @@ export function LeadershipQuickAccess() {
           to="/quantity-surveyor-tasks"
           label="Quantity Surveyor Tasks"
           icon={Briefcase}
-          badgeCount={quantitySurveyorCount}
+          badgeCount={counts.quantitySurveyorTasks}
           iconBgClass="bg-purple-100"
           iconTextClass="text-purple-600"
         />
@@ -158,7 +116,7 @@ export function LeadershipQuickAccess() {
           to="/paid-customers"
           label="Paid Customers"
           icon={CircleDollarSign}
-          badgeCount={paidCustomersCount}
+          badgeCount={counts.marketingTasks}
           iconBgClass="bg-orange-100"
           iconTextClass="text-orange-600"
         />

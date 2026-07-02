@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth, getRoleName } from '../contexts/AuthContext';
+import { useNotificationCounts } from '../contexts/NotificationCountsContext';
 import { Link } from 'react-router-dom';
 import { mockProjects, mockTasks } from '../data/mockData';
 import {
@@ -23,12 +24,8 @@ import {
 } from 'lucide-react';
 import { LeadershipQuickAccess } from '../components/LeadershipQuickAccess';
 import {
-  getUnseenDesignerTaskCount,
   getUnseenDesignerTaskHighlightedIds,
 } from '../pages/DesignerTasks';
-import {
-  getUnseenOpenJobPostingsCount,
-} from '../pages/DesignerOpenJobPostings';
 import designerApi, { DesignerTaskItem } from '../../api/designerApi';
 import { designerTaskCache } from '../data/designerTaskCache';
 
@@ -73,26 +70,9 @@ function DashboardButton({
 
 function DesignerQuickAccess() {
   const { user } = useAuth();
+  const { counts } = useNotificationCounts();
   const [designerTasks, setDesignerTasks] = useState<DesignerTaskItem[]>([]);
-  const [designerTaskCount, setDesignerTaskCount] = useState(() => getUnseenDesignerTaskCount());
-  const [openJobPostingsCount, setOpenJobPostingsCount] = useState(() => getUnseenOpenJobPostingsCount());
   const highlightedTaskIds = getUnseenDesignerTaskHighlightedIds();
-
-  useEffect(() => {
-    if (!user) return;
-    const cached = designerTaskCache.get({ limit: 50 });
-    if (cached) {
-      const assigned = cached.data.filter((task) => task.assigned_to_user_id === user.id);
-      setDesignerTasks(assigned);
-      return;
-    }
-    designerTaskCache.fetch({ limit: 50 })
-      .then((result) => {
-        const assigned = result.data.filter((task) => task.assigned_to_user_id === user.id);
-        setDesignerTasks(assigned);
-      })
-      .catch(() => {});
-  }, [user]);
 
   const sortedTasks = [...designerTasks].sort((a, b) => {
     const aHighlighted = highlightedTaskIds.has(a.id) ? 1 : 0;
@@ -136,7 +116,7 @@ function DesignerQuickAccess() {
           to="/designer-tasks"
           label="Designer Tasks"
           icon={Briefcase}
-          badgeCount={designerTaskCount}
+          badgeCount={counts.designerTasks}
           iconBgClass="bg-blue-100"
           iconTextClass="text-blue-600"
         />
@@ -144,7 +124,7 @@ function DesignerQuickAccess() {
           to="/open-job-postings"
           label="Open Job Postings"
           icon={Megaphone}
-          badgeCount={openJobPostingsCount}
+          badgeCount={counts.designerTasks}
           iconBgClass="bg-emerald-100"
           iconTextClass="text-emerald-600"
         />

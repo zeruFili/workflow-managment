@@ -3,6 +3,7 @@ import { createHashRouter, RouterProvider, Outlet, Navigate } from 'react-router
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useTelegram } from './hooks/useTelegram';
 import { Layout } from './components/Layout';
+import { NotificationCountsProvider } from './contexts/NotificationCountsContext';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Tasks } from './pages/Tasks';
@@ -75,9 +76,11 @@ function AuthenticatedLayout() {
   }
 
   return (
-    <Layout>
-      <Outlet />
-    </Layout>
+    <NotificationCountsProvider>
+      <Layout>
+        <Outlet />
+      </Layout>
+    </NotificationCountsProvider>
   );
 }
 
