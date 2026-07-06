@@ -124,7 +124,7 @@ function DesignerQuickAccess() {
           to="/open-job-postings"
           label="Open Job Postings"
           icon={Megaphone}
-          badgeCount={counts.designerTasks}
+          badgeCount={counts.designerJobPostings}
           iconBgClass="bg-emerald-100"
           iconTextClass="text-emerald-600"
         />

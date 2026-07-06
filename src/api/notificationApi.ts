@@ -28,6 +28,7 @@ export interface UnreadCountsResponse {
   dataCollectorTasks: number;
   quantitySurveyorTasks: number;
   designerTasks: number;
+  designerJobPostings: number;
 }
 
 const notificationApi = {

@@ -1431,6 +1431,7 @@ export function DesignerAssignments() {
               const isHighlighted = highlightedIds.has(task.id);
               const isOverdue =
                 task.due_date && new Date(task.due_date) < new Date() && task.status !== 'approved';
+              const isDeactivated = task.task_state === 'deactive';
 
               const { currentPhaseKey, currentPhaseLabel, currentPhaseStatus } = getCurrentPhaseInfo(task);
 
@@ -1454,6 +1455,8 @@ export function DesignerAssignments() {
                     'bg-white rounded-xl p-6 shadow-sm border transition-all duration-300',
                     isHighlighted
                       ? 'border-2 border-blue-400 ring-4 ring-blue-100 shadow-blue-100'
+                      : isDeactivated
+                      ? 'border-gray-300 opacity-70'
                       : 'border-gray-200 hover:shadow-md',
                   ].join(' ')}
                 >
@@ -1462,6 +1465,14 @@ export function DesignerAssignments() {
                       <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full">
                         <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
                         New
+                      </span>
+                    </div>
+                  )}
+                  {isDeactivated && (
+                    <div className="mb-3">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 bg-gray-200 px-2.5 py-1 rounded-full">
+                        <XCircle className="w-3 h-3" />
+                        Deactivated
                       </span>
                     </div>
                   )}
@@ -1653,6 +1664,7 @@ export function DesignerAssignments() {
                               <p className="text-sm text-gray-700 italic mt-1">"{existingReview.reviewText}"</p>
                             </div>
                           )}
+                          {!isDeactivated && (
                           <button
                             onClick={() => toggleReviewPanel(task.id)}
                             className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800"
@@ -1660,8 +1672,10 @@ export function DesignerAssignments() {
                             <Edit className="w-3.5 h-3.5" />
                             Edit Review
                           </button>
+                          )}
                         </div>
                       ) : (
+                        !isDeactivated && (
                         <button
                           onClick={() => toggleReviewPanel(task.id)}
                           className="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-800"
@@ -1669,6 +1683,7 @@ export function DesignerAssignments() {
                           <Star className="w-4 h-4" />
                           Review
                         </button>
+                        )
                       )}
 
                       {reviewTaskId === task.id && (
@@ -1815,6 +1830,12 @@ export function DesignerAssignments() {
                     <span className={`rounded-full px-2 py-1 text-xs font-medium ${statusColorClass(selectedTaskDetail.status)}`}>
                       {statusDisplayName(selectedTaskDetail.status)}
                     </span>
+                    {selectedTaskDetail.task_state === 'deactive' && (
+                      <span className="rounded-full bg-gray-200 px-2 py-1 text-xs font-medium text-gray-500 inline-flex items-center gap-1">
+                        <XCircle className="w-3 h-3" />
+                        Deactivated
+                      </span>
+                    )}
                   </div>
                 </section>
 
@@ -1839,6 +1860,14 @@ export function DesignerAssignments() {
                     Submission Progress & Review
                   </h5>
 
+                  {selectedTaskDetail.task_state === 'deactive' && (
+                    <div className="mb-4 p-3 bg-gray-100 border border-gray-300 rounded-lg flex items-center gap-2">
+                      <XCircle className="w-4 h-4 text-gray-500 shrink-0" />
+                      <span className="text-sm text-gray-600">
+                        This task has been deactivated. Submissions and reviews are disabled.
+                      </span>
+                    </div>
+                  )}
                   {(() => {
                     // Find the latest review across ALL phases, not just the last populated one
                     const swr = selectedTaskDetail.submissionsWithReviews;
@@ -1932,7 +1961,7 @@ export function DesignerAssignments() {
                         const taskApproved = selectedTaskDetail.status === 'approved';
                         const updatedAt = selectedTaskDetail.updated_at ? new Date(selectedTaskDetail.updated_at).getTime() : 0;
                         const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-                        const canReview = !taskApproved || updatedAt > oneWeekAgo;
+                        const canReview = (!taskApproved || updatedAt > oneWeekAgo) && selectedTaskDetail.task_state !== 'deactive';
 
                         return (
                           <div key={phase.key} className={`border rounded-lg overflow-hidden ${phaseHasNotification ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200'}`}>

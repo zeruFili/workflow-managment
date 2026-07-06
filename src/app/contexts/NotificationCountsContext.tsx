@@ -7,6 +7,7 @@ export type DomainCounts = {
   dataCollectorTasks: number;
   quantitySurveyorTasks: number;
   designerTasks: number;
+  designerJobPostings: number;
 };
 
 interface NotificationCountsContextType {
@@ -20,6 +21,7 @@ const defaultCounts: DomainCounts = {
   dataCollectorTasks: 0,
   quantitySurveyorTasks: 0,
   designerTasks: 0,
+  designerJobPostings: 0,
 };
 
 const NotificationCountsContext = createContext<NotificationCountsContextType>({
@@ -48,16 +50,14 @@ export function NotificationCountsProvider({ children }: { children: React.React
       const result = await notificationApi.getUnreadCounts();
       console.log(
         `[NotificationCounts] Backend response for role="${user.role}":`,
-        `marketingTasks=${result.marketingTasks ?? 0}`,
-        `dataCollectorTasks=${result.dataCollectorTasks ?? 0}`,
-        `quantitySurveyorTasks=${result.quantitySurveyorTasks ?? 0}`,
-        `designerTasks=${result.designerTasks ?? 0}`,
+        JSON.stringify(result),
       );
       setCounts({
         marketingTasks: result.marketingTasks ?? 0,
         dataCollectorTasks: result.dataCollectorTasks ?? 0,
         quantitySurveyorTasks: result.quantitySurveyorTasks ?? 0,
         designerTasks: result.designerTasks ?? 0,
+        designerJobPostings: result.designerJobPostings ?? 0,
       });
     } catch {
       console.warn("[NotificationCounts] Backend unreachable — counts set to 0");

@@ -1305,6 +1305,7 @@ export function DesignerTasks() {
               const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'approved';
               const { currentPhaseKey, currentPhaseLabel, currentPhaseStatus } = getCurrentPhaseInfo(task);
               const isHighlighted = highlightedIds.has(task.id);
+              const isDeactivated = task.task_state === 'deactive';
 
               return (
                 <div
@@ -1313,6 +1314,8 @@ export function DesignerTasks() {
                   className={`bg-white rounded-xl p-6 shadow-sm border transition-all duration-300 hover:shadow-md ${
                     isHighlighted
                       ? 'border-2 border-blue-400 ring-4 ring-blue-100 shadow-blue-100'
+                      : isDeactivated
+                      ? 'border-gray-300 opacity-70'
                       : 'border-gray-200'
                   }`}
                 >
@@ -1321,6 +1324,14 @@ export function DesignerTasks() {
                       <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full">
                         <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
                         New
+                      </span>
+                    </div>
+                  )}
+                  {isDeactivated && (
+                    <div className="mb-3">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 bg-gray-200 px-2.5 py-1 rounded-full">
+                        <XCircle className="w-3 h-3" />
+                        Deactivated
                       </span>
                     </div>
                   )}
@@ -1645,6 +1656,12 @@ export function DesignerTasks() {
                         {statusDisplay(selectedTaskDetail.status)}
                       </span>
                     )}
+                    {selectedTaskDetail.task_state === 'deactive' && (
+                      <span className="rounded-full bg-gray-200 px-2 py-1 text-xs font-medium text-gray-500 inline-flex items-center gap-1">
+                        <XCircle className="w-3 h-3" />
+                        Deactivated
+                      </span>
+                    )}
                   </div>
                 </section>
 
@@ -1673,6 +1690,14 @@ export function DesignerTasks() {
                       <PauseCircle className="w-4 h-4 text-amber-600 shrink-0" />
                       <span className="text-sm text-amber-700">
                         This task is paused. Submissions are disabled.
+                      </span>
+                    </div>
+                  )}
+                  {selectedTaskDetail.task_state === 'deactive' && (
+                    <div className="mb-4 p-3 bg-gray-100 border border-gray-300 rounded-lg flex items-center gap-2">
+                      <XCircle className="w-4 h-4 text-gray-500 shrink-0" />
+                      <span className="text-sm text-gray-600">
+                        This task has been deactivated. Submissions and reviews are disabled.
                       </span>
                     </div>
                   )}

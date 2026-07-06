@@ -17,8 +17,13 @@ export const ROLE_RESOURCE_FILTERS: Record<string, Record<string, string[]>> = {
     ceo: ["submission", "review"],
   },
   designer_task: {
-    designer: ["posted_job"],
+    designer: ["task_assigned", "review"],
     general_manager: ["submission", "review"],
     ceo: ["submission", "review"],
+  },
+  designer_task_posted: {
+    designer: ["posted_job"],
+    general_manager: ["posted_job"],
+    ceo: ["posted_job"],
   },
 };

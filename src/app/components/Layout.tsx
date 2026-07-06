@@ -197,7 +197,7 @@ export function Layout({ children }: LayoutProps) {
         path: '/open-job-postings',
         label: 'Open Job Postings',
         icon: FolderKanban,
-        badge: counts.designerTasks > 0 ? counts.designerTasks : undefined,
+        badge: counts.designerJobPostings > 0 ? counts.designerJobPostings : undefined,
       });
     }
 
