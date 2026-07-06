@@ -142,6 +142,7 @@ export function DesignerApplications() {
   const [editError, setEditError] = useState('');
   const [editSuccess, setEditSuccess] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isLoadingEdit, setIsLoadingEdit] = useState(false);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
@@ -533,23 +534,55 @@ export function DesignerApplications() {
     setAssignError(null);
   };
 
-  const openEditTask = (task: DesignerTaskItem) => {
+  const openEditTask = async (task: DesignerTaskItem) => {
     setEditingTaskId(task.id);
-    setEditForm({
-      title: task.title,
-      description: task.description,
-      instruction: '',
-      storyPoints: String(task.story_point),
-      deadline: task.due_date ? new Date(task.due_date).toISOString().split('T')[0] : '',
-      is_public: task.is_public ?? false,
-      assigned_to_user_id: task.assigned_to_user_id || '',
-    });
-    setEditImagePreview(null);
-    editImageFileRef.current = null;
+    setShowEditTask(true);
     setEditFormErrors({});
     setEditError('');
     setEditSuccess('');
-    setShowEditTask(true);
+    setIsLoadingEdit(true);
+
+    try {
+      const res = await designerApi.getDesignerTaskById(task.id);
+      if (res.success && res.data) {
+        const t = res.data;
+        setEditForm({
+          title: t.title,
+          description: t.description,
+          instruction: '',
+          storyPoints: String(t.story_point),
+          deadline: t.due_date ? new Date(t.due_date).toISOString().split('T')[0] : '',
+          is_public: t.is_public ?? false,
+          assigned_to_user_id: t.assigned_to_user_id || '',
+        });
+        setTasks((prev) => prev.map((p) => (p.id === t.id ? t : p)));
+      } else {
+        setEditForm({
+          title: task.title,
+          description: task.description,
+          instruction: '',
+          storyPoints: String(task.story_point),
+          deadline: task.due_date ? new Date(task.due_date).toISOString().split('T')[0] : '',
+          is_public: task.is_public ?? false,
+          assigned_to_user_id: task.assigned_to_user_id || '',
+        });
+      }
+    } catch {
+      setEditForm({
+        title: task.title,
+        description: task.description,
+        instruction: '',
+        storyPoints: String(task.story_point),
+        deadline: task.due_date ? new Date(task.due_date).toISOString().split('T')[0] : '',
+        is_public: task.is_public ?? false,
+        assigned_to_user_id: task.assigned_to_user_id || '',
+      });
+    } finally {
+      setIsLoadingEdit(false);
+    }
+
+    setEditImagePreview(null);
+    editImageFileRef.current = null;
   };
 
   const handleEditTask = async (event: React.FormEvent) => {
@@ -1308,11 +1341,16 @@ export function DesignerApplications() {
                 type="button"
                 onClick={() => { if (editImagePreview) URL.revokeObjectURL(editImagePreview); setShowEditTask(false); setEditingTaskId(null); setEditFormErrors({}); setEditError(''); }}
                 className="p-1.5 rounded-lg hover:bg-gray-100 shrink-0"
-                disabled={isUpdating}
+                disabled={isUpdating || isLoadingEdit}
               >
                 <XCircle className="w-5 h-5 text-gray-400 hover:text-gray-600" />
               </button>
             </div>
+            {isLoadingEdit ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+              </div>
+            ) : (
             <form className="space-y-4" onSubmit={handleEditTask}>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1322,7 +1360,7 @@ export function DesignerApplications() {
                   type="text" value={editForm.title}
                   onChange={(event) => { setEditForm({ ...editForm, title: event.target.value }); if (editFormErrors.title) setEditFormErrors((prev) => { const n = { ...prev }; delete n.title; return n; }); }}
                   className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${editFormErrors.title ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-                  disabled={isUpdating}
+                  disabled={isUpdating || isLoadingEdit}
                 />
                 {editFormErrors.title && <p className="text-xs text-red-600 mt-1">{editFormErrors.title}</p>}
               </div>
@@ -1335,7 +1373,7 @@ export function DesignerApplications() {
                   rows={4} value={editForm.description}
                   onChange={(event) => { setEditForm({ ...editForm, description: event.target.value }); if (editFormErrors.description) setEditFormErrors((prev) => { const n = { ...prev }; delete n.description; return n; }); }}
                   className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${editFormErrors.description ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-                  disabled={isUpdating}
+                  disabled={isUpdating || isLoadingEdit}
                 />
                 {editFormErrors.description && <p className="text-xs text-red-600 mt-1">{editFormErrors.description}</p>}
               </div>
@@ -1348,7 +1386,7 @@ export function DesignerApplications() {
                   type="number" min="1" max="100" value={editForm.storyPoints}
                   onChange={(event) => { setEditForm({ ...editForm, storyPoints: event.target.value }); if (editFormErrors.storyPoints) setEditFormErrors((prev) => { const n = { ...prev }; delete n.storyPoints; return n; }); }}
                   className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${editFormErrors.storyPoints ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-                  disabled={isUpdating}
+                  disabled={isUpdating || isLoadingEdit}
                 />
                 {editFormErrors.storyPoints && <p className="text-xs text-red-600 mt-1">{editFormErrors.storyPoints}</p>}
               </div>
@@ -1359,7 +1397,7 @@ export function DesignerApplications() {
                   value={editForm.assigned_to_user_id}
                   onChange={(event) => setEditForm({ ...editForm, assigned_to_user_id: event.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                  disabled={isUpdating}
+                  disabled={isUpdating || isLoadingEdit}
                 >
                   <option value="">Open for application (unassigned)</option>
                   {designers.map((d) => (
@@ -1375,7 +1413,7 @@ export function DesignerApplications() {
                   checked={editForm.is_public}
                   onChange={(event) => setEditForm({ ...editForm, is_public: event.target.checked })}
                   className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  disabled={isUpdating}
+                  disabled={isUpdating || isLoadingEdit}
                 />
                 <label htmlFor="app_edit_is_public" className="text-sm font-medium text-gray-700">
                   Public Task (visible to all designers)
@@ -1396,11 +1434,11 @@ export function DesignerApplications() {
                         editImageFileRef.current = file;
                         setEditImagePreview(URL.createObjectURL(file));
                       }}
-                      className="hidden" disabled={isUpdating}
+                      className="hidden" disabled={isUpdating || isLoadingEdit}
                     />
                   </label>
                   {editImagePreview && (
-                    <button type="button" onClick={() => { if (editImagePreview) URL.revokeObjectURL(editImagePreview); setEditImagePreview(null); editImageFileRef.current = null; }} className="text-sm text-red-600 hover:underline" disabled={isUpdating}>Remove</button>
+                    <button type="button" onClick={() => { if (editImagePreview) URL.revokeObjectURL(editImagePreview); setEditImagePreview(null); editImageFileRef.current = null; }} className="text-sm text-red-600 hover:underline" disabled={isUpdating || isLoadingEdit}>Remove</button>
                   )}
                 </div>
                 {editImagePreview && (
@@ -1417,7 +1455,7 @@ export function DesignerApplications() {
                   rows={4} value={editForm.instruction}
                   onChange={(event) => setEditForm({ ...editForm, instruction: event.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Describe what the designer must collect or measure" disabled={isUpdating}
+                  placeholder="Describe what the designer must collect or measure" disabled={isUpdating || isLoadingEdit}
                 />
               </div>
 
@@ -1427,13 +1465,13 @@ export function DesignerApplications() {
                   type="date" value={editForm.deadline}
                   min={new Date().toISOString().split('T')[0]}
                   onChange={(event) => setEditForm({ ...editForm, deadline: event.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" disabled={isUpdating}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" disabled={isUpdating || isLoadingEdit}
                 />
               </div>
 
               <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => { if (editImagePreview) URL.revokeObjectURL(editImagePreview); setShowEditTask(false); setEditingTaskId(null); setEditFormErrors({}); setEditError(''); }} className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors" disabled={isUpdating}>Cancel</button>
-                <button type="submit" className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:bg-indigo-300" disabled={isUpdating}>
+                <button type="button" onClick={() => { if (editImagePreview) URL.revokeObjectURL(editImagePreview); setShowEditTask(false); setEditingTaskId(null); setEditFormErrors({}); setEditError(''); }} className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors" disabled={isUpdating || isLoadingEdit}>Cancel</button>
+                <button type="submit" className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:bg-indigo-300" disabled={isUpdating || isLoadingEdit}>
                   {isUpdating ? 'Updating...' : 'Update Task'}
                 </button>
               </div>
@@ -1441,6 +1479,7 @@ export function DesignerApplications() {
                 <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{editError}</p>
               )}
             </form>
+            )}
           </div>
         </div>
       )}

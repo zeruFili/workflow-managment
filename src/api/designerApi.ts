@@ -174,6 +174,15 @@ const designerApi = {
     return response.data;
   },
 
+  getDesignerTaskById: async (
+    taskId: string
+  ): Promise<CreateDesignerTaskResponse> => {
+    const response = await api.get<CreateDesignerTaskResponse>(
+      `/designer-tasks/${taskId}`
+    );
+    return response.data;
+  },
+
   createDesignerTask: async (
     data: FormData | Record<string, unknown>
   ): Promise<CreateDesignerTaskResponse> => {

@@ -21,7 +21,6 @@ import designerApi, {
 } from '../../api/designerApi';
 import { designerTaskCache } from '../data/designerTaskCache';
 import notificationApi from '../../api/notificationApi';
-import userApi, { UserItem } from '../../api/userApi';
 import {
   createGeneralNotification,
   loadQuantityReviewNotifications,
@@ -34,7 +33,6 @@ import {
   CheckCircle2,
   Clock,
   Edit,
-  Image,
   XCircle,
   Briefcase,
   ChevronDown,
@@ -48,22 +46,8 @@ import {
   Star,
   Paperclip,
   PauseCircle,
-  Trash2,
-  X,
 } from 'lucide-react';
 import AttachmentViewer from '../components/AttachmentViewer';
-
-const emptyNewTask = {
-  title: '',
-  description: '',
-  instruction: '',
-  storyPoints: '',
-  projectId: '',
-  deadline: '',
-  telegramScreenshot: '',
-  is_public: false,
-  assigned_to_user_id: '',
-};
 
 type PhaseKey = 'caseStudy' | 'designStage' | 'rendering' | 'finalStage';
 
@@ -426,23 +410,6 @@ export function DesignerAssignments() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [applications, setApplications] = useState<DesignerTaskApplication[]>(loadDesignerApplications);
-  const [designers, setDesigners] = useState<UserItem[]>([]);
-
-  // ── Edit Task state ──
-  const [showEditTask, setShowEditTask] = useState(false);
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ ...emptyNewTask });
-  const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
-  const editImageFileRef = useRef<File | null>(null);
-  const [editFormErrors, setEditFormErrors] = useState<Record<string, string>>({});
-  const [editError, setEditError] = useState('');
-  const [isUpdating, setIsUpdating] = useState(false);
-
-  // ── Delete Task state ──
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState('');
 
   // Pagination
   const [apiPage, setApiPage] = useState(1);
@@ -694,8 +661,6 @@ export function DesignerAssignments() {
     );
   }
 
-  const canCreateTask = user.role === 'ceo' || user.role === 'general_manager';
-
   // ── Pagination logic ──
   const canGoPrev = displayOffset > 0 || apiPage > 1;
   const canGoNext = displayOffset + ROWS_PER_DISPLAY < tasks.length || (meta ? apiPage < meta.totalPages : false);
@@ -713,183 +678,6 @@ export function DesignerAssignments() {
       setDisplayOffset(displayOffset - ROWS_PER_DISPLAY);
     } else {
       setApiPage((p) => Math.max(1, p - 1));
-    }
-  };
-
-  const persistTasks = (updatedTasks: DesignerTaskItem[]) => {
-    setTasks(updatedTasks);
-  };
-
-  const hasDesignerSubmissions = (task: DesignerTaskItem): boolean => {
-    const swr = task.submissionsWithReviews;
-    if (!swr) return false;
-    return (
-      (swr.caseStudy || []).length > 0 ||
-      (swr.designing || []).length > 0 ||
-      (swr.rendering || []).length > 0 ||
-      (swr.finalStage || []).length > 0
-    );
-  };
-
-  const canDeleteDesignerTask = (task: DesignerTaskItem): boolean => {
-    if (hasDesignerSubmissions(task)) return false;
-
-    if (task.assigned_to_user_id) {
-      const assignmentDate = task.assigned_at ? new Date(task.assigned_at) : (task.updated_at ? new Date(task.updated_at) : null);
-      if (assignmentDate) {
-        const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
-        if (Date.now() - assignmentDate.getTime() > threeDaysMs) return false;
-      }
-    }
-    return true;
-  };
-
-  const openEditTask = (task: DesignerTaskItem) => {
-    setEditingTaskId(task.id);
-    setEditForm({
-      title: task.title,
-      description: task.description,
-      instruction: '',
-      storyPoints: String(task.story_point),
-      projectId: '',
-      deadline: task.due_date ? new Date(task.due_date).toISOString().split('T')[0] : '',
-      telegramScreenshot: '',
-      is_public: task.is_public ?? false,
-      assigned_to_user_id: task.assigned_to_user_id || '',
-    });
-    setEditImagePreview(null);
-    editImageFileRef.current = null;
-    setEditFormErrors({});
-    setEditError('');
-    setShowEditTask(true);
-    userApi.getDesigners().then((res) => {
-      if (res.success) setDesigners(res.data);
-    }).catch(() => {});
-  };
-
-  const handleEditTask = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!editingTaskId) return;
-
-    const title = editForm.title.trim();
-    const description = editForm.description.trim();
-    const storyPointsRaw = editForm.storyPoints.trim();
-    const instruction = editForm.instruction.trim();
-    const deadline = editForm.deadline.trim();
-    const assignedTo = editForm.assigned_to_user_id.trim();
-
-    setEditError('');
-
-    const errors: Record<string, string> = {};
-    if (!title) errors.title = 'Title is required.';
-    else if (title.length > 500) errors.title = 'Title must be 500 characters or fewer.';
-    if (!description) errors.description = 'Description is required.';
-    else if (description.length > 5000) errors.description = 'Description must be 5000 characters or fewer.';
-    if (!storyPointsRaw) {
-      errors.storyPoints = 'Story Points are required.';
-    } else {
-      const sp = Number(storyPointsRaw);
-      if (isNaN(sp) || sp < 1 || sp > 100) errors.storyPoints = 'Story Points must be a number between 1 and 100.';
-    }
-
-    setEditFormErrors(errors);
-    if (Object.keys(errors).length > 0) return;
-
-    const storyPoints = Number(storyPointsRaw);
-    const file = editImageFileRef.current;
-
-    const fullDescription = instruction
-      ? `${description}\n\nInstructions:\n${instruction}`
-      : description;
-
-    setIsUpdating(true);
-
-    try {
-      let response: { success: boolean; data?: DesignerTaskItem; message?: string };
-
-      if (file) {
-        const formData = new FormData();
-        formData.append('title', title);
-        formData.append('description', fullDescription);
-        formData.append('story_point', String(storyPoints));
-        formData.append('is_public', String(editForm.is_public));
-        if (deadline) formData.append('due_date', new Date(deadline).toISOString());
-        if (assignedTo) formData.append('assigned_to_user_id', assignedTo);
-        formData.append('attachmentFiles', file);
-
-        response = await designerApi.updateDesignerTask(editingTaskId, formData);
-      } else {
-        const payload: Record<string, unknown> = {
-          title,
-          description: fullDescription,
-          story_point: storyPoints,
-          is_public: editForm.is_public,
-        };
-        if (deadline) payload.due_date = new Date(deadline).toISOString();
-        if (assignedTo) payload.assigned_to_user_id = assignedTo;
-
-        response = await designerApi.updateDesignerTask(editingTaskId, payload);
-      }
-
-      if (response.success) {
-        setTaskSuccessMsg(response.message || 'Designer task updated successfully');
-        if (editImagePreview) URL.revokeObjectURL(editImagePreview);
-        setEditImagePreview(null);
-        editImageFileRef.current = null;
-        setShowEditTask(false);
-        setEditingTaskId(null);
-        setEditFormErrors({});
-
-        if (response.data) {
-          setTasks((prev) => prev.map((t) => (t.id === response.data!.id ? response.data! : t)));
-          setSelectedTaskDetail((prev) => prev?.id === response.data!.id ? response.data! : prev);
-        }
-
-        designerTaskCache.invalidate();
-        await fetchTasks(apiPage, true);
-      } else {
-        setEditError(response.message || 'Failed to update task');
-      }
-    } catch (err: unknown) {
-      const msg =
-        err && typeof err === 'object' && 'response' in err
-          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
-          : undefined;
-      setEditError(msg || 'Unable to update task. Please try again.');
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-
-  const openDeleteConfirm = (taskId: string) => {
-    setDeletingTaskId(taskId);
-    setDeleteError('');
-    setShowDeleteConfirm(true);
-  };
-
-  const handleDeleteTask = async () => {
-    if (!deletingTaskId) return;
-    setIsDeleting(true);
-    setDeleteError('');
-
-    try {
-      const response = await designerApi.deleteDesignerTask(deletingTaskId);
-      if (response.success) {
-        setTaskSuccessMsg(response.message || 'Designer task deleted successfully');
-        setShowDeleteConfirm(false);
-        setDeletingTaskId(null);
-        await fetchTasks(apiPage, true);
-      } else {
-        setDeleteError(response.message || 'Failed to delete task');
-      }
-    } catch (err: unknown) {
-      const msg =
-        err && typeof err === 'object' && 'response' in err
-          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
-          : undefined;
-      setDeleteError(msg || 'Unable to delete task. Please try again.');
-    } finally {
-      setIsDeleting(false);
     }
   };
 
@@ -1576,25 +1364,6 @@ export function DesignerAssignments() {
                     >
                       Open Submission Detail
                     </button>
-                    {!hasDesignerSubmissions(task) && (
-                      <button
-                        onClick={() => openEditTask(task)}
-                        className="text-sm text-indigo-600 hover:underline flex items-center gap-1"
-                      >
-                        <Edit className="w-3.5 h-3.5" />
-                        Edit Task
-                      </button>
-                    )}
-                    {canCreateTask && canDeleteDesignerTask(task) && (
-                      <button
-                        type="button"
-                        onClick={() => openDeleteConfirm(task.id)}
-                        className="text-sm text-red-600 hover:underline flex items-center gap-1"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Delete Task
-                      </button>
-                    )}
                   </div>
 
                   {/* Latest Activity - show pause reason when paused */}
@@ -2242,209 +2011,6 @@ export function DesignerAssignments() {
         </div>
       )}
 
-      {/* Edit Task Modal */}
-      {showEditTask && editingTaskId && canCreateTask && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h3 className="text-xl font-semibold">Edit Designer Task</h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  Update the task details below. Fields marked with <span className="text-red-500">*</span> are required.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => { if (editImagePreview) URL.revokeObjectURL(editImagePreview); setShowEditTask(false); setEditingTaskId(null); setEditFormErrors({}); setEditError(''); }}
-                className="p-1.5 rounded-lg hover:bg-gray-100 shrink-0"
-                disabled={isUpdating}
-              >
-                <XCircle className="w-5 h-5 text-gray-400 hover:text-gray-600" />
-              </button>
-            </div>
-            <form className="space-y-4" onSubmit={handleEditTask}>
-              {/* Title */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Task Title <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text" value={editForm.title}
-                  onChange={(event) => { setEditForm({ ...editForm, title: event.target.value }); if (editFormErrors.title) setEditFormErrors((prev) => { const n = { ...prev }; delete n.title; return n; }); }}
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${editFormErrors.title ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-                  disabled={isUpdating}
-                />
-                {editFormErrors.title && <p className="text-xs text-red-600 mt-1">{editFormErrors.title}</p>}
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  rows={4} value={editForm.description}
-                  onChange={(event) => { setEditForm({ ...editForm, description: event.target.value }); if (editFormErrors.description) setEditFormErrors((prev) => { const n = { ...prev }; delete n.description; return n; }); }}
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${editFormErrors.description ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-                  disabled={isUpdating}
-                />
-                {editFormErrors.description && <p className="text-xs text-red-600 mt-1">{editFormErrors.description}</p>}
-              </div>
-
-              {/* Story Points */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Story Points <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number" min="1" max="100" value={editForm.storyPoints}
-                  onChange={(event) => { setEditForm({ ...editForm, storyPoints: event.target.value }); if (editFormErrors.storyPoints) setEditFormErrors((prev) => { const n = { ...prev }; delete n.storyPoints; return n; }); }}
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${editFormErrors.storyPoints ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-                  disabled={isUpdating}
-                />
-                {editFormErrors.storyPoints && <p className="text-xs text-red-600 mt-1">{editFormErrors.storyPoints}</p>}
-              </div>
-
-              {/* Assign To */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Assign To (optional)</label>
-                <select
-                  value={editForm.assigned_to_user_id}
-                  onChange={(event) => setEditForm({ ...editForm, assigned_to_user_id: event.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                  disabled={isUpdating}
-                >
-                  <option value="">Open for application (unassigned)</option>
-                  {designers.map((d) => (
-                    <option key={d.id} value={d.id}>{d.full_name}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Is Public */}
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="edit_is_public"
-                  checked={editForm.is_public}
-                  onChange={(event) => setEditForm({ ...editForm, is_public: event.target.checked })}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  disabled={isUpdating}
-                />
-                <label htmlFor="edit_is_public" className="text-sm font-medium text-gray-700">
-                  Public Task (visible to all designers)
-                </label>
-              </div>
-
-              {/* Telegram Screenshot */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Telegram Screenshot (optional)</label>
-                <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-sm text-gray-700">
-                    <Image className="w-4 h-4" />Choose Image
-                    <input
-                      type="file" accept="image/*"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (!file) return;
-                        if (editImagePreview) URL.revokeObjectURL(editImagePreview);
-                        editImageFileRef.current = file;
-                        setEditImagePreview(URL.createObjectURL(file));
-                      }}
-                      className="hidden" disabled={isUpdating}
-                    />
-                  </label>
-                  {editImagePreview && (
-                    <button type="button" onClick={() => { if (editImagePreview) URL.revokeObjectURL(editImagePreview); setEditImagePreview(null); editImageFileRef.current = null; }} className="text-sm text-red-600 hover:underline" disabled={isUpdating}>Remove</button>
-                  )}
-                </div>
-                {editImagePreview && (
-                  <div className="mt-3">
-                    <p className="text-xs text-gray-500 mb-1">Preview:</p>
-                    <img src={editImagePreview} alt="preview" className="max-w-full h-auto max-h-48 rounded-lg border object-contain" />
-                  </div>
-                )}
-              </div>
-
-              {/* Instruction */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Instruction (optional)</label>
-                <textarea
-                  rows={4} value={editForm.instruction}
-                  onChange={(event) => setEditForm({ ...editForm, instruction: event.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Describe what the designer must collect or measure" disabled={isUpdating}
-                />
-              </div>
-
-              {/* Deadline */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Deadline (optional)</label>
-                <input
-                  type="date" value={editForm.deadline}
-                  min={new Date().toISOString().split('T')[0]}
-                  onChange={(event) => setEditForm({ ...editForm, deadline: event.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" disabled={isUpdating}
-                />
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => { if (editImagePreview) URL.revokeObjectURL(editImagePreview); setShowEditTask(false); setEditingTaskId(null); setEditFormErrors({}); setEditError(''); }} className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors" disabled={isUpdating}>Cancel</button>
-                <button type="submit" className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:bg-indigo-300" disabled={isUpdating}>
-                  {isUpdating ? 'Updating...' : 'Update Task'}
-                </button>
-              </div>
-              {editError && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{editError}</p>
-              )}
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Confirmation Dialog */}
-      {showDeleteConfirm && deletingTaskId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Delete Task</h3>
-              <button
-                onClick={() => { if (!isDeleting) { setShowDeleteConfirm(false); setDeletingTaskId(null); setDeleteError(''); } }}
-                className="p-2 rounded-lg hover:bg-gray-100"
-                disabled={isDeleting}
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-            <div className="px-6 py-5">
-              <p className="text-sm text-gray-700">
-                Are you sure you want to delete this task? This action cannot be undone.
-              </p>
-              {deleteError && (
-                <p className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{deleteError}</p>
-              )}
-              <div className="flex justify-end gap-3 mt-5">
-                <button
-                  type="button"
-                  onClick={() => { setShowDeleteConfirm(false); setDeletingTaskId(null); setDeleteError(''); }}
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200"
-                  disabled={isDeleting}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDeleteTask}
-                  className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:bg-red-300"
-                  disabled={isDeleting}
-                >
-                  {isDeleting ? 'Deleting...' : 'Delete'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
