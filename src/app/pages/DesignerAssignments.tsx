@@ -833,9 +833,19 @@ export function DesignerAssignments() {
 
       if (response.success) {
         setTaskSuccessMsg(response.message || 'Designer task updated successfully');
+        if (editImagePreview) URL.revokeObjectURL(editImagePreview);
+        setEditImagePreview(null);
+        editImageFileRef.current = null;
         setShowEditTask(false);
         setEditingTaskId(null);
         setEditFormErrors({});
+
+        if (response.data) {
+          setTasks((prev) => prev.map((t) => (t.id === response.data!.id ? response.data! : t)));
+          setSelectedTaskDetail((prev) => prev?.id === response.data!.id ? response.data! : prev);
+        }
+
+        designerTaskCache.invalidate();
         await fetchTasks(apiPage, true);
       } else {
         setEditError(response.message || 'Failed to update task');

@@ -621,7 +621,13 @@ export function DesignerApplications() {
         setShowEditTask(false);
         setEditingTaskId(null);
         setEditFormErrors({});
-        fetchData();
+
+        if (response.data) {
+          setTasks((prev) => prev.map((t) => (t.id === response.data!.id ? response.data! : t)));
+          cacheApplicationsForBadge(tasks.map((t) => (t.id === response.data!.id ? response.data! : t)));
+        }
+
+        designerTaskCache.invalidate();
       } else {
         setEditError(response.message || 'Failed to update task');
       }
