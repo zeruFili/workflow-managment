@@ -451,6 +451,7 @@ export function DesignerAssignments() {
 
   const [submissionProgress, setSubmissionProgress] = useState<SubmissionProgress>(loadSubmissionProgress);
   const [submissionsLoading, setSubmissionsLoading] = useState<Record<string, boolean>>({});
+  const [taskStateLoading, setTaskStateLoading] = useState(false);
   const [expandedPhase, setExpandedPhase] = useState<PhaseKey | null>(null);
   const [feedbackDrafts, setFeedbackDrafts] = useState<Record<string, Record<PhaseKey, string>>>({});
   const [expandedHistoryIdx, setExpandedHistoryIdx] = useState<Record<string, Record<PhaseKey, number | null>>>({});
@@ -1078,6 +1079,32 @@ export function DesignerAssignments() {
     setSelectedTaskDetail(null);
     setShowDetail(false);
     setExpandedPhase(null);
+  };
+
+  const handleDeactivateTask = async () => {
+    if (!selectedTaskDetail || taskStateLoading) return;
+    setTaskStateLoading(true);
+    try {
+      const res = await designerApi.deactivateTask(selectedTaskDetail.id);
+      if (res.success && res.data) {
+        setSelectedTaskDetail(res.data);
+        setTasks((prev) => prev.map((t) => (t.id === res.data!.id ? res.data! : t)));
+      }
+    } catch { /* handled by API interceptor */ }
+    finally { setTaskStateLoading(false); }
+  };
+
+  const handleReactivateTask = async () => {
+    if (!selectedTaskDetail || taskStateLoading) return;
+    setTaskStateLoading(true);
+    try {
+      const res = await designerApi.reactivateTask(selectedTaskDetail.id);
+      if (res.success && res.data) {
+        setSelectedTaskDetail(res.data);
+        setTasks((prev) => prev.map((t) => (t.id === res.data!.id ? res.data! : t)));
+      }
+    } catch { /* handled by API interceptor */ }
+    finally { setTaskStateLoading(false); }
   };
 
   const addHistoryEntry = (taskId: string, phase: PhaseKey, entry: Omit<PhaseHistoryEntry, 'designerSubmission'>) => {
@@ -1802,9 +1829,31 @@ export function DesignerAssignments() {
                   <p className="text-xs text-blue-600 mt-1">Loading submission data...</p>
                 )}
               </div>
-              <button onClick={closeDetail} className="rounded-lg p-2 hover:bg-gray-100">
-                <XCircle className="h-5 w-5 text-gray-500" />
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {selectedTaskDetail.task_state === 'active' && (
+                  <button
+                    onClick={handleDeactivateTask}
+                    disabled={taskStateLoading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors disabled:opacity-50"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    {taskStateLoading ? 'Deactivating...' : 'Deactivate'}
+                  </button>
+                )}
+                {selectedTaskDetail.task_state === 'deactive' && (
+                  <button
+                    onClick={handleReactivateTask}
+                    disabled={taskStateLoading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-green-100 text-green-700 hover:bg-green-200 transition-colors disabled:opacity-50"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    {taskStateLoading ? 'Activating...' : 'Activate'}
+                  </button>
+                )}
+                <button onClick={closeDetail} className="rounded-lg p-2 hover:bg-gray-100">
+                  <XCircle className="h-5 w-5 text-gray-500" />
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-6 px-6 py-5 lg:grid-cols-3">

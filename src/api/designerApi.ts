@@ -322,6 +322,24 @@ const designerApi = {
     );
     return response.data;
   },
+
+  deactivateTask: async (
+    taskId: string
+  ): Promise<{ success: boolean; data?: DesignerTaskItem; message?: string }> => {
+    const response = await api.post<{ success: boolean; data?: DesignerTaskItem; message?: string }>(
+      `/designer-tasks/${taskId}/deactivate`
+    );
+    return response.data;
+  },
+
+  reactivateTask: async (
+    taskId: string
+  ): Promise<{ success: boolean; data?: DesignerTaskItem; message?: string }> => {
+    const response = await api.post<{ success: boolean; data?: DesignerTaskItem; message?: string }>(
+      `/designer-tasks/${taskId}/reactivate`
+    );
+    return response.data;
+  },
 };
 
 export default designerApi;
