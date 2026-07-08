@@ -89,6 +89,7 @@ export interface DesignerTaskItem {
     notificationId: string | null;
   } | null;
   hasNestedNotification: boolean;
+  applied?: boolean;
 }
 
 export interface DesignerTaskListMeta {

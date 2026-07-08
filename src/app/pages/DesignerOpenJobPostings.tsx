@@ -284,12 +284,7 @@ export function DesignerOpenJobPostings() {
     }
   };
 
-  const sortedPostings = [...postings].sort((a, b) => {
-    const aHL = highlightedIds.has(a.id) ? 1 : 0;
-    const bHL = highlightedIds.has(b.id) ? 1 : 0;
-    if (bHL !== aHL) return bHL - aHL;
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-  });
+  const displayPostings = postings;
 
   if (loading) {
     return (
@@ -365,10 +360,10 @@ export function DesignerOpenJobPostings() {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-4 auto-rows-auto">
-          {sortedPostings.map((posting) => {
+          {displayPostings.map((posting) => {
             const assignedByLabel =
               posting.assigned_by_user?.full_name || `User ${posting.assigned_by_user_id}`;
-            const hasApplied = appliedTaskIds.current.has(posting.id);
+            const hasApplied = posting.applied || appliedTaskIds.current.has(posting.id);
             const isApplying = applyingForTaskId === posting.id;
             const isHighlighted = highlightedIds.has(posting.id);
 
