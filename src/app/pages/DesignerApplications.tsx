@@ -632,7 +632,7 @@ export function DesignerApplications() {
         formData.append('story_point', String(storyPoints));
         formData.append('is_public', String(editForm.is_public));
         if (deadline) formData.append('due_date', new Date(deadline).toISOString());
-        if (assignedTo) formData.append('assigned_to_user_id', assignedTo);
+        formData.append('assigned_to_user_id', assignedTo || 'null');
         formData.append('attachmentFiles', file);
 
         response = await designerApi.updateDesignerTask(editingTaskId, formData);
@@ -644,7 +644,7 @@ export function DesignerApplications() {
           is_public: editForm.is_public,
         };
         if (deadline) payload.due_date = new Date(deadline).toISOString();
-        if (assignedTo) payload.assigned_to_user_id = assignedTo;
+        payload.assigned_to_user_id = assignedTo || null;
 
         response = await designerApi.updateDesignerTask(editingTaskId, payload);
       }
