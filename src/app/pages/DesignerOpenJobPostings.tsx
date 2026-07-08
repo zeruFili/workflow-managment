@@ -269,11 +269,25 @@ export function DesignerOpenJobPostings() {
     try {
       await designerApi.apply(taskId, { cover_note: applyMessage.trim() });
       appliedTaskIds.current.add(taskId);
+      setPostings((prev) => {
+        const idx = prev.findIndex((p) => p.id === taskId);
+        if (idx === -1) return prev;
+        const updated = { ...prev[idx], applied: true };
+        const without = [...prev.slice(0, idx), ...prev.slice(idx + 1)];
+        return [updated, ...without];
+      });
       setApplyingForTaskId(null);
       setApplyMessage('');
     } catch (err: any) {
       if (err?.response?.status === 409) {
         appliedTaskIds.current.add(taskId);
+        setPostings((prev) => {
+          const idx = prev.findIndex((p) => p.id === taskId);
+          if (idx === -1) return prev;
+          const withApplied = [...prev];
+          withApplied[idx] = { ...withApplied[idx], applied: true };
+          return withApplied;
+        });
         setApplyingForTaskId(null);
         setApplyMessage('');
       } else {
