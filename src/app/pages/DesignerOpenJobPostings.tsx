@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
-import { Calendar, CheckCircle2, Clock, Landmark, Megaphone, ShieldCheck, Send, AlertCircle, Loader2 } from 'lucide-react';
+import { Calendar, CheckCircle2, Clock, Landmark, Megaphone, ShieldCheck, Send, AlertCircle, Loader2, Undo2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import designerApi, { DesignerTaskItem } from '../../api/designerApi';
 import { designerTaskCache } from '../data/designerTaskCache';
@@ -88,6 +88,7 @@ export function DesignerOpenJobPostings() {
   const appliedTaskIds = useRef<Set<string>>(new Set());
   const [applyError, setApplyError] = useState<string | null>(null);
   const [submittingApply, setSubmittingApply] = useState(false);
+  const [withdrawingTaskId, setWithdrawingTaskId] = useState<string | null>(null);
 
   const highlightedIds = (() => {
     if (postings.length === 0) return new Set<string>();
@@ -298,6 +299,39 @@ export function DesignerOpenJobPostings() {
     }
   };
 
+  const withdrawApplication = async (taskId: string) => {
+    console.log('[DesignerOpenJobPostings.withdrawApplication] ========== WITHDRAW START ==========');
+    console.log('[DesignerOpenJobPostings.withdrawApplication] Task ID:', taskId);
+    console.log('[DesignerOpenJobPostings.withdrawApplication] User:', user ? { id: user.id, role: user.role } : 'NONE');
+    setWithdrawingTaskId(taskId);
+    try {
+      const response = await designerApi.withdrawApplication(taskId);
+      console.log('[DesignerOpenJobPostings.withdrawApplication] API response:', response);
+      if (response.success) {
+        console.log('[DesignerOpenJobPostings.withdrawApplication] Withdrawal successful, updating local state');
+        appliedTaskIds.current.delete(taskId);
+        setPostings((prev) => {
+          const idx = prev.findIndex((p) => p.id === taskId);
+          if (idx === -1) return prev;
+          const updated = [...prev];
+          updated[idx] = { ...updated[idx], applied: false };
+          return updated;
+        });
+      } else {
+        console.log('[DesignerOpenJobPostings.withdrawApplication] API returned success=false:', response.message);
+      }
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const msg = err?.response?.data?.message || err?.message || 'Unknown error';
+      console.error('[DesignerOpenJobPostings.withdrawApplication] FAILED - status:', status, 'message:', msg);
+      console.error('[DesignerOpenJobPostings.withdrawApplication] Full error:', err);
+      setApplyError(msg);
+    } finally {
+      console.log('[DesignerOpenJobPostings.withdrawApplication] ========== WITHDRAW END ==========');
+      setWithdrawingTaskId(null);
+    }
+  };
+
   const displayPostings = postings;
 
   if (loading) {
@@ -438,9 +472,24 @@ export function DesignerOpenJobPostings() {
                 {user && (
                   <div className="mt-3 shrink-0">
                     {hasApplied ? (
-                      <span className="inline-flex items-center gap-1 text-green-600 text-xs font-medium">
-                        <CheckCircle2 className="h-3.5 w-3.5" /> Applied
-                      </span>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center gap-1 text-green-600 text-xs font-medium">
+                            <CheckCircle2 className="h-3.5 w-3.5" /> Applied
+                          </span>
+                          <button
+                            onClick={() => withdrawApplication(posting.id)}
+                            disabled={withdrawingTaskId === posting.id}
+                            className="inline-flex items-center gap-1 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <Undo2 className="h-3.5 w-3.5" />
+                            {withdrawingTaskId === posting.id ? 'Withdrawing...' : 'Withdraw'}
+                          </button>
+                        </div>
+                        {applyError && (
+                          <p className="text-xs text-red-600 mt-1">{applyError}</p>
+                        )}
+                      </div>
                     ) : isApplying ? (
                       <div className="space-y-2">
                         <textarea

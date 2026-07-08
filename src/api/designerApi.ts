@@ -142,6 +142,7 @@ export interface DesignerApplicationItem {
   created_at: string;
   updated_at: string | null;
   applicant_user: SafeUserOutput;
+  is_withdrawn?: boolean;
 }
 
 export interface DesignerApplicationListResponse {
@@ -245,6 +246,15 @@ const designerApi = {
     const response = await api.post<{ success: boolean; data?: any; message?: string }>(
       `/designer-tasks/${taskId}/apply`,
       data ?? {}
+    );
+    return response.data;
+  },
+
+  withdrawApplication: async (
+    taskId: string
+  ): Promise<{ success: boolean; data?: any; message?: string }> => {
+    const response = await api.delete<{ success: boolean; data?: any; message?: string }>(
+      `/designer-tasks/${taskId}/apply`
     );
     return response.data;
   },

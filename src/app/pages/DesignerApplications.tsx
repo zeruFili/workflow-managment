@@ -1011,16 +1011,21 @@ export function DesignerApplications() {
                     {visibleApplications.map((application) => {
                       const isSelectedApp =
                         isAssigned && application.applicant_user_id === task.assigned_to_user_id;
+                      const isWithdrawn = application.is_withdrawn;
                       return (
                         <div
                           key={application.id}
-                          className="rounded-lg border border-gray-200 bg-gray-50 p-4"
+                          className={`rounded-lg border p-4 ${
+                            isWithdrawn
+                              ? 'border-red-200 bg-red-50/50'
+                              : 'border-gray-200 bg-gray-50'
+                          }`}
                         >
                           <div className="flex items-start justify-between gap-3 flex-col sm:flex-row">
                             <div>
                               <div className="flex items-center gap-2">
                                 <User className="w-4 h-4 text-gray-500" />
-                                <p className="font-medium text-gray-900">
+                                <p className={`font-medium ${isWithdrawn ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
                                   {application.applicant_user?.full_name ?? 'Unknown'}
                                 </p>
                               </div>
@@ -1029,16 +1034,19 @@ export function DesignerApplications() {
                               </p>
                             </div>
                             <span
-                              className={`shrink-0 px-2 py-1 rounded-full text-xs font-medium ${getStatusTone(
-                                isAssigned,
-                                isSelectedApp
-                              )}`}
+                              className={`shrink-0 px-2 py-1 rounded-full text-xs font-medium ${
+                                isWithdrawn
+                                  ? 'bg-red-100 text-red-700'
+                                  : getStatusTone(isAssigned, isSelectedApp)
+                              }`}
                             >
-                              {isSelectedApp ? 'assigned' : 'pending'}
+                              {isWithdrawn ? 'withdrawn' : (isSelectedApp ? 'assigned' : 'pending')}
                             </span>
                           </div>
                           {application.cover_note && (
-                            <p className="text-sm text-gray-700 mt-3">{application.cover_note}</p>
+                            <p className={`text-sm mt-3 ${isWithdrawn ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+                              {application.cover_note}
+                            </p>
                           )}
                         </div>
                       );
