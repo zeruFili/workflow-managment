@@ -35,11 +35,6 @@ function getCachedApplications(): { id: string; createdAt: string }[] {
   }
 }
 
-function getMostRecentTimestamp(task: DesignerTaskItem): number {
-  const createdTime = task.created_at ? new Date(task.created_at).getTime() : 0;
-  const updatedTime = task.updated_at ? new Date(task.updated_at).getTime() : 0;
-  return Math.max(createdTime, updatedTime);
-}
 
 // Persist viewed cards to localStorage
 function loadViewedCards(): Set<string> {
@@ -400,16 +395,10 @@ export function DesignerApplications() {
 
   // Rest of the component (groupedApplications, JSX, etc. remains the same)
   const groupedApplications = useMemo(() => {
-    const grouped = tasks.map((task) => ({
+    return tasks.map((task) => ({
       task,
       applications: applicationsByTask[task.id] || [],
     }));
-
-    return [...grouped].sort((a, b) => {
-      const aLatest = getMostRecentTimestamp(a.task);
-      const bLatest = getMostRecentTimestamp(b.task);
-      return bLatest - aLatest;
-    });
   }, [tasks, applicationsByTask]);
 
   if (loading) {
