@@ -146,6 +146,7 @@ export function DesignerApplications() {
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
+  const deletingTaskIdRef = useRef<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
 
@@ -700,26 +701,29 @@ export function DesignerApplications() {
   };
 
   const openDeleteConfirm = (taskId: string) => {
+    deletingTaskIdRef.current = taskId;
     setDeletingTaskId(taskId);
     setDeleteError('');
     setShowDeleteConfirm(true);
   };
 
   const handleDeleteTask = async () => {
-    if (!deletingTaskId) return;
+    const taskId = deletingTaskIdRef.current;
+    if (!taskId) return;
     setIsDeleting(true);
     setDeleteError('');
 
     try {
-      const response = await designerApi.deleteDesignerTask(deletingTaskId);
+      const response = await designerApi.deleteDesignerTask(taskId);
       if (response.success) {
         setEditSuccess(response.message || 'Designer task deleted successfully');
         setShowDeleteConfirm(false);
         setDeletingTaskId(null);
-        setTasks((prev) => prev.filter((t) => t.id !== deletingTaskId));
+        deletingTaskIdRef.current = null;
+        setTasks((prev) => prev.filter((t) => t.id !== taskId));
         setApplicationsByTask((prev) => {
           const next = { ...prev };
-          delete next[deletingTaskId];
+          delete next[taskId];
           return next;
         });
         designerTaskCache.invalidate();
