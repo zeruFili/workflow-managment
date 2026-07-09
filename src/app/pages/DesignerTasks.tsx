@@ -2071,11 +2071,31 @@ export function DesignerTasks() {
                                         {stageSubmissions.length} Submission{stageSubmissions.length !== 1 ? 's' : ''}
                                       </h6>
                                       <div className="space-y-2">
-                                        {stageSubmissions.map((sub, sIdx) => {
+                                        {(() => {
+                                          const allNotifSubs: { subId: string; phaseApiKey: string; ts: number }[] = [];
+                                          const stageApiKeys = ['caseStudy', 'designing', 'rendering', 'finalStage'];
+                                            for (const sk of stageApiKeys) {
+                                            const subs: SubmissionItem[] = (rawData as any)[sk] || [];
+                                            for (const s of subs) {
+                                              if (s.hasNotification || (s.reviews || []).some((r) => r.hasNotification)) {
+                                                const latestTs = Math.max(
+                                                  s.hasNotification ? new Date(s.created_at).getTime() : 0,
+                                                  ...(s.reviews || []).map((r) => r.hasNotification ? new Date(r.created_at).getTime() : 0).filter((t) => t > 0)
+                                                );
+                                                allNotifSubs.push({ subId: s.id, phaseApiKey: sk, ts: latestTs || new Date(s.created_at).getTime() });
+                                              }
+                                            }
+                                          }
+                                          allNotifSubs.sort((a, b) => a.ts - b.ts);
+                                          const notifOrderMap = new Map<string, number>();
+                                          allNotifSubs.forEach((item, idx) => notifOrderMap.set(item.subId, idx + 1));
+
+                                          return stageSubmissions.map((sub, sIdx) => {
                                           const isSubExpanded = expandedHistoryIdx[taskId]?.[phase.key] === sIdx;
                                           const subReviewCount = (sub.reviews || []).length;
                                           const isThisEditable = sub.id === latestEditableId;
                                           const subHasNotif = sub.hasNotification || (sub.reviews || []).some((r) => r.hasNotification);
+                                          const notifNumber = notifOrderMap.get(sub.id);
                                           return (
                                             <div key={sub.id} className={`border rounded-lg overflow-hidden ${subHasNotif ? 'border-blue-400 ring-1 ring-blue-100' : 'border-gray-200'}`}>
                                               <button
@@ -2094,6 +2114,11 @@ export function DesignerTasks() {
                                                   {subReviewCount > 0 && (
                                                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-xs font-medium text-gray-600">
                                                       {subReviewCount} review{subReviewCount !== 1 ? 's' : ''}
+                                                    </span>
+                                                  )}
+                                                  {notifNumber !== undefined && (
+                                                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-bold">
+                                                      {notifNumber}
                                                     </span>
                                                   )}
                                                 </div>
@@ -2187,7 +2212,7 @@ export function DesignerTasks() {
                                               )}
                                             </div>
                                           );
-                                        })}
+                                        })})()}
                                       </div>
                                     </div>
                                     );
