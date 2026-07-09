@@ -2078,11 +2078,13 @@ export function DesignerTasks() {
                                             const subs: SubmissionItem[] = (rawData as any)[sk] || [];
                                             for (const s of subs) {
                                               if (s.hasNotification || (s.reviews || []).some((r) => r.hasNotification)) {
-                                                const latestTs = Math.max(
-                                                  s.hasNotification ? new Date(s.created_at).getTime() : 0,
-                                                  ...(s.reviews || []).map((r) => r.hasNotification ? new Date(r.created_at).getTime() : 0).filter((t) => t > 0)
-                                                );
-                                                allNotifSubs.push({ subId: s.id, phaseApiKey: sk, ts: latestTs || new Date(s.created_at).getTime() });
+                                                const timestamps: number[] = [];
+                                                if (s.hasNotification) timestamps.push(new Date(s.created_at).getTime());
+                                                for (const r of s.reviews || []) {
+                                                  if (r.hasNotification) timestamps.push(new Date(r.created_at).getTime());
+                                                }
+                                                const earliestTs = Math.min(...timestamps);
+                                                allNotifSubs.push({ subId: s.id, phaseApiKey: sk, ts: earliestTs || new Date(s.created_at).getTime() });
                                               }
                                             }
                                           }

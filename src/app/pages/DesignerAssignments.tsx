@@ -823,7 +823,7 @@ export function DesignerAssignments() {
       });
     }
 
-    // Bulk-mark notification IDs from submissions & reviews
+    // Bulk-mark task-level notification IDs
     const notifIds: string[] = [];
     const topNotif = (task as any).taskNotification;
     if (topNotif?.hasNotification && topNotif.notificationId && !markedTaskNotificationIds.has(topNotif.notificationId)) {
@@ -832,49 +832,39 @@ export function DesignerAssignments() {
     if (swr?.taskNotification?.hasNotification && swr.taskNotification.notificationId && !markedTaskNotificationIds.has(swr.taskNotification.notificationId)) {
       notifIds.push(swr.taskNotification.notificationId);
     }
-    const stages: (keyof SubmissionsWithReviewsData)[] = ['caseStudy', 'designing', 'rendering', 'finalStage'];
-    for (const stage of stages) {
-      const subs: SubmissionItem[] = (swr as any)?.[stage] || [];
-      for (const sub of subs) {
-        if (sub.hasNotification && sub.notificationId) notifIds.push(sub.notificationId);
-        for (const r of sub.reviews || []) {
-          if (r.hasNotification && r.notificationId) notifIds.push(r.notificationId);
-        }
-      }
-    }
 
     if (notifIds.length > 0) {
       notificationApi.bulkMarkRead(notifIds).catch(() => {});
       decrement('designerTasks');
-
-      const clearedSwr = swr
-        ? {
-            ...swr,
-            taskNotification: { hasNotification: false, notificationId: null },
-            caseStudy: (swr.caseStudy || []).map(stripSubmissionNotifications),
-            designing: (swr.designing || []).map(stripSubmissionNotifications),
-            rendering: (swr.rendering || []).map(stripSubmissionNotifications),
-            finalStage: (swr.finalStage || []).map(stripSubmissionNotifications),
-          }
-        : swr;
-
-      const clearedTask = { ...task, taskNotification: null, hasNestedNotification: false, submissionsWithReviews: clearedSwr } as DesignerTaskItem;
-      setSelectedTaskDetail(clearedTask);
-
-      const updatedTasks = tasksRef.current.map((t) =>
-        t.id === task.id ? clearedTask : t
-      );
-      setTasks(updatedTasks);
-      tasksRef.current = updatedTasks;
-
-      markPendingReviewCardsViewed([task.id]);
-      const newNotifIds = new Set(
-        updatedTasks
-          .filter((t) => designerTaskHasAnyNotification(t))
-          .map((t) => t.id)
-      );
-      setDesignerAssignmentNotificationIds(newNotifIds);
     }
+
+    // Only clear task-level notifications — keep per-submission/review flags for highlighting
+    const partialClearedSwr = swr
+      ? {
+          ...swr,
+          taskNotification: { hasNotification: false, notificationId: null },
+        }
+      : swr;
+
+    const partialClearedTask = { ...task, taskNotification: null, hasNestedNotification: false, submissionsWithReviews: partialClearedSwr } as DesignerTaskItem;
+    setSelectedTaskDetail(partialClearedTask);
+
+    const updatedTasks = tasksRef.current.map((t) =>
+      t.id === task.id ? partialClearedTask : t
+    );
+    setTasks(updatedTasks);
+    tasksRef.current = updatedTasks;
+
+    // Only mark card as viewed if there were task-level notifications (not submission-level)
+    if (notifIds.length > 0) {
+      markPendingReviewCardsViewed([task.id]);
+    }
+    const newNotifIds = new Set(
+      updatedTasks
+        .filter((t) => designerTaskHasAnyNotification(t))
+        .map((t) => t.id)
+    );
+    setDesignerAssignmentNotificationIds(newNotifIds);
   };
 
   const closeDetail = () => {
@@ -1049,8 +1039,77 @@ export function DesignerAssignments() {
   const toggleHistoryEntry = (taskId: string, phase: PhaseKey, idx: number | null) => {
     setExpandedHistoryIdx((prev) => {
       const taskIdx = prev[taskId] ?? { caseStudy: null, designStage: null, rendering: null, finalStage: null };
-      if (idx === null) return { ...prev, [taskId]: { ...taskIdx, [phase]: null } };
-      return { ...prev, [taskId]: { ...taskIdx, [phase]: taskIdx[phase] === idx ? null : idx } };
+      const isCurrentlyExpanded = idx !== null && taskIdx[phase] === idx;
+      const nextIdx = isCurrentlyExpanded ? null : idx;
+
+      if (idx !== null && !isCurrentlyExpanded && selectedTaskDetail?.submissionsWithReviews) {
+        // Mark submission-level notifications as read when expanding
+        const stageMap: Record<PhaseKey, string> = {
+          caseStudy: 'caseStudy', designStage: 'designing', rendering: 'rendering', finalStage: 'finalStage',
+        };
+        const apiKey = stageMap[phase];
+        const stageSubmissions: SubmissionItem[] = (selectedTaskDetail.submissionsWithReviews as any)[apiKey] || [];
+        const sub = stageSubmissions[idx];
+        if (sub) {
+          const notifIds: string[] = [];
+          if (sub.hasNotification && sub.notificationId) notifIds.push(sub.notificationId);
+          for (const r of sub.reviews || []) {
+            if (r.hasNotification && r.notificationId) notifIds.push(r.notificationId);
+          }
+          if (notifIds.length > 0) {
+            notificationApi.bulkMarkRead(notifIds).catch(() => {});
+            decrement('designerTasks');
+          }
+
+          // Update submission in selectedTaskDetail
+          const updatedStageSubs = stageSubmissions.map((s, i) =>
+            i === idx
+              ? {
+                  ...s,
+                  hasNotification: false,
+                  notificationId: null,
+                  reviews: (s.reviews || []).map((r) => ({ ...r, hasNotification: false, notificationId: null })),
+                }
+              : s
+          );
+          setSelectedTaskDetail((prev) => {
+            if (!prev || prev.id !== taskId || !prev.submissionsWithReviews) return prev;
+            return {
+              ...prev,
+              submissionsWithReviews: {
+                ...prev.submissionsWithReviews,
+                [apiKey]: updatedStageSubs,
+              } as any,
+            };
+          });
+
+          // Update tasks array to clear card-level highlight if no notifications remain
+          const updatedSwr = { ...selectedTaskDetail.submissionsWithReviews, [apiKey]: updatedStageSubs } as SubmissionsWithReviewsData;
+          const stillHasAny = designerTaskHasAnyNotification({
+            ...tasksRef.current.find((t) => t.id === taskId)!,
+            submissionsWithReviews: updatedSwr,
+            taskNotification: null,
+          } as DesignerTaskItem);
+          if (!stillHasAny) {
+            markPendingReviewCardsViewed([taskId]);
+          }
+          const updatedFullTasks = tasksRef.current.map((t) =>
+            t.id === taskId
+              ? { ...t, taskNotification: null, submissionsWithReviews: updatedSwr, hasNestedNotification: stillHasAny }
+              : t
+          );
+          setTasks(updatedFullTasks);
+          tasksRef.current = updatedFullTasks;
+          const newNotifIds = new Set(
+            updatedFullTasks
+              .filter((t) => designerTaskHasAnyNotification(t))
+              .map((t) => t.id)
+          );
+          setDesignerAssignmentNotificationIds(newNotifIds);
+        }
+      }
+
+      return { ...prev, [taskId]: { ...taskIdx, [phase]: nextIdx } };
     });
   };
 
@@ -1844,11 +1903,13 @@ export function DesignerAssignments() {
                                           const subs: SubmissionItem[] = (rawData as any)[sk] || [];
                                           for (const s of subs) {
                                             if (s.hasNotification || (s.reviews || []).some((r) => r.hasNotification)) {
-                                              const latestTs = Math.max(
-                                                s.hasNotification ? new Date(s.created_at).getTime() : 0,
-                                                ...(s.reviews || []).map((r) => r.hasNotification ? new Date(r.created_at).getTime() : 0).filter((t) => t > 0)
-                                              );
-                                              allNotifSubs.push({ subId: s.id, ts: latestTs || new Date(s.created_at).getTime() });
+                                              const timestamps: number[] = [];
+                                              if (s.hasNotification) timestamps.push(new Date(s.created_at).getTime());
+                                              for (const r of s.reviews || []) {
+                                                if (r.hasNotification) timestamps.push(new Date(r.created_at).getTime());
+                                              }
+                                              const earliestTs = Math.min(...timestamps);
+                                              allNotifSubs.push({ subId: s.id, ts: earliestTs || new Date(s.created_at).getTime() });
                                             }
                                           }
                                         }
