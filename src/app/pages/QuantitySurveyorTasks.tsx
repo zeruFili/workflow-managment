@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotificationCounts } from '../contexts/NotificationCountsContext';
 import quantitySurveyorApi, {
   QuantitySurveyorTaskItem,
   QuantitySurveyorTaskListMeta,
@@ -393,6 +394,7 @@ function initLocalWithSeed(): QuantitySurveyorTaskItem[] {
 
 export function QuantitySurveyorTasks() {
   const { user } = useAuth();
+  const { decrement } = useNotificationCounts();
   const [tasks, setTasks] = useState<QuantitySurveyorTaskItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -604,6 +606,7 @@ export function QuantitySurveyorTasks() {
 
       notificationApi.markRead(notifId)
         .then(() => {
+          decrement('quantitySurveyorTasks');
           const tasks = tasksRef.current;
           const updatedTasks = tasks.map((t) =>
             t.id === taskId
@@ -728,6 +731,7 @@ export function QuantitySurveyorTasks() {
 
     if (notifIds.length > 0) {
       notificationApi.bulkMarkRead(notifIds).catch(() => {});
+      decrement('quantitySurveyorTasks');
 
       const clearedSwr = swr
         ? {

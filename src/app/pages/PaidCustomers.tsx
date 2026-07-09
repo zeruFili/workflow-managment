@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotificationCounts } from '../contexts/NotificationCountsContext';
 import marketingApi, {
   MarketingTaskItem,
   MarketingSubmissionWrapper,
@@ -284,6 +285,7 @@ export function getUnseenPaidCustomerCount() {
 
 export function PaidCustomers() {
   const { user } = useAuth();
+  const { decrement } = useNotificationCounts();
   const navigate = useNavigate();
 
   const [marketingTasks, setMarketingTasks] = useState<MarketingTaskItem[]>(() => getCachedMarketingTasks() ?? []);
@@ -404,6 +406,7 @@ export function PaidCustomers() {
 
     if (notifIds.length > 0) {
       notificationApi.bulkMarkRead(notifIds).catch(() => {});
+      decrement('marketingTasks');
 
       const clearedSwr = swr
         ? {

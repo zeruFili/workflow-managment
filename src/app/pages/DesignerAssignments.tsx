@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotificationCounts } from '../contexts/NotificationCountsContext';
 import {
   getTaskAssigneeLabel,
   loadDesignerApplications,
@@ -403,6 +404,7 @@ function statusColorClass(status: string | null): string {
 
 export function DesignerAssignments() {
   const { user } = useAuth();
+  const { decrement } = useNotificationCounts();
   const [editingTask, setEditingTask] = useState<string | null>(null);
   const [selectedTaskDetail, setSelectedTaskDetail] = useState<DesignerTaskItem | null>(null);
   const [showDetail, setShowDetail] = useState(false);
@@ -621,6 +623,7 @@ export function DesignerAssignments() {
         
         notificationApi.markRead(notifId)
           .then(() => {
+            decrement('designerTasks');
             const tasks = tasksRef.current;
             const updatedTasks = tasks.map((t) =>
               t.id === taskId
@@ -842,6 +845,7 @@ export function DesignerAssignments() {
 
     if (notifIds.length > 0) {
       notificationApi.bulkMarkRead(notifIds).catch(() => {});
+      decrement('designerTasks');
 
       const clearedSwr = swr
         ? {
