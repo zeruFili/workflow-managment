@@ -954,17 +954,7 @@ export function FinanceVerifications() {
               Finance Role
             </div>
             <h2 className="mt-3 text-2xl font-bold text-slate-900">Payment Verification Center</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Verifies payment evidence before paid customer requests proceed to the verified Paid Customer page.
-            </p>
-            {highlightedIds.size > 0 && (
-              <p className="text-sm text-blue-600 mt-2 flex items-center gap-2">
-                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-semibold">
-                  {highlightedIds.size}
-                </span>
-                new {highlightedIds.size === 1 ? 'record' : 'records'} since your last visit
-              </p>
-            )}
+
           </div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm min-w-[240px]">
             <p className="text-xs uppercase tracking-wide text-slate-500">Viewing as</p>
