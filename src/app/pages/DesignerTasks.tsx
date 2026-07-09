@@ -825,7 +825,7 @@ export function DesignerTasks() {
       });
     }
 
-    // Bulk-mark notification IDs from submissions & reviews
+    // Bulk-mark task-level notification IDs
     const notifIds: string[] = [];
     const topNotif = (task as any).taskNotification;
     if (topNotif?.hasNotification && topNotif.notificationId && !markedTaskNotificationIds.has(topNotif.notificationId)) {
@@ -834,42 +834,32 @@ export function DesignerTasks() {
     if (swr?.taskNotification?.hasNotification && swr.taskNotification.notificationId && !markedTaskNotificationIds.has(swr.taskNotification.notificationId)) {
       notifIds.push(swr.taskNotification.notificationId);
     }
-    const stages: (keyof SubmissionsWithReviewsData)[] = ['caseStudy', 'designing', 'rendering', 'finalStage'];
-    for (const stage of stages) {
-      const subs: SubmissionItem[] = (swr as any)?.[stage] || [];
-      for (const sub of subs) {
-        if (sub.hasNotification && sub.notificationId) notifIds.push(sub.notificationId);
-        for (const r of sub.reviews || []) {
-          if (r.hasNotification && r.notificationId) notifIds.push(r.notificationId);
-        }
-      }
-    }
 
     if (notifIds.length > 0) {
       notificationApi.bulkMarkRead(notifIds).catch(() => {});
       decrement('designerTasks');
+    }
 
-      const clearedSwr = swr
-        ? {
-            ...swr,
-            taskNotification: { hasNotification: false, notificationId: null },
-            caseStudy: (swr.caseStudy || []).map(stripSubmissionNotifications),
-            designing: (swr.designing || []).map(stripSubmissionNotifications),
-            rendering: (swr.rendering || []).map(stripSubmissionNotifications),
-            finalStage: (swr.finalStage || []).map(stripSubmissionNotifications),
-          }
-        : swr;
+    // Only clear task-level notifications — keep per-submission/review flags for highlighting
+    const partialClearedSwr = swr
+      ? {
+          ...swr,
+          taskNotification: { hasNotification: false, notificationId: null },
+        }
+      : swr;
 
-      const clearedTask = { ...task, taskNotification: null, hasNestedNotification: false, submissionsWithReviews: clearedSwr } as DesignerTaskItem;
-      setSelectedTaskDetail(clearedTask);
+    const partialClearedTask = { ...task, taskNotification: null, hasNestedNotification: false, submissionsWithReviews: partialClearedSwr } as DesignerTaskItem;
+    setSelectedTaskDetail(partialClearedTask);
 
-      const updatedTasks = tasksRef.current.map((t) =>
-        t.id === task.id ? clearedTask : t
-      );
-      setTasks(updatedTasks);
-      tasksRef.current = updatedTasks;
-      designerTaskCache.invalidate();
+    const updatedTasks = tasksRef.current.map((t) =>
+      t.id === task.id ? partialClearedTask : t
+    );
+    setTasks(updatedTasks);
+    tasksRef.current = updatedTasks;
+    designerTaskCache.invalidate();
 
+    // Only mark card as viewed if there were task-level notifications (not submission-level)
+    if (notifIds.length > 0) {
       viewedDesignerTaskCards.add(task.id);
     }
   };
@@ -1129,7 +1119,80 @@ export function DesignerTasks() {
   const toggleHistoryEntry = (taskId: string, phase: PhaseKey, idx: number) => {
     setExpandedHistoryIdx((prev) => {
       const taskIdx = prev[taskId] ?? { caseStudy: null, designStage: null, rendering: null, finalStage: null };
-      return { ...prev, [taskId]: { ...taskIdx, [phase]: taskIdx[phase] === idx ? null : idx } };
+      const isCurrentlyExpanded = taskIdx[phase] === idx;
+      const nextIdx = isCurrentlyExpanded ? null : idx;
+
+      if (!isCurrentlyExpanded) {
+        // Mark submission-level notifications as read when expanding
+        const rawData = submissionsRawData[taskId];
+        if (rawData) {
+          const stageMap: Record<PhaseKey, string> = {
+            caseStudy: 'caseStudy', designStage: 'designing', rendering: 'rendering', finalStage: 'finalStage',
+          };
+          const apiKey = stageMap[phase];
+          const stageSubmissions: SubmissionItem[] = (rawData as any)[apiKey] || [];
+          const sub = stageSubmissions[idx];
+          if (sub) {
+            const notifIds: string[] = [];
+            if (sub.hasNotification && sub.notificationId) notifIds.push(sub.notificationId);
+            for (const r of sub.reviews || []) {
+              if (r.hasNotification && r.notificationId) notifIds.push(r.notificationId);
+            }
+            if (notifIds.length > 0) {
+              notificationApi.bulkMarkRead(notifIds).catch(() => {});
+              decrement('designerTasks');
+            }
+
+            // Update submission in submissionsRawData
+            const updatedStageSubs = stageSubmissions.map((s, i) =>
+              i === idx
+                ? {
+                    ...s,
+                    hasNotification: false,
+                    notificationId: null,
+                    reviews: (s.reviews || []).map((r) => ({ ...r, hasNotification: false, notificationId: null })),
+                  }
+                : s
+            );
+            setSubmissionsRawData((prev) => ({
+              ...prev,
+              [taskId]: { ...prev[taskId], [apiKey]: updatedStageSubs },
+            }));
+
+            // Also update selectedTaskDetail to immediately remove highlights
+            setSelectedTaskDetail((prev) => {
+              if (!prev || prev.id !== taskId || !prev.submissionsWithReviews) return prev;
+              return {
+                ...prev,
+                submissionsWithReviews: {
+                  ...prev.submissionsWithReviews,
+                  [apiKey]: updatedStageSubs,
+                } as any,
+              };
+            });
+
+            // Update tasks array to clear card-level highlight if no notifications remain
+            const updatedSwr = { ...rawData, [apiKey]: updatedStageSubs } as SubmissionsWithReviewsData;
+            const stillHasAny = designerTaskHasAnyNotification({
+              ...tasksRef.current.find((t) => t.id === taskId)!,
+              submissionsWithReviews: updatedSwr,
+              taskNotification: null,
+            } as DesignerTaskItem);
+            if (!stillHasAny) {
+              viewedDesignerTaskCards.add(taskId);
+            }
+            const updatedFullTasks = tasksRef.current.map((t) =>
+              t.id === taskId
+                ? { ...t, taskNotification: null, submissionsWithReviews: updatedSwr, hasNestedNotification: stillHasAny }
+                : t
+            );
+            setTasks(updatedFullTasks);
+            tasksRef.current = updatedFullTasks;
+          }
+        }
+      }
+
+      return { ...prev, [taskId]: { ...taskIdx, [phase]: nextIdx } };
     });
   };
 
@@ -2012,15 +2075,16 @@ export function DesignerTasks() {
                                           const isSubExpanded = expandedHistoryIdx[taskId]?.[phase.key] === sIdx;
                                           const subReviewCount = (sub.reviews || []).length;
                                           const isThisEditable = sub.id === latestEditableId;
+                                          const subHasNotif = sub.hasNotification || (sub.reviews || []).some((r) => r.hasNotification);
                                           return (
-                                            <div key={sub.id} className={`border rounded-lg overflow-hidden ${sub.hasNotification ? 'border-blue-400 ring-1 ring-blue-100' : 'border-gray-200'}`}>
+                                            <div key={sub.id} className={`border rounded-lg overflow-hidden ${subHasNotif ? 'border-blue-400 ring-1 ring-blue-100' : 'border-gray-200'}`}>
                                               <button
                                                 type="button"
                                                 onClick={() => toggleHistoryEntry(taskId, phase.key, sIdx)}
                                                 className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
                                               >
                                                 <div className="flex items-center gap-2 min-w-0">
-                                                  {sub.hasNotification && (
+                                                  {subHasNotif && (
                                                     <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
                                                   )}
                                                   <span className="text-xs font-medium text-gray-700">Submission {sIdx + 1}</span>

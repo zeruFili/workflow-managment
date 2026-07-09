@@ -950,20 +950,22 @@ export function DesignerAssignments() {
     }));
   };
 
-  const handleSubmitFeedback = async (taskId: string, phase: PhaseKey) => {
-    const draft = feedbackDrafts[taskId]?.[phase] ?? '';
-    await submitReview(taskId, phase, draft, 'feedback');
-  };
-
-  const handleApprove = async (taskId: string, phase: PhaseKey) => {
-    const draft = feedbackDrafts[taskId]?.[phase] ?? '';
-    await submitReview(taskId, phase, draft, 'approved');
-  };
-
-  const handleReject = async (taskId: string, phase: PhaseKey) => {
+  const handleSubmitFeedback = async (taskId: string, phase: PhaseKey, submissionId: string) => {
     const draft = feedbackDrafts[taskId]?.[phase]?.trim();
     if (!draft) return;
-    await submitReview(taskId, phase, draft, 'rejected');
+    await submitReview(taskId, phase, submissionId, draft, 'feedback');
+  };
+
+  const handleApprove = async (taskId: string, phase: PhaseKey, submissionId: string) => {
+    const draft = feedbackDrafts[taskId]?.[phase]?.trim();
+    if (!draft) return;
+    await submitReview(taskId, phase, submissionId, draft, 'approved');
+  };
+
+  const handleReject = async (taskId: string, phase: PhaseKey, submissionId: string) => {
+    const draft = feedbackDrafts[taskId]?.[phase]?.trim();
+    if (!draft) return;
+    await submitReview(taskId, phase, submissionId, draft, 'rejected');
   };
 
   const handleReset = async (taskId: string, phase: PhaseKey) => {
@@ -971,7 +973,7 @@ export function DesignerAssignments() {
     resetPhaseHistory(taskId, phase);
   };
 
-  const submitReview = async (taskId: string, phase: PhaseKey, message: string, outcome: string) => {
+  const submitReview = async (taskId: string, phase: PhaseKey, submissionId: string, message: string, outcome: string) => {
     if (!selectedTaskDetail?.submissionsWithReviews) return;
     const stageMap: Record<PhaseKey, string> = {
       caseStudy: 'caseStudy', designStage: 'designing', rendering: 'rendering', finalStage: 'finalStage',
@@ -979,7 +981,8 @@ export function DesignerAssignments() {
     const apiKey = stageMap[phase];
     const submissions: SubmissionItem[] = (selectedTaskDetail.submissionsWithReviews as any)[apiKey] || [];
     if (submissions.length === 0) return;
-    const latestSubmission = submissions[submissions.length - 1];
+    const targetSubmission = submissions.find((s) => s.id === submissionId);
+    if (!targetSubmission) return;
 
     const errorKey = `${taskId}_${phase}`;
     setReviewError((prev) => ({ ...prev, [errorKey]: '' }));
@@ -1005,7 +1008,7 @@ export function DesignerAssignments() {
         });
         setEditingReviewId(null);
       } else {
-        await designerApi.createReview(latestSubmission.id, payload);
+        await designerApi.createReview(targetSubmission.id, payload);
       }
       updateDraft(taskId, phase, '');
       const refreshedTasks = await fetchTasks(apiPage, true);
@@ -1953,13 +1956,13 @@ export function DesignerAssignments() {
                                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm mb-2"
                                                   />
                                                   <div className="flex flex-wrap gap-2">
-                                                      <button onClick={() => handleApprove(taskId, phase.key)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-300 hover:bg-green-100 transition-colors">
+                                                       <button onClick={() => handleApprove(taskId, phase.key, sub.id)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-300 hover:bg-green-100 transition-colors">
                                                         <ThumbsUp className="w-3.5 h-3.5" /> Approve
                                                       </button>
-                                                      <button onClick={() => handleReject(taskId, phase.key)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-700 border border-red-300 hover:bg-red-100 transition-colors">
+                                                      <button onClick={() => handleReject(taskId, phase.key, sub.id)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-700 border border-red-300 hover:bg-red-100 transition-colors">
                                                         <ThumbsDown className="w-3.5 h-3.5" /> Reject
                                                       </button>
-                                                    <button onClick={() => handleSubmitFeedback(taskId, phase.key)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-100 transition-colors">
+                                                    <button onClick={() => handleSubmitFeedback(taskId, phase.key, sub.id)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-100 transition-colors">
                                                       <Send className="w-3.5 h-3.5" /> {editingReviewId ? 'Update Feedback' : 'Feedback'}
                                                     </button>
                                                     {editingReviewId && (
