@@ -118,9 +118,6 @@ export function MarketingDashboard() {
               Marketing Role
             </div>
             <h2 className="mt-3 text-2xl font-bold text-slate-900">Marketing Management Center</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Manage customer requests, track marketing task submissions, and review payment verification updates.
-            </p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm min-w-[240px]">
             <p className="text-xs uppercase tracking-wide text-slate-500">Viewing as</p>
@@ -144,11 +141,6 @@ export function MarketingDashboard() {
                 <Icon className="h-5 w-5" />
               </div>
               <p className="mt-4 text-sm text-slate-500">{tile.label}</p>
-              {tile.value > 0 && (
-                <span className="mt-3 inline-flex min-w-7 items-center justify-center rounded-full bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white">
-                  {tile.value}
-                </span>
-              )}
             </Link>
           );
         })}
