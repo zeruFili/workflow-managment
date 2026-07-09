@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotificationCounts } from '../contexts/NotificationCountsContext';
 import { MarketingTaskItem } from '../../api/marketingApi';
 import { fetchMarketingTasks, getCachedMarketingTasks } from '../data/marketingTaskCache';
 import { PaidCustomer, PaymentProof, PaymentVerificationStatus } from '../types';
@@ -522,6 +523,7 @@ function RecordList({
 
 export function FinanceVerifications() {
   const { user } = useAuth();
+  const { counts } = useNotificationCounts();
   const navigate = useNavigate();
   const [records, setRecords] = useState<FinanceRecord[]>([]);
   const [currentView, setCurrentView] = useState<FinanceTab | null>(null);
@@ -937,7 +939,7 @@ export function FinanceVerifications() {
   };
 
   const tiles = [
-    { label: 'Paid Customers', value: marketingTasksWithSubmissions.length, icon: CircleDollarSign, tone: 'bg-emerald-50 text-emerald-700', activeTone: 'ring-2 ring-emerald-400', tab: 'paid-customers' as FinanceTab },
+    { label: 'Paid Customers', value: counts.marketingTasks, icon: CircleDollarSign, tone: 'bg-emerald-50 text-emerald-700', activeTone: 'ring-2 ring-emerald-400', tab: 'paid-customers' as FinanceTab },
     { label: 'CEO-transferred', value: summary.ceoApprovedRequests, icon: Bell, tone: 'bg-amber-50 text-amber-700', activeTone: 'ring-2 ring-amber-400', tab: 'ceo-approved-requests' as FinanceTab },
   ];
 
