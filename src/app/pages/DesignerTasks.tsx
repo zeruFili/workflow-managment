@@ -523,7 +523,7 @@ export function DesignerTasks() {
   const apiLimit = isLeadership ? 20 : 10;
 
   // ── Fetch tasks from API ──
-  const fetchTasks = useCallback(async (page: number, force = false) => {
+  const fetchTasks = useCallback(async (page: number, force = false): Promise<DesignerTaskItem[] | undefined> => {
     if (!user) return;
     const cacheParams = { page, limit: apiLimit };
     if (!force) {
@@ -542,8 +542,10 @@ export function DesignerTasks() {
           cached.data.filter((t) => designerTaskHasAnyNotification(t)).map((t) => t.id)
         );
         setIsLoading(false);
-        return;
+        return cached.data;
       }
+    } else {
+      designerTaskCache.invalidate(cacheParams);
     }
     setIsLoading(true);
     setError(null);
@@ -582,6 +584,7 @@ export function DesignerTasks() {
             .filter((t) => designerTaskHasAnyNotification(t))
             .map((t) => t.id)
         );
+        return result.data;
       }
     } catch (err: unknown) {
       const msg =
@@ -957,8 +960,8 @@ export function DesignerTasks() {
         // Refresh submissions from backend first
         setSubmissionsLoading((prev) => ({ ...prev, [taskId]: true }));
         try {
-          await fetchTasks(apiPage, true);
-          const refreshed = tasks.find((t) => t.id === taskId);
+          const refreshedList = await fetchTasks(apiPage, true);
+          const refreshed = refreshedList?.find((t) => t.id === taskId);
           if (refreshed) {
             setSelectedTaskDetail(refreshed);
             if (refreshed.submissionsWithReviews) {
@@ -1070,8 +1073,8 @@ export function DesignerTasks() {
         designerTaskCache.invalidate();
         cachedRawData = null;
         cachedProgress = null;
-        await fetchTasks(apiPage, true);
-        const refreshed = tasks.find((t) => t.id === selectedTaskDetail.id);
+        const refreshedList = await fetchTasks(apiPage, true);
+        const refreshed = refreshedList?.find((t) => t.id === selectedTaskDetail.id);
           if (refreshed) {
             setSelectedTaskDetail(refreshed);
             if (refreshed.submissionsWithReviews) {
