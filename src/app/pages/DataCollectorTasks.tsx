@@ -1748,7 +1748,7 @@ export function DataCollectorTasks() {
                                   </div>
                                 )}
 
-                                {canManage && isLatestSubmission && canReview && (
+                                {canManage && isLatestSubmission && selectedTask.task_state === 'active' && (
                                   <div className="border-t border-gray-100 pt-3">
                                     <h6 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
                                       {editingBelongsToThisSub ? 'Update Review' : 'Review &amp; Decision'}
