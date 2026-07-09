@@ -1854,7 +1854,7 @@ export function DesignerTasks() {
                         // Show last phase even if empty (so designer can submit)
                         return true;
                       }
-                      return phaseHasDisplayableContent(progress[_p.key]);
+                      return true;
                     });
 
                     if (visiblePhases.length === 0) {
