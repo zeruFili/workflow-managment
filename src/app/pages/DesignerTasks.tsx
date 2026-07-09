@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotificationCounts } from '../contexts/NotificationCountsContext';
 import { designerRoles } from './designerTaskShared';
 import { designerTaskCache } from '../data/designerTaskCache';
 import designerApi, {
@@ -445,6 +446,7 @@ export function resetDesignerTasksHighlightState() {
 
 export function DesignerTasks() {
   const { user } = useAuth();
+  const { decrement } = useNotificationCounts();
   const [selectedTaskDetail, setSelectedTaskDetail] = useState<DesignerTaskItem | null>(null);
   const [showDetail, setShowDetail] = useState(false);
   const [tasks, setTasks] = useState<DesignerTaskItem[]>([]);
@@ -694,6 +696,7 @@ export function DesignerTasks() {
       
       notificationApi.markRead(notifId)
         .then(() => {
+          decrement('designerTasks');
           const tasks = tasksRef.current;
           const updatedTasks = tasks.map((t) =>
             t.id === taskId
@@ -841,6 +844,7 @@ export function DesignerTasks() {
 
     if (notifIds.length > 0) {
       notificationApi.bulkMarkRead(notifIds).catch(() => {});
+      decrement('designerTasks');
 
       const clearedSwr = swr
         ? {

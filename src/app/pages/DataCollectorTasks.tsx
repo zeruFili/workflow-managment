@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotificationCounts } from '../contexts/NotificationCountsContext';
 import dataCollectorApi, {
   DataCollectorTaskItem,
   DataCollectorTaskListMeta,
@@ -392,6 +393,7 @@ function initLocalWithSeed(): DataCollectorTaskItem[] {
 
 export function DataCollectorTasks() {
   const { user } = useAuth();
+  const { decrement } = useNotificationCounts();
   const [tasks, setTasks] = useState<DataCollectorTaskItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -603,6 +605,7 @@ export function DataCollectorTasks() {
       
       notificationApi.markRead(notifId)
         .then(() => {
+          decrement('dataCollectorTasks');
           const tasks = tasksRef.current;
           const updatedTasks = tasks.map((t) =>
             t.id === taskId
@@ -728,6 +731,7 @@ export function DataCollectorTasks() {
 
     if (notifIds.length > 0) {
       notificationApi.bulkMarkRead(notifIds).catch(() => {});
+      decrement('dataCollectorTasks');
 
       const clearedSwr = swr
         ? {

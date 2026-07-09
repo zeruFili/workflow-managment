@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { Calendar, CheckCircle2, Clock, Landmark, Megaphone, ShieldCheck, Send, AlertCircle, Loader2, Undo2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotificationCounts } from '../contexts/NotificationCountsContext';
 import designerApi, { DesignerTaskItem } from '../../api/designerApi';
 import { designerTaskCache } from '../data/designerTaskCache';
 import notificationApi from '../../api/notificationApi';
@@ -80,6 +81,7 @@ function getStatusLabel(status: string | null) {
 
 export function DesignerOpenJobPostings() {
   const { user } = useAuth();
+  const { decrement } = useNotificationCounts();
   const [postings, setPostings] = useState<DesignerTaskItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -217,6 +219,7 @@ export function DesignerOpenJobPostings() {
 
         notificationApi.markRead(notifId)
           .then(() => {
+            decrement('designerJobPostings');
             viewedOpenJobPostingCards.add(postingId);
             saveViewedCards(viewedOpenJobPostingCards);
             setPostings((prev) =>

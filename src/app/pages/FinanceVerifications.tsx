@@ -608,7 +608,6 @@ export function FinanceVerifications() {
       const pending = observerRef.current.takeRecords();
       pending.forEach((entry) => {
         const id = (entry.target as HTMLElement).dataset.highlightedId;
-        // Rely purely on the dataset attribute presence, preventing stale closure issues
         if (id && entry.intersectionRatio > 0) {
           if (!observedElements.current.has(id)) {
             observedElements.current.add(id);
@@ -618,7 +617,8 @@ export function FinanceVerifications() {
       });
     }
 
-    if (seenThisSession.current.size === 0) return;
+    const newlyViewed = seenThisSession.current.size;
+    if (newlyViewed === 0) return;
     
     seenThisSession.current.forEach((id) => viewedFinanceRecordCards.add(id));
     seenThisSession.current.clear();
@@ -636,6 +636,7 @@ export function FinanceVerifications() {
       setHighlightedIds(new Set(remainingUnseen));
     }
     publishFinanceBadgeCount(remainingUnseen.length);
+    decrement('marketingTasks', newlyViewed);
   };
 
   // Wrapper for view changing to guarantee immediate processing before unmounts
@@ -749,6 +750,7 @@ export function FinanceVerifications() {
     viewedFinanceRecordCards.add(recordId);
     seenThisSession.current.delete(recordId);
     observedElements.current.add(recordId);
+    decrement('marketingTasks');
 
     setHighlightedIds((previous) => {
       if (!previous.has(recordId)) return previous;
