@@ -920,7 +920,7 @@ export function FinanceVerifications() {
     closeModal();
   };
 
-  if (user.role !== 'finance_officer' && user.role !== 'system_administrator' && user.role !== 'ceo' && user.role !== 'general_manager') {
+  if (user.role !== 'finance_officer' && user.role !== 'ceo' && user.role !== 'general_manager') {
     return (
       <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center shadow-sm">
         <p className="text-gray-500">Access denied. Finance Officer access required.</p>
@@ -991,7 +991,7 @@ export function FinanceVerifications() {
                     <Icon className="h-5 w-5" />
                   </div>
                   <span className="text-sm font-medium text-slate-700">{tile.label}</span>
-                  {tile.value > 0 && (
+                  {tile.value > 0 && tile.tab !== 'ceo-approved-requests' && (
                     <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-blue-600 px-2 py-0.5 text-xs font-semibold text-white">
                       {tile.value}
                     </span>
@@ -1020,7 +1020,7 @@ export function FinanceVerifications() {
                   <Icon className="h-5 w-5" />
                 </div>
                 <p className="mt-4 text-sm text-slate-500">{tile.label}</p>
-                {tile.value > 0 && (
+                {tile.value > 0 && tile.tab !== 'ceo-approved-requests' && (
                   <span className="mt-3 inline-flex min-w-7 items-center justify-center rounded-full bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white">
                     {tile.value}
                   </span>
