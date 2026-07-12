@@ -1137,9 +1137,7 @@ export function DataCollectorTasks() {
       if (deadline) {
         formData.append('due_date', new Date(deadline).toISOString());
       }
-      if (assignedTo) {
-        formData.append('assigned_to_user_id', assignedTo);
-      }
+      formData.append('assigned_to_user_id', assignedTo || 'null');
       if (editImageFileRef.current) {
         formData.append('attachmentFiles', editImageFileRef.current);
       }
