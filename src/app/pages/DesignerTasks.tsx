@@ -1929,132 +1929,6 @@ export function DesignerTasks() {
 
                               {isExpanded && (
                                 <div className="p-4 space-y-4 bg-white">
-                                  {canSubmit && (
-                                    <div className="border border-dashed border-gray-300 rounded-lg p-4 bg-blue-50/50">
-                                      <h6 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
-                                        <MessageSquare className="w-4 h-4" />
-                                        {editingSubmission?.taskId === taskId && editingSubmission?.phase === phase.key ? 'Update' : 'Submit'} to {phase.label}
-                                      </h6>
-                                      <div className="space-y-3">
-                                        <div>
-                                          <label className="block text-xs font-medium text-gray-600 mb-1">
-                                            Description
-                                          </label>
-                                          <textarea
-                                            rows={3}
-                                            value={noteDraft}
-                                            onChange={(e) =>
-                                              setDraftNotes((prev) => ({
-                                                ...prev,
-                                                [taskId]: { ...prev[taskId], [phase.key]: e.target.value },
-                                              }))
-                                            }
-                                            placeholder="Describe your submission..."
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                            required
-                                          />
-                                        </div>
-                                        <div>
-                                          <label className="block text-xs font-medium text-gray-600 mb-1">
-                                            File Attachments{' '}
-                                            {REQUIRED_ATTACHMENT_STAGES.has(phase.key) ? (
-                                              <span className="text-red-500">(required - at least 1)</span>
-                                            ) : (
-                                              <span className="text-gray-400 text-xs ml-1">(optional)</span>
-                                            )}
-                                          </label>
-                                          <div className="flex items-center gap-2">
-                                            <label className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-sm text-gray-700">
-                                              <Upload className="w-4 h-4" />
-                                              {draftFilesRef.current[taskId]?.[phase.key]?.length
-                                                ? `${draftFilesRef.current[taskId][phase.key].length} file(s) selected`
-                                                : newScreenshot
-                                                ? 'Change Files'
-                                                : 'Choose Files'}
-                                              <input
-                                                type="file"
-                                                multiple
-                                                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip,.rar"
-                                                ref={(el) => {
-                                                  if (!uploadInputRef.current[taskId]) {
-                                                    uploadInputRef.current[taskId] = {} as Record<PhaseKey, HTMLInputElement | null>;
-                                                  }
-                                                  uploadInputRef.current[taskId][phase.key] = el;
-                                                }}
-                                                onChange={(e) => handleFilesChange(taskId, phase.key, e.target.files)}
-                                                className="hidden"
-                                              />
-                                            </label>
-                                            {(newScreenshot || (draftFilesRef.current[taskId]?.[phase.key]?.length ?? 0) > 0) && (
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  const oldUrl = draftScreenshots[taskId]?.[phase.key] ?? null;
-                                                  if (oldUrl) URL.revokeObjectURL(oldUrl);
-                                                  setDraftScreenshots((prev) => ({
-                                                    ...prev,
-                                                    [taskId]: { ...prev[taskId], [phase.key]: null },
-                                                  }));
-                                                  draftFilesRef.current = {
-                                                    ...draftFilesRef.current,
-                                                    [taskId]: { ...draftFilesRef.current[taskId], [phase.key]: [] },
-                                                  };
-                                                }}
-                                                className="text-sm text-red-600 hover:underline"
-                                              >
-                                                Remove All
-                                              </button>
-                                            )}
-                                          </div>
-                                          {newScreenshot && (
-                                            <img
-                                              src={newScreenshot}
-                                              alt="preview"
-                                              className="mt-2 w-full max-h-40 rounded-lg border object-contain"
-                                            />
-                                          )}
-                                          {!newScreenshot && !(draftFilesRef.current[taskId]?.[phase.key]?.length) && (
-                                            <p className="mt-1 text-xs text-gray-400">No preview available.</p>
-                                          )}
-                                        </div>
-                                        <div className="flex gap-2 pt-2">
-                                          <button
-                                            onClick={() => handleSubmitPhaseProgress(taskId, phase.key)}
-                                            disabled={submissionDraftLoading[taskId]?.[phase.key]}
-                                            className="flex items-center gap-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white rounded-lg text-sm transition-colors"
-                                          >
-                                            {submissionDraftLoading[taskId]?.[phase.key]
-                                              ? (editingSubmission ? 'Updating...' : 'Submitting...')
-                                              : (editingSubmission ? 'Update' : 'Submit')}
-                                          </button>
-                                          <button
-                                            onClick={() => {
-                                              const oldUrl = draftScreenshots[taskId]?.[phase.key] ?? null;
-                                              if (oldUrl) URL.revokeObjectURL(oldUrl);
-                                              setDraftNotes((prev) => ({
-                                                ...prev,
-                                                [taskId]: { ...prev[taskId], [phase.key]: '' },
-                                              }));
-                                              setDraftScreenshots((prev) => ({
-                                                ...prev,
-                                                [taskId]: { ...prev[taskId], [phase.key]: null },
-                                              }));
-                                              draftFilesRef.current = {
-                                                ...draftFilesRef.current,
-                                                [taskId]: { ...draftFilesRef.current[taskId], [phase.key]: [] },
-                                              };
-                                            }}
-                                            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition-colors"
-                                          >
-                                            Clear
-                                          </button>
-                                        </div>
-                                        {phaseError && (
-                                          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{phaseError}</p>
-                                        )}
-                                      </div>
-                                    </div>
-                                  )}
 
                                   {/* ── Submissions list per phase (expandable, reviews nested) ── */}
                                   {stageSubmissions.length > 0 && (() => {
@@ -2225,6 +2099,133 @@ export function DesignerTasks() {
                                     </div>
                                     );
                                   })()}
+
+                                  {canSubmit && (
+                                    <div className="border border-dashed border-gray-300 rounded-lg p-4 bg-blue-50/50">
+                                      <h6 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                                        <MessageSquare className="w-4 h-4" />
+                                        {editingSubmission?.taskId === taskId && editingSubmission?.phase === phase.key ? 'Update' : 'Submit'} to {phase.label}
+                                      </h6>
+                                      <div className="space-y-3">
+                                        <div>
+                                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                                            Description
+                                          </label>
+                                          <textarea
+                                            rows={3}
+                                            value={noteDraft}
+                                            onChange={(e) =>
+                                              setDraftNotes((prev) => ({
+                                                ...prev,
+                                                [taskId]: { ...prev[taskId], [phase.key]: e.target.value },
+                                              }))
+                                            }
+                                            placeholder="Describe your submission..."
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            required
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                                            File Attachments{' '}
+                                            {REQUIRED_ATTACHMENT_STAGES.has(phase.key) ? (
+                                              <span className="text-red-500">(required - at least 1)</span>
+                                            ) : (
+                                              <span className="text-gray-400 text-xs ml-1">(optional)</span>
+                                            )}
+                                          </label>
+                                          <div className="flex items-center gap-2">
+                                            <label className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-sm text-gray-700">
+                                              <Upload className="w-4 h-4" />
+                                              {draftFilesRef.current[taskId]?.[phase.key]?.length
+                                                ? `${draftFilesRef.current[taskId][phase.key].length} file(s) selected`
+                                                : newScreenshot
+                                                ? 'Change Files'
+                                                : 'Choose Files'}
+                                              <input
+                                                type="file"
+                                                multiple
+                                                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip,.rar"
+                                                ref={(el) => {
+                                                  if (!uploadInputRef.current[taskId]) {
+                                                    uploadInputRef.current[taskId] = {} as Record<PhaseKey, HTMLInputElement | null>;
+                                                  }
+                                                  uploadInputRef.current[taskId][phase.key] = el;
+                                                }}
+                                                onChange={(e) => handleFilesChange(taskId, phase.key, e.target.files)}
+                                                className="hidden"
+                                              />
+                                            </label>
+                                            {(newScreenshot || (draftFilesRef.current[taskId]?.[phase.key]?.length ?? 0) > 0) && (
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const oldUrl = draftScreenshots[taskId]?.[phase.key] ?? null;
+                                                  if (oldUrl) URL.revokeObjectURL(oldUrl);
+                                                  setDraftScreenshots((prev) => ({
+                                                    ...prev,
+                                                    [taskId]: { ...prev[taskId], [phase.key]: null },
+                                                  }));
+                                                  draftFilesRef.current = {
+                                                    ...draftFilesRef.current,
+                                                    [taskId]: { ...draftFilesRef.current[taskId], [phase.key]: [] },
+                                                  };
+                                                }}
+                                                className="text-sm text-red-600 hover:underline"
+                                              >
+                                                Remove All
+                                              </button>
+                                            )}
+                                          </div>
+                                          {newScreenshot && (
+                                            <img
+                                              src={newScreenshot}
+                                              alt="preview"
+                                              className="mt-2 w-full max-h-40 rounded-lg border object-contain"
+                                            />
+                                          )}
+                                          {!newScreenshot && !(draftFilesRef.current[taskId]?.[phase.key]?.length) && (
+                                            <p className="mt-1 text-xs text-gray-400">No preview available.</p>
+                                          )}
+                                        </div>
+                                        <div className="flex gap-2 pt-2">
+                                          <button
+                                            onClick={() => handleSubmitPhaseProgress(taskId, phase.key)}
+                                            disabled={submissionDraftLoading[taskId]?.[phase.key]}
+                                            className="flex items-center gap-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white rounded-lg text-sm transition-colors"
+                                          >
+                                            {submissionDraftLoading[taskId]?.[phase.key]
+                                              ? (editingSubmission ? 'Updating...' : 'Submitting...')
+                                              : (editingSubmission ? 'Update' : 'Submit')}
+                                          </button>
+                                          <button
+                                            onClick={() => {
+                                              const oldUrl = draftScreenshots[taskId]?.[phase.key] ?? null;
+                                              if (oldUrl) URL.revokeObjectURL(oldUrl);
+                                              setDraftNotes((prev) => ({
+                                                ...prev,
+                                                [taskId]: { ...prev[taskId], [phase.key]: '' },
+                                              }));
+                                              setDraftScreenshots((prev) => ({
+                                                ...prev,
+                                                [taskId]: { ...prev[taskId], [phase.key]: null },
+                                              }));
+                                              draftFilesRef.current = {
+                                                ...draftFilesRef.current,
+                                                [taskId]: { ...draftFilesRef.current[taskId], [phase.key]: [] },
+                                              };
+                                            }}
+                                            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition-colors"
+                                          >
+                                            Clear
+                                          </button>
+                                        </div>
+                                        {phaseError && (
+                                          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{phaseError}</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
