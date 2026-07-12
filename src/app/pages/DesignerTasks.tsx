@@ -34,12 +34,20 @@ import {
   MessageSquare,
   ThumbsUp,
   ThumbsDown,
-  Paperclip,
   PauseCircle,
   PlayCircle,
   Star,
 } from 'lucide-react';
 import AttachmentViewer from '../components/AttachmentViewer';
+
+const API_BASE_URL = 'http://localhost:3001';
+function resolveAttachmentUrl(url: string): string {
+  if (!url) return url;
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) {
+    return url;
+  }
+  return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+}
 
 // ---------- Types ----------
 type PhaseKey = 'caseStudy' | 'designStage' | 'rendering' | 'finalStage';
@@ -470,6 +478,7 @@ export function DesignerTasks() {
   const [expandedHistoryIdx, setExpandedHistoryIdx] = useState<Record<string, Record<PhaseKey, number | null>>>({});
   const [draftNotes, setDraftNotes] = useState<Record<string, Record<PhaseKey, string>>>({});
   const [draftScreenshots, setDraftScreenshots] = useState<Record<string, Record<PhaseKey, string | null>>>({});
+  const [keptAttachmentUrls, setKeptAttachmentUrls] = useState<Record<string, Record<PhaseKey, string[]>>>({});
   const draftFilesRef = useRef<Record<string, Record<PhaseKey, File[]>>>({});
   const uploadInputRef = useRef<Record<string, Record<PhaseKey, HTMLInputElement | null>>>({});
   const [phaseErrors, setPhaseErrors] = useState<Record<string, Record<PhaseKey, string>>>({});
@@ -878,6 +887,7 @@ export function DesignerTasks() {
     setShowDetail(false);
     setExpandedPhase(null);
     setEditingSubmission(null);
+    setKeptAttachmentUrls({});
   };
 
   const handleEditSubmission = (taskId: string, phase: PhaseKey, submissionId: string) => {
@@ -895,14 +905,19 @@ export function DesignerTasks() {
     const submission = submissions.find((s) => s.id === submissionId);
     if (!submission) return;
 
-    // Pre-populate form fields
+    const existingUrls = submission.attachment_urls || [];
+
     setDraftNotes((prev) => ({
       ...prev,
       [taskId]: { ...prev[taskId], [phase]: submission.description || '' },
     }));
     setDraftScreenshots((prev) => ({
       ...prev,
-      [taskId]: { ...prev[taskId], [phase]: submission.attachment_urls?.[0] || null },
+      [taskId]: { ...prev[taskId], [phase]: null },
+    }));
+    setKeptAttachmentUrls((prev) => ({
+      ...prev,
+      [taskId]: { ...prev[taskId], [phase]: [...existingUrls] },
     }));
     setEditingSubmission({ taskId, phase, submissionId });
 
@@ -919,7 +934,9 @@ export function DesignerTasks() {
     const files = draftFilesRef.current[taskId]?.[phase] ?? [];
 
     // Validate required attachments for rendering and final stage
-    if (REQUIRED_ATTACHMENT_STAGES.has(phase) && files.length === 0) {
+    const keptUrls = keptAttachmentUrls[taskId]?.[phase] || [];
+    const hasAttachments = files.length > 0 || keptUrls.length > 0;
+    if (REQUIRED_ATTACHMENT_STAGES.has(phase) && !hasAttachments) {
       setPhaseErrors((prev) => ({
         ...prev,
         [taskId]: { ...prev[taskId], [phase]: 'At least one file attachment is required for this stage.' },
@@ -942,6 +959,12 @@ export function DesignerTasks() {
       }
 
       const isEditing = editingSubmission?.taskId === taskId && editingSubmission?.phase === phase;
+      if (isEditing) {
+        for (const url of keptUrls) {
+          formData.append('attachment_urls', url);
+        }
+      }
+
       const response = isEditing
         ? await designerApi.updateSubmission(editingSubmission!.submissionId, formData)
         : await designerApi.createSubmission(taskId, formData);
@@ -994,6 +1017,7 @@ export function DesignerTasks() {
     setDraftScreenshots((prev) => ({ ...prev, [taskId]: { ...prev[taskId], [phase]: null } }));
     setDraftNotes((prev) => ({ ...prev, [taskId]: { ...prev[taskId], [phase]: '' } }));
     setPhaseErrors((prev) => ({ ...prev, [taskId]: { ...prev[taskId], [phase]: '' } }));
+    setKeptAttachmentUrls((prev) => ({ ...prev, [taskId]: { ...prev[taskId], [phase]: [] } }));
     draftFilesRef.current = {
       ...draftFilesRef.current,
       [taskId]: { ...draftFilesRef.current[taskId], [phase]: [] },
@@ -1740,15 +1764,6 @@ export function DesignerTasks() {
                   <p className="mt-2 text-sm text-gray-700">{selectedTaskDetail.description}</p>
                 </section>
 
-                {selectedTaskDetail.attachment_urls && selectedTaskDetail.attachment_urls.length > 0 && (
-                  <section className="rounded-xl border border-gray-200 bg-white p-4">
-                    <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-3 flex items-center gap-2">
-                      <Paperclip className="w-4 h-4" />
-                      Task Attachments
-                    </h5>
-                    <AttachmentViewer attachments={selectedTaskDetail.attachment_urls} />
-                  </section>
-                )}
 
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-4">
@@ -2026,11 +2041,12 @@ export function DesignerTasks() {
                                                       {isEditingThis ? (
                                                         <button
                                                           type="button"
-                                                          onClick={() => {
-                                                            setEditingSubmission(null);
-                                                            setDraftNotes((prev) => ({
-                                                              ...prev,
-                                                              [taskId]: { ...prev[taskId], [phase.key]: '' },
+                                                           onClick={() => {
+                                                             setEditingSubmission(null);
+                                                             setKeptAttachmentUrls((prev) => ({ ...prev, [taskId]: { ...prev[taskId], [phase.key]: [] } }));
+                                                             setDraftNotes((prev) => ({
+                                                               ...prev,
+                                                               [taskId]: { ...prev[taskId], [phase.key]: '' },
                                                             }));
                                                           }}
                                                           className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 font-medium"
@@ -2138,9 +2154,9 @@ export function DesignerTasks() {
                                             <label className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-sm text-gray-700">
                                               <Upload className="w-4 h-4" />
                                               {draftFilesRef.current[taskId]?.[phase.key]?.length
-                                                ? `${draftFilesRef.current[taskId][phase.key].length} file(s) selected`
-                                                : newScreenshot
-                                                ? 'Change Files'
+                                                ? `${draftFilesRef.current[taskId][phase.key].length} new file(s)`
+                                                : (keptAttachmentUrls[taskId]?.[phase.key]?.length > 0)
+                                                ? 'Add More Files'
                                                 : 'Choose Files'}
                                               <input
                                                 type="file"
@@ -2156,7 +2172,7 @@ export function DesignerTasks() {
                                                 className="hidden"
                                               />
                                             </label>
-                                            {(newScreenshot || (draftFilesRef.current[taskId]?.[phase.key]?.length ?? 0) > 0) && (
+                                            {(newScreenshot || (draftFilesRef.current[taskId]?.[phase.key]?.length ?? 0) > 0 || (keptAttachmentUrls[taskId]?.[phase.key]?.length ?? 0) > 0) && (
                                               <button
                                                 type="button"
                                                 onClick={() => {
@@ -2166,6 +2182,7 @@ export function DesignerTasks() {
                                                     ...prev,
                                                     [taskId]: { ...prev[taskId], [phase.key]: null },
                                                   }));
+                                                  setKeptAttachmentUrls((prev) => ({ ...prev, [taskId]: { ...prev[taskId], [phase.key]: [] } }));
                                                   draftFilesRef.current = {
                                                     ...draftFilesRef.current,
                                                     [taskId]: { ...draftFilesRef.current[taskId], [phase.key]: [] },
@@ -2177,14 +2194,49 @@ export function DesignerTasks() {
                                               </button>
                                             )}
                                           </div>
-                                          {newScreenshot && (
-                                            <img
-                                              src={newScreenshot}
-                                              alt="preview"
-                                              className="mt-2 w-full max-h-40 rounded-lg border object-contain"
-                                            />
+                                          {(keptAttachmentUrls[taskId]?.[phase.key]?.length > 0 || newScreenshot || (draftFilesRef.current[taskId]?.[phase.key]?.length ?? 0) > 0) && (
+                                            <div className="mt-2 grid grid-cols-3 gap-2">
+                                              {keptAttachmentUrls[taskId]?.[phase.key]?.map((url, idx) => (
+                                                <div key={`kept-${idx}`} className="relative group border rounded-lg overflow-hidden bg-gray-50">
+                                                  <img
+                                                    src={resolveAttachmentUrl(url)}
+                                                    alt={`Existing attachment ${idx + 1}`}
+                                                    className="w-full h-24 object-contain"
+                                                  />
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                      setKeptAttachmentUrls((prev) => {
+                                                        const current = prev[taskId]?.[phase.key] || [];
+                                                        const filtered = current.filter((_, i) => i !== idx);
+                                                        return { ...prev, [taskId]: { ...prev[taskId], [phase.key]: filtered } };
+                                                      });
+                                                    }}
+                                                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                  >
+                                                    <XCircle className="w-3.5 h-3.5" />
+                                                  </button>
+                                                </div>
+                                              ))}
+                                              {draftFilesRef.current[taskId]?.[phase.key]?.map((file, idx) => (
+                                                <div key={`new-${idx}`} className="relative group border rounded-lg overflow-hidden bg-gray-50">
+                                                  {file.type?.startsWith('image/') ? (
+                                                    <img
+                                                      src={URL.createObjectURL(file)}
+                                                      alt={`New file ${idx + 1}`}
+                                                      className="w-full h-24 object-contain"
+                                                      onLoad={(e) => URL.revokeObjectURL((e.target as HTMLImageElement).src)}
+                                                    />
+                                                  ) : (
+                                                    <div className="w-full h-24 flex items-center justify-center text-xs text-gray-500 p-2">
+                                                      {file.name}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              ))}
+                                            </div>
                                           )}
-                                          {!newScreenshot && !(draftFilesRef.current[taskId]?.[phase.key]?.length) && (
+                                          {!keptAttachmentUrls[taskId]?.[phase.key]?.length && !newScreenshot && !(draftFilesRef.current[taskId]?.[phase.key]?.length) && (
                                             <p className="mt-1 text-xs text-gray-400">No preview available.</p>
                                           )}
                                         </div>
@@ -2210,6 +2262,7 @@ export function DesignerTasks() {
                                                 ...prev,
                                                 [taskId]: { ...prev[taskId], [phase.key]: null },
                                               }));
+                                              setKeptAttachmentUrls((prev) => ({ ...prev, [taskId]: { ...prev[taskId], [phase.key]: [] } }));
                                               draftFilesRef.current = {
                                                 ...draftFilesRef.current,
                                                 [taskId]: { ...draftFilesRef.current[taskId], [phase.key]: [] },
