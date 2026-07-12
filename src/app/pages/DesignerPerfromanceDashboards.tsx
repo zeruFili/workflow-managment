@@ -228,7 +228,6 @@ export function DesignerPerformanceDashboard() {
       { subject: 'Timeliness', A: round1(avg(currentRatings.map(r=>r.timeliness))), fullMark: 5 },
       { subject: 'Creativity', A: round1(avg(currentRatings.map(r=>r.creativity))), fullMark: 5 },
       { subject: 'Client Und.', A: round1(avg(currentRatings.map(r=>r.clientUnderstanding))), fullMark: 5 },
-      { subject: 'Rev. Eff.', A: round1(avg(currentRatings.map(r=>r.revisionEfficiency))), fullMark: 5 },
     ];
   }, [currentRatings]);
 
@@ -386,8 +385,7 @@ export function DesignerPerformanceDashboard() {
           { label: 'Completed Tasks', value: kpi.completed,            prev: prevKPI.completed,     icon: <CheckCircle className="w-4 h-4" />,   color: 'text-emerald-600 bg-emerald-50' },
           { label: 'Story Points',    value: kpi.sp,                   prev: prevKPI.sp,            icon: <Zap className="w-4 h-4" />,           color: 'text-indigo-600 bg-indigo-50' },
           { label: 'Deadline %',      value: kpi.onTime + '%',         prev: prevKPI.onTime,        icon: <Target className="w-4 h-4" />,        color: 'text-sky-600 bg-sky-50' },
-          { label: 'Avg Revisions',   value: kpi.revCount,             prev: prevKPI.revCount,      icon: <RefreshCw className="w-4 h-4" />,     color: 'text-purple-600 bg-purple-50' },
-          { label: 'In Review',       value: kpi.inReview,             prev: prevKPI.inReview,      icon: <Activity className="w-4 h-4" />,      color: 'text-sky-600 bg-sky-50' },
+          { label: 'Pending Tasks',  value: kpi.inReview,             prev: prevKPI.inReview,      icon: <Activity className="w-4 h-4" />,      color: 'text-sky-600 bg-sky-50' },
           { label: 'Paused',          value: kpi.paused,               prev: prevKPI.paused,        icon: <Pause className="w-4 h-4" />,         color: 'text-amber-600 bg-amber-50' },
           { label: 'Rejected',        value: kpi.rejected,             prev: prevKPI.rejected,      icon: <AlertTriangle className="w-4 h-4" />, color: 'text-red-500 bg-red-50' },
         ].map((card, i) => (

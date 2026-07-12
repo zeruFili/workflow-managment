@@ -1937,6 +1937,9 @@ export function DesignerAssignments() {
                                                 <span className="text-xs text-gray-500">
                                                   {new Date(sub.created_at).toLocaleString()}
                                                 </span>
+                                                {sub.updated_at && sub.updated_at !== sub.created_at && (
+                                                  <span className="ml-1 text-[10px] italic text-amber-600">(edited)</span>
+                                                )}
                                                 {subReviewCount > 0 && (
                                                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-xs font-medium text-gray-600">
                                                     {subReviewCount} review{subReviewCount !== 1 ? 's' : ''}
@@ -1983,7 +1986,7 @@ export function DesignerAssignments() {
                                                         const hasNewerReview = allSubs.some((s) =>
                                                           (s.reviews || []).some((r) => new Date(r.created_at).getTime() > reviewTs)
                                                         );
-                                                        const hasNewerSubmission = allSubs.some((s) =>
+                                                        const hasNewerSubmission = stageSubmissions.some((s) =>
                                                           new Date(s.created_at).getTime() > reviewTs
                                                         );
                                                         const canEditReview = review.reviewer_user_id === user?.id
@@ -2003,6 +2006,9 @@ export function DesignerAssignments() {
                                                             <span className="text-xs text-gray-500">
                                                               {new Date(review.created_at).toLocaleString()}
                                                             </span>
+                                                            {review.updated_at && review.updated_at !== review.created_at && (
+                                                              <span className="text-[10px] italic text-amber-600">(edited)</span>
+                                                            )}
                                                             <span className="text-xs text-gray-400">
                                                               by {review.reviewer_user?.full_name || `User ${review.reviewer_user_id.slice(0, 8)}`}
                                                             </span>

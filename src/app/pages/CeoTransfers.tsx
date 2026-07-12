@@ -288,10 +288,12 @@ export function CeoTransfers() {
               {selectedTransfer.attachment_urls && selectedTransfer.attachment_urls.length > 0 && (
                 <section className="rounded-xl border p-4"><h5 className="text-sm font-medium uppercase text-gray-500 mb-3">Attachments</h5><AttachmentViewer attachments={selectedTransfer.attachment_urls} /></section>
               )}
+              {selectedTransfer.finance_user_id === user?.id && (
               <div className="flex justify-end gap-3 pt-2">
                 <button onClick={() => openDeleteConfirm(selectedTransfer.id)} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm"><Trash2 className="h-4 w-4" />Delete</button>
                 <button onClick={() => { closeDetail(); openEdit(selectedTransfer); }} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm"><Edit className="h-4 w-4" />Edit</button>
               </div>
+              )}
             </div>
           </div>
         </div>
