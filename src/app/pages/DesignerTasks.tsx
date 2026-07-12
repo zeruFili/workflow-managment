@@ -960,8 +960,13 @@ export function DesignerTasks() {
 
       const isEditing = editingSubmission?.taskId === taskId && editingSubmission?.phase === phase;
       if (isEditing) {
-        for (const url of keptUrls) {
-          formData.append('attachment_urls', url);
+        const keptUrls = keptAttachmentUrls[taskId]?.[phase] || [];
+        if (keptUrls.length > 0) {
+          for (const url of keptUrls) {
+            formData.append('attachment_urls', url);
+          }
+        } else {
+          formData.append('attachment_urls', '');
         }
       }
 
