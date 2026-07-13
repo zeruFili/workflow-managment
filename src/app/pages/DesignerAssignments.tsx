@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotificationCounts } from '../contexts/NotificationCountsContext';
@@ -475,6 +475,7 @@ export function DesignerAssignments() {
   // ── Fetch tasks from API ──
   const fetchTasks = useCallback(async (page: number, force = false): Promise<DesignerTaskItem[] | undefined> => {
     if (!user) return;
+    console.log('[PAGINATION] fetchTasks START — page:', page, 'apiLimit:', apiLimit, 'force:', force);
     setIsLoading(true);
     setError(null);
     try {
@@ -482,11 +483,20 @@ export function DesignerAssignments() {
       if (force) {
         designerTaskCache.invalidate({ page, limit: apiLimit });
       }
+      console.log('[PAGINATION] Calling designerTaskCache.fetch with params:', { page, limit: apiLimit });
       const result = await designerTaskCache.fetch({ page, limit: apiLimit });
       data = result.data;
+      console.log('[PAGINATION] API response — data.length:', data.length, 'result.total:', result.total);
+      console.log('[PAGINATION] API page data IDs:', data.map(d => d.id));
       setTasks(data);
-      setMeta((meta: any) => ({ ...meta, page, limit: apiLimit, total: result.total } as any));
+      const totalPg = Math.ceil(result.total / apiLimit);
+      setMeta({ page, limit: apiLimit, total: result.total, totalPages: totalPg });
       setDisplayOffset(0);
+      console.log('[PAGINATION] setMeta:', { page, limit: apiLimit, total: result.total, totalPages: totalPg });
+      console.log('[PAGINATION] setDisplayOffset to 0, set tasks (all):', data.length);
+
+      const unassignedCount = data.filter(d => !d.assigned_to_user_id).length;
+      console.log('[PAGINATION] Fetched page', page, '— total records:', data.length, 'unassigned:', unassignedCount, 'assigned:', (data.length - unassignedCount));
 
       const progressUpdates: SubmissionProgress = {};
       for (const task of data) {
@@ -506,6 +516,7 @@ export function DesignerAssignments() {
       setDesignerAssignmentNotificationIds(notifIds);
       return data;
     } catch (err: unknown) {
+      console.error('[PAGINATION] fetchTasks ERROR:', err);
       const msg =
         err && typeof err === 'object' && 'response' in err
           ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
@@ -664,22 +675,55 @@ export function DesignerAssignments() {
     );
   }
 
+  // ── Compute displayable tasks (only assigned) ──
+  const assignedTasks = tasks.filter((task) => !!task.assigned_to_user_id);
+  const sortedTasks = useMemo(() => [...assignedTasks].sort((a, b) => {
+    const getLatestTs = (t: DesignerTaskItem): number => {
+      let max = Math.max(
+        new Date(t.created_at).getTime(),
+        t.updated_at ? new Date(t.updated_at).getTime() : 0
+      );
+      const swr = t.submissionsWithReviews;
+      if (swr) {
+        const stages = [swr.caseStudy || [], swr.designing || [], swr.rendering || [], swr.finalStage || []];
+        for (const submissions of stages) {
+          for (const s of submissions) {
+            if (s.created_at) max = Math.max(max, new Date(s.created_at).getTime());
+            if (s.updated_at) max = Math.max(max, new Date(s.updated_at).getTime());
+            for (const r of (s.reviews || [])) {
+              if (r.created_at) max = Math.max(max, new Date(r.created_at).getTime());
+              if (r.updated_at) max = Math.max(max, new Date(r.updated_at).getTime());
+            }
+          }
+        }
+      }
+      return max;
+    };
+    return getLatestTs(b) - getLatestTs(a);
+  }), [tasks]);
+
   // ── Pagination logic ──
   const canGoPrev = displayOffset > 0 || apiPage > 1;
-  const canGoNext = displayOffset + ROWS_PER_DISPLAY < tasks.length || (meta ? apiPage < meta.totalPages : false);
+  const canGoNext = displayOffset + ROWS_PER_DISPLAY < sortedTasks.length || (meta ? apiPage < meta.totalPages : false);
 
   const goNext = () => {
-    if (displayOffset + ROWS_PER_DISPLAY < tasks.length) {
+    console.log('[PAGINATION] goNext — displayOffset:', displayOffset, 'ROWS_PER_DISPLAY:', ROWS_PER_DISPLAY, 'sortedTasks.length:', sortedTasks.length, 'apiPage:', apiPage, 'meta.totalPages:', meta?.totalPages);
+    if (displayOffset + ROWS_PER_DISPLAY < sortedTasks.length) {
+      console.log('[PAGINATION] goNext — advancing displayOffset within current batch');
       setDisplayOffset(displayOffset + ROWS_PER_DISPLAY);
     } else {
+      console.log('[PAGINATION] goNext — advancing apiPage from', apiPage, 'to', apiPage + 1);
       setApiPage((p) => p + 1);
     }
   };
 
   const goPrev = () => {
+    console.log('[PAGINATION] goPrev — displayOffset:', displayOffset, 'sortedTasks.length:', sortedTasks.length, 'apiPage:', apiPage);
     if (displayOffset - ROWS_PER_DISPLAY >= 0) {
+      console.log('[PAGINATION] goPrev — moving displayOffset back within current batch');
       setDisplayOffset(displayOffset - ROWS_PER_DISPLAY);
     } else {
+      console.log('[PAGINATION] goPrev — moving apiPage back from', apiPage, 'to', Math.max(1, apiPage - 1));
       setApiPage((p) => Math.max(1, p - 1));
     }
   };
@@ -1132,32 +1176,9 @@ export function DesignerAssignments() {
     });
   })();
 
-  const assignedTasks = tasks.filter((task) => !!task.assigned_to_user_id);
-  // Sort by latest activity (task, submission, or review timestamps) descending
-  const sortedTasks = [...assignedTasks].sort((a, b) => {
-    const getLatestTs = (t: DesignerTaskItem): number => {
-      let max = Math.max(
-        new Date(t.created_at).getTime(),
-        t.updated_at ? new Date(t.updated_at).getTime() : 0
-      );
-      const swr = t.submissionsWithReviews;
-      if (swr) {
-        const stages = [swr.caseStudy || [], swr.designing || [], swr.rendering || [], swr.finalStage || []];
-        for (const submissions of stages) {
-          for (const s of submissions) {
-            if (s.created_at) max = Math.max(max, new Date(s.created_at).getTime());
-            if (s.updated_at) max = Math.max(max, new Date(s.updated_at).getTime());
-            for (const r of (s.reviews || [])) {
-              if (r.created_at) max = Math.max(max, new Date(r.created_at).getTime());
-              if (r.updated_at) max = Math.max(max, new Date(r.updated_at).getTime());
-            }
-          }
-        }
-      }
-      return max;
-    };
-    return getLatestTs(b) - getLatestTs(a);
-  });
+  console.log('[PAGINATION] RENDER — tasks.length:', tasks.length, 'sortedTasks.length:', sortedTasks.length, 'displayOffset:', displayOffset, 'slice range:', displayOffset, '–', displayOffset + ROWS_PER_DISPLAY, 'apiPage:', apiPage, 'meta:', meta);
+  const sliceForRender = sortedTasks.slice(displayOffset, displayOffset + ROWS_PER_DISPLAY);
+  console.log('[PAGINATION] RENDER — sliceForRender.length:', sliceForRender.length, 'IDs:', sliceForRender.map(t => t.id));
 
   // ── Rating helpers ──
   const initializeRatingsForTask = (taskId: string) => {
@@ -1318,7 +1339,7 @@ export function DesignerAssignments() {
       ) : (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {sortedTasks.slice(displayOffset, displayOffset + ROWS_PER_DISPLAY).map((task) => {
+            {sliceForRender.map((task) => {
               const isHighlighted = highlightedIds.has(task.id);
               const isOverdue =
                 task.due_date && new Date(task.due_date) < new Date() && task.status !== 'approved';

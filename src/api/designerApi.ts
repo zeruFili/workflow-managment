@@ -169,10 +169,12 @@ const designerApi = {
   getDesignerTasks: async (
     params: TaskListParams = {}
   ): Promise<DesignerTaskListResponse> => {
+    console.log('[PAGINATION] API: GET /designer-tasks with params:', JSON.stringify(params));
     const response = await api.get<DesignerTaskListResponse>(
       "/designer-tasks",
       { params }
     );
+    console.log('[PAGINATION] API: GET /designer-tasks response — success:', response.data.success, 'data.length:', response.data.data?.length, 'meta:', JSON.stringify(response.data.meta));
     return response.data;
   },
 

@@ -52,12 +52,20 @@ export function createCache<T>(fetcher: (params: Record<string, unknown>) => Pro
       const k = key(params);
       const entry = getEntry<T>(k);
 
-      if (entry.data) return entry.data;
-      if (entry.promise) return entry.promise;
+      if (entry.data) {
+        console.log('[PAGINATION] apiCache.fetch — cache HIT for key:', k);
+        return entry.data;
+      }
+      if (entry.promise) {
+        console.log('[PAGINATION] apiCache.fetch — awaiting existing promise for key:', k);
+        return entry.promise;
+      }
 
+      console.log('[PAGINATION] apiCache.fetch — cache MISS, executing fetcher for key:', k);
       entry.loading = true;
       entry.promise = fetcher(params)
         .then((data) => {
+          console.log('[PAGINATION] apiCache.fetch — fetcher resolved, caching data for key:', k);
           entry.data = data;
           notify(k, data);
           return data;
