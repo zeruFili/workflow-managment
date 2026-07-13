@@ -959,7 +959,7 @@ export function DesignerApplications() {
                         Assigned to: {task.assigned_to_user?.full_name || getDesignerName(task.assigned_to_user_id!)}
                       </p>
                     )}
-                    {taskApplications.length === 0 && (
+                    {taskApplications.length === 0 && canDeleteApplicationTask(task) && (
                       <button
                         type="button"
                         onClick={() => openEditTask(task)}
