@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { CheckCircle2, User, Users, Loader2, AlertCircle, Clock, Edit, XCircle, Image, Lock, Trash2, X, Plus } from 'lucide-react';
 import designerApi, { DesignerTaskItem, DesignerApplicationItem } from '../../api/designerApi';
 import ImageRemoveButton from '../components/ImageRemoveButton';
+import { PaginationWithNumbers } from '../components/ui/PaginationWithNumbers';
 
 const API_BASE_URL = 'http://localhost:3001';
 function resolveAttachmentUrl(url: string): string {
@@ -24,6 +25,7 @@ import {
 
 const reviewRoles = new Set(['ceo', 'general_manager']);
 const GRACE_PERIOD_HOURS = 48;
+const PAGE_SIZE = 10;
 
 const API_APPLICATIONS_CACHE_KEY = 'designer-applications-api';
 const VIEWED_CARDS_STORAGE_KEY = 'designer-applications-viewed-cards';
@@ -132,6 +134,9 @@ export function DesignerApplications() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [apiPage, setApiPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+
   const [selectedDesignerByTask, setSelectedDesignerByTask] = useState<Record<string, string>>({});
   const [editingAssignment, setEditingAssignment] = useState<Record<string, boolean>>({});
 
@@ -186,39 +191,25 @@ export function DesignerApplications() {
     }
   }, [user]);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (page: number) => {
     try {
       setLoading(true);
       setError(null);
 
       const [fetchedResult, users] = await Promise.all([
-        designerTaskCache.fetch({ limit: 100 }),
+        designerTaskCache.fetch({ page, limit: PAGE_SIZE }),
         userCache.fetch({ role: 'designer' }),
       ]);
       const fetchedTasks = fetchedResult.data;
+      setTotalItems(fetchedResult.total);
 
-      console.log('[DesignerApplications] ========== FETCHED TASKS ==========');
-      console.log('[DesignerApplications] Total tasks:', fetchedTasks.length);
-      console.log('[DesignerApplications] Viewed cards:', [...viewedDesignerApplicationCards]);
-      
-      // Log tasks with notifications
-      const tasksWithNotifs = fetchedTasks.filter(t => taskHasApplicationNotification(t));
-      console.log('[DesignerApplications] Tasks with taskNotification:', tasksWithNotifs.length);
-      tasksWithNotifs.forEach(t => {
-        const notif = (t as any)?.taskNotification;
-        console.log('  Task:', t.id, t.title, '| notificationId:', notif?.notificationId, '| already viewed:', viewedDesignerApplicationCards.has(t.id));
-      });
-      
-      // CRITICAL: Mark already viewed cards in the tasks state so they don't show as highlighted
-      // Even if they have new notifications, if the card was viewed, we clear the notification from state
       const processedTasks = fetchedTasks.map(t => {
         if (viewedDesignerApplicationCards.has(t.id) && taskHasApplicationNotification(t)) {
-          console.log('[DesignerApplications] Clearing notification for already-viewed task:', t.id, t.title);
           return { ...t, taskNotification: null };
         }
         return t;
       });
-      
+
       setTasks(processedTasks);
       cacheApplicationsForBadge(fetchedTasks);
       setDesigners(users);
@@ -226,13 +217,11 @@ export function DesignerApplications() {
         fetchedTasks.filter((t) => t.assigned_to_user_id).map((t) => t.id)
       );
 
-      // Compute notification IDs (only for not-viewed tasks)
       designerApplicationNotificationIds = new Set(
         fetchedTasks
           .filter((t) => taskHasApplicationNotification(t) && !viewedDesignerApplicationCards.has(t.id))
           .map((t) => t.id)
       );
-      console.log('[DesignerApplications] Tasks with notifications (not viewed):', [...designerApplicationNotificationIds]);
 
       if (fetchedTasks.length > 0) {
         const appResults = await Promise.all(
@@ -258,8 +247,8 @@ export function DesignerApplications() {
   }, []);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchData(apiPage);
+  }, [fetchData, apiPage]);
 
   // Compute highlighted IDs
   const highlightedIds = (() => {
@@ -447,6 +436,12 @@ export function DesignerApplications() {
       </div>
     );
   }
+
+  const totalDisplayPages = Math.ceil(totalItems / PAGE_SIZE);
+  const handlePageChange = (page: number) => {
+    designerTaskCache.invalidate({ page: apiPage, limit: PAGE_SIZE });
+    setApiPage(page);
+  };
 
   const handleAssign = async (taskId: string) => {
     const selectedDesignerId = selectedDesignerByTask[taskId];
@@ -651,6 +646,7 @@ export function DesignerApplications() {
         }
 
         designerTaskCache.invalidate();
+        setApiPage(1);
       } else {
         setEditError(response.message || 'Failed to update task');
       }
@@ -716,6 +712,7 @@ export function DesignerApplications() {
           return next;
         });
         designerTaskCache.invalidate();
+        setApiPage(1);
       } else {
         setDeleteError(response.message || 'Failed to delete task');
       }
@@ -817,6 +814,7 @@ export function DesignerApplications() {
         }
 
         designerTaskCache.invalidate();
+        setApiPage(1);
 
         if (user) {
           const existing = loadQuantityReviewNotifications();
@@ -1162,6 +1160,12 @@ export function DesignerApplications() {
           <p className="text-gray-500">No designer tasks found yet.</p>
         </div>
       )}
+      <PaginationWithNumbers
+        currentPage={apiPage}
+        totalPages={totalDisplayPages}
+        totalItems={totalItems}
+        onPageChange={handlePageChange}
+      />
 
       {editSuccess && (
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-green-700 text-sm">{editSuccess}</div>
