@@ -164,7 +164,7 @@ const router = createHashRouter([
           )},
 
           { path: 'finance-verifications', element: (
-            <RoleGuard roles={['finance_officer', 'ceo', 'general_manager']}>
+            <RoleGuard roles={['finance_officer', 'general_manager']}>
               <FinanceVerifications />
             </RoleGuard>
           )},

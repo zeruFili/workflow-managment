@@ -131,16 +131,6 @@ export function Layout({ children }: LayoutProps) {
       });
     }
 
-    // Finance Verifications
-    if (user.role === 'ceo') {
-      addNavigationItem({
-        path: '/finance-verifications',
-        label: 'Finance Verifications',
-        icon: ClipboardCheck,
-        badge: counts.marketingTasks > 0 ? counts.marketingTasks : undefined,
-      });
-    }
-
     // CEO Transfers
     if (user.role === 'ceo') {
       addNavigationItem({
