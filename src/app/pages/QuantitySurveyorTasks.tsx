@@ -441,7 +441,8 @@ export function QuantitySurveyorTasks() {
     assigned_to_user_id: '',
   });
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
-  const screenshotFileRef = useRef<File | null>(null);
+  const createFilesRef = useRef<File[]>([]);
+  const [, setCreateFilesVersion] = useState(0);
   const [isCreating, setIsCreating] = useState(false);
   const [taskSuccessMsg, setTaskSuccessMsg] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -452,7 +453,9 @@ export function QuantitySurveyorTasks() {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ title: '', description: '', instruction: '', deadline: '', assigned_to_user_id: '' });
   const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
-  const editImageFileRef = useRef<File | null>(null);
+  const editFilesRef = useRef<File[]>([]);
+  const [, setEditFilesVersion] = useState(0);
+  const [keptTaskUrls, setKeptTaskUrls] = useState<string[]>([]);
   const [editFormErrors, setEditFormErrors] = useState<Record<string, string>>({});
   const [editError, setEditError] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
@@ -1090,7 +1093,8 @@ export function QuantitySurveyorTasks() {
   const openCreateModal = () => {
     setNewTaskForm({ title: '', description: '', instruction: '', deadline: '', assigned_to_user_id: '' });
     setScreenshotPreview(null);
-    screenshotFileRef.current = null;
+    createFilesRef.current = [];
+    setCreateFilesVersion((v) => v + 1);
     setError(null);
     setTaskSuccessMsg('');
     setFieldErrors({});
@@ -1110,7 +1114,9 @@ export function QuantitySurveyorTasks() {
       assigned_to_user_id: task.assigned_to_user_id || '',
     });
     setEditImagePreview(null);
-    editImageFileRef.current = null;
+    editFilesRef.current = [];
+    setEditFilesVersion((v) => v + 1);
+    setKeptTaskUrls(task.attachment_urls || []);
     setEditFormErrors({});
     setEditError('');
     setShowEditTask(true);
@@ -1154,8 +1160,14 @@ export function QuantitySurveyorTasks() {
         formData.append('due_date', new Date(deadline).toISOString());
       }
       formData.append('assigned_to_user_id', assignedTo || 'null');
-      if (editImageFileRef.current) {
-        formData.append('attachmentFiles', editImageFileRef.current);
+
+      for (const file of editFilesRef.current) {
+        formData.append('attachmentFiles', file);
+      }
+      if (keptTaskUrls.length > 0) {
+        for (const url of keptTaskUrls) formData.append('attachment_urls', url);
+      } else {
+        formData.append('attachment_urls', '');
       }
 
       const response = await quantitySurveyorApi.updateTask(editingTaskId, formData);
@@ -1217,12 +1229,10 @@ export function QuantitySurveyorTasks() {
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    screenshotFileRef.current = file;
-    const reader = new FileReader();
-    reader.onload = () => setScreenshotPreview(reader.result as string);
-    reader.readAsDataURL(file);
+    const newFiles = Array.from(e.target.files || []);
+    if (newFiles.length === 0) return;
+    createFilesRef.current = [...createFilesRef.current, ...newFiles];
+    setCreateFilesVersion((v) => v + 1);
   };
 
   const handleCreateTask = async (e: React.FormEvent) => {
@@ -1263,8 +1273,8 @@ export function QuantitySurveyorTasks() {
       if (assignedTo) {
         formData.append('assigned_to_user_id', assignedTo);
       }
-      if (screenshotFileRef.current) {
-        formData.append('attachmentFiles', screenshotFileRef.current);
+      for (const file of createFilesRef.current) {
+        formData.append('attachmentFiles', file);
       }
 
       const response = await quantitySurveyorApi.createTask(formData);
@@ -1273,7 +1283,8 @@ export function QuantitySurveyorTasks() {
         setTaskSuccessMsg(response.message || 'Quantity surveyor task created successfully');
         setNewTaskForm({ title: '', description: '', instruction: '', deadline: '', assigned_to_user_id: '' });
         setScreenshotPreview(null);
-        screenshotFileRef.current = null;
+        createFilesRef.current = [];
+        setCreateFilesVersion((v) => v + 1);
         setFieldErrors({});
         setShowCreateModal(false);
         quantitySurveyorTaskCache.invalidate();
@@ -2080,26 +2091,26 @@ export function QuantitySurveyorTasks() {
                 <div className="flex items-center gap-2">
                   <label className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-sm">
                     <Image className="w-4 h-4" />
-                    Choose Image
-                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={isCreating} />
+                    {createFilesRef.current.length ? `${createFilesRef.current.length} file(s)` : 'Choose Files'}
+                    <input type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" disabled={isCreating} />
                   </label>
-                  {screenshotPreview && (
-                    <button
-                      type="button"
-                      onClick={() => { setScreenshotPreview(null); screenshotFileRef.current = null; }}
-                      className="text-sm text-red-600 hover:underline"
-                      disabled={isCreating}
-                    >
-                      Remove
-                    </button>
+                  {createFilesRef.current.length > 0 && (
+                    <button type="button" onClick={() => { createFilesRef.current = []; setCreateFilesVersion((v) => v + 1); }} className="text-sm text-red-600 hover:underline" disabled={isCreating}>Remove All</button>
                   )}
                 </div>
-                {screenshotPreview && (
-                  <img
-                    src={screenshotPreview}
-                    alt="preview"
-                    className="mt-3 max-h-48 rounded-lg border object-contain"
-                  />
+                {createFilesRef.current.length > 0 && (
+                  <div className="mt-2 grid grid-cols-3 gap-2">
+                    {createFilesRef.current.map((file, idx) => (
+                      <div key={idx} className="relative group border rounded-lg overflow-hidden bg-gray-50">
+                        {file.type?.startsWith('image/') ? (
+                          <img src={URL.createObjectURL(file)} alt={`New ${idx + 1}`} className="w-full h-24 object-contain" onLoad={(e) => URL.revokeObjectURL((e.target as HTMLImageElement).src)} />
+                        ) : (
+                          <div className="w-full h-24 flex items-center justify-center text-xs text-gray-500 p-2">{file.name}</div>
+                        )}
+                        <ImageRemoveButton onRemove={() => { createFilesRef.current = createFilesRef.current.filter((_, i) => i !== idx); setCreateFilesVersion((v) => v + 1); }} />
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
               <div className="flex justify-end gap-3 pt-2">
@@ -2213,36 +2224,32 @@ export function QuantitySurveyorTasks() {
                 <div className="flex items-center gap-2">
                   <label className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-sm">
                     <Image className="w-4 h-4" />
-                    Choose Image
-                    <input
-                      type="file" accept="image/*"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (!file) return;
-                        if (editImagePreview) URL.revokeObjectURL(editImagePreview);
-                        editImageFileRef.current = file;
-                        setEditImagePreview(URL.createObjectURL(file));
-                      }}
-                      className="hidden" disabled={isUpdating}
-                    />
+                    {editFilesRef.current.length ? `${editFilesRef.current.length} new file(s)` : (keptTaskUrls.length > 0 ? 'Add More Files' : 'Choose Files')}
+                    <input type="file" accept="image/*" multiple onChange={(event) => { const newFiles = Array.from(event.target.files || []); if (newFiles.length === 0) return; editFilesRef.current = [...editFilesRef.current, ...newFiles]; setEditFilesVersion((v) => v + 1); }} className="hidden" disabled={isUpdating} />
                   </label>
-                  {editImagePreview && (
-                    <button
-                      type="button"
-                      onClick={() => { if (editImagePreview) URL.revokeObjectURL(editImagePreview); setEditImagePreview(null); editImageFileRef.current = null; }}
-                      className="text-sm text-red-600 hover:underline"
-                      disabled={isUpdating}
-                    >
-                      Remove
-                    </button>
+                  {((editFilesRef.current.length > 0) || (keptTaskUrls.length > 0)) && (
+                    <button type="button" onClick={() => { editFilesRef.current = []; setKeptTaskUrls([]); setEditFilesVersion((v) => v + 1); }} className="text-sm text-red-600 hover:underline" disabled={isUpdating}>Remove All</button>
                   )}
                 </div>
-                {editImagePreview && (
-                  <img
-                    src={editImagePreview}
-                    alt="preview"
-                    className="mt-3 max-h-48 rounded-lg border object-contain"
-                  />
+                {(keptTaskUrls.length > 0 || editFilesRef.current.length > 0) && (
+                  <div className="mt-2 grid grid-cols-3 gap-2">
+                    {keptTaskUrls.map((url, idx) => (
+                      <div key={`kept-${idx}`} className="relative group border rounded-lg overflow-hidden bg-gray-50">
+                        <img src={resolveAttachmentUrl(url)} alt={`Existing ${idx + 1}`} className="w-full h-24 object-contain" />
+                        <ImageRemoveButton onRemove={() => { setKeptTaskUrls((prev) => prev.filter((_, i) => i !== idx)); }} />
+                      </div>
+                    ))}
+                    {editFilesRef.current.map((file, idx) => (
+                      <div key={`new-${idx}`} className="relative group border rounded-lg overflow-hidden bg-gray-50">
+                        {file.type?.startsWith('image/') ? (
+                          <img src={URL.createObjectURL(file)} alt={`New ${idx + 1}`} className="w-full h-24 object-contain" onLoad={(e) => URL.revokeObjectURL((e.target as HTMLImageElement).src)} />
+                        ) : (
+                          <div className="w-full h-24 flex items-center justify-center text-xs text-gray-500 p-2">{file.name}</div>
+                        )}
+                        <ImageRemoveButton onRemove={() => { editFilesRef.current = editFilesRef.current.filter((_, i) => i !== idx); setEditFilesVersion((v) => v + 1); }} />
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
 
