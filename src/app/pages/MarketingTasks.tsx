@@ -17,8 +17,6 @@ import {
   XCircle,
   ChevronDown,
   ChevronUp,
-  ChevronLeft,
-  ChevronRight,
   Edit,
   MessageSquare,
   ThumbsUp,
@@ -38,6 +36,7 @@ import {
 } from 'lucide-react';
 import AttachmentViewer from '../components/AttachmentViewer';
 import ImageRemoveButton from '../components/ImageRemoveButton';
+import { PaginationWithNumbers } from '../components/ui/PaginationWithNumbers';
 
 const API_BASE_URL = 'http://localhost:3001';
 function resolveAttachmentUrl(url: string): string {
@@ -95,6 +94,7 @@ function hasNestedNotifications(task: MarketingTaskItem): boolean {
 }
 
 const ROWS_PER_DISPLAY = 10;
+const PAGE_SIZE = 10;
 
 const STORAGE_KEY = 'marketing-tasks-v1';
 
@@ -379,7 +379,6 @@ export function MarketingTasks() {
 
   const [apiPage, setApiPage] = useState(1);
   const [meta, setMeta] = useState<MarketingTaskListMeta | null>(null);
-  const [displayOffset, setDisplayOffset] = useState(0);
 
   const [selectedTask, setSelectedTask] = useState<MarketingTaskItem | null>(null);
   const [showDetail, setShowDetail] = useState(false);
@@ -493,10 +492,9 @@ export function MarketingTasks() {
 
     const applyTasks = (data: MarketingTaskItem[], total: number) => {
       setTasks(data);
-      setMeta({ total, page, limit: ROWS_PER_DISPLAY, totalPages: Math.ceil(total / ROWS_PER_DISPLAY) });
+      setMeta({ total, page, limit: PAGE_SIZE, totalPages: Math.ceil(total / PAGE_SIZE) });
       cachedTasks = data;
-      cachedMeta = { total, page, limit: ROWS_PER_DISPLAY, totalPages: Math.ceil(total / ROWS_PER_DISPLAY) };
-      setDisplayOffset(0);
+      cachedMeta = { total, page, limit: PAGE_SIZE, totalPages: Math.ceil(total / PAGE_SIZE) };
 
       marketingNotificationIds = new Set(
         data.filter((t) => {
@@ -514,14 +512,14 @@ export function MarketingTasks() {
     };
 
     try {
-      const response = await marketingApi.getMarketingTasks({ page, limit: ROWS_PER_DISPLAY });
+      const response = await marketingApi.getMarketingTasks({ page, limit: PAGE_SIZE });
       if (response.success) {
         applyTasks(response.data, response.meta.total);
         persistLocalTasks(response.data);
       } else {
         const local = initLocalWithSeed();
-        const start = (page - 1) * ROWS_PER_DISPLAY;
-        const paged = local.slice(start, start + ROWS_PER_DISPLAY);
+        const start = (page - 1) * PAGE_SIZE;
+        const paged = local.slice(start, start + PAGE_SIZE);
         applyTasks(paged, local.length);
         setError(null);
       }
@@ -612,28 +610,11 @@ export function MarketingTasks() {
     return getLatestTs(b) - getLatestTs(a);
   });
 
-  const displayItems = sortedTasks.slice(displayOffset, displayOffset + ROWS_PER_DISPLAY);
-  const canGoPrev = displayOffset > 0 || apiPage > 1;
-  const canGoNext = displayOffset + ROWS_PER_DISPLAY < sortedTasks.length || (meta ? apiPage < meta.totalPages : false);
-
-  const goNext = () => {
-    if (displayOffset + ROWS_PER_DISPLAY < sortedTasks.length) {
-      setDisplayOffset(displayOffset + ROWS_PER_DISPLAY);
-    } else {
-      cachedTasks = null;
-      cachedMeta = null;
-      setApiPage((p) => p + 1);
-    }
-  };
-
-  const goPrev = () => {
-    if (displayOffset - ROWS_PER_DISPLAY >= 0) {
-      setDisplayOffset(displayOffset - ROWS_PER_DISPLAY);
-    } else {
-      cachedTasks = null;
-      cachedMeta = null;
-      setApiPage((p) => Math.max(1, p - 1));
-    }
+  const totalDisplayPages = meta ? Math.ceil(meta.total / PAGE_SIZE) : 1;
+  const handlePageChange = (page: number) => {
+    cachedTasks = null;
+    cachedMeta = null;
+    setApiPage(page);
   };
 
   const openDetail = (task: MarketingTaskItem) => {
@@ -1301,32 +1282,12 @@ export function MarketingTasks() {
               );
             })}
           </div>
-          {(meta && (meta.totalPages > 1 || sortedTasks.length > ROWS_PER_DISPLAY)) && (
-            <div className="flex items-center justify-center gap-4 py-4">
-              <button
-                onClick={goPrev}
-                disabled={!canGoPrev}
-                className="flex items-center gap-1 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                Previous
-              </button>
-              <span className="text-sm text-gray-600">
-                {sortedTasks.length > ROWS_PER_DISPLAY
-                  ? `Showing ${displayOffset + 1}-${Math.min(displayOffset + ROWS_PER_DISPLAY, sortedTasks.length)} of ${meta.total}`
-                  : `Page ${apiPage} of ${meta.totalPages} (${meta.total} total)`
-                }
-              </span>
-              <button
-                onClick={goNext}
-                disabled={!canGoNext}
-                className="flex items-center gap-1 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Next
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          )}
+          <PaginationWithNumbers
+            currentPage={apiPage}
+            totalPages={totalDisplayPages}
+            totalItems={meta?.total}
+            onPageChange={handlePageChange}
+          />
         </>
       )}
 

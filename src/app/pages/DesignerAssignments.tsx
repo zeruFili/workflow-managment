@@ -38,8 +38,6 @@ import {
   Briefcase,
   ChevronDown,
   ChevronUp,
-  ChevronLeft,
-  ChevronRight,
   MessageSquare,
   ThumbsUp,
   ThumbsDown,
@@ -49,6 +47,7 @@ import {
   PauseCircle,
 } from 'lucide-react';
 import AttachmentViewer from '../components/AttachmentViewer';
+import { PaginationWithNumbers } from '../components/ui/PaginationWithNumbers';
 
 type PhaseKey = 'caseStudy' | 'designStage' | 'rendering' | 'finalStage';
 
@@ -95,7 +94,7 @@ const PHASES: { key: PhaseKey; label: string; backendStage: string }[] = [
 
 const STORAGE_KEY = 'designer-submission-progress';
 const REVIEW_STORAGE_KEY = 'designer-task-reviews';
-const ROWS_PER_DISPLAY = 10;
+const PAGE_SIZE = 10;
 
 const markedTaskNotificationIds = new Set<string>();
 let hasResetForSessionOnce = false;
@@ -414,9 +413,9 @@ export function DesignerAssignments() {
   const [applications, setApplications] = useState<DesignerTaskApplication[]>(loadDesignerApplications);
 
   // Pagination
+  const PAGE_SIZE = 10;
   const [apiPage, setApiPage] = useState(1);
   const [meta, setMeta] = useState<DesignerTaskListMeta | null>(null);
-  const [displayOffset, setDisplayOffset] = useState(0);
 
   const [submissionProgress, setSubmissionProgress] = useState<SubmissionProgress>(loadSubmissionProgress);
   const [submissionsLoading, setSubmissionsLoading] = useState<Record<string, boolean>>({});
@@ -468,35 +467,19 @@ export function DesignerAssignments() {
     return getPendingReviewHighlightedIds();
   })();
 
-  // Role-based limits
-  const isLeadership = user?.role === 'ceo' || user?.role === 'general_manager';
-  const apiLimit = isLeadership ? 20 : 10;
-
   // ── Fetch tasks from API ──
   const fetchTasks = useCallback(async (page: number, force = false): Promise<DesignerTaskItem[] | undefined> => {
     if (!user) return;
-    console.log('[PAGINATION] fetchTasks START — page:', page, 'apiLimit:', apiLimit, 'force:', force);
     setIsLoading(true);
     setError(null);
     try {
-      let data: DesignerTaskItem[];
       if (force) {
-        designerTaskCache.invalidate({ page, limit: apiLimit });
+        designerTaskCache.invalidate({ page, limit: PAGE_SIZE });
       }
-      console.log('[PAGINATION] Calling designerTaskCache.fetch with params:', { page, limit: apiLimit });
-      const result = await designerTaskCache.fetch({ page, limit: apiLimit });
-      data = result.data;
-      console.log('[PAGINATION] API response — data.length:', data.length, 'result.total:', result.total);
-      console.log('[PAGINATION] API page data IDs:', data.map(d => d.id));
+      const result = await designerTaskCache.fetch({ page, limit: PAGE_SIZE });
+      const data = result.data;
       setTasks(data);
-      const totalPg = Math.ceil(result.total / apiLimit);
-      setMeta({ page, limit: apiLimit, total: result.total, totalPages: totalPg });
-      setDisplayOffset(0);
-      console.log('[PAGINATION] setMeta:', { page, limit: apiLimit, total: result.total, totalPages: totalPg });
-      console.log('[PAGINATION] setDisplayOffset to 0, set tasks (all):', data.length);
-
-      const unassignedCount = data.filter(d => !d.assigned_to_user_id).length;
-      console.log('[PAGINATION] Fetched page', page, '— total records:', data.length, 'unassigned:', unassignedCount, 'assigned:', (data.length - unassignedCount));
+      setMeta({ page, limit: PAGE_SIZE, total: result.total, totalPages: Math.ceil(result.total / PAGE_SIZE) });
 
       const progressUpdates: SubmissionProgress = {};
       for (const task of data) {
@@ -525,7 +508,7 @@ export function DesignerAssignments() {
     } finally {
       setIsLoading(false);
     }
-  }, [user, apiLimit]);
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -703,29 +686,10 @@ export function DesignerAssignments() {
   }), [tasks]);
 
   // ── Pagination logic ──
-  const canGoPrev = displayOffset > 0 || apiPage > 1;
-  const canGoNext = displayOffset + ROWS_PER_DISPLAY < sortedTasks.length || (meta ? apiPage < meta.totalPages : false);
-
-  const goNext = () => {
-    console.log('[PAGINATION] goNext — displayOffset:', displayOffset, 'ROWS_PER_DISPLAY:', ROWS_PER_DISPLAY, 'sortedTasks.length:', sortedTasks.length, 'apiPage:', apiPage, 'meta.totalPages:', meta?.totalPages);
-    if (displayOffset + ROWS_PER_DISPLAY < sortedTasks.length) {
-      console.log('[PAGINATION] goNext — advancing displayOffset within current batch');
-      setDisplayOffset(displayOffset + ROWS_PER_DISPLAY);
-    } else {
-      console.log('[PAGINATION] goNext — advancing apiPage from', apiPage, 'to', apiPage + 1);
-      setApiPage((p) => p + 1);
-    }
-  };
-
-  const goPrev = () => {
-    console.log('[PAGINATION] goPrev — displayOffset:', displayOffset, 'sortedTasks.length:', sortedTasks.length, 'apiPage:', apiPage);
-    if (displayOffset - ROWS_PER_DISPLAY >= 0) {
-      console.log('[PAGINATION] goPrev — moving displayOffset back within current batch');
-      setDisplayOffset(displayOffset - ROWS_PER_DISPLAY);
-    } else {
-      console.log('[PAGINATION] goPrev — moving apiPage back from', apiPage, 'to', Math.max(1, apiPage - 1));
-      setApiPage((p) => Math.max(1, p - 1));
-    }
+  const totalDisplayPages = meta ? Math.ceil(meta.total / PAGE_SIZE) : 1;
+  const handlePageChange = (page: number) => {
+    designerTaskCache.invalidate({ page: apiPage, limit: PAGE_SIZE });
+    setApiPage(page);
   };
 
   const handleStatusChange = (taskId: string, newStatus: TaskStatus) => {
@@ -1176,9 +1140,8 @@ export function DesignerAssignments() {
     });
   })();
 
-  console.log('[PAGINATION] RENDER — tasks.length:', tasks.length, 'sortedTasks.length:', sortedTasks.length, 'displayOffset:', displayOffset, 'slice range:', displayOffset, '–', displayOffset + ROWS_PER_DISPLAY, 'apiPage:', apiPage, 'meta:', meta);
-  const sliceForRender = sortedTasks.slice(displayOffset, displayOffset + ROWS_PER_DISPLAY);
-  console.log('[PAGINATION] RENDER — sliceForRender.length:', sliceForRender.length, 'IDs:', sliceForRender.map(t => t.id));
+  console.log('[PAGINATION] RENDER — tasks.length:', tasks.length, 'sortedTasks.length:', sortedTasks.length, 'apiPage:', apiPage, 'meta:', meta);
+  // sortedTasks come from API — backend already paginates at PAGE_SIZE, so all items in sortedTasks belong on this page
 
   // ── Rating helpers ──
   const initializeRatingsForTask = (taskId: string) => {
@@ -1339,7 +1302,7 @@ export function DesignerAssignments() {
       ) : (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {sliceForRender.map((task) => {
+            {sortedTasks.map((task) => {
               const isHighlighted = highlightedIds.has(task.id);
               const isOverdue =
                 task.due_date && new Date(task.due_date) < new Date() && task.status !== 'approved';
@@ -1652,32 +1615,12 @@ export function DesignerAssignments() {
           </div>
 
           {/* Pagination Controls */}
-          {meta && (meta.totalPages > 1 || tasks.length > ROWS_PER_DISPLAY) && (
-            <div className="flex items-center justify-center gap-4 py-4">
-              <button
-                onClick={goPrev}
-                disabled={!canGoPrev}
-                className="flex items-center gap-1 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                Previous
-              </button>
-              <span className="text-sm text-gray-600">
-                {isLeadership && tasks.length > ROWS_PER_DISPLAY
-                  ? `Showing ${displayOffset + 1}–${Math.min(displayOffset + ROWS_PER_DISPLAY, tasks.length)} of ${meta.total}`
-                  : `Page ${apiPage} of ${meta.totalPages} (${meta.total} total)`
-                }
-              </span>
-              <button
-                onClick={goNext}
-                disabled={!canGoNext}
-                className="flex items-center gap-1 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Next
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          )}
+          <PaginationWithNumbers
+            currentPage={apiPage}
+            totalPages={totalDisplayPages}
+            totalItems={meta?.total}
+            onPageChange={handlePageChange}
+          />
         </>
       )}
 

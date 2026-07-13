@@ -3,10 +3,11 @@ import { useAuth } from '../contexts/AuthContext';
 import ceoTransferApi, { CeoTransferItem, CeoTransferListMeta } from '../../api/ceoTransferApi';
 import userApi, { UserItem } from '../../api/userApi';
 import {
-  ArrowLeft, Calendar, Clock, Edit, Plus, Send, Trash2, Upload, User, X, ChevronLeft, ChevronRight,
+  ArrowLeft, Calendar, Clock, Edit, Plus, Send, Trash2, Upload, User, X,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import AttachmentViewer from '../components/AttachmentViewer';
+import { PaginationWithNumbers } from '../components/ui/PaginationWithNumbers';
 
 const ROWS_PER_PAGE = 10;
 let cachedTransfers: CeoTransferItem[] | null = null;
@@ -254,17 +255,16 @@ export function CeoTransfers() {
               </div>
             ))}
           </div>
-          {meta && meta.totalPages > 1 && (
-            <div className="flex items-center justify-center gap-4 py-4">
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="flex items-center gap-1 px-4 py-2 bg-white border rounded-lg text-sm hover:bg-gray-50 disabled:opacity-40">
-                <ChevronLeft className="w-4 h-4" />Previous
-              </button>
-              <span className="text-sm text-gray-600">Page {meta.page} of {meta.totalPages} ({meta.total} total)</span>
-              <button onClick={() => setPage(p => p + 1)} disabled={!meta || page >= meta.totalPages} className="flex items-center gap-1 px-4 py-2 bg-white border rounded-lg text-sm hover:bg-gray-50 disabled:opacity-40">
-                Next<ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          )}
+          <PaginationWithNumbers
+            currentPage={page}
+            totalPages={meta.totalPages}
+            totalItems={meta.total}
+            onPageChange={(p) => {
+              cachedTransfers = null;
+              cachedMeta = null;
+              setPage(p);
+            }}
+          />
         </>
       )}
 

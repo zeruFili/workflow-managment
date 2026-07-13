@@ -24,8 +24,6 @@ import {
   XCircle,
   ChevronDown,
   ChevronUp,
-  ChevronLeft,
-  ChevronRight,
   Edit,
   MessageSquare,
   ThumbsUp,
@@ -40,6 +38,7 @@ import {
 } from 'lucide-react';
 import AttachmentViewer from '../components/AttachmentViewer';
 import ImageRemoveButton from '../components/ImageRemoveButton';
+import { PaginationWithNumbers } from '../components/ui/PaginationWithNumbers';
 
 const API_BASE_URL = 'http://localhost:3001';
 function resolveAttachmentUrl(url: string): string {
@@ -150,6 +149,7 @@ function canDeleteQuantitySurveyorTask(task: QuantitySurveyorTaskItem): boolean 
 }
 
 const ROWS_PER_DISPLAY = 10;
+const PAGE_SIZE = 10;
 
 const STORAGE_KEY = 'quantity-surveyor-tasks-v3';
 
@@ -412,7 +412,6 @@ export function QuantitySurveyorTasks() {
 
   const [apiPage, setApiPage] = useState(1);
   const [meta, setMeta] = useState<QuantitySurveyorTaskListMeta | null>(null);
-  const [displayOffset, setDisplayOffset] = useState(0);
 
   const [selectedTask, setSelectedTask] = useState<QuantitySurveyorTaskItem | null>(null);
   const [showDetail, setShowDetail] = useState(false);
@@ -505,18 +504,13 @@ export function QuantitySurveyorTasks() {
 
   const fetchTasks = useCallback(async (page: number, force = false): Promise<QuantitySurveyorTaskItem[] | undefined> => {
     if (!user) return;
-    const cacheParams = { page, limit: ROWS_PER_DISPLAY };
+    const cacheParams = { page, limit: PAGE_SIZE };
 
     if (!force) {
       const cached = quantitySurveyorTaskCache.get(cacheParams);
       if (cached) {
         setTasks(cached.data);
-        setMeta({
-          total: cached.total,
-          page,
-          limit: ROWS_PER_DISPLAY,
-          totalPages: Math.ceil(cached.total / ROWS_PER_DISPLAY),
-        });
+        setMeta({ total: cached.total, page, limit: PAGE_SIZE, totalPages: Math.ceil(cached.total / PAGE_SIZE) });
         quantitySurveyorNotificationIds = new Set(
           cached.data.filter((t) => anyNotification(t)).map((t) => t.id)
         );
@@ -531,8 +525,7 @@ export function QuantitySurveyorTasks() {
 
     const applyTasks = (data: QuantitySurveyorTaskItem[], total: number): QuantitySurveyorTaskItem[] => {
       setTasks(data);
-      setMeta({ total, page, limit: ROWS_PER_DISPLAY, totalPages: Math.ceil(total / ROWS_PER_DISPLAY) });
-      setDisplayOffset(0);
+      setMeta({ total, page, limit: PAGE_SIZE, totalPages: Math.ceil(total / PAGE_SIZE) });
 
       quantitySurveyorNotificationIds = new Set(
         data.filter((t) => anyNotification(t)).map((t) => t.id)
@@ -545,8 +538,8 @@ export function QuantitySurveyorTasks() {
       return applyTasks(result.data, result.total);
     } catch {
       const local = initLocalWithSeed();
-      const start = (page - 1) * ROWS_PER_DISPLAY;
-      const paged = local.slice(start, start + ROWS_PER_DISPLAY);
+      const start = (page - 1) * PAGE_SIZE;
+      const paged = local.slice(start, start + PAGE_SIZE);
       applyTasks(paged, local.length);
       setError(null);
       return paged;
@@ -670,26 +663,10 @@ export function QuantitySurveyorTasks() {
     return getLatestTs(b) - getLatestTs(a);
   });
 
-  const displayItems = sortedTasks.slice(displayOffset, displayOffset + ROWS_PER_DISPLAY);
-  const canGoPrev = displayOffset > 0 || apiPage > 1;
-  const canGoNext = displayOffset + ROWS_PER_DISPLAY < sortedTasks.length || (meta ? apiPage < meta.totalPages : false);
-
-  const goNext = () => {
-    if (displayOffset + ROWS_PER_DISPLAY < sortedTasks.length) {
-      setDisplayOffset(displayOffset + ROWS_PER_DISPLAY);
-    } else {
-      quantitySurveyorTaskCache.invalidate({ page: apiPage, limit: ROWS_PER_DISPLAY });
-      setApiPage((p) => p + 1);
-    }
-  };
-
-  const goPrev = () => {
-    if (displayOffset - ROWS_PER_DISPLAY >= 0) {
-      setDisplayOffset(displayOffset - ROWS_PER_DISPLAY);
-    } else {
-      quantitySurveyorTaskCache.invalidate({ page: apiPage, limit: ROWS_PER_DISPLAY });
-      setApiPage((p) => Math.max(1, p - 1));
-    }
+  const totalDisplayPages = meta ? Math.ceil(meta.total / PAGE_SIZE) : 1;
+  const handlePageChange = (page: number) => {
+    quantitySurveyorTaskCache.invalidate({ page: apiPage, limit: PAGE_SIZE });
+    setApiPage(page);
   };
 
   const getLatestActivity = (task: QuantitySurveyorTaskItem): {
@@ -1514,32 +1491,12 @@ export function QuantitySurveyorTasks() {
               );
             })}
           </div>
-          {(meta && (meta.totalPages > 1 || sortedTasks.length > ROWS_PER_DISPLAY)) && (
-            <div className="flex items-center justify-center gap-4 py-4">
-              <button
-                onClick={goPrev}
-                disabled={!canGoPrev}
-                className="flex items-center gap-1 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                Previous
-              </button>
-              <span className="text-sm text-gray-600">
-                {sortedTasks.length > ROWS_PER_DISPLAY
-                  ? `Showing ${displayOffset + 1}-${Math.min(displayOffset + ROWS_PER_DISPLAY, sortedTasks.length)} of ${meta.total}`
-                  : `Page ${apiPage} of ${meta.totalPages} (${meta.total} total)`
-                }
-              </span>
-              <button
-                onClick={goNext}
-                disabled={!canGoNext}
-                className="flex items-center gap-1 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Next
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          )}
+          <PaginationWithNumbers
+            currentPage={apiPage}
+            totalPages={totalDisplayPages}
+            totalItems={meta?.total}
+            onPageChange={handlePageChange}
+          />
         </>
       )}
       {showDetail && selectedTask && (

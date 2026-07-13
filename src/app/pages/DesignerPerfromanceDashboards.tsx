@@ -12,6 +12,7 @@ import {
   ChevronDown, Search, ArrowUpDown,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { PaginationWithNumbers } from '../components/ui/PaginationWithNumbers';
 
 // ─── Inline mock data (mirrors the separate data file) ────────────────────────
 const designerProfiles = [
@@ -587,19 +588,13 @@ export function DesignerPerformanceDashboard() {
           </table>
         </div>
 
-        {taskPages > 1 && (
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-            <span className="text-xs text-gray-400">{filteredTasks.length} tasks · page {taskPage + 1} of {taskPages}</span>
-            <div className="flex gap-1">
-              <button onClick={() => setTaskPage(p => Math.max(0, p - 1))} disabled={taskPage === 0} className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40">
-                <ChevronLeft className="w-4 h-4 text-gray-600" />
-              </button>
-              <button onClick={() => setTaskPage(p => Math.min(taskPages - 1, p + 1))} disabled={taskPage >= taskPages - 1} className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40">
-                <ChevronRight className="w-4 h-4 text-gray-600" />
-              </button>
-            </div>
-          </div>
-        )}
+        <PaginationWithNumbers
+          currentPage={taskPage + 1}
+          totalPages={taskPages}
+          totalItems={filteredTasks.length}
+          onPageChange={(p) => setTaskPage(p - 1)}
+          className="mt-3 pt-3 border-t border-gray-100"
+        />
       </div>
 
 

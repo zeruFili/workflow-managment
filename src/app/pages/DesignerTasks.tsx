@@ -28,8 +28,6 @@ import {
   Briefcase,
   ChevronDown,
   ChevronUp,
-  ChevronLeft,
-  ChevronRight,
   Edit,
   MessageSquare,
   ThumbsUp,
@@ -40,6 +38,7 @@ import {
 } from 'lucide-react';
 import AttachmentViewer from '../components/AttachmentViewer';
 import ImageRemoveButton from '../components/ImageRemoveButton';
+import { PaginationWithNumbers } from '../components/ui/PaginationWithNumbers';
 
 const API_BASE_URL = 'http://localhost:3001';
 function resolveAttachmentUrl(url: string): string {
@@ -440,6 +439,7 @@ function getCreatorDisplayName(task: DesignerTaskItem): string {
 }
 
 const ROWS_PER_DISPLAY = 10;
+const PAGE_SIZE = 10;
 
 let cachedRawData: Record<string, SubmissionsWithReviewsData> | null = null;
 let cachedProgress: SubmissionProgress | null = null;
@@ -465,7 +465,6 @@ export function DesignerTasks() {
   // Pagination state
   const [apiPage, setApiPage] = useState(1);
   const [meta, setMeta] = useState<DesignerTaskListMeta | null>(null);
-  const [displayOffset, setDisplayOffset] = useState(0);
 
   // Submission progress (localStorage-backed user input + API submissions)
   const [submissionProgress, setSubmissionProgress] = useState<SubmissionProgress>({});
@@ -529,24 +528,15 @@ export function DesignerTasks() {
     publishDesignerTasksBadgeCount(highlightedIds.size);
   }, [highlightedIds]);
 
-  // ── Determine role-based limits ──
-  const isLeadership = user?.role === 'ceo' || user?.role === 'general_manager';
-  const apiLimit = isLeadership ? 20 : 10;
-
   // ── Fetch tasks from API ──
   const fetchTasks = useCallback(async (page: number, force = false): Promise<DesignerTaskItem[] | undefined> => {
     if (!user) return;
-    const cacheParams = { page, limit: apiLimit };
+    const cacheParams = { page, limit: PAGE_SIZE };
     if (!force) {
       const cached = designerTaskCache.get(cacheParams);
       if (cached) {
         setTasks(cached.data);
-        setMeta({
-          total: cached.total,
-          page,
-          limit: apiLimit,
-          totalPages: Math.ceil(cached.total / apiLimit),
-        });
+        setMeta({ total: cached.total, page, limit: PAGE_SIZE, totalPages: Math.ceil(cached.total / PAGE_SIZE) });
         if (cachedRawData) setSubmissionsRawData(cachedRawData);
         if (cachedProgress) setSubmissionProgress(cachedProgress);
         designerTaskNotificationIds = new Set(
@@ -564,13 +554,7 @@ export function DesignerTasks() {
       const result = await designerTaskCache.fetch(cacheParams);
       if (result.data.length > 0 || result.total === 0) {
         setTasks(result.data);
-        setMeta({
-          total: result.total,
-          page,
-          limit: apiLimit,
-          totalPages: Math.ceil(result.total / apiLimit),
-        });
-        setDisplayOffset(0);
+        setMeta({ total: result.total, page, limit: PAGE_SIZE, totalPages: Math.ceil(result.total / PAGE_SIZE) });
 
         const progressUpdates: SubmissionProgress = {};
         const rawDataUpdates: Record<string, SubmissionsWithReviewsData> = {};
@@ -579,7 +563,7 @@ export function DesignerTasks() {
         for (const task of result.data) {
           const swr = task.is_paused && currentSnapshots[task.id]
             ? currentSnapshots[task.id]
-            : task.submissionsWithReviews;
+            : task?.submissionsWithReviews;
           if (swr) {
             rawDataUpdates[task.id] = swr;
             progressUpdates[task.id] = apiSubmissionsToProgress(swr);
@@ -606,7 +590,7 @@ export function DesignerTasks() {
     } finally {
       setIsLoading(false);
     }
-  }, [user, apiLimit]);
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -746,32 +730,12 @@ export function DesignerTasks() {
   }
 
   // ── Pagination logic ──
-  const displayItems = tasks.slice(displayOffset, displayOffset + ROWS_PER_DISPLAY);
-  const totalDisplayPages = Math.ceil(tasks.length / ROWS_PER_DISPLAY);
-  const currentDisplayPage = Math.floor(displayOffset / ROWS_PER_DISPLAY);
-  const canGoPrev = displayOffset > 0 || apiPage > 1;
-  const canGoNext = displayOffset + ROWS_PER_DISPLAY < tasks.length || (meta ? apiPage < meta.totalPages : false);
-
-  const goNext = () => {
-    if (displayOffset + ROWS_PER_DISPLAY < tasks.length) {
-      setDisplayOffset(displayOffset + ROWS_PER_DISPLAY);
-    } else {
-      designerTaskCache.invalidate({ page: apiPage, limit: apiLimit });
-      cachedRawData = null;
-      cachedProgress = null;
-      setApiPage((p) => p + 1);
-    }
-  };
-
-  const goPrev = () => {
-    if (displayOffset - ROWS_PER_DISPLAY >= 0) {
-      setDisplayOffset(displayOffset - ROWS_PER_DISPLAY);
-    } else {
-      designerTaskCache.invalidate({ page: apiPage, limit: apiLimit });
-      cachedRawData = null;
-      cachedProgress = null;
-      setApiPage((p) => Math.max(1, p - 1));
-    }
+  const totalDisplayPages = meta ? Math.ceil(meta.total / PAGE_SIZE) : 1;
+  const handlePageChange = (page: number) => {
+    designerTaskCache.invalidate({ page: apiPage, limit: PAGE_SIZE });
+    cachedRawData = null;
+    cachedProgress = null;
+    setApiPage(page);
   };
 
   // ── Detail modal ──
@@ -1391,7 +1355,7 @@ export function DesignerTasks() {
       ) : (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {sortedTasks.slice(displayOffset, displayOffset + ROWS_PER_DISPLAY).map((task) => {
+            {sortedTasks.map((task) => {
               const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'approved';
               const { currentPhaseKey, currentPhaseLabel, currentPhaseStatus } = getCurrentPhaseInfo(task);
               const isHighlighted = highlightedIds.has(task.id);
@@ -1636,32 +1600,12 @@ export function DesignerTasks() {
           </div>
 
           {/* Pagination Controls */}
-          {meta && (meta.totalPages > 1 || tasks.length > ROWS_PER_DISPLAY) && (
-            <div className="flex items-center justify-center gap-4 py-4">
-              <button
-                onClick={goPrev}
-                disabled={!canGoPrev}
-                className="flex items-center gap-1 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                Previous
-              </button>
-              <span className="text-sm text-gray-600">
-                {isLeadership && tasks.length > ROWS_PER_DISPLAY
-                  ? `Showing ${displayOffset + 1}–${Math.min(displayOffset + ROWS_PER_DISPLAY, tasks.length)} of ${meta.total}`
-                  : `Page ${apiPage} of ${meta.totalPages} (${meta.total} total)`
-                }
-              </span>
-              <button
-                onClick={goNext}
-                disabled={!canGoNext}
-                className="flex items-center gap-1 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Next
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          )}
+          <PaginationWithNumbers
+            currentPage={apiPage}
+            totalPages={totalDisplayPages}
+            totalItems={meta?.total}
+            onPageChange={handlePageChange}
+          />
         </>
       )}
 
