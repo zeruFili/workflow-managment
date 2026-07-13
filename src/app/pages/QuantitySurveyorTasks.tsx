@@ -39,6 +39,16 @@ import {
   Trash2,
 } from 'lucide-react';
 import AttachmentViewer from '../components/AttachmentViewer';
+
+const API_BASE_URL = 'http://localhost:3001';
+function resolveAttachmentUrl(url: string): string {
+  if (!url) return url;
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) {
+    return url;
+  }
+  return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+}
+
 import { quantitySurveyorTaskCache } from '../data/quantitySurveyorTaskCache';
 
 // ------------ NOTIFICATIONS / HIGHLIGHT ------------
@@ -413,6 +423,7 @@ export function QuantitySurveyorTasks() {
 
   const [draftNote, setDraftNote] = useState<Record<string, string>>({});
   const [draftScreenshots, setDraftScreenshots] = useState<Record<string, string | null>>({});
+  const [keptAttachmentUrls, setKeptAttachmentUrls] = useState<Record<string, string[]>>({});
   const [draftStatus, setDraftStatus] = useState<Record<string, string>>({});
   const draftFilesRef = useRef<Record<string, File[]>>({});
   const [submissionDraftLoading, setSubmissionDraftLoading] = useState<Record<string, boolean>>({});
@@ -907,9 +918,11 @@ export function QuantitySurveyorTasks() {
     const wrapper = getSubmissionWrappers(selectedTask).find((w) => w.submission.id === subId);
     if (!wrapper) return;
     const sub = wrapper.submission;
+    const existingUrls = sub.attachment_urls || [];
     setEditingSubmissionId(subId);
     setDraftNote((prev) => ({ ...prev, [taskId]: sub.description || '' }));
-    setDraftScreenshots((prev) => ({ ...prev, [taskId]: sub.attachment_urls?.[0] || null }));
+    setDraftScreenshots((prev) => ({ ...prev, [taskId]: null }));
+    setKeptAttachmentUrls((prev) => ({ ...prev, [taskId]: [...existingUrls] }));
     setDraftStatus((prev) => ({ ...prev, [taskId]: sub.review_status || '' }));
     draftFilesRef.current = { ...draftFilesRef.current, [taskId]: [] };
     setExpandedSubmissionId(subId);
@@ -1001,7 +1014,15 @@ export function QuantitySurveyorTasks() {
       }
 
       const response = isEditing
-        ? await quantitySurveyorApi.updateSubmission(editingSubmissionId!, formData)
+        ? await (() => {
+            const keptUrls = keptAttachmentUrls[taskId] || [];
+            if (keptUrls.length > 0) {
+              for (const url of keptUrls) formData.append('attachment_urls', url);
+            } else {
+              formData.append('attachment_urls', '');
+            }
+            return quantitySurveyorApi.updateSubmission(editingSubmissionId!, formData);
+          })()
         : await quantitySurveyorApi.createSubmission(taskId, formData);
 
       if (response.success) {
@@ -1038,6 +1059,7 @@ export function QuantitySurveyorTasks() {
         setDraftScreenshots((prev) => ({ ...prev, [taskId]: null }));
         setDraftNote((prev) => ({ ...prev, [taskId]: '' }));
         setDraftStatus((prev) => ({ ...prev, [taskId]: '' }));
+        setKeptAttachmentUrls((prev) => ({ ...prev, [taskId]: [] }));
         draftFilesRef.current = { ...draftFilesRef.current, [taskId]: [] };
       }
     } else {
@@ -1047,6 +1069,7 @@ export function QuantitySurveyorTasks() {
       setDraftScreenshots((prev) => ({ ...prev, [taskId]: null }));
       setDraftNote((prev) => ({ ...prev, [taskId]: '' }));
       setDraftStatus((prev) => ({ ...prev, [taskId]: '' }));
+      setKeptAttachmentUrls((prev) => ({ ...prev, [taskId]: [] }));
       draftFilesRef.current = { ...draftFilesRef.current, [taskId]: [] };
 
       if (user) {
@@ -1663,6 +1686,7 @@ export function QuantitySurveyorTasks() {
                                         type="button"
                                         onClick={() => {
                                           setEditingSubmissionId(null);
+                                          setKeptAttachmentUrls((prev) => ({ ...prev, [selectedTask.id]: [] }));
                                           setDraftNote((prev) => ({ ...prev, [selectedTask.id]: '' }));
                                           setDraftScreenshots((prev) => ({ ...prev, [selectedTask.id]: null }));
                                           setDraftStatus((prev) => ({ ...prev, [selectedTask.id]: '' }));
@@ -1872,9 +1896,9 @@ export function QuantitySurveyorTasks() {
                           <label className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-sm text-gray-700">
                             <Upload className="w-4 h-4" />
                             {draftFilesRef.current[selectedTask.id]?.length
-                              ? `${draftFilesRef.current[selectedTask.id].length} file(s) selected`
-                              : draftScreenshots[selectedTask.id]
-                              ? 'Change Files'
+                              ? `${draftFilesRef.current[selectedTask.id].length} new file(s)`
+                              : (keptAttachmentUrls[selectedTask.id]?.length > 0)
+                              ? 'Add More Files'
                               : 'Choose Files'}
                             <input
                               type="file"
@@ -1884,13 +1908,14 @@ export function QuantitySurveyorTasks() {
                               className="hidden"
                             />
                           </label>
-                          {(draftScreenshots[selectedTask.id] || (draftFilesRef.current[selectedTask.id]?.length ?? 0) > 0) && (
+                          {(draftScreenshots[selectedTask.id] || (draftFilesRef.current[selectedTask.id]?.length ?? 0) > 0 || (keptAttachmentUrls[selectedTask.id]?.length ?? 0) > 0) && (
                             <button
                               type="button"
                               onClick={() => {
                                 const oldUrl = draftScreenshots[selectedTask.id] ?? null;
                                 if (oldUrl) URL.revokeObjectURL(oldUrl);
                                 setDraftScreenshots((prev) => ({ ...prev, [selectedTask.id]: null }));
+                                setKeptAttachmentUrls((prev) => ({ ...prev, [selectedTask.id]: [] }));
                                 draftFilesRef.current = { ...draftFilesRef.current, [selectedTask.id]: [] };
                               }}
                               className="text-sm text-red-600 hover:underline"
@@ -1899,12 +1924,47 @@ export function QuantitySurveyorTasks() {
                             </button>
                           )}
                         </div>
-                        {draftScreenshots[selectedTask.id] && (
-                          <img
-                            src={draftScreenshots[selectedTask.id]!}
-                            alt="preview"
-                            className="mt-2 w-full max-h-40 rounded-lg border object-contain"
-                          />
+                        {(keptAttachmentUrls[selectedTask.id]?.length > 0 || draftScreenshots[selectedTask.id] || (draftFilesRef.current[selectedTask.id]?.length ?? 0) > 0) && (
+                          <div className="mt-2 grid grid-cols-3 gap-2">
+                            {keptAttachmentUrls[selectedTask.id]?.map((url, idx) => (
+                              <div key={`kept-${idx}`} className="relative group border rounded-lg overflow-hidden bg-gray-50">
+                                <img
+                                  src={resolveAttachmentUrl(url)}
+                                  alt={`Existing attachment ${idx + 1}`}
+                                  className="w-full h-24 object-contain"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setKeptAttachmentUrls((prev) => {
+                                      const current = prev[selectedTask.id] || [];
+                                      const filtered = current.filter((_, i) => i !== idx);
+                                      return { ...prev, [selectedTask.id]: filtered };
+                                    });
+                                  }}
+                                  className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                            {draftFilesRef.current[selectedTask.id]?.map((file, idx) => (
+                              <div key={`new-${idx}`} className="relative group border rounded-lg overflow-hidden bg-gray-50">
+                                {file.type?.startsWith('image/') ? (
+                                  <img
+                                    src={URL.createObjectURL(file)}
+                                    alt={`New file ${idx + 1}`}
+                                    className="w-full h-24 object-contain"
+                                    onLoad={(e) => URL.revokeObjectURL((e.target as HTMLImageElement).src)}
+                                  />
+                                ) : (
+                                  <div className="w-full h-24 flex items-center justify-center text-xs text-gray-500 p-2">
+                                    {file.name}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </div>
                       <button
