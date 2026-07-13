@@ -33,6 +33,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import AttachmentViewer from '../components/AttachmentViewer';
+import ImageRemoveButton from '../components/ImageRemoveButton';
 
 const API_BASE_URL = 'http://localhost:3001';
 function resolveAttachmentUrl(url: string): string {
@@ -313,6 +314,7 @@ export function PaidCustomers() {
   const [draftScreenshots, setDraftScreenshots] = useState<Record<string, string | null>>({});
   const [keptAttachmentUrls, setKeptAttachmentUrls] = useState<Record<string, string[]>>({});
   const draftFilesRef = useRef<Record<string, File[]>>({});
+  const [, setDraftFilesVersion] = useState(0);
   const [submissionDraftLoading, setSubmissionDraftLoading] = useState<Record<string, boolean>>({});
   const [submissionError, setSubmissionError] = useState<Record<string, string>>({});
   const [submissionFieldError, setSubmissionFieldError] = useState<Record<string, string>>({});
@@ -1263,10 +1265,7 @@ export function PaidCustomers() {
                             {keptAttachmentUrls[selectedTask.id]?.map((url, idx) => (
                               <div key={`kept-${idx}`} className="relative group border rounded-lg overflow-hidden bg-gray-50">
                                 <img src={resolveAttachmentUrl(url)} alt={`Existing attachment ${idx + 1}`} className="w-full h-24 object-contain" />
-                                <button type="button" onClick={() => setKeptAttachmentUrls((prev) => { const c = prev[selectedTask.id] || []; return { ...prev, [selectedTask.id]: c.filter((_, i) => i !== idx) }; })}
-                                  className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
+                                <ImageRemoveButton onRemove={() => setKeptAttachmentUrls((prev) => { const c = prev[selectedTask.id] || []; return { ...prev, [selectedTask.id]: c.filter((_, i) => i !== idx) }; })} />
                               </div>
                             ))}
                             {draftFilesRef.current[selectedTask.id]?.map((file, idx) => (
@@ -1277,6 +1276,7 @@ export function PaidCustomers() {
                                 ) : (
                                   <div className="w-full h-24 flex items-center justify-center text-xs text-gray-500 p-2">{file.name}</div>
                                 )}
+                                <ImageRemoveButton onRemove={() => { const current = draftFilesRef.current[selectedTask.id] || []; const updated = current.filter((_, i) => i !== idx); draftFilesRef.current = { ...draftFilesRef.current, [selectedTask.id]: updated }; setDraftFilesVersion((v) => v + 1); }} />
                               </div>
                             ))}
                           </div>

@@ -39,6 +39,7 @@ import {
   Star,
 } from 'lucide-react';
 import AttachmentViewer from '../components/AttachmentViewer';
+import ImageRemoveButton from '../components/ImageRemoveButton';
 
 const API_BASE_URL = 'http://localhost:3001';
 function resolveAttachmentUrl(url: string): string {
@@ -480,6 +481,7 @@ export function DesignerTasks() {
   const [draftScreenshots, setDraftScreenshots] = useState<Record<string, Record<PhaseKey, string | null>>>({});
   const [keptAttachmentUrls, setKeptAttachmentUrls] = useState<Record<string, Record<PhaseKey, string[]>>>({});
   const draftFilesRef = useRef<Record<string, Record<PhaseKey, File[]>>>({});
+  const [, setDraftFilesVersion] = useState(0);
   const uploadInputRef = useRef<Record<string, Record<PhaseKey, HTMLInputElement | null>>>({});
   const [phaseErrors, setPhaseErrors] = useState<Record<string, Record<PhaseKey, string>>>({});
   const [submissionDraftLoading, setSubmissionDraftLoading] = useState<Record<string, Record<PhaseKey, boolean>>>({});
@@ -2208,19 +2210,15 @@ export function DesignerTasks() {
                                                     alt={`Existing attachment ${idx + 1}`}
                                                     className="w-full h-24 object-contain"
                                                   />
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => {
+                                                  <ImageRemoveButton
+                                                    onRemove={() => {
                                                       setKeptAttachmentUrls((prev) => {
                                                         const current = prev[taskId]?.[phase.key] || [];
                                                         const filtered = current.filter((_, i) => i !== idx);
                                                         return { ...prev, [taskId]: { ...prev[taskId], [phase.key]: filtered } };
                                                       });
                                                     }}
-                                                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                  >
-                                                    <XCircle className="w-3.5 h-3.5" />
-                                                  </button>
+                                                  />
                                                 </div>
                                               ))}
                                               {draftFilesRef.current[taskId]?.[phase.key]?.map((file, idx) => (
@@ -2237,6 +2235,17 @@ export function DesignerTasks() {
                                                       {file.name}
                                                     </div>
                                                   )}
+                                                  <ImageRemoveButton
+                                                    onRemove={() => {
+                                                      const current = draftFilesRef.current[taskId]?.[phase.key] || [];
+                                                      const updated = current.filter((_, i) => i !== idx);
+                                                      draftFilesRef.current = {
+                                                        ...draftFilesRef.current,
+                                                        [taskId]: { ...draftFilesRef.current[taskId], [phase.key]: updated },
+                                                      };
+                                                      setDraftFilesVersion((v) => v + 1);
+                                                    }}
+                                                  />
                                                 </div>
                                               ))}
                                             </div>
