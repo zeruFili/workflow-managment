@@ -525,8 +525,8 @@ export function MarketingTasks() {
       }
     } catch {
       const local = initLocalWithSeed();
-      const start = (page - 1) * ROWS_PER_DISPLAY;
-      const paged = local.slice(start, start + ROWS_PER_DISPLAY);
+      const start = (page - 1) * PAGE_SIZE;
+      const paged = local.slice(start, start + PAGE_SIZE);
       applyTasks(paged, local.length);
       setError(null);
     } finally {
@@ -1190,7 +1190,7 @@ export function MarketingTasks() {
       ) : (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {displayItems.map((task) => {
+            {sortedTasks.map((task) => {
               const isHighlighted = highlightedIds.has(task.id);
               const hasSubmissions = getSubmissionWrappers(task).length > 0;
               return (

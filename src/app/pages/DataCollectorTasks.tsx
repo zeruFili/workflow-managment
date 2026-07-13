@@ -1358,7 +1358,7 @@ export function DataCollectorTasks() {
       ) : (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {displayItems.map((task) => {
+            {sortedTasks.map((task) => {
               const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'approved' && task.status !== 'completed';
               const isHighlighted = highlightedIds.has(task.id);              return (
                 <div
