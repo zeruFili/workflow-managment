@@ -2,6 +2,16 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext';
 import { CheckCircle2, User, Users, Loader2, AlertCircle, Clock, Edit, XCircle, Image, Lock, Trash2, X, Plus } from 'lucide-react';
 import designerApi, { DesignerTaskItem, DesignerApplicationItem } from '../../api/designerApi';
+import ImageRemoveButton from '../components/ImageRemoveButton';
+
+const API_BASE_URL = 'http://localhost:3001';
+function resolveAttachmentUrl(url: string): string {
+  if (!url) return url;
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) {
+    return url;
+  }
+  return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+}
 import { designerTaskCache } from '../data/designerTaskCache';
 import userApi, { UserItem } from '../../api/userApi';
 import { userCache } from '../data/userCache';
@@ -132,7 +142,9 @@ export function DesignerApplications() {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ title: '', description: '', instruction: '', storyPoints: '', deadline: '', is_public: false, assigned_to_user_id: '' });
   const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
-  const editImageFileRef = useRef<File | null>(null);
+  const editFilesRef = useRef<File[]>([]);
+  const [, setEditFilesVersion] = useState(0);
+  const [keptTaskUrls, setKeptTaskUrls] = useState<string[]>([]);
   const [editFormErrors, setEditFormErrors] = useState<Record<string, string>>({});
   const [editError, setEditError] = useState('');
   const [editSuccess, setEditSuccess] = useState('');
@@ -148,7 +160,8 @@ export function DesignerApplications() {
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [newTask, setNewTask] = useState(emptyNewTask);
   const [newTaskImagePreview, setNewTaskImagePreview] = useState<string | null>(null);
-  const newTaskImageFileRef = useRef<File | null>(null);
+  const createFilesRef = useRef<File[]>([]);
+  const [, setCreateFilesVersion] = useState(0);
   const [newTaskError, setNewTaskError] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [taskSuccessMsg, setTaskSuccessMsg] = useState('');
@@ -532,6 +545,8 @@ export function DesignerApplications() {
     setEditSuccess('');
     setIsLoadingEdit(true);
 
+    let attachmentUrls: string[] = task.attachment_urls || [];
+
     try {
       const res = await designerApi.getDesignerTaskById(task.id);
       if (res.success && res.data) {
@@ -546,33 +561,18 @@ export function DesignerApplications() {
           assigned_to_user_id: t.assigned_to_user_id || '',
         });
         setTasks((prev) => prev.map((p) => (p.id === t.id ? t : p)));
-      } else {
-        setEditForm({
-          title: task.title,
-          description: task.description,
-          instruction: '',
-          storyPoints: String(task.story_point),
-          deadline: task.due_date ? new Date(task.due_date).toISOString().split('T')[0] : '',
-          is_public: task.is_public ?? false,
-          assigned_to_user_id: task.assigned_to_user_id || '',
-        });
+        attachmentUrls = t.attachment_urls || [];
       }
     } catch {
-      setEditForm({
-        title: task.title,
-        description: task.description,
-        instruction: '',
-        storyPoints: String(task.story_point),
-        deadline: task.due_date ? new Date(task.due_date).toISOString().split('T')[0] : '',
-        is_public: task.is_public ?? false,
-        assigned_to_user_id: task.assigned_to_user_id || '',
-      });
+      // use task from list — already captured above
     } finally {
       setIsLoadingEdit(false);
     }
 
     setEditImagePreview(null);
-    editImageFileRef.current = null;
+    editFilesRef.current = [];
+    setEditFilesVersion((v) => v + 1);
+    setKeptTaskUrls(attachmentUrls);
   };
 
   const handleEditTask = async (event: React.FormEvent) => {
@@ -604,7 +604,6 @@ export function DesignerApplications() {
     if (Object.keys(errors).length > 0) return;
 
     const storyPoints = Number(storyPointsRaw);
-    const file = editImageFileRef.current;
 
     const fullDescription = instruction
       ? `${description}\n\nInstructions:\n${instruction}`
@@ -615,28 +614,29 @@ export function DesignerApplications() {
     try {
       let response: { success: boolean; data?: DesignerTaskItem; message?: string };
 
-      if (file) {
-        const formData = new FormData();
-        formData.append('title', title);
-        formData.append('description', fullDescription);
-        formData.append('story_point', String(storyPoints));
-        formData.append('is_public', String(editForm.is_public));
-        if (deadline) formData.append('due_date', new Date(deadline).toISOString());
-        formData.append('assigned_to_user_id', assignedTo || 'null');
-        formData.append('attachmentFiles', file);
+      const formData = new FormData();
+      formData.append('title', title);
+      formData.append('description', fullDescription);
+      formData.append('story_point', String(storyPoints));
+      formData.append('is_public', String(editForm.is_public));
+      if (deadline) formData.append('due_date', new Date(deadline).toISOString());
+      formData.append('assigned_to_user_id', assignedTo || 'null');
 
+      const hasNewFiles = editFilesRef.current.length > 0;
+      const hasKeptUrls = keptTaskUrls.length > 0;
+
+      if (hasNewFiles || hasKeptUrls || keptTaskUrls !== null) {
+        for (const f of editFilesRef.current) {
+          formData.append('attachmentFiles', f);
+        }
+        if (hasKeptUrls) {
+          for (const url of keptTaskUrls) formData.append('attachment_urls', url);
+        } else {
+          formData.append('attachment_urls', '');
+        }
         response = await designerApi.updateDesignerTask(editingTaskId, formData);
       } else {
-        const payload: Record<string, unknown> = {
-          title,
-          description: fullDescription,
-          story_point: storyPoints,
-          is_public: editForm.is_public,
-        };
-        if (deadline) payload.due_date = new Date(deadline).toISOString();
-        payload.assigned_to_user_id = assignedTo || null;
-
-        response = await designerApi.updateDesignerTask(editingTaskId, payload);
+        response = await designerApi.updateDesignerTask(editingTaskId, formData);
       }
 
       if (response.success) {
@@ -731,19 +731,17 @@ export function DesignerApplications() {
   };
 
   const handleNewTaskImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (newTaskImagePreview) URL.revokeObjectURL(newTaskImagePreview);
-    newTaskImageFileRef.current = file;
-    const objectUrl = URL.createObjectURL(file);
-    setNewTaskImagePreview(objectUrl);
-    setNewTask((prev) => ({ ...prev, telegramScreenshot: '' }));
+    const newFiles = Array.from(event.target.files || []);
+    if (newFiles.length === 0) return;
+    createFilesRef.current = [...createFilesRef.current, ...newFiles];
+    setCreateFilesVersion((v) => v + 1);
   };
 
   const openCreateModal = () => {
     setNewTask(emptyNewTask);
     setNewTaskImagePreview(null);
-    newTaskImageFileRef.current = null;
+    createFilesRef.current = [];
+    setCreateFilesVersion((v) => v + 1);
     setNewTaskError('');
     setTaskSuccessMsg('');
     setFieldErrors({});
@@ -779,7 +777,6 @@ export function DesignerApplications() {
     if (Object.keys(errors).length > 0) return;
 
     const storyPoints = Number(storyPointsRaw);
-    const file = newTaskImageFileRef.current;
 
     const fullDescription = instruction
       ? `${description}\n\nInstructions:\n${instruction}`
@@ -790,36 +787,26 @@ export function DesignerApplications() {
     try {
       let response: { success: boolean; data?: DesignerTaskItem; message?: string };
 
-      if (file) {
-        const formData = new FormData();
-        formData.append('title', title);
-        formData.append('description', fullDescription);
-        formData.append('story_point', String(storyPoints));
-        formData.append('is_public', String(newTask.is_public));
-        if (deadline) formData.append('due_date', new Date(deadline).toISOString());
-        if (assignedTo) formData.append('assigned_to_user_id', assignedTo);
-        formData.append('attachmentFiles', file);
-
-        response = await designerApi.createDesignerTask(formData);
-      } else {
-        const payload: Record<string, unknown> = {
-          title,
-          description: fullDescription,
-          story_point: storyPoints,
-          is_public: newTask.is_public,
-        };
-        if (deadline) payload.due_date = new Date(deadline).toISOString();
-        if (assignedTo) payload.assigned_to_user_id = assignedTo;
-
-        response = await designerApi.createDesignerTask(payload);
+      const formData = new FormData();
+      formData.append('title', title);
+      formData.append('description', fullDescription);
+      formData.append('story_point', String(storyPoints));
+      formData.append('is_public', String(newTask.is_public));
+      if (deadline) formData.append('due_date', new Date(deadline).toISOString());
+      if (assignedTo) formData.append('assigned_to_user_id', assignedTo);
+      for (const f of createFilesRef.current) {
+        formData.append('attachmentFiles', f);
       }
+
+      response = await designerApi.createDesignerTask(formData);
 
       if (response.success) {
         setTaskSuccessMsg(response.message || 'Designer task created successfully');
         if (newTaskImagePreview) URL.revokeObjectURL(newTaskImagePreview);
         setNewTask(emptyNewTask);
         setNewTaskImagePreview(null);
-        newTaskImageFileRef.current = null;
+        createFilesRef.current = [];
+        setCreateFilesVersion((v) => v + 1);
         setFieldErrors({});
         setShowCreateTask(false);
 
@@ -1197,7 +1184,7 @@ export function DesignerApplications() {
               </div>
               <button
                 type="button"
-                onClick={() => { if (newTaskImagePreview) URL.revokeObjectURL(newTaskImagePreview); setNewTask(emptyNewTask); setNewTaskImagePreview(null); newTaskImageFileRef.current = null; setNewTaskError(''); setFieldErrors({}); setShowCreateTask(false); }}
+                onClick={() => { setNewTask(emptyNewTask); setNewTaskImagePreview(null); createFilesRef.current = []; setCreateFilesVersion((v) => v + 1); setNewTaskError(''); setFieldErrors({}); setShowCreateTask(false); }}
                 className="p-1.5 rounded-lg hover:bg-gray-100 shrink-0"
                 disabled={isCreating}
               >
@@ -1281,17 +1268,26 @@ export function DesignerApplications() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Telegram Screenshot (optional)</label>
                 <div className="flex items-center gap-2">
                   <label className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-sm text-gray-700">
-                    <Image className="w-4 h-4" />Choose Image
-                    <input type="file" accept="image/*" onChange={handleNewTaskImageUpload} className="hidden" disabled={isCreating} />
+                    <Image className="w-4 h-4" />
+                    {createFilesRef.current.length ? `${createFilesRef.current.length} file(s)` : 'Choose Files'}
+                    <input type="file" accept="image/*" multiple onChange={handleNewTaskImageUpload} className="hidden" disabled={isCreating} />
                   </label>
-                  {newTaskImagePreview && (
-                    <button type="button" onClick={() => { URL.revokeObjectURL(newTaskImagePreview); setNewTask((prev) => ({ ...prev, telegramScreenshot: '' })); setNewTaskImagePreview(null); newTaskImageFileRef.current = null; }} className="text-sm text-red-600 hover:underline" disabled={isCreating}>Remove</button>
+                  {createFilesRef.current.length > 0 && (
+                    <button type="button" onClick={() => { createFilesRef.current = []; setCreateFilesVersion((v) => v + 1); }} className="text-sm text-red-600 hover:underline" disabled={isCreating}>Remove All</button>
                   )}
                 </div>
-                {newTaskImagePreview && (
-                  <div className="mt-3">
-                    <p className="text-xs text-gray-500 mb-1">Preview:</p>
-                    <img src={newTaskImagePreview} alt="preview" className="max-w-full h-auto max-h-48 rounded-lg border object-contain" />
+                {createFilesRef.current.length > 0 && (
+                  <div className="mt-2 grid grid-cols-3 gap-2">
+                    {createFilesRef.current.map((file, idx) => (
+                      <div key={idx} className="relative group border rounded-lg overflow-hidden bg-gray-50">
+                        {file.type?.startsWith('image/') ? (
+                          <img src={URL.createObjectURL(file)} alt={`New ${idx + 1}`} className="w-full h-24 object-contain" onLoad={(e) => URL.revokeObjectURL((e.target as HTMLImageElement).src)} />
+                        ) : (
+                          <div className="w-full h-24 flex items-center justify-center text-xs text-gray-500 p-2">{file.name}</div>
+                        )}
+                        <ImageRemoveButton onRemove={() => { createFilesRef.current = createFilesRef.current.filter((_, i) => i !== idx); setCreateFilesVersion((v) => v + 1); }} />
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -1317,7 +1313,7 @@ export function DesignerApplications() {
               </div>
 
               <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => { if (newTaskImagePreview) URL.revokeObjectURL(newTaskImagePreview); setNewTask(emptyNewTask); setNewTaskImagePreview(null); newTaskImageFileRef.current = null; setNewTaskError(''); setFieldErrors({}); setShowCreateTask(false); }} className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors" disabled={isCreating}>Cancel</button>
+                <button type="button" onClick={() => { setNewTask(emptyNewTask); setNewTaskImagePreview(null); createFilesRef.current = []; setCreateFilesVersion((v) => v + 1); setNewTaskError(''); setFieldErrors({}); setShowCreateTask(false); }} className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors" disabled={isCreating}>Cancel</button>
                 <button type="submit" className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:bg-blue-300" disabled={isCreating}>
                   {isCreating ? 'Creating...' : 'Create Task'}
                 </button>
@@ -1340,7 +1336,7 @@ export function DesignerApplications() {
               </div>
               <button
                 type="button"
-                onClick={() => { if (editImagePreview) URL.revokeObjectURL(editImagePreview); setShowEditTask(false); setEditingTaskId(null); setEditFormErrors({}); setEditError(''); }}
+                onClick={() => { setShowEditTask(false); setEditingTaskId(null); setEditFormErrors({}); setEditError(''); }}
                 className="p-1.5 rounded-lg hover:bg-gray-100 shrink-0"
                 disabled={isUpdating || isLoadingEdit}
               >
@@ -1425,27 +1421,32 @@ export function DesignerApplications() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Telegram Screenshot (optional)</label>
                 <div className="flex items-center gap-2">
                   <label className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-sm text-gray-700">
-                    <Image className="w-4 h-4" />Choose Image
-                    <input
-                      type="file" accept="image/*"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (!file) return;
-                        if (editImagePreview) URL.revokeObjectURL(editImagePreview);
-                        editImageFileRef.current = file;
-                        setEditImagePreview(URL.createObjectURL(file));
-                      }}
-                      className="hidden" disabled={isUpdating || isLoadingEdit}
-                    />
+                    <Image className="w-4 h-4" />
+                    {editFilesRef.current.length ? `${editFilesRef.current.length} new file(s)` : (keptTaskUrls.length > 0 ? 'Add More Files' : 'Choose Files')}
+                    <input type="file" accept="image/*" multiple onChange={(event) => { const newFiles = Array.from(event.target.files || []); if (newFiles.length === 0) return; editFilesRef.current = [...editFilesRef.current, ...newFiles]; setEditFilesVersion((v) => v + 1); }} className="hidden" disabled={isUpdating || isLoadingEdit} />
                   </label>
-                  {editImagePreview && (
-                    <button type="button" onClick={() => { if (editImagePreview) URL.revokeObjectURL(editImagePreview); setEditImagePreview(null); editImageFileRef.current = null; }} className="text-sm text-red-600 hover:underline" disabled={isUpdating || isLoadingEdit}>Remove</button>
+                  {((editFilesRef.current.length > 0) || (keptTaskUrls.length > 0)) && (
+                    <button type="button" onClick={() => { editFilesRef.current = []; setKeptTaskUrls([]); setEditFilesVersion((v) => v + 1); }} className="text-sm text-red-600 hover:underline" disabled={isUpdating || isLoadingEdit}>Remove All</button>
                   )}
                 </div>
-                {editImagePreview && (
-                  <div className="mt-3">
-                    <p className="text-xs text-gray-500 mb-1">Preview:</p>
-                    <img src={editImagePreview} alt="preview" className="max-w-full h-auto max-h-48 rounded-lg border object-contain" />
+                {(keptTaskUrls.length > 0 || editFilesRef.current.length > 0) && (
+                  <div className="mt-2 grid grid-cols-3 gap-2">
+                    {keptTaskUrls.map((url, idx) => (
+                      <div key={`kept-${idx}`} className="relative group border rounded-lg overflow-hidden bg-gray-50">
+                        <img src={resolveAttachmentUrl(url)} alt={`Existing ${idx + 1}`} className="w-full h-24 object-contain" />
+                        <ImageRemoveButton onRemove={() => { setKeptTaskUrls((prev) => prev.filter((_, i) => i !== idx)); }} />
+                      </div>
+                    ))}
+                    {editFilesRef.current.map((file, idx) => (
+                      <div key={`new-${idx}`} className="relative group border rounded-lg overflow-hidden bg-gray-50">
+                        {file.type?.startsWith('image/') ? (
+                          <img src={URL.createObjectURL(file)} alt={`New ${idx + 1}`} className="w-full h-24 object-contain" onLoad={(e) => URL.revokeObjectURL((e.target as HTMLImageElement).src)} />
+                        ) : (
+                          <div className="w-full h-24 flex items-center justify-center text-xs text-gray-500 p-2">{file.name}</div>
+                        )}
+                        <ImageRemoveButton onRemove={() => { editFilesRef.current = editFilesRef.current.filter((_, i) => i !== idx); setEditFilesVersion((v) => v + 1); }} />
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -1471,7 +1472,7 @@ export function DesignerApplications() {
               </div>
 
               <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => { if (editImagePreview) URL.revokeObjectURL(editImagePreview); setShowEditTask(false); setEditingTaskId(null); setEditFormErrors({}); setEditError(''); }} className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors" disabled={isUpdating || isLoadingEdit}>Cancel</button>
+                <button type="button" onClick={() => { setShowEditTask(false); setEditingTaskId(null); setEditFormErrors({}); setEditError(''); }} className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors" disabled={isUpdating || isLoadingEdit}>Cancel</button>
                 <button type="submit" className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:bg-indigo-300" disabled={isUpdating || isLoadingEdit}>
                   {isUpdating ? 'Updating...' : 'Update Task'}
                 </button>
