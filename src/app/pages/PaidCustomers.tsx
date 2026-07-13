@@ -512,16 +512,14 @@ export function PaidCustomers() {
   };
 
   const handleFilesChange = (taskId: string, fileList: FileList | null) => {
-    const oldUrl = draftScreenshots[taskId] ?? null;
-    if (oldUrl) URL.revokeObjectURL(oldUrl);
     if (!fileList || fileList.length === 0) {
-      setDraftScreenshots((prev) => ({ ...prev, [taskId]: null }));
       draftFilesRef.current = { ...draftFilesRef.current, [taskId]: [] };
+      setDraftFilesVersion((v) => v + 1);
       return;
     }
-    const files = Array.from(fileList);
+    const files = [...(draftFilesRef.current[taskId] || []), ...Array.from(fileList)];
     draftFilesRef.current = { ...draftFilesRef.current, [taskId]: files };
-    setDraftScreenshots((prev) => ({ ...prev, [taskId]: URL.createObjectURL(files[0]) }));
+    setDraftFilesVersion((v) => v + 1);
   };
 
   const handleSubmitSubmission = async (taskId: string) => {
@@ -1250,17 +1248,15 @@ export function PaidCustomers() {
                             <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip,.rar"
                               onChange={(e) => handleFilesChange(selectedTask.id, e.target.files)} className="hidden" disabled={submissionDraftLoading[selectedTask.id]} />
                           </label>
-                          {(draftScreenshots[selectedTask.id] || (draftFilesRef.current[selectedTask.id]?.length ?? 0) > 0 || (keptAttachmentUrls[selectedTask.id]?.length ?? 0) > 0) && (
+                          {((draftFilesRef.current[selectedTask.id]?.length ?? 0) > 0 || (keptAttachmentUrls[selectedTask.id]?.length ?? 0) > 0) && (
                             <button type="button" onClick={() => {
-                              const oldUrl = draftScreenshots[selectedTask.id] ?? null;
-                              if (oldUrl) URL.revokeObjectURL(oldUrl);
-                              setDraftScreenshots((prev) => ({ ...prev, [selectedTask.id]: null }));
                               setKeptAttachmentUrls((prev) => ({ ...prev, [selectedTask.id]: [] }));
                               draftFilesRef.current = { ...draftFilesRef.current, [selectedTask.id]: [] };
+                              setDraftFilesVersion((v) => v + 1);
                             }} className="text-sm text-red-600 hover:underline" disabled={submissionDraftLoading[selectedTask.id]}>Remove All</button>
                           )}
                         </div>
-                        {(keptAttachmentUrls[selectedTask.id]?.length > 0 || draftScreenshots[selectedTask.id] || (draftFilesRef.current[selectedTask.id]?.length ?? 0) > 0) && (
+                        {(keptAttachmentUrls[selectedTask.id]?.length > 0 || (draftFilesRef.current[selectedTask.id]?.length ?? 0) > 0) && (
                           <div className="mt-2 grid grid-cols-3 gap-2">
                             {keptAttachmentUrls[selectedTask.id]?.map((url, idx) => (
                               <div key={`kept-${idx}`} className="relative group border rounded-lg overflow-hidden bg-gray-50">

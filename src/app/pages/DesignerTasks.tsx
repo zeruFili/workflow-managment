@@ -1114,37 +1114,26 @@ export function DesignerTasks() {
 
   const handleFilesChange = (taskId: string, phase: PhaseKey, fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) {
-      // User clicked "Remove all" - clear files
-      const oldUrl = draftScreenshots[taskId]?.[phase] ?? null;
-      if (oldUrl) URL.revokeObjectURL(oldUrl);
-      setDraftScreenshots((prev) => ({ ...prev, [taskId]: { ...prev[taskId], [phase]: null } }));
       draftFilesRef.current = {
         ...draftFilesRef.current,
         [taskId]: { ...draftFilesRef.current[taskId], [phase]: [] },
       };
+      setDraftFilesVersion((v) => v + 1);
       return;
     }
 
-    // Revoke old preview URLs
-    const oldUrl = draftScreenshots[taskId]?.[phase] ?? null;
-    if (oldUrl) URL.revokeObjectURL(oldUrl);
-
-    const files = Array.from(fileList);
+    const existing = draftFilesRef.current[taskId]?.[phase] || [];
+    const files = [...existing, ...Array.from(fileList)];
     draftFilesRef.current = {
       ...draftFilesRef.current,
       [taskId]: { ...draftFilesRef.current[taskId], [phase]: files },
     };
 
-    // Show preview of first file
-    const objectUrl = URL.createObjectURL(files[0]);
-    setDraftScreenshots((prev) => ({
-      ...prev,
-      [taskId]: { ...prev[taskId], [phase]: objectUrl },
-    }));
     setPhaseErrors((prev) => ({
       ...prev,
       [taskId]: { ...prev[taskId], [phase]: '' },
     }));
+    setDraftFilesVersion((v) => v + 1);
   };
 
   const toggleHistoryEntry = (taskId: string, phase: PhaseKey, idx: number) => {
