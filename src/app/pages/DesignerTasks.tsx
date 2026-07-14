@@ -1276,31 +1276,7 @@ export function DesignerTasks() {
     ? assignedTasks.filter((task) => task.assigned_to_user_id === user.id)
     : assignedTasks;
 
-  // Sort by latest activity (task, submission, or review timestamps) descending
-  const sortedTasks = [...visibleTasks].sort((a, b) => {
-    const getLatestTs = (t: DesignerTaskItem): number => {
-      let max = Math.max(
-        new Date(t.created_at).getTime(),
-        t.updated_at ? new Date(t.updated_at).getTime() : 0
-      );
-      const swr = t.submissionsWithReviews;
-      if (swr) {
-        const stages = [swr.caseStudy || [], swr.designing || [], swr.rendering || [], swr.finalStage || []];
-        for (const submissions of stages) {
-          for (const s of submissions) {
-            if (s.created_at) max = Math.max(max, new Date(s.created_at).getTime());
-            if (s.updated_at) max = Math.max(max, new Date(s.updated_at).getTime());
-            for (const r of (s.reviews || [])) {
-              if (r.created_at) max = Math.max(max, new Date(r.created_at).getTime());
-              if (r.updated_at) max = Math.max(max, new Date(r.updated_at).getTime());
-            }
-          }
-        }
-      }
-      return max;
-    };
-    return getLatestTs(b) - getLatestTs(a);
-  });
+  const sortedTasks = visibleTasks;
 
   const statusDisplay = (status: string | null): string => {
     if (!status) return 'pending';

@@ -643,25 +643,7 @@ export function QuantitySurveyorTasks() {
 
   if (!user) return null;
 
-  const sortedTasks = [...tasks].sort((a, b) => {
-    const getLatestTs = (t: QuantitySurveyorTaskItem): number => {
-      let max = Math.max(
-        new Date(t.created_at).getTime(),
-        t.updated_at ? new Date(t.updated_at).getTime() : 0
-      );
-      for (const w of getSubmissionWrappers(t)) {
-        const s = w.submission;
-        if (s.created_at) max = Math.max(max, new Date(s.created_at).getTime());
-        if (s.updated_at) max = Math.max(max, new Date(s.updated_at).getTime());
-        for (const r of (s.reviews || [])) {
-          if (r.created_at) max = Math.max(max, new Date(r.created_at).getTime());
-          if (r.updated_at) max = Math.max(max, new Date(r.updated_at).getTime());
-        }
-      }
-      return max;
-    };
-    return getLatestTs(b) - getLatestTs(a);
-  });
+  const sortedTasks = tasks;
 
   const totalDisplayPages = meta ? Math.ceil(meta.total / PAGE_SIZE) : 1;
   const handlePageChange = (page: number) => {

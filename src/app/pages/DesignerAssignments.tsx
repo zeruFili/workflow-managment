@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotificationCounts } from '../contexts/NotificationCountsContext';
@@ -660,30 +660,7 @@ export function DesignerAssignments() {
 
   // ── Compute displayable tasks (only assigned) ──
   const assignedTasks = tasks.filter((task) => !!task.assigned_to_user_id);
-  const sortedTasks = useMemo(() => [...assignedTasks].sort((a, b) => {
-    const getLatestTs = (t: DesignerTaskItem): number => {
-      let max = Math.max(
-        new Date(t.created_at).getTime(),
-        t.updated_at ? new Date(t.updated_at).getTime() : 0
-      );
-      const swr = t.submissionsWithReviews;
-      if (swr) {
-        const stages = [swr.caseStudy || [], swr.designing || [], swr.rendering || [], swr.finalStage || []];
-        for (const submissions of stages) {
-          for (const s of submissions) {
-            if (s.created_at) max = Math.max(max, new Date(s.created_at).getTime());
-            if (s.updated_at) max = Math.max(max, new Date(s.updated_at).getTime());
-            for (const r of (s.reviews || [])) {
-              if (r.created_at) max = Math.max(max, new Date(r.created_at).getTime());
-              if (r.updated_at) max = Math.max(max, new Date(r.updated_at).getTime());
-            }
-          }
-        }
-      }
-      return max;
-    };
-    return getLatestTs(b) - getLatestTs(a);
-  }), [tasks]);
+  const sortedTasks = assignedTasks;
 
   // ── Pagination logic ──
   const totalDisplayPages = meta ? Math.ceil(meta.total / PAGE_SIZE) : 1;
@@ -1140,8 +1117,7 @@ export function DesignerAssignments() {
     });
   })();
 
-  console.log('[PAGINATION] RENDER — tasks.length:', tasks.length, 'sortedTasks.length:', sortedTasks.length, 'apiPage:', apiPage, 'meta:', meta);
-  // sortedTasks come from API — backend already paginates at PAGE_SIZE, so all items in sortedTasks belong on this page
+  // sortedTasks come from API — backend already sorted and paginated
 
   // ── Rating helpers ──
   const initializeRatingsForTask = (taskId: string) => {

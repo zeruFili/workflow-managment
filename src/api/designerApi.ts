@@ -165,6 +165,87 @@ export interface TaskListParams {
 
 // ── API functions ──
 
+// ── Designer Performance ──
+
+export interface DesignerPerformanceDesigner {
+  id: string;
+  full_name: string;
+  email: string;
+  initials: string;
+}
+
+export interface DesignerPerformanceKPIs {
+  totalTasks: number;
+  completed: number;
+  rejected: number;
+  inReview: number;
+  paused: number;
+  totalSp: number;
+  completedSp: number;
+  rejectedSp: number;
+  pendingSp: number;
+  avgCreativity: number | null;
+  avgTimeliness: number | null;
+  avgClientUnderstanding: number | null;
+  avgRenderingQuality: number | null;
+  deadlinePercent: number;
+  ratingAvg: number | null;
+}
+
+export interface DesignerPerformanceTrend {
+  label: string;
+  rating: number | null;
+  storyPoints: number;
+  compliancePercent: number | null;
+}
+
+export interface DesignerPerformanceData {
+  designers: DesignerPerformanceDesigner[];
+  selected: DesignerPerformanceDesigner | null;
+  periodLabel: string;
+  periodRange: { start: string; end: string } | null;
+  kpis: DesignerPerformanceKPIs | null;
+  ratingBreakdown: {
+    creativity: number | null;
+    timeliness: number | null;
+    clientUnderstanding: number | null;
+    renderingQuality: number | null;
+  } | null;
+  storyPointBreakdown: {
+    completed: number;
+    pending: number;
+    rejected: number;
+    total: number;
+  } | null;
+  previousPeriodLabel: string;
+  previousKpis: DesignerPerformanceKPIs | null;
+  previousRatingBreakdown: {
+    creativity: number | null;
+    timeliness: number | null;
+    clientUnderstanding: number | null;
+    renderingQuality: number | null;
+  } | null;
+  previousStoryPointBreakdown: {
+    completed: number;
+    pending: number;
+    rejected: number;
+    total: number;
+  } | null;
+  trend: DesignerPerformanceTrend[];
+}
+
+export interface DesignerPerformanceResponse {
+  success: boolean;
+  data: DesignerPerformanceData;
+}
+
+export interface DesignerPerformanceParams {
+  userId?: string;
+  mode: 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+  year: number;
+  periodValue: number;
+}
+
 const designerApi = {
   getDesignerTasks: async (
     params: TaskListParams = {}
@@ -359,6 +440,16 @@ const designerApi = {
   ): Promise<{ success: boolean; data?: DesignerTaskItem; message?: string }> => {
     const response = await api.post<{ success: boolean; data?: DesignerTaskItem; message?: string }>(
       `/designer-tasks/${taskId}/reactivate`
+    );
+    return response.data;
+  },
+
+  getDesignerPerformance: async (
+    params: DesignerPerformanceParams
+  ): Promise<DesignerPerformanceResponse> => {
+    const response = await api.get<DesignerPerformanceResponse>(
+      '/designer-performance',
+      { params }
     );
     return response.data;
   },
