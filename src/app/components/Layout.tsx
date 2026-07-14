@@ -73,11 +73,12 @@ export function Layout({ children }: LayoutProps) {
   // ════ Side‑less role only ════
   const isSidebarlessRole =
     user.role === 'finance_officer' ||
-    user.role === 'site_engineer';
+    user.role === 'site_engineer' ||
+    user.role === 'data_collector';
 
   const navigationItems: NavigationItem[] = [];
 
-  if (!isSidebarlessRole) {
+  if (!isSidebarlessRole && user.role !== 'data_collector') {
     navigationItems.push({ path: '/dashboard', label: 'Dashboard', icon: Home });
 
     // ── Tasks nav item: hidden for CEO, GM, Designer, and Marketing Lead ──

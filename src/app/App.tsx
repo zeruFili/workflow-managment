@@ -48,6 +48,8 @@ function DashboardRouter() {
       return <SiteEngineerTasks />;
     case 'marketing_lead':
       return <MarketingDashboard />;
+    case 'data_collector':
+      return <Navigate to="/data-collector-tasks" replace />;
     default:
       return <Dashboard />;
   }
@@ -57,7 +59,8 @@ function LoginOrRedirect() {
   const { user } = useAuth();
 
   if (user) {
-    return <Navigate to="/dashboard" replace />;
+    const target = user.role === 'data_collector' ? '/data-collector-tasks' : '/dashboard';
+    return <Navigate to={target} replace />;
   }
 
   return <Login />;

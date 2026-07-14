@@ -404,7 +404,7 @@ function initLocalWithSeed(): DataCollectorTaskItem[] {
 
 export function DataCollectorTasks() {
   const { user } = useAuth();
-  const { decrement } = useNotificationCounts();
+  const { decrement, counts } = useNotificationCounts();
   const [tasks, setTasks] = useState<DataCollectorTaskItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1290,6 +1290,16 @@ export function DataCollectorTasks() {
           <p className="mt-1 text-sm text-slate-600">
             Create and manage field data collection tasks with screenshot evidence and review submissions.
           </p>
+          {canSubmit && counts.dataCollectorTasks > 0 && (
+            <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center gap-3">
+              <span className="inline-flex items-center justify-center min-w-[24px] h-6 rounded-full bg-blue-600 text-white text-xs font-semibold px-1.5">
+                {counts.dataCollectorTasks}
+              </span>
+              <p className="text-sm text-blue-700 font-medium">
+                {counts.dataCollectorTasks} unseen {counts.dataCollectorTasks === 1 ? 'notification' : 'notifications'} awaiting your attention
+              </p>
+            </div>
+          )}
           {highlightedIds.size > 0 && (
             <p className="mt-2 text-sm text-blue-600 flex items-center gap-2">
               <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-semibold">
