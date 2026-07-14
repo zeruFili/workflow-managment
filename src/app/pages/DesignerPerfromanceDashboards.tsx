@@ -145,9 +145,8 @@ function computeKPIs(ratings) {
   const completedSP = ratings.filter(r=>r.status==='approved').reduce((s,r)=>s+r.storyPoints,0);
   const ratedRatings = ratings.filter(r => r.overallRating > 0);
   const overallRating = round1(avg(ratedRatings.map(r => r.overallRating)));
-  const revCount = round1(avg(ratings.map(r => r.revisionCount)));
   const onTime = total > 0 ? Math.round((completed / total) * 100) : 0;
-  return { total, completed, rejected, inReview, paused, sp, completedSP, overallRating, revCount, onTime };
+  return { total, completed, rejected, inReview, paused, sp, completedSP, overallRating, onTime };
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -176,10 +175,6 @@ export function DesignerPerformanceDashboard() {
   const [offset, setOffset] = useState(0);
   const [editingName, setEditingName] = useState(false);
   const [tempName, setTempName] = useState('');
-  const [taskSearch, setTaskSearch] = useState('');
-  const [taskSort, setTaskSort] = useState({ key: 'completedAt', dir: 'desc' });
-  const [taskPage, setTaskPage] = useState(0);
-  const TASK_PER_PAGE = 5;
 
   useEffect(() => {
     if (!availableDesigners.some(d => d.designerId === selectedDesignerId)) {
@@ -251,28 +246,7 @@ export function DesignerPerformanceDashboard() {
     { label: 'Creativity',     curr: round1(avg(currentRatings.map(r=>r.creativity))),    prev: round1(avg(prevRatings.map(r=>r.creativity))) },
     { label: 'Timeliness',     curr: round1(avg(currentRatings.map(r=>r.timeliness))),    prev: round1(avg(prevRatings.map(r=>r.timeliness))) },
     { label: 'Client Understanding', curr: round1(avg(currentRatings.map(r=>r.clientUnderstanding))), prev: round1(avg(prevRatings.map(r=>r.clientUnderstanding))) },
-    { label: 'Rendering Quality',  curr: round1(avg(currentRatings.map(r=>r.revisionEfficiency))),  prev: round1(avg(prevRatings.map(r=>r.revisionEfficiency))) },
   ], [currentRatings, prevRatings]);
-
-  // Task history table
-  const filteredTasks = useMemo(() => {
-    let t = currentRatings;
-    if (taskSearch) t = t.filter(r => r.taskTitle.toLowerCase().includes(taskSearch.toLowerCase()) || r.projectName.toLowerCase().includes(taskSearch.toLowerCase()));
-    t = [...t].sort((a, b) => {
-      const aVal = a[taskSort.key]; const bVal = b[taskSort.key];
-      if (typeof aVal === 'number') return taskSort.dir === 'asc' ? aVal - bVal : bVal - aVal;
-      return taskSort.dir === 'asc' ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
-    });
-    return t;
-  }, [currentRatings, taskSearch, taskSort]);
-
-  const taskPages = Math.ceil(filteredTasks.length / TASK_PER_PAGE);
-  const pagedTasks = filteredTasks.slice(taskPage * TASK_PER_PAGE, (taskPage + 1) * TASK_PER_PAGE);
-
-  const handleSort = (key) => {
-    setTaskSort(prev => ({ key, dir: prev.key === key && prev.dir === 'asc' ? 'desc' : 'asc' }));
-    setTaskPage(0);
-  };
 
   const saveName = () => {
     setProfiles(prev => prev.map(p => p.designerId === selectedDesignerId ? { ...p, displayName: tempName } : p));
@@ -526,79 +500,6 @@ export function DesignerPerformanceDashboard() {
           </div>
         </div>
       </div>
-
-      {/* ── Task History Table ── */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-        <p className="text-sm font-semibold text-gray-700 mb-3">Task History</p>
-        <div className="flex flex-col sm:flex-row gap-2 mb-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              value={taskSearch}
-              onChange={e => { setTaskSearch(e.target.value); setTaskPage(0); }}
-              placeholder="Search tasks or projects…"
-              className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            />
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100">
-                {[
-                  { key: 'taskTitle', label: 'Task' },
-                  { key: 'storyPoints', label: 'SP' },
-                  { key: 'overallRating', label: 'Rating' },
-                  { key: 'completedAt', label: 'Date' },
-                ].map(col => (
-                  <th key={col.key} className="pb-2 text-left text-xs text-gray-400 font-medium pr-3 whitespace-nowrap">
-                    <button onClick={() => handleSort(col.key)} className="flex items-center gap-1 hover:text-gray-600">
-                      {col.label}
-                      <ArrowUpDown className="w-3 h-3" />
-                    </button>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {pagedTasks.length === 0 ? (
-                <tr><td colSpan={4} className="py-8 text-center text-gray-400 text-sm">No tasks for this period</td></tr>
-              ) : pagedTasks.map(r => (
-                  <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                    <td className="py-2.5 pr-3">
-                      <p className="font-medium text-gray-800 truncate max-w-[150px]">{r.taskTitle}</p>
-                      <p className="text-xs text-gray-400 truncate max-w-[150px]">{r.projectName}</p>
-                    </td>
-                    <td className="py-2.5 pr-3">
-                      <span className="inline-flex items-center justify-center w-7 h-7 bg-indigo-50 text-indigo-700 rounded-full text-xs font-bold">{r.storyPoints}</span>
-                    </td>
-                    <td className="py-2.5 pr-3">
-                      <div className="flex items-center gap-1">
-                        <StarRating value={r.overallRating} size="sm" />
-                        <span className="text-xs font-semibold text-gray-700">{r.overallRating.toFixed(1)}</span>
-                      </div>
-                    </td>
-                    <td className="py-2.5 text-xs text-gray-500 whitespace-nowrap">
-                      {new Date(r.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-
-        <PaginationWithNumbers
-          currentPage={taskPage + 1}
-          totalPages={taskPages}
-          totalItems={filteredTasks.length}
-          onPageChange={(p) => setTaskPage(p - 1)}
-          className="mt-3 pt-3 border-t border-gray-100"
-        />
-      </div>
-
-
-
     </div>
   );
 }
