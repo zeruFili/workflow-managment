@@ -303,6 +303,10 @@ function isFinalStageApprovedFromProgress(progress: Record<PhaseKey, PhaseData> 
   return getCurrentStatus(finalData) === 'approved';
 }
 
+function normalizeReviewRating(value: number): number {
+  return Math.min(5, Math.max(1, value));
+}
+
 // ── Map API submissions-with-reviews → SubmissionProgress ──
 function apiSubmissionsToProgress(data: SubmissionsWithReviewsData): Record<PhaseKey, PhaseData> {
   const result: Record<string, PhaseData> = {
@@ -1128,7 +1132,7 @@ export function DesignerAssignments() {
   };
 
   const updateRating = (taskId: string, criterion: keyof typeof reviewRatings[string], value: number) => {
-    const clamped = Math.min(5, Math.max(0, value));
+    const clamped = normalizeReviewRating(value);
     setReviewRatings((prev) => ({
       ...prev,
       [taskId]: { ...prev[taskId], [criterion]: clamped },
@@ -1249,7 +1253,12 @@ export function DesignerAssignments() {
     if (existingReview) {
       setReviewRatings((prev) => ({
         ...prev,
-        [taskId]: { ...existingReview.ratings },
+        [taskId]: {
+          creativity: normalizeReviewRating(existingReview.ratings.creativity),
+          timeliness: normalizeReviewRating(existingReview.ratings.timeliness),
+          clientUnderstanding: normalizeReviewRating(existingReview.ratings.clientUnderstanding),
+          rendering: normalizeReviewRating(existingReview.ratings.rendering),
+        },
       }));
       setReviewComments((prev) => ({ ...prev, [taskId]: existingReview.reviewText }));
       if (apiReview?.id) {
@@ -1557,18 +1566,18 @@ export function DesignerAssignments() {
                                 { key: 'rendering', label: 'Rendering' },
                               ] as const
                             ).map(({ key, label }) => {
-                              const rating = reviewRatings[task.id]?.[key] ?? 0;
-                              const fillPercent = (rating / 5) * 100;
+                              const rating = normalizeReviewRating(reviewRatings[task.id]?.[key] ?? 1);
+                              const fillPercent = ((rating - 1) / 4) * 100;
                               return (
                                 <div key={key} className="flex items-center gap-3">
                                   <label className="text-sm text-gray-600 w-28 flex-shrink-0">{label}</label>
                                   <input
                                     type="range"
                                     min="1" max="5" step="1"
-                                    value={rating || 1}
+                                    value={rating}
                                     onChange={(e) => updateRating(task.id, key, parseInt(e.target.value, 10))}
                                     style={{ background: `linear-gradient(to right, #1d4ed8 ${fillPercent}%, #e5e7eb ${fillPercent}%)` }}
-                                    className="flex-1 h-2 rounded-lg appearance-none cursor-pointer"
+                                    className="relative z-10 flex-1 h-2 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:relative [&::-webkit-slider-thumb]:z-20 [&::-moz-range-thumb]:relative [&::-moz-range-thumb]:z-20"
                                   />
                                   <input
                                     type="number" min="1" max="5" step="1"
