@@ -16,7 +16,6 @@ import { DesignerAssignments } from './pages/DesignerAssignments';
 import { DesignerPerformanceDashboard } from './pages/DesignerPerfromanceDashboards';
 import { FinanceVerifications } from './pages/FinanceVerifications';
 import { DataCollectorTasks } from './pages/DataCollectorTasks';
-import { JobPostings } from './pages/JobPostings';
 import { QuantitySurveyorTasks } from './pages/QuantitySurveyorTasks';
 import { QuantitySurveyorDashboard } from './pages/QuantitySurveyorDashboard';
 import { SiteEngineerTasks } from './pages/SiteEngineerTasks';
@@ -178,12 +177,6 @@ const router = createHashRouter([
           { path: 'data-collector-tasks', element: (
             <RoleGuard roles={['ceo', 'general_manager', 'data_collector']}>
               <DataCollectorTasks />
-            </RoleGuard>
-          )},
-
-          { path: 'job-postings', element: (
-            <RoleGuard roles={['ceo', 'general_manager']}>
-              <JobPostings />
             </RoleGuard>
           )},
 
