@@ -449,7 +449,7 @@ const designerApi = {
   ): Promise<DesignerPerformanceResponse> => {
     const response = await api.get<DesignerPerformanceResponse>(
       '/designer-performance',
-      { params }
+      { params: { ...params, _t: Date.now() } }
     );
     return response.data;
   },

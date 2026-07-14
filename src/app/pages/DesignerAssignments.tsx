@@ -1123,7 +1123,7 @@ export function DesignerAssignments() {
   const initializeRatingsForTask = (taskId: string) => {
     setReviewRatings((prev) => {
       if (prev[taskId]) return prev;
-      return { ...prev, [taskId]: { creativity: 0, timeliness: 0, clientUnderstanding: 0, rendering: 0 } };
+      return { ...prev, [taskId]: { creativity: 1, timeliness: 1, clientUnderstanding: 1, rendering: 1 } };
     });
   };
 
@@ -1163,6 +1163,15 @@ export function DesignerAssignments() {
           };
           setReviews((prev) => ({ ...prev, [taskId]: newReview }));
           setRatingSubmitted((prev) => ({ ...prev, [taskId]: true }));
+          designerTaskCache.invalidate();
+          // Update the task's taskReview in the tasks array so card display refreshes
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === taskId
+                ? { ...t, taskReview: response.data! }
+                : t
+            )
+          );
         }
       } else {
         // Create new review via API
@@ -1184,10 +1193,19 @@ export function DesignerAssignments() {
           setReviews((prev) => ({ ...prev, [taskId]: newReview }));
           setTaskReviewIds((prev) => ({ ...prev, [taskId]: response.data!.id }));
           setRatingSubmitted((prev) => ({ ...prev, [taskId]: true }));
+          designerTaskCache.invalidate();
+          // Update the task's taskReview in the tasks array so card display refreshes
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === taskId
+                ? { ...t, taskReview: response.data! }
+                : t
+            )
+          );
         }
       }
     } catch {
-      // Fallback to localStorage only
+      // Fallback to localStorage and tasks array
       const reviewerName = user?.full_name || 'CEO';
       const newReview: ReviewData = {
         reviewerName,
@@ -1196,6 +1214,13 @@ export function DesignerAssignments() {
         submittedAt: new Date().toISOString(),
       };
       setReviews((prev) => ({ ...prev, [taskId]: newReview }));
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === taskId
+            ? { ...t, taskReview: { id: 'local', reviewerName, reviewText: comment, ratings: { ...ratings }, reviewer_user: { id: '', full_name: reviewerName, role: '' }, submittedAt: new Date().toISOString(), updatedAt: null } }
+            : t
+        )
+      );
     } finally {
       setReviewSubmitting((prev) => ({ ...prev, [taskId]: false }));
       setReviewTaskId(null);
@@ -1289,7 +1314,7 @@ export function DesignerAssignments() {
               const finalStageApproved = isFinalStageApproved(task.id);
               const showReview = finalStageApproved;
               const apiReview = task.taskReview;
-              const existingReview: ReviewData | null = apiReview
+              const existingReview: ReviewData | null = apiReview?.ratings
                 ? {
                     reviewerName: apiReview.reviewerName,
                     reviewText: apiReview.reviewText,
@@ -1539,23 +1564,19 @@ export function DesignerAssignments() {
                                   <label className="text-sm text-gray-600 w-28 flex-shrink-0">{label}</label>
                                   <input
                                     type="range"
-                                    min="0" max="5" step="0.1"
-                                    value={rating}
-                                    onChange={(e) => updateRating(task.id, key, parseFloat(e.target.value))}
+                                    min="1" max="5" step="1"
+                                    value={rating || 1}
+                                    onChange={(e) => updateRating(task.id, key, parseInt(e.target.value, 10))}
                                     style={{ background: `linear-gradient(to right, #1d4ed8 ${fillPercent}%, #e5e7eb ${fillPercent}%)` }}
                                     className="flex-1 h-2 rounded-lg appearance-none cursor-pointer"
                                   />
                                   <input
-                                    type="number" min="0" max="5" step="0.1"
-                                    value={rating}
+                                    type="number" min="1" max="5" step="1"
+                                    value={rating || 1}
                                     onChange={(e) => {
-                                      const raw = e.target.value;
-                                      if (raw === '' || raw === '0') { updateRating(task.id, key, 0); return; }
-                                      const val = parseFloat(raw);
-                                      if (!isNaN(val)) updateRating(task.id, key, Math.min(val, 5));
+                                      const raw = parseInt(e.target.value, 10);
+                                      if (!isNaN(raw)) updateRating(task.id, key, Math.min(Math.max(raw, 1), 5));
                                     }}
-                                    onFocus={(e) => { if (rating === 0) e.target.value = ''; }}
-                                    onBlur={(e) => { if (e.target.value === '') updateRating(task.id, key, 0); }}
                                     className="w-16 px-2 py-1 border border-gray-300 rounded text-sm text-center"
                                   />
                                 </div>
