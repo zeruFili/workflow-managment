@@ -1247,7 +1247,7 @@ export function DesignerApplications() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                   disabled={isCreating}
                 >
-                  <option value="">Open for application (unassigned)</option>
+                  <option value="">Unassigned</option>
                   {designers.map((d) => (
                     <option key={d.id} value={d.id}>{d.full_name}</option>
                   ))}
@@ -1400,7 +1400,7 @@ export function DesignerApplications() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                   disabled={isUpdating || isLoadingEdit}
                 >
-                  <option value="">Open for application (unassigned)</option>
+                  <option value="">Unassigned</option>
                   {designers.map((d) => (
                     <option key={d.id} value={d.id}>{d.full_name}</option>
                   ))}
