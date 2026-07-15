@@ -12,7 +12,7 @@ export const ROLE_RESOURCE_FILTERS: Record<string, Record<string, string[]>> = {
     ceo: ["submission", "review"],
   },
   quantity_surveyor_task: {
-    quantity_surveyor: ["review"],
+    quantity_surveyor: ["task_assigned", "review"],
     general_manager: ["submission", "review"],
     ceo: ["submission", "review"],
   },
