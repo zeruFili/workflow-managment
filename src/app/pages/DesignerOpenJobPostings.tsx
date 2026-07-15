@@ -4,10 +4,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNotificationCounts } from '../contexts/NotificationCountsContext';
 import designerApi, { DesignerTaskItem } from '../../api/designerApi';
 import { designerTaskCache } from '../data/designerTaskCache';
+import { PaginationWithNumbers } from '../components/ui/PaginationWithNumbers';
 import notificationApi from '../../api/notificationApi';
 
 const API_POSTINGS_CACHE_KEY = 'designer-open-job-postings-api';
 const VIEWED_CARDS_STORAGE_KEY = 'designer-open-job-postings-viewed-cards';
+const PAGE_SIZE = 10;
 
 function loadViewedCards(): Set<string> {
   try {
@@ -85,6 +87,8 @@ export function DesignerOpenJobPostings() {
   const [postings, setPostings] = useState<DesignerTaskItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [apiPage, setApiPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
   const [applyingForTaskId, setApplyingForTaskId] = useState<string | null>(null);
   const [applyMessage, setApplyMessage] = useState('');
   const appliedTaskIds = useRef<Set<string>>(new Set());
@@ -122,12 +126,13 @@ export function DesignerOpenJobPostings() {
     }
   }, [user]);
 
-  const fetchPostings = useCallback(async () => {
+  const fetchPostings = useCallback(async (page: number) => {
     try {
       setLoading(true);
       setError(null);
-      const result = await designerTaskCache.fetch({ isPublic: true, assignedTo: '__unassigned__', limit: 100 });
+      const result = await designerTaskCache.fetch({ isPublic: true, assignedTo: '__unassigned__', page, limit: PAGE_SIZE });
       const tasks = result.data;
+      setTotalItems(result.total);
       const processedTasks = tasks.map((t) =>
         viewedOpenJobPostingCards.has(t.id) && (t.taskNotification?.hasNotification || t.hasNestedNotification)
           ? { ...t, taskNotification: null, hasNestedNotification: false }
@@ -143,8 +148,8 @@ export function DesignerOpenJobPostings() {
   }, []);
 
   useEffect(() => {
-    fetchPostings();
-  }, [fetchPostings]);
+    fetchPostings(apiPage);
+  }, [fetchPostings, apiPage]);
 
   useEffect(() => {
     if (observerRef.current) {
@@ -246,12 +251,12 @@ export function DesignerOpenJobPostings() {
 
   const summary = useMemo(
     () => ({
-      total: postings.length,
+      total: totalItems,
       pending: postings.filter((p) => p.status === 'pending' || !p.status).length,
       inProgress: postings.filter((p) => p.status === 'pending').length,
       completed: postings.filter((p) => p.status === 'approved').length,
     }),
-    [postings]
+    [postings, totalItems]
   );
 
   const startApply = (taskId: string) => {
@@ -336,6 +341,12 @@ export function DesignerOpenJobPostings() {
   };
 
   const displayPostings = postings;
+
+  const totalDisplayPages = Math.ceil(totalItems / PAGE_SIZE);
+  const handlePageChange = (page: number) => {
+    designerTaskCache.invalidate({ isPublic: true, assignedTo: '__unassigned__', page: apiPage, limit: PAGE_SIZE });
+    setApiPage(page);
+  };
 
   if (loading) {
     return (
@@ -538,6 +549,12 @@ export function DesignerOpenJobPostings() {
           })}
         </div>
       )}
+      <PaginationWithNumbers
+        currentPage={apiPage}
+        totalPages={totalDisplayPages}
+        totalItems={totalItems}
+        onPageChange={handlePageChange}
+      />
     </div>
   );
 }
