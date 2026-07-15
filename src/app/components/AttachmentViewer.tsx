@@ -181,14 +181,14 @@ function ImageThumbnail({
     return <FileCard item={item} />;
   }
 
-  const thumbnailHeight = compact ? 'h-20' : 'h-24';
+  const thumbnailHeight = compact ? 'h-20' : 'w-full';
 
   return (
-    <div className="inline-block mr-2 mb-2">
+    <div className="mb-3 flex justify-center">
       <img
         src={item.url}
         alt={item.name || 'attachment'}
-        className={`${thumbnailHeight} w-auto rounded-lg border object-cover cursor-pointer hover:ring-2 hover:ring-blue-400 transition-shadow`}
+        className="max-w-full max-h-80 rounded-lg border object-contain cursor-pointer hover:ring-2 hover:ring-blue-400 transition-shadow"
         onClick={() => onExpand(item.url)}
         onError={handleError}
       />
