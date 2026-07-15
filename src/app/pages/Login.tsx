@@ -20,7 +20,12 @@ export function Login() {
       const result = await login(email, password);
 
       if (result.success) {
-        const target = result.user?.role === 'data_collector' ? '/data-collector-tasks' : '/dashboard';
+        const target =
+          result.user?.role === 'data_collector'
+            ? '/data-collector-tasks'
+            : result.user?.role === 'quantity_surveyor'
+            ? '/quantity-surveyor-tasks'
+            : '/dashboard';
         navigate(target);
       } else {
         setError(result.message || 'Invalid email or password');

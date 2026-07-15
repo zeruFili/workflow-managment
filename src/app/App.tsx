@@ -41,7 +41,7 @@ function DashboardRouter() {
 
   switch (user.role) {
     case 'quantity_surveyor':
-      return <QuantitySurveyorDashboard />;
+      return <Navigate to="/quantity-surveyor-tasks" replace />;
     case 'finance_officer':
       return <FinanceVerifications />;
     case 'site_engineer':
@@ -59,8 +59,9 @@ function LoginOrRedirect() {
   const { user } = useAuth();
 
   if (user) {
-    const target = user.role === 'data_collector' ? '/data-collector-tasks' : '/dashboard';
-    return <Navigate to={target} replace />;
+    if (user.role === 'data_collector') return <Navigate to="/data-collector-tasks" replace />;
+    if (user.role === 'quantity_surveyor') return <Navigate to="/quantity-surveyor-tasks" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   return <Login />;

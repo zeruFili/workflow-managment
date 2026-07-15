@@ -74,7 +74,8 @@ export function Layout({ children }: LayoutProps) {
   const isSidebarlessRole =
     user.role === 'finance_officer' ||
     user.role === 'site_engineer' ||
-    user.role === 'data_collector';
+    user.role === 'data_collector' ||
+    user.role === 'quantity_surveyor';
 
   const navigationItems: NavigationItem[] = [];
 
