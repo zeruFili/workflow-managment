@@ -90,6 +90,8 @@ export interface DesignerTaskItem {
   } | null;
   hasNestedNotification: boolean;
   applied?: boolean;
+  coverNote?: string | null;
+  applicationId?: string | null;
 }
 
 export interface DesignerTaskListMeta {
@@ -338,6 +340,17 @@ const designerApi = {
   ): Promise<{ success: boolean; data?: any; message?: string }> => {
     const response = await api.delete<{ success: boolean; data?: any; message?: string }>(
       `/designer-tasks/${taskId}/apply`
+    );
+    return response.data;
+  },
+
+  updateApplication: async (
+    taskId: string,
+    data: { cover_note: string }
+  ): Promise<{ success: boolean; data?: any; message?: string }> => {
+    const response = await api.patch<{ success: boolean; data?: any; message?: string }>(
+      `/designer-tasks/${taskId}/apply`,
+      data
     );
     return response.data;
   },

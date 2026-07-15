@@ -97,6 +97,8 @@ export function DesignerOpenJobPostings() {
   const [submittingApply, setSubmittingApply] = useState(false);
   const [withdrawingTaskId, setWithdrawingTaskId] = useState<string | null>(null);
   const [viewImagesTaskId, setViewImagesTaskId] = useState<string | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editMessage, setEditMessage] = useState('');
 
   const highlightedIds = (() => {
     if (postings.length === 0) return new Set<string>();
@@ -273,6 +275,36 @@ export function DesignerOpenJobPostings() {
     setApplyError(null);
   };
 
+  const startEdit = (taskId: string, currentMessage: string) => {
+    setEditingTaskId(taskId);
+    setEditMessage(currentMessage);
+    setApplyError(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingTaskId(null);
+    setEditMessage('');
+    setApplyError(null);
+  };
+
+  const submitEdit = async (taskId: string) => {
+    if (!user || !editMessage.trim()) return;
+    setSubmittingApply(true);
+    setApplyError(null);
+    try {
+      await designerApi.updateApplication(taskId, { cover_note: editMessage.trim() });
+      setPostings((prev) =>
+        prev.map((p) => (p.id === taskId ? { ...p, coverNote: editMessage.trim() } : p))
+      );
+      setEditingTaskId(null);
+      setEditMessage('');
+    } catch (err: any) {
+      setApplyError(err?.response?.data?.message || err?.message || 'Failed to update application');
+    } finally {
+      setSubmittingApply(false);
+    }
+  };
+
   const submitApplication = async (taskId: string) => {
     if (!user || !applyMessage.trim()) return;
     setSubmittingApply(true);
@@ -283,7 +315,7 @@ export function DesignerOpenJobPostings() {
       setPostings((prev) => {
         const idx = prev.findIndex((p) => p.id === taskId);
         if (idx === -1) return prev;
-        const updated = { ...prev[idx], applied: true };
+        const updated = { ...prev[idx], applied: true, coverNote: applyMessage.trim() };
         const without = [...prev.slice(0, idx), ...prev.slice(idx + 1)];
         return [updated, ...without];
       });
@@ -519,21 +551,65 @@ export function DesignerOpenJobPostings() {
                   <div className="mt-3 shrink-0">
                     {hasApplied ? (
                       <div>
-                        <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center gap-1 text-green-600 text-xs font-medium">
-                            <CheckCircle2 className="h-3.5 w-3.5" /> Applied
-                          </span>
-                          <button
-                            onClick={() => withdrawApplication(posting.id)}
-                            disabled={withdrawingTaskId === posting.id}
-                            className="inline-flex items-center gap-1 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            <Undo2 className="h-3.5 w-3.5" />
-                            {withdrawingTaskId === posting.id ? 'Withdrawing...' : 'Withdraw'}
-                          </button>
-                        </div>
-                        {applyError && (
-                          <p className="text-xs text-red-600 mt-1">{applyError}</p>
+                        {editingTaskId === posting.id ? (
+                          <div className="space-y-2">
+                            <textarea
+                              value={editMessage}
+                              onChange={(e) => setEditMessage(e.target.value)}
+                              placeholder="Update your application message..."
+                              rows={3}
+                              className="w-full resize-none rounded-lg border border-slate-300 p-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-400 outline-none"
+                              autoFocus
+                            />
+                            {applyError && (
+                              <p className="text-xs text-red-600">{applyError}</p>
+                            )}
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => submitEdit(posting.id)}
+                                disabled={!editMessage.trim() || submittingApply}
+                                className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <Send className="h-3.5 w-3.5" /> {submittingApply ? 'Saving...' : 'Save'}
+                              </button>
+                              <button
+                                onClick={cancelEdit}
+                                disabled={submittingApply}
+                                className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center gap-1 text-green-600 text-xs font-medium">
+                                <CheckCircle2 className="h-3.5 w-3.5" /> Applied
+                              </span>
+                              <button
+                                onClick={() => startEdit(posting.id, posting.coverNote || '')}
+                                className="inline-flex items-center gap-1 rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 transition-colors"
+                              >
+                                <span className="h-3.5 w-3.5 flex items-center justify-center">&#9998;</span>
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => withdrawApplication(posting.id)}
+                                disabled={withdrawingTaskId === posting.id}
+                                className="inline-flex items-center gap-1 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <Undo2 className="h-3.5 w-3.5" />
+                                {withdrawingTaskId === posting.id ? 'Withdrawing...' : 'Withdraw'}
+                              </button>
+                            </div>
+                            {posting.coverNote && (
+                              <p className="text-xs text-slate-500 italic">"{posting.coverNote}"</p>
+                            )}
+                            {applyError && (
+                              <p className="text-xs text-red-600 mt-1">{applyError}</p>
+                            )}
+                          </div>
                         )}
                       </div>
                     ) : isApplying ? (
