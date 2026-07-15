@@ -1530,7 +1530,7 @@ export function DesignerAssignments() {
                               <p className="text-sm text-gray-700 italic mt-1">"{existingReview.reviewText}"</p>
                             </div>
                           )}
-                          {!isDeactivated && (
+                          {!isDeactivated && apiReview?.reviewer_user?.id === user?.id && (
                           <button
                             onClick={() => toggleReviewPanel(task.id)}
                             className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800"
