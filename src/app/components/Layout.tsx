@@ -153,7 +153,6 @@ export function Layout({ children }: LayoutProps) {
         icon: Database,
         badge: counts.dataCollectorTasks > 0 ? counts.dataCollectorTasks : undefined,
       });
-      addNavigationItem({ path: '/job-postings', label: 'Job Postings', icon: FolderKanban });
       addNavigationItem({
         path: '/designer-applications',
         label: 'Designer Applications',
