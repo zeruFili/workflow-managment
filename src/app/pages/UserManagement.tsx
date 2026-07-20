@@ -266,11 +266,15 @@ export function UserManagement() {
   const [formError, setFormError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const fetchUsers = useCallback(async () => {
+  const fetchUsers = useCallback(async (forceRefresh = false) => {
     try {
       setIsLoading(true);
       setLoadError(null);
+      if (forceRefresh) {
+        userCache.invalidate({ limit: 100 });
+      }
       const data = await userCache.fetch({ limit: 100 });
       setUsers(data);
     } catch (e: unknown) {
@@ -360,7 +364,8 @@ export function UserManagement() {
       const response = await userApi.createUser(payload);
       if (response.success) {
         closeCreateModal();
-        fetchUsers();
+        await fetchUsers(true);
+        setSuccessMessage('User created successfully');
       } else {
         setFormError(response.message || 'Failed to create user');
       }
@@ -421,7 +426,8 @@ export function UserManagement() {
       const response = await userApi.updateUser(editingUser.id, payload);
       if (response.success) {
         closeEditModal();
-        fetchUsers();
+        await fetchUsers(true);
+        setSuccessMessage('User updated successfully');
       } else {
         setFormError(response.message || 'Failed to update user');
       }
@@ -442,7 +448,8 @@ export function UserManagement() {
       const response = await userApi.deleteUser(deletingUser.id);
       if (response.success) {
         closeDeleteModal();
-        fetchUsers();
+        await fetchUsers(true);
+        setSuccessMessage('User deleted successfully');
       } else {
         setDeleteError(response.message || 'Failed to delete user');
       }
