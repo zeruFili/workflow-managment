@@ -702,7 +702,6 @@ export function DesignerTasks() {
       
       notificationApi.markRead(notifId)
         .then(() => {
-          decrement('designerTasks');
           const tasks = tasksRef.current;
           const updatedTasks = tasks.map((t) =>
             t.id === taskId
@@ -721,6 +720,9 @@ export function DesignerTasks() {
           );
           setTasks(updatedTasks as DesignerTaskItem[]);
           tasksRef.current = updatedTasks as DesignerTaskItem[];
+          if (!designerTaskHasAnyNotification(updatedTasks.find((t) => t.id === taskId)!)) {
+            decrement('designerTasks');
+          }
           designerTaskCache.invalidate();
         })
         .catch(() => {
@@ -823,7 +825,6 @@ export function DesignerTasks() {
 
     if (notifIds.length > 0) {
       notificationApi.bulkMarkRead(notifIds).catch(() => {});
-      decrement('designerTasks');
     }
 
     // Only clear task-level notifications — keep per-submission/review flags for highlighting
@@ -847,6 +848,9 @@ export function DesignerTasks() {
     // Only mark card as viewed if there were task-level notifications (not submission-level)
     if (notifIds.length > 0) {
       viewedDesignerTaskCards.add(task.id);
+    }
+    if (!designerTaskHasAnyNotification(partialClearedTask)) {
+      decrement('designerTasks');
     }
   };
 
@@ -1135,7 +1139,6 @@ export function DesignerTasks() {
             }
             if (notifIds.length > 0) {
               notificationApi.bulkMarkRead(notifIds).catch(() => {});
-              decrement('designerTasks');
             }
 
             // Update submission in submissionsRawData
@@ -1174,6 +1177,7 @@ export function DesignerTasks() {
               taskNotification: null,
             } as DesignerTaskItem);
             if (!stillHasAny) {
+              decrement('designerTasks');
               viewedDesignerTaskCards.add(taskId);
             }
             const updatedFullTasks = tasksRef.current.map((t) =>
