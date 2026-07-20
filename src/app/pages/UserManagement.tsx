@@ -55,6 +55,193 @@ function getRoleColor(role: string): string {
   return ROLE_COLORS[role as BackendRole] || 'bg-gray-100 text-gray-700';
 }
 
+interface UserFormFieldsProps {
+  mode: 'create' | 'edit';
+  formName: string;
+  setFormName: (v: string) => void;
+  formEmail: string;
+  setFormEmail: (v: string) => void;
+  formPhone: string;
+  setFormPhone: (v: string) => void;
+  formPassword: string;
+  setFormPassword: (v: string) => void;
+  formRole: BackendRole;
+  setFormRole: (v: BackendRole) => void;
+  formIsActive: boolean;
+  setFormIsActive: (v: boolean) => void;
+  showPassword: boolean;
+  setShowPassword: (v: boolean | ((s: boolean) => boolean)) => void;
+  isSubmitting: boolean;
+  formError: string | null;
+  onSubmit: (e: React.FormEvent) => void;
+  onCancel: () => void;
+}
+
+function UserFormFields({
+  mode,
+  formName, setFormName,
+  formEmail, setFormEmail,
+  formPhone, setFormPhone,
+  formPassword, setFormPassword,
+  formRole, setFormRole,
+  formIsActive, setFormIsActive,
+  showPassword, setShowPassword,
+  isSubmitting,
+  formError,
+  onSubmit,
+  onCancel,
+}: UserFormFieldsProps) {
+  return (
+    <form onSubmit={onSubmit} className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Full Name <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          value={formName}
+          onChange={(e) => setFormName(e.target.value)}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          required
+          disabled={isSubmitting}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Email Address <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="email"
+          value={formEmail}
+          onChange={(e) => setFormEmail(e.target.value)}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          required
+          disabled={isSubmitting}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Phone Number
+        </label>
+        <input
+          type="tel"
+          value={formPhone}
+          onChange={(e) => setFormPhone(e.target.value)}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder={mode === 'create' ? '+1234567890' : undefined}
+          disabled={isSubmitting}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Role {mode === 'create' && <span className="text-red-500">*</span>}
+        </label>
+        <select
+          value={formRole}
+          onChange={(e) => setFormRole(e.target.value as BackendRole)}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          required={mode === 'create'}
+          disabled={isSubmitting}
+        >
+          {Object.entries(ROLE_LABELS)
+            .filter(([value]) => mode !== 'create' || value !== 'ceo')
+            .map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+        </select>
+        {mode === 'create' && (
+          <p className="text-xs text-gray-400 mt-1">CEO role cannot be created through this form.</p>
+        )}
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Password {mode === 'create' && <span className="text-red-500">*</span>}
+        </label>
+        <div className="relative">
+          <input
+            type={showPassword ? 'text' : 'password'}
+            value={formPassword}
+            onChange={(e) => setFormPassword(e.target.value)}
+            className="w-full pr-10 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            required={mode === 'create'}
+            disabled={isSubmitting}
+            placeholder={
+              mode === 'create'
+                ? 'Min 8 chars, upper+lower+digit+special'
+                : 'Leave blank to keep current password'
+            }
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((s) => !s)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-700"
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+          >
+            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
+        <p className="text-xs text-gray-400 mt-1">
+          {mode === 'create'
+            ? 'Must include uppercase, lowercase, digit, and special character.'
+            : 'Provide a new password only to change it.'}
+        </p>
+      </div>
+
+      {mode === 'edit' && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Account Status</label>
+          <select
+            value={formIsActive ? 'active' : 'inactive'}
+            onChange={(e) => setFormIsActive(e.target.value === 'active')}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            disabled={isSubmitting}
+          >
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+      )}
+
+      {formError && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-sm text-red-700">{formError}</p>
+        </div>
+      )}
+
+      <div className="flex gap-3 pt-4">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={isSubmitting}
+          className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+        >
+          {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+          {isSubmitting
+            ? mode === 'create'
+              ? 'Creating...'
+              : 'Saving...'
+            : mode === 'create'
+              ? 'Add User'
+              : 'Save Changes'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export function UserManagement() {
   const { user } = useAuth();
 
@@ -439,133 +626,45 @@ export function UserManagement() {
       {/* Create User Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-lg">
-            <h3 className="text-xl font-semibold mb-4">Add New User</h3>
-            <form onSubmit={handleCreateUser} className="space-y-4">
-              {/* Full Name */}
+          <div className="bg-white rounded-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div className="flex items-start justify-between p-6 pb-2">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Full Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                  disabled={isSubmitting}
-                />
+                <h3 className="text-xl font-semibold mb-1">Add New User</h3>
+                <p className="text-sm text-gray-600">Create a new system user account</p>
               </div>
+              <button
+                type="button"
+                onClick={closeCreateModal}
+                className="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email Address <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="email"
-                  value={formEmail}
-                  onChange={(e) => setFormEmail(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              {/* Phone Number */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Phone Number
-                </label>
-                <input
-                  type="tel"
-                  value={formPhone}
-                  onChange={(e) => setFormPhone(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="+1234567890"
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              {/* Role */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Role <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formRole}
-                  onChange={(e) => setFormRole(e.target.value as BackendRole)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                  disabled={isSubmitting}
-                >
-                  {Object.entries(ROLE_LABELS)
-                    .filter(([value]) => value !== 'ceo')
-                    .map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                </select>
-                <p className="text-xs text-gray-400 mt-1">CEO role cannot be created through this form.</p>
-              </div>
-
-              {/* Password */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Password <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={formPassword}
-                    onChange={(e) => setFormPassword(e.target.value)}
-                    className="w-full pr-10 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                    disabled={isSubmitting}
-                    placeholder="Min 8 chars, upper+lower+digit+special"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((s) => !s)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-700"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                <p className="text-xs text-gray-400 mt-1">
-                  Must include uppercase, lowercase, digit, and special character.
-                </p>
-              </div>
-
-              {/* Form error */}
-              {formError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm text-red-700">{formError}</p>
-                </div>
-              )}
-
-              {/* Buttons */}
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={closeCreateModal}
-                  disabled={isSubmitting}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
-                >
-                  {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {isSubmitting ? 'Creating...' : 'Add User'}
-                </button>
-              </div>
-            </form>
+            <div className="overflow-y-auto px-6 pb-6 pt-4">
+              <UserFormFields
+                mode="create"
+                formName={formName}
+                setFormName={setFormName}
+                formEmail={formEmail}
+                setFormEmail={setFormEmail}
+                formPhone={formPhone}
+                setFormPhone={setFormPhone}
+                formPassword={formPassword}
+                setFormPassword={setFormPassword}
+                formRole={formRole}
+                setFormRole={setFormRole}
+                formIsActive={formIsActive}
+                setFormIsActive={setFormIsActive}
+                showPassword={showPassword}
+                setShowPassword={setShowPassword}
+                isSubmitting={isSubmitting}
+                formError={formError}
+                onSubmit={handleCreateUser}
+                onCancel={closeCreateModal}
+              />
+            </div>
           </div>
         </div>
       )}
@@ -592,135 +691,27 @@ export function UserManagement() {
             </div>
 
             <div className="overflow-y-auto px-6 pb-6 pt-4">
-            <form onSubmit={handleUpdateUser} className="space-y-4">
-              {/* Full Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Full Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email Address <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="email"
-                  value={formEmail}
-                  onChange={(e) => setFormEmail(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              {/* Phone Number */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Phone Number
-                </label>
-                <input
-                  type="tel"
-                  value={formPhone}
-                  onChange={(e) => setFormPhone(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              {/* Role */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
-                <select
-                  value={formRole}
-                  onChange={(e) => setFormRole(e.target.value as BackendRole)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  disabled={isSubmitting}
-                >
-                  {Object.entries(ROLE_LABELS).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Password */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={formPassword}
-                    onChange={(e) => setFormPassword(e.target.value)}
-                    className="w-full pr-10 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Leave blank to keep current password"
-                    disabled={isSubmitting}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((s) => !s)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-700"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                <p className="text-xs text-gray-400 mt-1">
-                  Provide a new password only to change it.
-                </p>
-              </div>
-
-              {/* Account Status */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Account Status</label>
-                <select
-                  value={formIsActive ? 'active' : 'inactive'}
-                  onChange={(e) => setFormIsActive(e.target.value === 'active')}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  disabled={isSubmitting}
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
-
-              {/* Form error */}
-              {formError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm text-red-700">{formError}</p>
-                </div>
-              )}
-
-              {/* Buttons */}
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={closeEditModal}
-                  disabled={isSubmitting}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
-                >
-                  {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {isSubmitting ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
-            </form>
+              <UserFormFields
+                mode="edit"
+                formName={formName}
+                setFormName={setFormName}
+                formEmail={formEmail}
+                setFormEmail={setFormEmail}
+                formPhone={formPhone}
+                setFormPhone={setFormPhone}
+                formPassword={formPassword}
+                setFormPassword={setFormPassword}
+                formRole={formRole}
+                setFormRole={setFormRole}
+                formIsActive={formIsActive}
+                setFormIsActive={setFormIsActive}
+                showPassword={showPassword}
+                setShowPassword={setShowPassword}
+                isSubmitting={isSubmitting}
+                formError={formError}
+                onSubmit={handleUpdateUser}
+                onCancel={closeEditModal}
+              />
             </div>
           </div>
         </div>
