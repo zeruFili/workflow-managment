@@ -631,7 +631,6 @@ export function DesignerAssignments() {
         
         notificationApi.markRead(notifId)
           .then(() => {
-            decrement('designerTasks');
             const tasks = tasksRef.current;
             const updatedTasks = tasks.map((t) =>
               t.id === taskId
@@ -655,6 +654,9 @@ export function DesignerAssignments() {
                 .filter((t) => designerTaskHasAnyNotification(t))
                 .map((t) => t.id)
             );
+            if (!newNotifIds.has(taskId)) {
+              decrement('designerTasks');
+            }
             setDesignerAssignmentNotificationIds(newNotifIds);
           })
           .catch(() => {
@@ -837,7 +839,6 @@ export function DesignerAssignments() {
 
     if (notifIds.length > 0) {
       notificationApi.bulkMarkRead(notifIds).catch(() => {});
-      decrement('designerTasks');
     }
 
     // Only clear task-level notifications — keep per-submission/review flags for highlighting
@@ -866,6 +867,9 @@ export function DesignerAssignments() {
         .filter((t) => designerTaskHasAnyNotification(t))
         .map((t) => t.id)
     );
+    if (!newNotifIds.has(task.id)) {
+      decrement('designerTasks');
+    }
     setDesignerAssignmentNotificationIds(newNotifIds);
   };
 
@@ -1060,7 +1064,6 @@ export function DesignerAssignments() {
           }
           if (notifIds.length > 0) {
             notificationApi.bulkMarkRead(notifIds).catch(() => {});
-            decrement('designerTasks');
           }
 
           // Update submission in selectedTaskDetail
@@ -1093,6 +1096,7 @@ export function DesignerAssignments() {
             taskNotification: null,
           } as DesignerTaskItem);
           if (!stillHasAny) {
+            decrement('designerTasks');
             markPendingReviewCardsViewed([taskId]);
           }
           const updatedFullTasks = tasksRef.current.map((t) =>
