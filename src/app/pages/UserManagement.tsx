@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Users, Plus, Edit, Trash2, Search, Phone, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Users, Plus, Edit, Trash2, Search, Phone, Eye, EyeOff, Loader2, X } from 'lucide-react';
 import userApi, { UserItem, CreateUserPayload, UpdateUserPayload } from '../../api/userApi';
 import { userCache } from '../data/userCache';
 
@@ -573,12 +573,25 @@ export function UserManagement() {
       {/* Edit User Modal */}
       {editingUser && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-lg">
-            <h3 className="text-xl font-semibold mb-1">Edit User</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Editing {editingUser.full_name}
-            </p>
+          <div className="bg-white rounded-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div className="flex items-start justify-between p-6 pb-2">
+              <div>
+                <h3 className="text-xl font-semibold mb-1">Edit User</h3>
+                <p className="text-sm text-gray-600">
+                  Editing {editingUser.full_name}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeEditModal}
+                className="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
+            <div className="overflow-y-auto px-6 pb-6 pt-4">
             <form onSubmit={handleUpdateUser} className="space-y-4">
               {/* Full Name */}
               <div>
@@ -708,6 +721,7 @@ export function UserManagement() {
                 </button>
               </div>
             </form>
+            </div>
           </div>
         </div>
       )}
