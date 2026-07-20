@@ -289,6 +289,13 @@ export function UserManagement() {
     fetchUsers();
   }, [fetchUsers]);
 
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => setSuccessMessage(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
+
   const resetCreateForm = () => {
     setFormName('');
     setFormEmail('');
@@ -498,6 +505,20 @@ export function UserManagement() {
           <span className="hidden sm:inline">Add User</span>
         </button>
       </div>
+
+      {/* Success message */}
+      {successMessage && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center justify-between">
+          <p className="text-sm text-green-700">{successMessage}</p>
+          <button
+            onClick={() => setSuccessMessage(null)}
+            className="p-1 text-green-500 hover:text-green-700 rounded"
+            aria-label="Dismiss"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Search */}
       <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
