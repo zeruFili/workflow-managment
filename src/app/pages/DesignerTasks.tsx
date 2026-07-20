@@ -193,7 +193,7 @@ function designerTaskHasAnyNotification(task: DesignerTaskItem): boolean {
   if ((task as any).taskNotification?.hasNotification) return true;
   const swr = task.submissionsWithReviews;
   if (!swr) {
-    const hasReviewNotif = (task as any).taskReview?.viewed === false;
+    const hasReviewNotif = (task as any).taskReview?.hasNotification === true;
     return task.hasNestedNotification || hasReviewNotif;
   }
   if (swr.taskNotification?.hasNotification) return true;
@@ -207,7 +207,7 @@ function designerTaskHasAnyNotification(task: DesignerTaskItem): boolean {
       }
     }
   }
-  const hasReviewNotif = (task as any).taskReview?.viewed === false;
+  const hasReviewNotif = (task as any).taskReview?.hasNotification === true;
   return task.hasNestedNotification || hasReviewNotif;
 }
 
@@ -659,7 +659,7 @@ export function DesignerTasks() {
               if ((topNotif?.hasNotification && topNotif.notificationId) || (swrNotif?.hasNotification && swrNotif.notificationId)) {
                 pendingTaskNotifIds.current.set(id, topNotif?.notificationId || swrNotif!.notificationId);
               }
-              if (reviewNotif?.viewed === false && reviewNotif.notificationId) {
+              if (reviewNotif?.hasNotification && reviewNotif.notificationId) {
                 pendingTaskNotifIds.current.set(id, reviewNotif.notificationId);
               }
             }
@@ -710,7 +710,7 @@ export function DesignerTasks() {
                   ...t,
                   taskNotification: null,
                   taskReview: (t as any).taskReview
-                    ? { ...(t as any).taskReview, viewed: true, notificationId: null }
+                    ? { ...(t as any).taskReview, hasNotification: false, notificationId: null }
                     : null,
                   submissionsWithReviews: {
                     ...t.submissionsWithReviews,

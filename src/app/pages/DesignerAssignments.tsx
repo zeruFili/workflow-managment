@@ -135,7 +135,7 @@ function designerTaskHasAnyNotification(task: DesignerTaskItem): boolean {
   if ((task as any).taskNotification?.hasNotification) return true;
   const swr = task.submissionsWithReviews;
   if (!swr) {
-    const hasReviewNotif = (task as any).taskReview?.viewed === false;
+    const hasReviewNotif = (task as any).taskReview?.hasNotification === true;
     return task.hasNestedNotification || hasReviewNotif;
   }
   if (swr.taskNotification?.hasNotification) return true;
@@ -149,14 +149,14 @@ function designerTaskHasAnyNotification(task: DesignerTaskItem): boolean {
       }
     }
   }
-  const hasReviewNotif = (task as any).taskReview?.viewed === false;
-  return task.hasNestedNotification || hasReviewNotif;
+  const hasTaskReviewNotif = (task as any).taskReview?.hasNotification === true;
+  return task.hasNestedNotification || hasTaskReviewNotif;
 }
 
 function hasNestedDesignerNotifications(task: DesignerTaskItem): boolean {
   const swr = task.submissionsWithReviews;
   if (!swr) {
-    return task.hasNestedNotification || (task as any).taskReview?.viewed === false;
+    return task.hasNestedNotification || (task as any).taskReview?.hasNotification === true;
   }
   const stages: (keyof SubmissionsWithReviewsData)[] = ['caseStudy', 'designing', 'rendering', 'finalStage'];
   for (const stage of stages) {
@@ -589,7 +589,7 @@ export function DesignerAssignments() {
               if ((topNotif?.hasNotification && topNotif.notificationId) || (swrNotif?.hasNotification && swrNotif.notificationId)) {
                 pendingTaskNotifIds.current.set(id, topNotif?.notificationId || swrNotif!.notificationId);
               }
-              if (reviewNotif?.viewed === false && reviewNotif.notificationId) {
+              if (reviewNotif?.hasNotification && reviewNotif.notificationId) {
                 pendingTaskNotifIds.current.set(id, reviewNotif.notificationId);
               }
             }
@@ -639,7 +639,7 @@ export function DesignerAssignments() {
                     ...t,
                     taskNotification: null,
                     taskReview: (t as any).taskReview
-                      ? { ...(t as any).taskReview, viewed: true, notificationId: null }
+                      ? { ...(t as any).taskReview, hasNotification: false, notificationId: null }
                       : null,
                     submissionsWithReviews: {
                       ...t.submissionsWithReviews,

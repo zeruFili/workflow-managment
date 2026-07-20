@@ -58,6 +58,8 @@ export interface TaskReviewData {
   };
   submittedAt: string;
   updatedAt: string | null;
+  hasNotification: boolean;
+  notificationId: string | null;
 }
 
 export interface DesignerTaskItem {
