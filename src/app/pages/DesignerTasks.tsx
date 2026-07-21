@@ -1293,7 +1293,31 @@ export function DesignerTasks() {
     ? assignedTasks.filter((task) => task.assigned_to_user_id === user.id)
     : assignedTasks;
 
-  const sortedTasks = visibleTasks;
+  const getLatestActivityTs = (task: DesignerTaskItem): number => {
+    const raw = task.submissionsWithReviews;
+    const stages = raw
+      ? [...(raw.caseStudy || []), ...(raw.designing || []), ...(raw.rendering || []), ...(raw.finalStage || [])]
+      : [];
+    const submissionTs = stages.flatMap((s) => [
+      new Date(s.created_at).getTime(),
+      s.updated_at ? new Date(s.updated_at).getTime() : 0,
+      ...(s.reviews || []).flatMap((r) => [
+        new Date(r.created_at).getTime(),
+        r.updated_at ? new Date(r.updated_at).getTime() : 0,
+      ]),
+    ]);
+    const taskReviewTs = task.taskReview
+      ? [new Date(task.taskReview.submittedAt).getTime(), task.taskReview.updatedAt ? new Date(task.taskReview.updatedAt).getTime() : 0]
+      : [];
+    return Math.max(
+      new Date(task.created_at).getTime(),
+      task.updated_at ? new Date(task.updated_at).getTime() : 0,
+      ...submissionTs,
+      ...taskReviewTs,
+    );
+  };
+
+  const sortedTasks = [...visibleTasks].sort((a, b) => getLatestActivityTs(b) - getLatestActivityTs(a));
 
   const statusDisplay = (status: string | null): string => {
     if (!status) return 'pending';

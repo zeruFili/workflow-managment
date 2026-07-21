@@ -681,7 +681,32 @@ export function DesignerAssignments() {
 
   // ── Compute displayable tasks (only assigned) ──
   const assignedTasks = tasks.filter((task) => !!task.assigned_to_user_id);
-  const sortedTasks = assignedTasks;
+
+  const getLatestActivityTs = (task: DesignerTaskItem): number => {
+    const raw = task.submissionsWithReviews;
+    const stages = raw
+      ? [...(raw.caseStudy || []), ...(raw.designing || []), ...(raw.rendering || []), ...(raw.finalStage || [])]
+      : [];
+    const submissionTs = stages.flatMap((s) => [
+      new Date(s.created_at).getTime(),
+      s.updated_at ? new Date(s.updated_at).getTime() : 0,
+      ...(s.reviews || []).flatMap((r) => [
+        new Date(r.created_at).getTime(),
+        r.updated_at ? new Date(r.updated_at).getTime() : 0,
+      ]),
+    ]);
+    const taskReviewTs = task.taskReview
+      ? [new Date(task.taskReview.submittedAt).getTime(), task.taskReview.updatedAt ? new Date(task.taskReview.updatedAt).getTime() : 0]
+      : [];
+    return Math.max(
+      new Date(task.created_at).getTime(),
+      task.updated_at ? new Date(task.updated_at).getTime() : 0,
+      ...submissionTs,
+      ...taskReviewTs,
+    );
+  };
+
+  const sortedTasks = [...assignedTasks].sort((a, b) => getLatestActivityTs(b) - getLatestActivityTs(a));
 
   // ── Pagination logic ──
   const totalDisplayPages = meta ? Math.ceil(meta.total / PAGE_SIZE) : 1;
