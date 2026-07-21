@@ -188,7 +188,7 @@ export function DesignerPerformanceDashboard() {
 
   if (error && !data) {
     return (
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 text-sm text-red-600">
+      <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl border border-gray-200 shadow-sm p-6 text-sm text-red-600">
         {error}
       </div>
     );
@@ -232,7 +232,7 @@ export function DesignerPerformanceDashboard() {
       </div>
 
       {/* ── Designer Profile Card ── */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center gap-4">
+      <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center gap-4">
         <div className="w-12 h-12 bg-gradient-to-br from-indigo-400 to-indigo-600 rounded-full flex items-center justify-center flex-shrink-0 shadow">
           <span className="text-white font-bold">{designer?.initials ?? '?'}</span>
         </div>
@@ -252,7 +252,7 @@ export function DesignerPerformanceDashboard() {
       </div>
 
       {/* ── Time Filter ── */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3">
+      <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3">
         <div className="flex gap-2 flex-wrap">
           {(
             [
@@ -353,7 +353,7 @@ export function DesignerPerformanceDashboard() {
         ).map((card, i) => (
           <div
             key={i}
-            className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 hover:shadow-md transition-shadow"
+            className="card-safe overflow-hidden min-w-0 bg-white rounded-xl border border-gray-200 shadow-sm p-3 hover:shadow-md transition-shadow"
           >
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs text-gray-500 font-medium">{card.label}</span>
@@ -367,7 +367,7 @@ export function DesignerPerformanceDashboard() {
 
       {/* ── Trend Charts ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
           <p className="text-sm font-semibold text-gray-700 mb-3">Rating Trend</p>
           <ResponsiveContainer width="100%" height={160}>
             <AreaChart
@@ -397,7 +397,7 @@ export function DesignerPerformanceDashboard() {
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
           <p className="text-sm font-semibold text-gray-700 mb-3">Story Points Trend</p>
           <ResponsiveContainer width="100%" height={160}>
             <AreaChart
@@ -426,7 +426,7 @@ export function DesignerPerformanceDashboard() {
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
           <p className="text-sm font-semibold text-gray-700 mb-3">Deadline Compliance %</p>
           <ResponsiveContainer width="100%" height={160}>
             <LineChart
@@ -457,7 +457,7 @@ export function DesignerPerformanceDashboard() {
 
       {/* ── Story Point Breakdown + Comparison ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
           <p className="text-sm font-semibold text-gray-700 mb-3">Story Point Breakdown</p>
           {pieSP.length > 0 ? (
             <div className="flex items-center gap-4">
@@ -505,7 +505,7 @@ export function DesignerPerformanceDashboard() {
           )}
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
           <p className="text-sm font-semibold text-gray-700 mb-3">Period Comparison</p>
           {comparisonMetrics.length > 0 ? (
             <div className="space-y-2">

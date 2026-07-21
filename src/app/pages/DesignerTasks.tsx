@@ -738,7 +738,7 @@ export function DesignerTasks() {
   if (!user) return null;
   if (!designerRoles.has(user.role) && user.role !== 'ceo' && user.role !== 'general_manager') {
     return (
-      <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+      <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
         <p className="text-gray-500">Access denied.</p>
       </div>
     );
@@ -1365,7 +1365,7 @@ export function DesignerTasks() {
       )}
 
       {visibleTasks.length === 0 && !isLoading ? (
-        <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
           <Briefcase className="w-12 h-12 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500">No assigned designer tasks yet.</p>
         </div>
@@ -1382,7 +1382,7 @@ export function DesignerTasks() {
                 <div
                   key={task.id}
                   data-highlighted-id={isHighlighted ? task.id : undefined}
-                  className={`bg-white rounded-xl p-6 shadow-sm border transition-all duration-300 hover:shadow-md ${
+                  className={`card-safe overflow-hidden min-w-0 bg-white rounded-xl p-6 shadow-sm border transition-all duration-300 hover:shadow-md ${
                     isHighlighted
                       ? 'border-2 border-blue-400 ring-4 ring-blue-100 shadow-blue-100'
                       : isDeactivated
@@ -1700,7 +1700,7 @@ export function DesignerTasks() {
 
             <div className="grid grid-cols-1 gap-6 px-6 py-5 lg:grid-cols-3">
               <div className="lg:col-span-2 space-y-5">
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h4 className="text-xl font-semibold text-gray-900">{selectedTaskDetail.title}</h4>
@@ -1735,13 +1735,13 @@ export function DesignerTasks() {
                   </div>
                 </section>
 
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Description</h5>
                   <p className="mt-2 text-sm text-gray-700">{selectedTaskDetail.description}</p>
                 </section>
 
 
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-4">
                     Submission Progress &amp; Review Feedback
                   </h5>
@@ -2274,7 +2274,7 @@ export function DesignerTasks() {
               </div>
 
               <aside className="space-y-4">
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Timeline</h5>
                   <div className="mt-2 space-y-2 text-sm text-gray-700">
                     <p>Deadline: {selectedTaskDetail.due_date ? new Date(selectedTaskDetail.due_date).toLocaleDateString() : 'No deadline'}</p>

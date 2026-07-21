@@ -95,12 +95,12 @@ export function ProjectDetails() {
       {activeTab === 'overview' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-6 shadow-sm border border-gray-200">
               <h3 className="font-semibold text-lg mb-4">Project Description</h3>
               <p className="text-gray-700">{project.description}</p>
             </div>
 
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-6 shadow-sm border border-gray-200">
               <h3 className="font-semibold text-lg mb-4">Project Timeline</h3>
               <div className="space-y-4">
                 <div className="flex items-center gap-4">
@@ -130,7 +130,7 @@ export function ProjectDetails() {
           </div>
 
           <div className="space-y-6">
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-6 shadow-sm border border-gray-200">
               <h3 className="font-semibold text-lg mb-4">Project Info</h3>
               <div className="space-y-3">
                 <div>
@@ -150,7 +150,7 @@ export function ProjectDetails() {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-6 shadow-sm border border-gray-200">
               <h3 className="font-semibold text-lg mb-4">Quick Stats</h3>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -174,7 +174,7 @@ export function ProjectDetails() {
       )}
 
       {activeTab === 'tasks' && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl shadow-sm border border-gray-200">
           <div className="p-6">
             <h3 className="font-semibold text-lg mb-4">Project Tasks</h3>
             <div className="space-y-3">
@@ -216,7 +216,7 @@ export function ProjectDetails() {
       )}
 
       {activeTab === 'documents' && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl shadow-sm border border-gray-200">
           <div className="p-6">
             <h3 className="font-semibold text-lg mb-4">Project Documents</h3>
             <div className="space-y-3">

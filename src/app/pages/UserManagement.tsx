@@ -470,7 +470,7 @@ export function UserManagement() {
 
   if (!user || user.role !== 'ceo') {
     return (
-      <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+      <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
         <p className="text-gray-500">Access denied. CEO privileges required.</p>
       </div>
     );
@@ -521,7 +521,7 @@ export function UserManagement() {
       )}
 
       {/* Search */}
-      <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
+      <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-4 shadow-sm border border-gray-200">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
@@ -536,7 +536,7 @@ export function UserManagement() {
 
       {/* Loading state */}
       {isLoading && (
-        <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
           <Loader2 className="w-8 h-8 text-blue-500 animate-spin mx-auto mb-3" />
           <p className="text-gray-500">Loading users...</p>
         </div>
@@ -544,7 +544,7 @@ export function UserManagement() {
 
       {/* Error state */}
       {!isLoading && loadError && (
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-red-200 text-center">
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-6 shadow-sm border border-red-200 text-center">
           <p className="text-red-600 mb-3">{loadError}</p>
           <button
             onClick={fetchUsers}
@@ -561,7 +561,7 @@ export function UserManagement() {
           {filteredUsers.map((u) => (
             <div
               key={u.id}
-              className={`bg-white rounded-xl p-4 shadow-sm border border-gray-200 ${
+              className={`card-safe overflow-hidden min-w-0 bg-white rounded-xl p-4 shadow-sm border border-gray-200 ${
                 !u.is_active ? 'opacity-80' : ''
               }`}
             >
@@ -643,7 +643,7 @@ export function UserManagement() {
 
       {/* Empty state */}
       {!isLoading && !loadError && filteredUsers.length === 0 && (
-        <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
           <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <p className="text-gray-500">
             {searchTerm ? 'No users match your search' : 'No users found'}
@@ -654,7 +654,7 @@ export function UserManagement() {
       {/* Create User Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+          <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl w-full max-w-lg max-h-[90vh] flex flex-col">
             <div className="flex items-start justify-between p-6 pb-2">
               <div>
                 <h3 className="text-xl font-semibold mb-1">Add New User</h3>
@@ -700,7 +700,7 @@ export function UserManagement() {
       {/* Edit User Modal */}
       {editingUser && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+          <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl w-full max-w-lg max-h-[90vh] flex flex-col">
             <div className="flex items-start justify-between p-6 pb-2">
               <div>
                 <h3 className="text-xl font-semibold mb-1">Edit User</h3>
@@ -748,7 +748,7 @@ export function UserManagement() {
       {/* Delete Confirmation Modal */}
       {deletingUser && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+          <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-6 w-full max-w-md">
             <h3 className="text-xl font-semibold mb-2">Delete User</h3>
             <p className="text-gray-600 mb-1">
               Are you sure you want to delete{' '}

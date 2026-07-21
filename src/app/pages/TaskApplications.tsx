@@ -77,7 +77,7 @@ export function TaskApplications() {
 
   if (!reviewRoles.has(user.role)) {
     return (
-      <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+      <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
         <p className="text-gray-500">Access denied. CEO or General Manager only.</p>
       </div>
     );
@@ -180,7 +180,7 @@ export function TaskApplications() {
       {groupedApplications.length > 0 ? (
         <div className="space-y-4">
           {groupedApplications.map(({ task, applications: taskApplications }) => (
-            <div key={task.id} className="bg-white rounded-xl p-5 shadow-sm border border-gray-200 space-y-4">
+            <div key={task.id} className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-5 shadow-sm border border-gray-200 space-y-4">
               <div className="flex items-start justify-between gap-4 flex-col md:flex-row">
                 <div>
                   <h3 className="font-semibold text-lg text-gray-900">{task.title}</h3>
@@ -270,7 +270,7 @@ export function TaskApplications() {
           ))}
         </div>
       ) : (
-        <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
           <p className="text-gray-500">No designer applications have been submitted yet.</p>
         </div>
       )}

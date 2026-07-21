@@ -213,7 +213,7 @@ export function CeoTransfers() {
   };
 
   if (!user) return null;
-  if (!canManage) return <div className="bg-white rounded-xl p-12 shadow-sm border text-center"><p className="text-gray-500">Access denied.</p></div>;
+  if (!canManage) return <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border text-center"><p className="text-gray-500">Access denied.</p></div>;
 
   return (
     <div className="space-y-6">
@@ -233,14 +233,14 @@ export function CeoTransfers() {
       {isLoading ? (
         <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>
       ) : transfers.length === 0 ? (
-        <div className="bg-white rounded-xl p-12 shadow-sm border text-center">
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border text-center">
           <p className="text-gray-500">No CEO transfers yet.</p>
         </div>
       ) : (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {transfers.map((t) => (
-              <div key={t.id} onClick={() => openDetail(t.id)} className="bg-white rounded-xl p-5 shadow-sm border border-gray-200 cursor-pointer hover:shadow-md hover:border-blue-300 transition-all">
+              <div key={t.id} onClick={() => openDetail(t.id)} className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-5 shadow-sm border border-gray-200 cursor-pointer hover:shadow-md hover:border-blue-300 transition-all">
                 <div className="flex items-start justify-between mb-3 gap-3">
                   <div>
                     <h3 className="font-semibold text-gray-900 text-lg">{t.description.length > 50 ? t.description.slice(0, 50) + '...' : t.description}</h3>
@@ -276,17 +276,17 @@ export function CeoTransfers() {
               <button onClick={closeDetail} className="rounded-lg p-2 hover:bg-gray-100"><X className="h-5 w-5 text-gray-500" /></button>
             </div>
             <div className="px-6 py-5 space-y-5">
-              <section className="rounded-xl border p-4"><h5 className="text-sm font-medium uppercase text-gray-500 mb-3">Description</h5><p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedTransfer.description}</p></section>
+              <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4"><h5 className="text-sm font-medium uppercase text-gray-500 mb-3">Description</h5><p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedTransfer.description}</p></section>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <section className="rounded-xl border p-4"><h5 className="text-sm font-medium uppercase text-gray-500 mb-2">Amount</h5><p className="text-2xl font-bold text-emerald-700">${Number(selectedTransfer.amount).toLocaleString()}</p></section>
-                <section className="rounded-xl border p-4"><h5 className="text-sm font-medium uppercase text-gray-500 mb-2">Timeline</h5><p className="text-sm text-gray-700 flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-gray-400" />{new Date(selectedTransfer.created_at).toLocaleString()}</p>{selectedTransfer.updated_at && <p className="text-sm text-gray-700 flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-gray-400" />{new Date(selectedTransfer.updated_at).toLocaleString()}</p>}</section>
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4"><h5 className="text-sm font-medium uppercase text-gray-500 mb-2">Amount</h5><p className="text-2xl font-bold text-emerald-700">${Number(selectedTransfer.amount).toLocaleString()}</p></section>
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4"><h5 className="text-sm font-medium uppercase text-gray-500 mb-2">Timeline</h5><p className="text-sm text-gray-700 flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-gray-400" />{new Date(selectedTransfer.created_at).toLocaleString()}</p>{selectedTransfer.updated_at && <p className="text-sm text-gray-700 flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-gray-400" />{new Date(selectedTransfer.updated_at).toLocaleString()}</p>}</section>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <section className="rounded-xl border p-4"><h5 className="text-sm font-medium uppercase text-gray-500 mb-2">CEO</h5><p className="text-sm font-medium">{selectedTransfer.ceo_user?.full_name || 'Unknown'}</p></section>
-                <section className="rounded-xl border p-4"><h5 className="text-sm font-medium uppercase text-gray-500 mb-2">Created By</h5><p className="text-sm font-medium">{selectedTransfer.finance_user?.full_name || 'Unknown'}</p></section>
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4"><h5 className="text-sm font-medium uppercase text-gray-500 mb-2">CEO</h5><p className="text-sm font-medium">{selectedTransfer.ceo_user?.full_name || 'Unknown'}</p></section>
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4"><h5 className="text-sm font-medium uppercase text-gray-500 mb-2">Created By</h5><p className="text-sm font-medium">{selectedTransfer.finance_user?.full_name || 'Unknown'}</p></section>
               </div>
               {selectedTransfer.attachment_urls && selectedTransfer.attachment_urls.length > 0 && (
-                <section className="rounded-xl border p-4"><h5 className="text-sm font-medium uppercase text-gray-500 mb-3">Attachments</h5><AttachmentViewer attachments={selectedTransfer.attachment_urls} /></section>
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4"><h5 className="text-sm font-medium uppercase text-gray-500 mb-3">Attachments</h5><AttachmentViewer attachments={selectedTransfer.attachment_urls} /></section>
               )}
               {selectedTransfer.finance_user_id === user?.id && (
               <div className="flex justify-end gap-3 pt-2">
@@ -301,7 +301,7 @@ export function CeoTransfers() {
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="card-safe overflow-hidden min-w-0 bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b">
               <h3 className="text-lg font-semibold">{editingId ? 'Edit' : 'Create'} CEO Transfer</h3>
               <button onClick={closeForm} disabled={isSubmitting} className="p-2 rounded-lg hover:bg-gray-100"><X className="w-5 h-5 text-gray-500" /></button>
@@ -353,7 +353,7 @@ export function CeoTransfers() {
 
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+          <div className="card-safe overflow-hidden min-w-0 bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="px-6 py-5">
               <h3 className="text-lg font-semibold text-gray-900">Delete CEO Transfer</h3>
               <p className="mt-2 text-sm text-gray-600">Are you sure you want to delete this transfer? This action cannot be undone.</p>

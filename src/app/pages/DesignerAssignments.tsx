@@ -673,7 +673,7 @@ export function DesignerAssignments() {
   const allowedRoles = new Set(['ceo', 'general_manager', 'designer']);
   if (!allowedRoles.has(user.role)) {
     return (
-      <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+      <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
         <p className="text-gray-500">Access denied.</p>
       </div>
     );
@@ -1351,7 +1351,7 @@ export function DesignerAssignments() {
 
       {/* Task Cards */}
       {sortedTasks.length === 0 && !isLoading ? (
-        <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
           <Briefcase className="w-12 h-12 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500">No assigned designer tasks yet.</p>
         </div>
@@ -1384,7 +1384,7 @@ export function DesignerAssignments() {
                   key={task.id}
                   data-highlighted-id={isHighlighted ? task.id : undefined}
                   className={[
-                    'bg-white rounded-xl p-6 shadow-sm border transition-all duration-300',
+                    'card-safe overflow-hidden min-w-0 bg-white rounded-xl p-6 shadow-sm border transition-all duration-300',
                     isHighlighted
                       ? 'border-2 border-blue-400 ring-4 ring-blue-100 shadow-blue-100'
                       : isDeactivated
@@ -1737,7 +1737,7 @@ export function DesignerAssignments() {
             <div className="grid grid-cols-1 gap-6 px-6 py-5 lg:grid-cols-3">
               <div className="lg:col-span-2 space-y-5">
                 {/* Task Info */}
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h4 className="text-xl font-semibold text-gray-900">{selectedTaskDetail.title}</h4>
@@ -1766,13 +1766,13 @@ export function DesignerAssignments() {
                   </div>
                 </section>
 
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Description</h5>
                   <p className="mt-2 text-sm text-gray-700">{selectedTaskDetail.description}</p>
                 </section>
 
                 {selectedTaskDetail.attachment_urls && selectedTaskDetail.attachment_urls.length > 0 && (
-                  <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                     <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-3 flex items-center gap-2">
                       <Paperclip className="w-4 h-4" />
                       Task Attachments
@@ -1782,7 +1782,7 @@ export function DesignerAssignments() {
                 )}
 
                 {/* Submission Progress & Review */}
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-4">
                     Submission Progress & Review
                   </h5>
@@ -2130,7 +2130,7 @@ export function DesignerAssignments() {
               </div>
 
               <aside className="space-y-4">
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Timeline</h5>
                   <div className="mt-2 space-y-2 text-sm text-gray-700">
                     <p>Deadline: {selectedTaskDetail.due_date ? new Date(selectedTaskDetail.due_date).toLocaleDateString() : 'No deadline'}</p>

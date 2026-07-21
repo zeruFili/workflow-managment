@@ -29,7 +29,7 @@ function QuickAccessButton({
   return (
     <Link
       to={to}
-      className="relative flex w-full items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md"
+      className="card-safe overflow-hidden min-w-0 relative flex w-full items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md"
     >
       <span className="flex min-w-0 items-center gap-3">
         <span className={`flex h-10 w-10 items-center justify-center rounded-lg ${iconBgClass} ${iconTextClass}`}>
@@ -79,7 +79,7 @@ export function LeadershipQuickAccess() {
   });
 
   return (
-    <div className="space-y-5 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+    <div className="card-safe overflow-hidden min-w-0 space-y-5 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
       <div>
         <h3 className="text-base font-semibold text-gray-900 sm:text-lg">Management</h3>
         <p className="mt-1 text-sm text-gray-600">
@@ -122,7 +122,7 @@ export function LeadershipQuickAccess() {
         />
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white">
+      <div className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white">
         <div className="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <h4 className="text-sm font-semibold text-gray-900 sm:text-base">Designer Assignment Task List</h4>

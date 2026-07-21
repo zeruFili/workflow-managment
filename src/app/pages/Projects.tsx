@@ -69,7 +69,7 @@ export function Projects() {
         )}
       </div>
 
-      <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
+      <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-4 shadow-sm border border-gray-200">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -101,7 +101,7 @@ export function Projects() {
           <Link
             key={project.id}
             to={`/projects/${project.id}`}
-            className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
+            className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
           >
             <div className="flex items-start justify-between mb-3">
               <h3 className="font-semibold text-lg text-gray-900 line-clamp-1">
@@ -151,14 +151,14 @@ export function Projects() {
       </div>
 
       {filteredProjects.length === 0 && (
-        <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
           <p className="text-gray-500">No projects found</p>
         </div>
       )}
 
       {showNewProject && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-lg">
+          <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-6 w-full max-w-lg">
             <h3 className="text-xl font-semibold mb-4">Create New Project</h3>
             <form onSubmit={handleCreateProject} className="space-y-4">
               <div>

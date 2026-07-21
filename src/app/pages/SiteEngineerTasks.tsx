@@ -466,7 +466,7 @@ export function SiteEngineerTasks() {
       </div>
 
       {userTasks.length === 0 && (
-        <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
           <p className="text-gray-500">No tasks found</p>
         </div>
       )}

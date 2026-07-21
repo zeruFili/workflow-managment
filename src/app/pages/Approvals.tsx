@@ -550,7 +550,7 @@ export function Approvals() {
 
   if (!canFinanceReview && !canMarketingClarify) {
     return (
-      <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+      <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
         <p className="text-gray-500">Access denied. Finance Officer, Marketing Lead, or System Administrator access required.</p>
       </div>
     );
@@ -582,7 +582,7 @@ export function Approvals() {
       </div>
 
       {paidCustomers.length === 0 ? (
-        <div className="bg-white rounded-xl p-10 shadow-sm border border-gray-200 text-center">
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-10 shadow-sm border border-gray-200 text-center">
           <p className="text-gray-500">No paid‑customer records are available yet.</p>
         </div>
       ) : (
@@ -603,7 +603,7 @@ export function Approvals() {
                 key={customer.id}
                 data-highlighted-id={isHighlighted ? customer.id : undefined}
                 className={[
-                  'bg-white rounded-xl p-6 shadow-sm border transition-all duration-300',
+                  'card-safe overflow-hidden min-w-0 bg-white rounded-xl p-6 shadow-sm border transition-all duration-300',
                   isHighlighted
                     ? 'border-2 border-blue-400 ring-4 ring-blue-100 shadow-blue-100'
                     : 'border-gray-200 hover:shadow-md',

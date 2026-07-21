@@ -373,7 +373,7 @@ export function CustomerData() {
 
   if (!canAccess) {
     return (
-      <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+      <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
         <p className="text-gray-500">Access denied. Marketing Lead or CEO access required.</p>
       </div>
     );
@@ -539,7 +539,7 @@ export function CustomerData() {
               <span>Create Marketing Task</span>
             </button>
           )}
-          <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 shadow-sm min-w-[220px]">
+          <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl border border-gray-200 px-4 py-3 shadow-sm min-w-[220px]">
             <div className="flex items-center gap-3">
               <Users className="w-5 h-5 text-blue-600" />
               <div>
@@ -552,7 +552,7 @@ export function CustomerData() {
       </div>
 
       {/* Marketing Tasks (no submissions) */}
-      <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+      <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
         {marketingTasksLoading && (
           <div className="flex justify-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
@@ -744,7 +744,7 @@ export function CustomerData() {
       {/* Submission Modal */}
       {submittingTaskId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl border border-gray-200">
+          <div className="card-safe overflow-hidden min-w-0 bg-white rounded-2xl w-full max-w-2xl shadow-xl border border-gray-200">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <div>
                 <h3 className="text-xl font-semibold text-gray-900">Submit &amp; Move to Paid Customers</h3>
@@ -908,7 +908,7 @@ export function CustomerData() {
             </div>
             <div className="grid grid-cols-1 gap-6 px-6 py-5 lg:grid-cols-3">
               <div className="lg:col-span-2 space-y-5">
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h4 className="text-xl font-semibold text-gray-900">{selectedTask.title}</h4>
@@ -933,7 +933,7 @@ export function CustomerData() {
                   </div>
                 </section>
 
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-3">Customer Details</h5>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                     <div className="flex items-center gap-2"><User className="w-4 h-4 text-gray-400" /><span className="font-medium">{selectedTask.customer_name}</span></div>
@@ -944,34 +944,34 @@ export function CustomerData() {
                 </section>
 
                 {selectedTask.description && (
-                  <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                     <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-2">Description</h5>
                     <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedTask.description}</p>
                   </section>
                 )}
 
                 {selectedTask.service_description && (
-                  <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                     <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-2">Service Description</h5>
                     <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedTask.service_description}</p>
                   </section>
                 )}
 
                 {selectedTask.notes && (
-                  <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                     <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-2">Notes</h5>
                     <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedTask.notes}</p>
                   </section>
                 )}
 
                 {selectedTask.attachment_urls && selectedTask.attachment_urls.length > 0 && (
-                  <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                     <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-3 flex items-center gap-2"><Paperclip className="w-4 h-4" />Task Attachments</h5>
                     <AttachmentViewer attachments={selectedTask.attachment_urls} />
                   </section>
                 )}
 
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-4">Submissions &amp; Review Feedback</h5>
                   {getSubmissionWrappers(selectedTask).length === 0 ? (
                     <p className="text-sm text-gray-500">No submissions yet.</p>
@@ -1147,7 +1147,7 @@ export function CustomerData() {
                 </section>
 
                 {user?.role === 'marketing_lead' && selectedTask.marketing_user_id === user.id && selectedTask.status !== 'rejected' && selectedTask.task_state === 'active' && (
-                  <section className="rounded-xl border border-dashed border-gray-300 bg-blue-50/50 p-4">
+                  <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-dashed border-gray-300 bg-blue-50/50 p-4">
                     <h6 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
                       <MessageSquare className="w-4 h-4" />
                       {editingSubmissionId ? 'Update' : 'Submit'} to this Task
@@ -1198,7 +1198,7 @@ export function CustomerData() {
               </div>
 
               <aside className="space-y-4">
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-3">Timeline</h5>
                   <div className="mt-2 space-y-2 text-sm text-gray-700">
                     <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-gray-400" />Created: {new Date(selectedTask.created_at).toLocaleDateString()}</div>

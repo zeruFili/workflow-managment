@@ -1157,7 +1157,7 @@ export function MarketingTasks() {
           { label: 'Feedback', value: summary.feedback },
           { label: 'Rejected', value: summary.rejected },
         ].map((stat) => (
-          <div key={stat.label} className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
+          <div key={stat.label} className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-4 shadow-sm border border-gray-200">
             <p className="text-sm text-gray-500">{stat.label}</p>
             <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
           </div>
@@ -1165,7 +1165,7 @@ export function MarketingTasks() {
       </div>
 
       {sortedTasks.length === 0 ? (
-        <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
           <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500">No marketing tasks yet.</p>
         </div>
@@ -1179,7 +1179,7 @@ export function MarketingTasks() {
                 <div
                   key={task.id}
                   data-highlighted-id={isHighlighted ? task.id : undefined}
-                  className={`bg-white rounded-xl p-6 shadow-sm border transition-all duration-300 hover:shadow-md ${
+                  className={`card-safe overflow-hidden min-w-0 bg-white rounded-xl p-6 shadow-sm border transition-all duration-300 hover:shadow-md ${
                     isHighlighted
                       ? 'border-2 border-blue-400 ring-4 ring-blue-100 shadow-blue-100'
                       : 'border-gray-200'
@@ -1290,7 +1290,7 @@ export function MarketingTasks() {
             <div className="grid grid-cols-1 gap-6 px-6 py-5 lg:grid-cols-3">
               <div className="lg:col-span-2 space-y-5">
                 {/* Task Info */}
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h4 className="text-xl font-semibold text-gray-900">{selectedTask.title}</h4>
@@ -1316,7 +1316,7 @@ export function MarketingTasks() {
                 </section>
 
                 {/* Customer Info */}
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-3">Customer Details</h5>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                     <div className="flex items-center gap-2 text-gray-700">
@@ -1341,20 +1341,20 @@ export function MarketingTasks() {
                 </section>
 
                 {/* Description */}
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Description</h5>
                   <p className="mt-2 text-sm text-gray-700">{selectedTask.description}</p>
                 </section>
 
                 {/* Service Description */}
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Service Description</h5>
                   <p className="mt-2 text-sm text-gray-700">{selectedTask.service_description}</p>
                 </section>
 
                 {/* Notes */}
                 {selectedTask.notes && (
-                  <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                     <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Notes</h5>
                     <p className="mt-2 text-sm text-gray-700">{selectedTask.notes}</p>
                   </section>
@@ -1362,7 +1362,7 @@ export function MarketingTasks() {
 
                 {/* Task Attachments */}
                 {selectedTask.attachment_urls && selectedTask.attachment_urls.length > 0 && (
-                  <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                     <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-3 flex items-center gap-2">
                       <Paperclip className="w-4 h-4" />
                       Task Attachments
@@ -1372,7 +1372,7 @@ export function MarketingTasks() {
                 )}
 
                 {/* Submissions & Reviews */}
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-4">
                     Submissions &amp; Review Feedback
                   </h5>
@@ -1741,7 +1741,7 @@ export function MarketingTasks() {
 
               {/* Sidebar Timeline */}
               <aside className="space-y-4">
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Timeline</h5>
                   <div className="mt-2 space-y-2 text-sm text-gray-700">
                     <p>Deadline: {selectedTask.due_date ? new Date(selectedTask.due_date).toLocaleDateString() : 'No deadline'}</p>
@@ -1761,7 +1761,7 @@ export function MarketingTasks() {
       {/* ── Create Task Modal ── */}
       {showCreateModal && canManage && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="card-safe overflow-hidden min-w-0 bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Create Marketing Task</h3>
@@ -1990,7 +1990,7 @@ export function MarketingTasks() {
       {/* ── Edit Task Modal ── */}
       {showEditTask && editingTaskId && canManage && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="card-safe overflow-hidden min-w-0 bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Edit Marketing Task</h3>

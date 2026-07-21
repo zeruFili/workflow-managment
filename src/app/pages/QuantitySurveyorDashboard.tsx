@@ -342,7 +342,7 @@ export function QuantitySurveyorDashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+      <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl border border-gray-200 shadow-sm p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-50 rounded-lg">
@@ -419,7 +419,7 @@ export function QuantitySurveyorDashboard() {
               key={panel.key}
               type="button"
               onClick={() => openPanelPage(panel.key)}
-              className="rounded-xl border border-gray-200 bg-white p-5 text-left text-gray-700 shadow-sm transition-all hover:border-blue-300 hover:shadow"
+              className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-5 text-left text-gray-700 shadow-sm transition-all hover:border-blue-300 hover:shadow"
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -444,7 +444,7 @@ export function QuantitySurveyorDashboard() {
           ))}
         </div>
       ) : (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="card-safe overflow-hidden min-w-0 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <div>
             <p className="text-sm font-medium text-gray-900">
               {pageMode === 'review' ? 'Review Page' : 'Live Page'}
@@ -463,7 +463,7 @@ export function QuantitySurveyorDashboard() {
 
       {/* Active panel – task list with improved highlights */}
       {(pageMode === 'live' || (isDashboardMode && activePanel === 'active')) && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl border border-gray-200 shadow-sm p-6">
           <div className="flex items-center justify-between gap-3 mb-5">
             <div>
               <div className="flex items-center gap-2">
@@ -619,7 +619,7 @@ export function QuantitySurveyorDashboard() {
       {/* Approval panel – unchanged logic, only display */}
       {(pageMode === 'review' || (isDashboardMode && activePanel === 'approval')) && (
         <div className="space-y-6">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+          <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             <div className="flex items-center justify-between gap-3 mb-5">
               <div>
                 <h3 className="text-xl font-bold text-gray-900">Approval</h3>
@@ -691,7 +691,7 @@ export function QuantitySurveyorDashboard() {
                   })}
                 </div>
               ) : (
-                <div className="rounded-xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">
+                <div className="card-safe overflow-hidden min-w-0 rounded-xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">
                   No pending decisions right now.
                 </div>
               )}
@@ -749,7 +749,7 @@ export function QuantitySurveyorDashboard() {
                     );
                   })
                 ) : (
-                  <div className="rounded-xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">
+                  <div className="card-safe overflow-hidden min-w-0 rounded-xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">
                     No approved items yet.
                   </div>
                 )}
@@ -805,7 +805,7 @@ export function QuantitySurveyorDashboard() {
                     );
                   })
                 ) : (
-                  <div className="rounded-xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">
+                  <div className="card-safe overflow-hidden min-w-0 rounded-xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">
                     No feedback items yet.
                   </div>
                 )}
@@ -972,7 +972,7 @@ export function QuantitySurveyorDashboard() {
               </form>
 
               {selectedTaskEvaluation && (
-                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+                <div className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
                   <p className="font-medium text-gray-800 mb-2">Current review record</p>
                   <p>ID: {selectedTaskEvaluation.id}</p>
                   <p>Submitted by: {selectedTaskEvaluation.surveyorName}</p>
@@ -1004,7 +1004,7 @@ export function QuantitySurveyorDashboard() {
             </div>
 
             <div className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
-              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <div className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-gray-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Task statement
                 </p>
@@ -1042,7 +1042,7 @@ export function QuantitySurveyorDashboard() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-gray-200 p-4">
+              <div className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Submission metadata
                 </p>

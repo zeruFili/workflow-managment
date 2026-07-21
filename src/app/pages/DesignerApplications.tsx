@@ -413,7 +413,7 @@ export function DesignerApplications() {
 
   if (error) {
     return (
-      <div className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center">
+      <div className="card-safe overflow-hidden min-w-0 rounded-2xl border border-red-200 bg-red-50 p-8 text-center">
         <AlertCircle className="mx-auto h-10 w-10 text-red-400" />
         <p className="mt-3 text-red-700 font-medium">Failed to load designer applications</p>
         <p className="mt-1 text-sm text-red-600">{error}</p>
@@ -431,7 +431,7 @@ export function DesignerApplications() {
 
   if (!reviewRoles.has(user.role)) {
     return (
-      <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+      <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
         <p className="text-gray-500">Access denied. CEO or General Manager only.</p>
       </div>
     );
@@ -933,7 +933,7 @@ export function DesignerApplications() {
                 key={task.id}
                 data-highlighted-id={isHighlighted ? task.id : undefined}
                 className={[
-                  'bg-white rounded-xl p-5 shadow-sm border space-y-4 transition-all duration-300',
+                  'card-safe overflow-hidden min-w-0 bg-white rounded-xl p-5 shadow-sm border space-y-4 transition-all duration-300',
                   isHighlighted
                     ? 'border-2 border-blue-400 ring-4 ring-blue-100 shadow-blue-100'
                     : 'border-gray-200',
@@ -1155,7 +1155,7 @@ export function DesignerApplications() {
           })}
         </div>
       ) : (
-        <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
           <CheckCircle2 className="w-12 h-12 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500">No designer tasks found yet.</p>
         </div>
@@ -1493,7 +1493,7 @@ export function DesignerApplications() {
       {/* Delete Confirmation Dialog */}
       {showDeleteConfirm && deletingTaskId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+          <div className="card-safe overflow-hidden min-w-0 bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-semibold text-gray-900">Delete Task</h3>
               <button

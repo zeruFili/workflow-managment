@@ -666,14 +666,14 @@ export function Tasks() {
       </div>
 
       {userTasks.length === 0 && (
-        <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
           <p className="text-gray-500">No tasks found</p>
         </div>
       )}
 
       {showCreateTask && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-semibold mb-4">Create New Task</h3>
             <form className="space-y-4" onSubmit={createTask}>
               {/* … (create task form remains exactly as before) … */}

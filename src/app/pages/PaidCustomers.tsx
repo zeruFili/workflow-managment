@@ -787,7 +787,7 @@ export function PaidCustomers() {
 
   if (!canAccess) {
     return (
-      <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+      <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
         <p className="text-gray-500">Access denied.</p>
       </div>
     );
@@ -808,7 +808,7 @@ export function PaidCustomers() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 shadow-sm min-w-[220px]">
+          <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl border border-gray-200 px-4 py-3 shadow-sm min-w-[220px]">
             <div className="flex items-center gap-3">
               <Users className="w-5 h-5 text-green-600" />
               <div>
@@ -825,7 +825,7 @@ export function PaidCustomers() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         </div>
       ) : marketingTasksWithSubmissions.length === 0 ? (
-        <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
           <p className="text-gray-500">No paid customer records yet.</p>
           <p className="text-sm text-gray-400 mt-1">Marketing tasks appear here once they receive their first submission.</p>
         </div>
@@ -843,7 +843,7 @@ export function PaidCustomers() {
 
             return (
               <div key={task.id}
-                className={`border rounded-xl p-5 bg-white shadow-sm transition-all hover:shadow-md ${
+                className={`card-safe overflow-hidden min-w-0 border rounded-xl p-5 bg-white shadow-sm transition-all hover:shadow-md ${
                   hasNotification ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200'
                 }`}
               >
@@ -957,7 +957,7 @@ export function PaidCustomers() {
 
             <div className="grid grid-cols-1 gap-6 px-6 py-5 lg:grid-cols-3">
               <div className="lg:col-span-2 space-y-5">
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h4 className="text-xl font-semibold text-gray-900">{selectedTask.title}</h4>
@@ -982,7 +982,7 @@ export function PaidCustomers() {
                   </div>
                 </section>
 
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-3">Customer Details</h5>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                     <div className="flex items-center gap-2 text-gray-700"><User className="w-4 h-4 text-gray-400" /><span className="font-medium">{selectedTask.customer_name}</span></div>
@@ -992,25 +992,25 @@ export function PaidCustomers() {
                   </div>
                 </section>
 
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Description</h5>
                   <p className="mt-2 text-sm text-gray-700">{selectedTask.description}</p>
                 </section>
 
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Service Description</h5>
                   <p className="mt-2 text-sm text-gray-700">{selectedTask.service_description}</p>
                 </section>
 
                 {selectedTask.notes && (
-                  <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                     <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Notes</h5>
                     <p className="mt-2 text-sm text-gray-700">{selectedTask.notes}</p>
                   </section>
                 )}
 
                 {selectedTask.attachment_urls && selectedTask.attachment_urls.length > 0 && (
-                  <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                     <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-3 flex items-center gap-2">
                       <Paperclip className="w-4 h-4" />Task Attachments
                     </h5>
@@ -1018,7 +1018,7 @@ export function PaidCustomers() {
                   </section>
                 )}
 
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-4">
                     Submissions &amp; Review Feedback
                   </h5>
@@ -1296,7 +1296,7 @@ export function PaidCustomers() {
               </div>
 
               <aside className="space-y-4">
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Timeline</h5>
                   <div className="mt-2 space-y-2 text-sm text-gray-700">
                     <p>Deadline: {selectedTask.due_date ? new Date(selectedTask.due_date).toLocaleDateString() : 'No deadline'}</p>

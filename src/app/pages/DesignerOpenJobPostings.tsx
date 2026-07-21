@@ -408,7 +408,7 @@ export function DesignerOpenJobPostings() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="card-safe overflow-hidden min-w-0 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
@@ -450,7 +450,7 @@ export function DesignerOpenJobPostings() {
       </div>
 
       {postings.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center shadow-sm">
+        <div className="card-safe overflow-hidden min-w-0 rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center shadow-sm">
           <ShieldCheck className="mx-auto h-12 w-12 text-slate-300" />
           <p className="mt-4 text-slate-500">No job postings are available yet.</p>
         </div>
@@ -468,7 +468,7 @@ export function DesignerOpenJobPostings() {
                 key={posting.id}
                 data-highlighted-id={isHighlighted ? posting.id : undefined}
                 className={[
-                  'w-full rounded-2xl border bg-white p-5 shadow-sm flex flex-col transition-all duration-300',
+                  'card-safe overflow-hidden min-w-0 w-full rounded-2xl border bg-white p-5 shadow-sm flex flex-col transition-all duration-300',
                   isHighlighted
                     ? 'border-2 border-blue-400 ring-4 ring-blue-100 shadow-blue-100'
                     : 'border-slate-200',
@@ -528,7 +528,7 @@ export function DesignerOpenJobPostings() {
                     </button>
                     {viewImagesTaskId === posting.id && (
                       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl aspect-square max-h-[calc(100vh-4rem)] flex flex-col p-6">
+                        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-2xl shadow-2xl w-full max-w-2xl aspect-square max-h-[calc(100vh-4rem)] flex flex-col p-6">
                           <div className="shrink-0 flex items-center justify-between mb-4">
                             <h3 className="text-lg font-semibold text-gray-900">Attachments</h3>
                             <button

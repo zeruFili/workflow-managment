@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotificationCounts } from '../contexts/NotificationCountsContext';
 import dataCollectorApi, {
@@ -153,7 +153,7 @@ const PAGE_SIZE = 10;
 
 const STORAGE_KEY = 'data-collector-tasks-v3';
 
-// ── Seed data (matches backend response shape exactly) ──
+// -- Seed data (matches backend response shape exactly) --
 const seedTasks: DataCollectorTaskItem[] = [
   {
     id: 'dc-task-1',
@@ -445,7 +445,7 @@ export function DataCollectorTasks() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [dataCollectors, setDataCollectors] = useState<UserItem[]>([]);
 
-  // ── Edit Task state ──
+  // -- Edit Task state --
   const [showEditTask, setShowEditTask] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ title: '', description: '', instruction: '', deadline: '', assigned_to_user_id: '' });
@@ -457,7 +457,7 @@ export function DataCollectorTasks() {
   const [editError, setEditError] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // ── Delete Task state ──
+  // -- Delete Task state --
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -1335,7 +1335,7 @@ export function DataCollectorTasks() {
           { label: 'In Progress', value: summary.inProgress },
           { label: 'Completed', value: summary.completed },
         ].map((stat) => (
-          <div key={stat.label} className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
+          <div key={stat.label} className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-4 shadow-sm border border-gray-200">
             <p className="text-sm text-gray-500">{stat.label}</p>
             <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
           </div>
@@ -1343,7 +1343,7 @@ export function DataCollectorTasks() {
       </div>
 
       {sortedTasks.length === 0 ? (
-        <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
           <Database className="w-12 h-12 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500">No data collection tasks yet.</p>
         </div>
@@ -1356,7 +1356,7 @@ export function DataCollectorTasks() {
                 <div
                   key={task.id}
                   data-highlighted-id={isHighlighted ? task.id : undefined}
-                  className={`bg-white rounded-xl p-6 shadow-sm border transition-all duration-300 hover:shadow-md ${
+                  className={`card-safe overflow-hidden min-w-0 bg-white rounded-xl p-6 shadow-sm border transition-all duration-300 hover:shadow-md ${
                     isHighlighted
                       ? 'border-2 border-blue-400 ring-4 ring-blue-100 shadow-blue-100'
                       : 'border-gray-200'
@@ -1511,7 +1511,7 @@ export function DataCollectorTasks() {
 
             <div className="grid grid-cols-1 gap-6 px-6 py-5 lg:grid-cols-3">
               <div className="lg:col-span-2 space-y-5">
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h4 className="text-xl font-semibold text-gray-900">{selectedTask.title}</h4>
@@ -1531,13 +1531,13 @@ export function DataCollectorTasks() {
                   </div>
                 </section>
 
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Description</h5>
                   <p className="mt-2 text-sm text-gray-700">{selectedTask.description}</p>
                 </section>
 
                 {selectedTask.attachment_urls && selectedTask.attachment_urls.length > 0 && (
-                  <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                     <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-3 flex items-center gap-2">
                       <Paperclip className="w-4 h-4" />
                       Task Attachments
@@ -1546,7 +1546,7 @@ export function DataCollectorTasks() {
                   </section>
                 )}
 
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-4">
                     Submissions &amp; Review Feedback
                   </h5>
@@ -1914,7 +1914,7 @@ export function DataCollectorTasks() {
                   </section>
                 )}
               </div>              <aside className="space-y-4">
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Timeline</h5>
                   <div className="mt-2 space-y-2 text-sm text-gray-700">
                     <p>Deadline: {selectedTask.due_date ? new Date(selectedTask.due_date).toLocaleDateString() : 'No deadline'}</p>
@@ -1928,7 +1928,7 @@ export function DataCollectorTasks() {
         </div>
       )}      {showCreateModal && canManage && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="card-safe overflow-hidden min-w-0 bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Create Data Collection Task</h3>
@@ -2074,7 +2074,7 @@ export function DataCollectorTasks() {
       {/* Edit Task Modal */}
       {showEditTask && editingTaskId && canManage && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="card-safe overflow-hidden min-w-0 bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Edit Data Collection Task</h3>
@@ -2228,7 +2228,7 @@ export function DataCollectorTasks() {
       {/* Delete Confirmation Dialog */}
       {showDeleteConfirm && deletingTaskId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+          <div className="card-safe overflow-hidden min-w-0 bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-semibold text-gray-900">Delete Task</h3>
               <button

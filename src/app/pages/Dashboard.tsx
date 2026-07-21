@@ -49,7 +49,7 @@ function DashboardButton({
   return (
     <Link
       to={to}
-      className="relative flex w-full items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md"
+      className="card-safe overflow-hidden min-w-0 relative flex w-full items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md"
     >
       <span className="flex min-w-0 items-center gap-3">
         <span className={`flex h-10 w-10 items-center justify-center rounded-lg ${iconBgClass} ${iconTextClass}`}>
@@ -103,7 +103,7 @@ function DesignerQuickAccess() {
   }, []);
 
   return (
-    <div className="space-y-5 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+    <div className="card-safe overflow-hidden min-w-0 space-y-5 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
       <div>
         <h3 className="text-base font-semibold text-gray-900 sm:text-lg">Designer</h3>
         <p className="mt-1 text-sm text-gray-600">
@@ -130,7 +130,7 @@ function DesignerQuickAccess() {
         />
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white">
+      <div className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white">
         <div className="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <h4 className="text-sm font-semibold text-gray-900 sm:text-base">Designer Task List</h4>
@@ -280,7 +280,7 @@ export function Dashboard() {
       {isDesignerDashboard ? <DesignerQuickAccess /> : leadershipRoles && <LeadershipQuickAccess />}
 
       {leadershipRoles && leadershipNotifications.length > 0 && (
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-6 shadow-sm border border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-lg">Recent Notifications</h3>
             <button
@@ -321,7 +321,7 @@ export function Dashboard() {
             {stats.map((stat) => {
               const Icon = stat.icon;
               return (
-                <div key={stat.label} className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                <div key={stat.label} className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-6 shadow-sm border border-gray-200">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-600">{stat.label}</p>
@@ -337,7 +337,7 @@ export function Dashboard() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="hidden lg:block bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <div className="card-safe overflow-hidden min-w-0 hidden lg:block bg-white rounded-xl p-6 shadow-sm border border-gray-200">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-lg">Recent Projects</h3>
                 <Link to="/projects" className="text-sm text-blue-600 hover:text-blue-700">
@@ -374,7 +374,7 @@ export function Dashboard() {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-6 shadow-sm border border-gray-200">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-lg">My Tasks</h3>
                 <div className="flex items-center gap-3">
@@ -431,7 +431,7 @@ export function Dashboard() {
 
       {showCreateTask && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-semibold mb-4">Create New Task</h3>
             <form className="space-y-4" onSubmit={(e) => {
               e.preventDefault();

@@ -418,7 +418,7 @@ function RecordList({
 }) {
   if (records.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center shadow-sm">
+      <div className="card-safe overflow-hidden min-w-0 rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center shadow-sm">
         <ClipboardList className="mx-auto h-12 w-12 text-slate-300 mb-4" />
         <p className="text-slate-500">No records in this category.</p>
       </div>
@@ -435,7 +435,7 @@ function RecordList({
             key={record.id}
             data-highlighted-id={isHighlighted ? record.id : undefined}
             className={[
-              'rounded-xl bg-white p-5 shadow-sm transition-all duration-300',
+              'card-safe overflow-hidden min-w-0 rounded-xl bg-white p-5 shadow-sm transition-all duration-300',
               isHighlighted
                 ? 'border-2 border-blue-400 ring-4 ring-blue-100 shadow-blue-100'
                 : 'border border-gray-200',
@@ -924,7 +924,7 @@ export function FinanceVerifications() {
 
   if (user.role !== 'finance_officer' && user.role !== 'ceo' && user.role !== 'general_manager') {
     return (
-      <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center shadow-sm">
+      <div className="card-safe overflow-hidden min-w-0 rounded-2xl border border-gray-200 bg-white p-12 text-center shadow-sm">
         <p className="text-gray-500">Access denied. Finance Officer access required.</p>
       </div>
     );
@@ -948,7 +948,7 @@ export function FinanceVerifications() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="card-safe overflow-hidden min-w-0 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
             <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
@@ -958,7 +958,7 @@ export function FinanceVerifications() {
             <h2 className="mt-3 text-2xl font-bold text-slate-900">Payment Verification Center</h2>
 
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm min-w-[240px]">
+          <div className="card-safe overflow-hidden min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm min-w-[240px]">
             <p className="text-xs uppercase tracking-wide text-slate-500">Viewing as</p>
             <p className="mt-1 font-medium text-slate-900">{user.full_name}</p>
             <p className="text-sm text-slate-500">{categoryLabel}</p>
@@ -976,7 +976,7 @@ export function FinanceVerifications() {
                 key={tile.label}
                 type="button"
                 onClick={() => handleViewChange(tile.tab)}
-                className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm transition active:bg-slate-50"
+                className="card-safe overflow-hidden min-w-0 flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm transition active:bg-slate-50"
               >
                 <div className="flex items-center gap-3">
                   <div className={`inline-flex rounded-xl p-2 ${tile.tone}`}>
@@ -1006,7 +1006,7 @@ export function FinanceVerifications() {
                 key={tile.label}
                 type="button"
                 onClick={() => handleViewChange(tile.tab)}
-                className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                className="card-safe overflow-hidden min-w-0 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
               >
                 <div className={`inline-flex rounded-xl p-2 ${tile.tone}`}>
                   <Icon className="h-5 w-5" />
@@ -1029,7 +1029,7 @@ export function FinanceVerifications() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
             </div>
           ) : marketingTasksWithSubmissions.length === 0 ? (
-            <div className="bg-white rounded-xl p-12 shadow-sm border border-slate-200 text-center">
+            <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-slate-200 text-center">
               <p className="text-slate-500">No paid customer records yet.</p>
               <p className="text-sm text-slate-400 mt-1">Marketing tasks appear here once they receive their first submission.</p>
             </div>
@@ -1041,7 +1041,7 @@ export function FinanceVerifications() {
                   <Link
                     key={task.id}
                     to={`/paid-customers?openDetail=${task.id}`}
-                    className="border border-slate-200 rounded-xl p-5 bg-white shadow-sm transition-all hover:shadow-md hover:border-slate-300"
+                    className="card-safe overflow-hidden min-w-0 border border-slate-200 rounded-xl p-5 bg-white shadow-sm transition-all hover:shadow-md hover:border-slate-300"
                   >
                     <div className="flex items-start justify-between mb-3 gap-3">
                       <div>
@@ -1097,7 +1097,7 @@ export function FinanceVerifications() {
             <div className="grid grid-cols-1 gap-6 px-6 py-5 lg:grid-cols-3">
               <div className="lg:col-span-2 space-y-5">
                 {/* Record Info */}
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h4 className="text-xl font-semibold text-gray-900">{selectedRecord.customerName}</h4>
@@ -1125,18 +1125,18 @@ export function FinanceVerifications() {
                   </div>
                 </section>
 
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Service Description</h5>
                   <p className="mt-2 text-sm text-gray-700">{selectedRecord.serviceDescription}</p>
                 </section>
 
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Payment Note</h5>
                   <p className="mt-2 text-sm text-gray-700">{selectedRecord.paymentNote ?? 'No payment note attached.'}</p>
                 </section>
 
                 {/* Collapsible Evidence */}
-                <section className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white overflow-hidden">
                   <button
                     type="button"
                     onClick={() => toggleSection('evidence')}
@@ -1154,7 +1154,7 @@ export function FinanceVerifications() {
                       <div className="grid gap-3 sm:grid-cols-2">
                         {(selectedRecord.proofOfPayment ?? []).length > 0 ? (
                           selectedRecord.proofOfPayment!.map((proof) => (
-                            <div key={proof.name} className="rounded-2xl border border-slate-200 p-3">
+                            <div key={proof.name} className="card-safe overflow-hidden min-w-0 rounded-2xl border border-slate-200 p-3">
                               <img src={proof.dataUrl} alt={proof.name} className="h-32 w-full rounded-xl object-cover" />
                               <p className="mt-2 text-xs text-slate-500">{proof.name}</p>
                             </div>
@@ -1168,7 +1168,7 @@ export function FinanceVerifications() {
                 </section>
 
                 {/* Finance Attachments */}
-                <section className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white overflow-hidden">
                   <button
                     type="button"
                     onClick={() => toggleSection('attachments')}
@@ -1195,7 +1195,7 @@ export function FinanceVerifications() {
                 </section>
 
                 {/* Payment History */}
-                <section className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white overflow-hidden">
                   <button
                     type="button"
                     onClick={() => toggleSection('history')}
@@ -1226,7 +1226,7 @@ export function FinanceVerifications() {
                 </section>
 
                 {/* Resubmission History */}
-                <section className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white overflow-hidden">
                   <button
                     type="button"
                     onClick={() => toggleSection('resubmission')}
@@ -1257,7 +1257,7 @@ export function FinanceVerifications() {
                 </section>
 
                 {selectedRecord.transferredByName === 'CEO' && !isVerified(selectedRecord.paymentVerificationStatus) && (
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <div className="card-safe overflow-hidden min-w-0 rounded-2xl border border-amber-200 bg-amber-50 p-4">
                     <div className="flex items-center gap-2 text-sm font-medium text-amber-800">
                       <CircleAlert className="h-4 w-4" />
                       CEO-transferred request
@@ -1280,7 +1280,7 @@ export function FinanceVerifications() {
               </div>
 
               <aside className="space-y-4">
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-3">Evidence Review</h5>
                   {reviewedEvidence[selectedRecord.id] ? (
                     <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2 border border-green-200">
@@ -1301,7 +1301,7 @@ export function FinanceVerifications() {
                   )}
                 </section>
 
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-3">Timeline</h5>
                   <div className="space-y-2 text-sm text-gray-700">
                     <div className="flex items-center gap-2 text-gray-500">
@@ -1325,7 +1325,7 @@ export function FinanceVerifications() {
                   </div>
                 </section>
 
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-3">Actions</h5>
                   <div className="space-y-2">
                     {!isProcessed ? (
@@ -1367,7 +1367,7 @@ export function FinanceVerifications() {
                   </div>
                 </section>
 
-                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500 mb-2">Audit</h5>
                   <p className="text-sm text-slate-600">
                     {selectedRecord.proofOfPayment?.length ?? 0} proof attachment(s)
@@ -1467,7 +1467,7 @@ export function FinanceVerifications() {
               {modalState.error && <p className="text-sm text-red-600">{modalState.error}</p>}
 
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={closeModal} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700">
+                <button type="button" onClick={closeModal} className="card-safe overflow-hidden min-w-0 rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700">
                   Cancel
                 </button>
                 <button type="button" onClick={saveModalAction} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white">
