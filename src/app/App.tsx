@@ -5,6 +5,7 @@ import { useTelegram } from './hooks/useTelegram';
 import { Layout } from './components/Layout';
 import { NotificationCountsProvider } from './contexts/NotificationCountsContext';
 import { Login } from './pages/Login';
+import { ResetPassword } from './pages/ResetPassword';
 import { Dashboard } from './pages/Dashboard';
 import { Tasks } from './pages/Tasks';
 import { UserManagement } from './pages/UserManagement';
@@ -123,6 +124,7 @@ const router = createHashRouter([
     ),
     children: [
       { index: true, Component: LoginOrRedirect },
+      { path: 'reset-password/:token', Component: ResetPassword },
 
       {
         Component: AuthenticatedLayout,
