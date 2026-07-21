@@ -39,6 +39,7 @@ import {
 import AttachmentViewer from '../components/AttachmentViewer';
 import ImageRemoveButton from '../components/ImageRemoveButton';
 import { PaginationWithNumbers } from '../components/ui/PaginationWithNumbers';
+import { Popover, PopoverTrigger, PopoverContent } from '../components/ui/popover';
 
 const API_BASE_URL = 'http://localhost:3001';
 function resolveAttachmentUrl(url: string): string {
@@ -84,6 +85,7 @@ interface ReviewData {
     rendering: number;
   };
   submittedAt: string;
+  updatedAt: string | null;
 }
 
 const PHASES: { key: PhaseKey; label: string; backendStage: string }[] = [
@@ -1519,12 +1521,14 @@ export function DesignerTasks() {
                       reviewText: string;
                       ratings: { creativity: number; timeliness: number; clientUnderstanding: number; rendering: number };
                       submittedAt: string;
+                      updatedAt: string | null;
                     } | null = apiReview
                       ? {
                           reviewerName: apiReview.reviewerName,
                           reviewText: apiReview.reviewText,
                           ratings: apiReview.ratings,
                           submittedAt: apiReview.submittedAt,
+                          updatedAt: apiReview.updatedAt,
                         }
                       : localReview
                       ? {
@@ -1532,6 +1536,7 @@ export function DesignerTasks() {
                           reviewText: localReview.reviewText,
                           ratings: localReview.ratings,
                           submittedAt: localReview.submittedAt,
+                          updatedAt: localReview.updatedAt,
                         }
                       : null;
                     if (!existingReview) return null;
@@ -1541,9 +1546,25 @@ export function DesignerTasks() {
                           <div className="flex items-center gap-2 text-sm text-green-700 mb-2">
                             <CheckCircle2 className="w-4 h-4" />
                             <span className="font-medium">Reviewed by {existingReview.reviewerName}</span>
-                            <span className="text-gray-500 text-xs">
-                              {new Date(existingReview.submittedAt).toLocaleString()}
-                            </span>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <button className="inline-flex items-center gap-1 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer">
+                                  <Clock className="w-3.5 h-3.5" />
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-56 p-3 text-xs space-y-2">
+                                <div>
+                                  <span className="text-gray-400">Created At</span>
+                                  <div className="text-gray-700 font-medium">{new Date(existingReview.submittedAt).toLocaleString()}</div>
+                                </div>
+                                {existingReview.updatedAt && (
+                                  <div>
+                                    <span className="text-gray-400">Updated At</span>
+                                    <div className="text-gray-700 font-medium">{new Date(existingReview.updatedAt).toLocaleString()}</div>
+                                  </div>
+                                )}
+                              </PopoverContent>
+                            </Popover>
                           </div>
                           <div className="mb-2">
                             <p className="text-xs font-medium text-gray-500">Ratings:</p>

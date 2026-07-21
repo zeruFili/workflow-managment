@@ -48,6 +48,7 @@ import {
 } from 'lucide-react';
 import AttachmentViewer from '../components/AttachmentViewer';
 import { PaginationWithNumbers } from '../components/ui/PaginationWithNumbers';
+import { Popover, PopoverTrigger, PopoverContent } from '../components/ui/popover';
 
 type PhaseKey = 'caseStudy' | 'designStage' | 'rendering' | 'finalStage';
 
@@ -83,6 +84,7 @@ interface ReviewData {
     rendering: number;
   };
   submittedAt: string;
+  updatedAt: string | null;
 }
 
 const PHASES: { key: PhaseKey; label: string; backendStage: string }[] = [
@@ -1181,11 +1183,11 @@ export function DesignerAssignments() {
             reviewText: comment,
             ratings: { ...ratings },
             submittedAt: response.data.submittedAt,
+            updatedAt: response.data.updatedAt || new Date().toISOString(),
           };
           setReviews((prev) => ({ ...prev, [taskId]: newReview }));
           setRatingSubmitted((prev) => ({ ...prev, [taskId]: true }));
           designerTaskCache.invalidate();
-          // Update the task's taskReview in the tasks array so card display refreshes
           setTasks((prev) =>
             prev.map((t) =>
               t.id === taskId
@@ -1195,7 +1197,6 @@ export function DesignerAssignments() {
           );
         }
       } else {
-        // Create new review via API
         const response = await designerApi.createTaskReview(taskId, {
           Creativity: ratings.creativity,
           Timeliness: ratings.timeliness,
@@ -1210,6 +1211,7 @@ export function DesignerAssignments() {
             reviewText: comment,
             ratings: { ...ratings },
             submittedAt: response.data.submittedAt,
+            updatedAt: response.data.updatedAt,
           };
           setReviews((prev) => ({ ...prev, [taskId]: newReview }));
           setTaskReviewIds((prev) => ({ ...prev, [taskId]: response.data!.id }));
@@ -1226,19 +1228,20 @@ export function DesignerAssignments() {
         }
       }
     } catch {
-      // Fallback to localStorage and tasks array
       const reviewerName = user?.full_name || 'CEO';
+      const now = new Date().toISOString();
       const newReview: ReviewData = {
         reviewerName,
         reviewText: comment,
         ratings: { ...ratings },
-        submittedAt: new Date().toISOString(),
+        submittedAt: reviews[taskId]?.submittedAt || now,
+        updatedAt: now,
       };
       setReviews((prev) => ({ ...prev, [taskId]: newReview }));
       setTasks((prev) =>
         prev.map((t) =>
           t.id === taskId
-            ? { ...t, taskReview: { id: 'local', reviewerName, reviewText: comment, ratings: { ...ratings }, reviewer_user: { id: '', full_name: reviewerName, role: '' }, submittedAt: new Date().toISOString(), updatedAt: null } }
+            ? { ...t, taskReview: { id: 'local', reviewerName, reviewText: comment, ratings: { ...ratings }, reviewer_user: { id: '', full_name: reviewerName, role: '' }, submittedAt: reviews[taskId]?.submittedAt || now, updatedAt: now } }
             : t
         )
       );
@@ -1264,6 +1267,7 @@ export function DesignerAssignments() {
           reviewText: apiReview.reviewText,
           ratings: apiReview.ratings,
           submittedAt: apiReview.submittedAt,
+          updatedAt: apiReview.updatedAt,
         }
       : reviews[taskId];
 
@@ -1346,6 +1350,7 @@ export function DesignerAssignments() {
                     reviewText: apiReview.reviewText,
                     ratings: apiReview.ratings,
                     submittedAt: apiReview.submittedAt,
+                    updatedAt: apiReview.updatedAt,
                   }
                 : reviews[task.id] || null;
 
@@ -1519,9 +1524,25 @@ export function DesignerAssignments() {
                           <div className="flex items-center gap-2 text-sm text-green-700 mb-2">
                             <CheckCircle2 className="w-4 h-4" />
                             <span className="font-medium">Reviewed by {existingReview.reviewerName}</span>
-                            <span className="text-gray-500 text-xs">
-                              {new Date(existingReview.submittedAt).toLocaleString()}
-                            </span>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <button className="inline-flex items-center gap-1 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer">
+                                  <Clock className="w-3.5 h-3.5" />
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-56 p-3 text-xs space-y-2">
+                                <div>
+                                  <span className="text-gray-400">Created At</span>
+                                  <div className="text-gray-700 font-medium">{new Date(existingReview.submittedAt).toLocaleString()}</div>
+                                </div>
+                                {existingReview.updatedAt && (
+                                  <div>
+                                    <span className="text-gray-400">Updated At</span>
+                                    <div className="text-gray-700 font-medium">{new Date(existingReview.updatedAt).toLocaleString()}</div>
+                                  </div>
+                                )}
+                              </PopoverContent>
+                            </Popover>
                           </div>
                           <div className="mb-2">
                             <p className="text-xs font-medium text-gray-500">Ratings:</p>
