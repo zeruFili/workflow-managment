@@ -411,6 +411,8 @@ export function QuantitySurveyorTasks() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [statusFilter, setStatusFilter] = useState('');
+
   const [searchTerm, setSearchTerm] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -507,9 +509,9 @@ export function QuantitySurveyorTasks() {
     ? selectedTask.status !== 'rejected' && selectedTask.task_state === 'active'
     : false;
 
-  const fetchTasks = useCallback(async (page: number, search: string, force = false): Promise<QuantitySurveyorTaskItem[] | undefined> => {
+  const fetchTasks = useCallback(async (page: number, search: string, status: string, force = false): Promise<QuantitySurveyorTaskItem[] | undefined> => {
     if (!user) return;
-    const cacheParams = { page, limit: PAGE_SIZE, ...(search ? { search } : {}) };
+    const cacheParams = { page, limit: PAGE_SIZE, ...(search ? { search } : {}), ...(status ? { status } : {}) };
 
     if (!force) {
       const cached = quantitySurveyorTaskCache.get(cacheParams);
@@ -542,6 +544,11 @@ export function QuantitySurveyorTasks() {
       const result = await quantitySurveyorTaskCache.fetch(cacheParams);
       return applyTasks(result.data, result.total);
     } catch {
+      if (search || status) {
+        applyTasks([], 0);
+        setError(null);
+        return [];
+      }
       const local = initLocalWithSeed();
       const start = (page - 1) * PAGE_SIZE;
       const paged = local.slice(start, start + PAGE_SIZE);
@@ -555,8 +562,8 @@ export function QuantitySurveyorTasks() {
 
   useEffect(() => {
     if (!user) return;
-    fetchTasks(apiPage, searchTerm);
-  }, [user, apiPage, searchTerm, fetchTasks]);
+    fetchTasks(apiPage, searchTerm, statusFilter);
+  }, [user, apiPage, searchTerm, statusFilter, fetchTasks]);
 
   useEffect(() => {
     if (observerRef.current) {
@@ -652,7 +659,7 @@ export function QuantitySurveyorTasks() {
 
   const totalDisplayPages = meta ? Math.ceil(meta.total / PAGE_SIZE) : 1;
   const handlePageChange = (page: number) => {
-    quantitySurveyorTaskCache.invalidate({ page: apiPage, limit: PAGE_SIZE, ...(searchTerm ? { search: searchTerm } : {}) });
+    quantitySurveyorTaskCache.invalidate({ page: apiPage, limit: PAGE_SIZE, ...(searchTerm ? { search: searchTerm } : {}), ...(statusFilter ? { status: statusFilter } : {}) });
     setApiPage(page);
   };
 
@@ -681,6 +688,12 @@ export function QuantitySurveyorTasks() {
       setApiPage(1);
       setSearchTerm('');
     }
+  };
+
+  const handleStatusFilterChange = (value: string) => {
+    quantitySurveyorTaskCache.invalidate();
+    setApiPage(1);
+    setStatusFilter(value);
   };
 
   const getLatestActivity = (task: QuantitySurveyorTaskItem): {
@@ -882,7 +895,7 @@ export function QuantitySurveyorTasks() {
     } else {
       setEditingReviewId(null);
       setReviewDraft((prev) => ({ ...prev, [taskId]: '' }));
-      const refreshedList = await fetchTasks(apiPage, searchTerm, true);
+      const refreshedList = await fetchTasks(apiPage, searchTerm, statusFilter, true);
       if (refreshedList) {
         const refreshed = refreshedList.find((t) => t.id === taskId);
         if (refreshed) setSelectedTask(refreshed);
@@ -1018,7 +1031,7 @@ export function QuantitySurveyorTasks() {
         : await quantitySurveyorApi.createSubmission(taskId, formData);
 
       if (response.success) {
-        const refreshedList = await fetchTasks(apiPage, searchTerm, true);
+        const refreshedList = await fetchTasks(apiPage, searchTerm, statusFilter, true);
         if (refreshedList) {
           const refreshed = refreshedList.find((t) => t.id === taskId);
           if (refreshed) setSelectedTask(refreshed);
@@ -1169,7 +1182,7 @@ export function QuantitySurveyorTasks() {
         setEditingTaskId(null);
         setEditFormErrors({});
         quantitySurveyorTaskCache.invalidate();
-        await fetchTasks(apiPage, searchTerm, true);
+        await fetchTasks(apiPage, searchTerm, statusFilter, true);
       } else {
         setEditError(response.message || 'Failed to update task');
       }
@@ -1204,7 +1217,7 @@ export function QuantitySurveyorTasks() {
         setShowDeleteConfirm(false);
         setDeletingTaskId(null);
         quantitySurveyorTaskCache.invalidate();
-        await fetchTasks(apiPage, searchTerm, true);
+        await fetchTasks(apiPage, searchTerm, statusFilter, true);
       } else {
         setDeleteError(response.message || 'Failed to delete task');
       }
@@ -1279,7 +1292,7 @@ export function QuantitySurveyorTasks() {
         setFieldErrors({});
         setShowCreateModal(false);
         quantitySurveyorTaskCache.invalidate();
-        await fetchTasks(apiPage, searchTerm, true);
+        await fetchTasks(apiPage, searchTerm, statusFilter, true);
       } else {
         setError(response.message || 'Failed to create task');
       }
@@ -1355,28 +1368,42 @@ export function QuantitySurveyorTasks() {
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-green-700 text-sm">{taskSuccessMsg}</div>
       )}
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Search by title or description..."
-          value={searchInput}
-          onChange={(e) => handleSearchChange(e.target.value)}
-          className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-        />
-        {searchInput && (
-          <button
-            onClick={handleClearSearch}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
-        {meta && searchTerm && (
-          <p className="mt-1 text-xs text-gray-500">
-            Found {meta.total} {meta.total === 1 ? 'result' : 'results'} for "{searchTerm}"
-          </p>
-        )}
+      {/* Search & Filter */}
+      <div className="flex items-start gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search by title or description..."
+            value={searchInput}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+          />
+          {searchInput && (
+            <button
+              onClick={handleClearSearch}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+          {meta && searchTerm && (
+            <p className="mt-1 text-xs text-gray-500">
+              Found {meta.total} {meta.total === 1 ? 'result' : 'results'} for "{searchTerm}"
+            </p>
+          )}
+        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => handleStatusFilterChange(e.target.value)}
+          className="py-2.5 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white cursor-pointer shrink-0"
+        >
+          <option value="">All Statuses</option>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+          <option value="feedback">Feedback</option>
+        </select>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

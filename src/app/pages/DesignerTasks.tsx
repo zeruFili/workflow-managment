@@ -470,6 +470,9 @@ export function DesignerTasks() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Filter state
+  const [statusFilter, setStatusFilter] = useState('');
+
   // Search state
   const [searchTerm, setSearchTerm] = useState('');
   const [searchInput, setSearchInput] = useState('');
@@ -542,9 +545,9 @@ export function DesignerTasks() {
   }, [highlightedIds]);
 
   // ── Fetch tasks from API ──
-  const fetchTasks = useCallback(async (page: number, search: string, force = false): Promise<DesignerTaskItem[] | undefined> => {
+  const fetchTasks = useCallback(async (page: number, search: string, status: string, force = false): Promise<DesignerTaskItem[] | undefined> => {
     if (!user) return;
-    const cacheParams = { page, limit: PAGE_SIZE, ...(search ? { search } : {}) };
+    const cacheParams = { page, limit: PAGE_SIZE, ...(search ? { search } : {}), ...(status ? { status } : {}) };
     if (!force) {
       const cached = designerTaskCache.get(cacheParams);
       if (cached) {
@@ -607,8 +610,8 @@ export function DesignerTasks() {
 
   useEffect(() => {
     if (!user) return;
-    fetchTasks(apiPage, searchTerm);
-  }, [user, apiPage, searchTerm, fetchTasks]);
+    fetchTasks(apiPage, searchTerm, statusFilter);
+  }, [user, apiPage, searchTerm, statusFilter, fetchTasks]);
 
   // ── Auto-open detail from query parameter ──
   const [searchParams, setSearchParams] = useSearchParams();
@@ -754,7 +757,7 @@ export function DesignerTasks() {
   // ── Pagination logic ──
   const totalDisplayPages = meta ? Math.ceil(meta.total / PAGE_SIZE) : 1;
   const handlePageChange = (page: number) => {
-    designerTaskCache.invalidate({ page: apiPage, limit: PAGE_SIZE, ...(searchTerm ? { search: searchTerm } : {}) });
+    designerTaskCache.invalidate({ page: apiPage, limit: PAGE_SIZE, ...(searchTerm ? { search: searchTerm } : {}), ...(statusFilter ? { status: statusFilter } : {}) });
     cachedRawData = null;
     cachedProgress = null;
     setApiPage(page);
@@ -790,6 +793,14 @@ export function DesignerTasks() {
       setApiPage(1);
       setSearchTerm('');
     }
+  };
+
+  const handleStatusFilterChange = (value: string) => {
+    designerTaskCache.invalidate();
+    cachedRawData = null;
+    cachedProgress = null;
+    setApiPage(1);
+    setStatusFilter(value);
   };
 
   // ── Detail modal ──
@@ -1000,7 +1011,7 @@ export function DesignerTasks() {
         // Refresh submissions from backend first
         setSubmissionsLoading((prev) => ({ ...prev, [taskId]: true }));
         try {
-          const refreshedList = await fetchTasks(apiPage, true);
+          const refreshedList = await fetchTasks(apiPage, searchTerm, statusFilter, true);
           const refreshed = refreshedList?.find((t) => t.id === taskId);
           if (refreshed) {
             setSelectedTaskDetail(refreshed);
@@ -1114,7 +1125,7 @@ export function DesignerTasks() {
         designerTaskCache.invalidate();
         cachedRawData = null;
         cachedProgress = null;
-        const refreshedList = await fetchTasks(apiPage, true);
+        const refreshedList = await fetchTasks(apiPage, searchTerm, statusFilter, true);
         const refreshed = refreshedList?.find((t) => t.id === selectedTaskDetail.id);
           if (refreshed) {
             setSelectedTaskDetail(refreshed);
@@ -1399,29 +1410,42 @@ export function DesignerTasks() {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Search by title or description..."
-          value={searchInput}
-          onChange={(e) => handleSearchChange(e.target.value)}
-          className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-        />
-        {searchInput && (
-          <button
-            onClick={handleClearSearch}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
-        {meta && searchTerm && (
-          <p className="mt-1 text-xs text-gray-500">
-            Found {meta.total} {meta.total === 1 ? 'result' : 'results'} for "{searchTerm}"
-          </p>
-        )}
+      {/* Search & Filter */}
+      <div className="flex items-start gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search by title or description..."
+            value={searchInput}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+          />
+          {searchInput && (
+            <button
+              onClick={handleClearSearch}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+          {meta && searchTerm && (
+            <p className="mt-1 text-xs text-gray-500">
+              Found {meta.total} {meta.total === 1 ? 'result' : 'results'} for "{searchTerm}"
+            </p>
+          )}
+        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => handleStatusFilterChange(e.target.value)}
+          className="py-2.5 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white cursor-pointer shrink-0"
+        >
+          <option value="">All Statuses</option>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+          <option value="feedback">Feedback</option>
+        </select>
       </div>
 
       {error && (

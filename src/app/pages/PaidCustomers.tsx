@@ -304,6 +304,8 @@ export function PaidCustomers() {
   const [searchTerm, setSearchTerm] = useState('');
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const [statusFilter, setStatusFilter] = useState('');
+
   const [marketingTasks, setMarketingTasks] = useState<MarketingTaskItem[]>(() => getCachedMarketingTasks() ?? []);
   const [marketingTasksLoading, setMarketingTasksLoading] = useState(() => !getCachedMarketingTasks());
 
@@ -328,24 +330,19 @@ export function PaidCustomers() {
 
   useEffect(() => {
     if (!user || (user.role !== 'marketing_lead' && user.role !== 'ceo' && user.role !== 'general_manager' && user.role !== 'finance_officer')) return;
-    const cached = getCachedMarketingTasks(searchTerm);
+    const cached = getCachedMarketingTasks(searchTerm, statusFilter);
     if (cached) {
       applyTasks(cached);
       setMarketingTasksLoading(false);
       return;
     }
     setMarketingTasksLoading(true);
-    fetchMarketingTasks(searchTerm).then((tasks) => {
-      if (tasks.length > 0) {
-        applyTasks(tasks);
-        persistLocalTasks(tasks);
-      } else {
-        const local = initLocalWithSeed();
-        applyTasks(local);
-      }
+    fetchMarketingTasks(searchTerm, statusFilter).then((tasks) => {
+      applyTasks(tasks);
+      if (tasks.length > 0) persistLocalTasks(tasks);
       setMarketingTasksLoading(false);
     });
-  }, [user, searchTerm]);
+  }, [user, searchTerm, statusFilter]);
 
   // ── Auto-open detail from query parameter ──
   const [searchParams, setSearchParams] = useSearchParams();
@@ -405,6 +402,11 @@ export function PaidCustomers() {
       invalidateMarketingTaskCache();
       setSearchTerm('');
     }
+  };
+
+  const handleStatusFilterChange = (value: string) => {
+    invalidateMarketingTaskCache();
+    setStatusFilter(value);
   };
 
   const marketingTasksWithSubmissions = marketingTasks.filter(
@@ -850,29 +852,42 @@ export function PaidCustomers() {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Search by title, description, customer name, or phone..."
-          value={searchInput}
-          onChange={(e) => handleSearchChange(e.target.value)}
-          className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-        />
-        {searchInput && (
-          <button
-            onClick={handleClearSearch}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
-        {searchTerm && !marketingTasksLoading && (
-          <p className="mt-1 text-xs text-gray-500">
-            Found {marketingTasksWithSubmissions.length} {marketingTasksWithSubmissions.length === 1 ? 'result' : 'results'} for "{searchTerm}"
-          </p>
-        )}
+      {/* Search & Filter */}
+      <div className="flex items-start gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search by title, description, customer name, or phone..."
+            value={searchInput}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+          />
+          {searchInput && (
+            <button
+              onClick={handleClearSearch}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+          {searchTerm && !marketingTasksLoading && (
+            <p className="mt-1 text-xs text-gray-500">
+              Found {marketingTasksWithSubmissions.length} {marketingTasksWithSubmissions.length === 1 ? 'result' : 'results'} for "{searchTerm}"
+            </p>
+          )}
+        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => handleStatusFilterChange(e.target.value)}
+          className="py-2.5 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white cursor-pointer shrink-0"
+        >
+          <option value="">All Statuses</option>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+          <option value="feedback">Feedback</option>
+        </select>
       </div>
 
       {marketingTasksLoading ? (
