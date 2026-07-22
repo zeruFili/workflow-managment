@@ -34,7 +34,9 @@ import {
   ThumbsDown,
   PauseCircle,
   PlayCircle,
+  Search,
   Star,
+  X,
 } from 'lucide-react';
 import AttachmentViewer from '../components/AttachmentViewer';
 import ImageRemoveButton from '../components/ImageRemoveButton';
@@ -468,6 +470,11 @@ export function DesignerTasks() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Search state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Pagination state
   const [apiPage, setApiPage] = useState(1);
   const [meta, setMeta] = useState<DesignerTaskListMeta | null>(null);
@@ -535,9 +542,9 @@ export function DesignerTasks() {
   }, [highlightedIds]);
 
   // ── Fetch tasks from API ──
-  const fetchTasks = useCallback(async (page: number, force = false): Promise<DesignerTaskItem[] | undefined> => {
+  const fetchTasks = useCallback(async (page: number, search: string, force = false): Promise<DesignerTaskItem[] | undefined> => {
     if (!user) return;
-    const cacheParams = { page, limit: PAGE_SIZE };
+    const cacheParams = { page, limit: PAGE_SIZE, ...(search ? { search } : {}) };
     if (!force) {
       const cached = designerTaskCache.get(cacheParams);
       if (cached) {
@@ -600,8 +607,8 @@ export function DesignerTasks() {
 
   useEffect(() => {
     if (!user) return;
-    fetchTasks(apiPage);
-  }, [user, apiPage, fetchTasks]);
+    fetchTasks(apiPage, searchTerm);
+  }, [user, apiPage, searchTerm, fetchTasks]);
 
   // ── Auto-open detail from query parameter ──
   const [searchParams, setSearchParams] = useSearchParams();
@@ -747,10 +754,42 @@ export function DesignerTasks() {
   // ── Pagination logic ──
   const totalDisplayPages = meta ? Math.ceil(meta.total / PAGE_SIZE) : 1;
   const handlePageChange = (page: number) => {
-    designerTaskCache.invalidate({ page: apiPage, limit: PAGE_SIZE });
+    designerTaskCache.invalidate({ page: apiPage, limit: PAGE_SIZE, ...(searchTerm ? { search: searchTerm } : {}) });
     cachedRawData = null;
     cachedProgress = null;
     setApiPage(page);
+  };
+
+  // ── Search handling (debounced) ──
+  const handleSearchChange = (value: string) => {
+    setSearchInput(value);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      const trimmed = value.trim();
+      if (trimmed !== searchTerm) {
+        designerTaskCache.invalidate();
+        cachedRawData = null;
+        cachedProgress = null;
+        setApiPage(1);
+        setSearchTerm(trimmed);
+      }
+    }, 300);
+  };
+
+  const handleClearSearch = () => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    setSearchInput('');
+    if (searchTerm) {
+      designerTaskCache.invalidate();
+      cachedRawData = null;
+      cachedProgress = null;
+      setApiPage(1);
+      setSearchTerm('');
+    }
   };
 
   // ── Detail modal ──
@@ -1360,6 +1399,31 @@ export function DesignerTasks() {
         </div>
       </div>
 
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+        <input
+          type="text"
+          placeholder="Search by title or description..."
+          value={searchInput}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+        />
+        {searchInput && (
+          <button
+            onClick={handleClearSearch}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+        {meta && searchTerm && (
+          <p className="mt-1 text-xs text-gray-500">
+            Found {meta.total} {meta.total === 1 ? 'result' : 'results'} for "{searchTerm}"
+          </p>
+        )}
+      </div>
+
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">{error}</div>
       )}
@@ -1367,7 +1431,11 @@ export function DesignerTasks() {
       {visibleTasks.length === 0 && !isLoading ? (
         <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
           <Briefcase className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No assigned designer tasks yet.</p>
+          <p className="text-gray-500">
+            {searchTerm
+              ? `No tasks matching "${searchTerm}"`
+              : 'No assigned designer tasks yet.'}
+          </p>
         </div>
       ) : (
         <>

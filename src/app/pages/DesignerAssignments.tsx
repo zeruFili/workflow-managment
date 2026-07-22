@@ -45,6 +45,8 @@ import {
   Star,
   Paperclip,
   PauseCircle,
+  Search,
+  X,
 } from 'lucide-react';
 import AttachmentViewer from '../components/AttachmentViewer';
 import { PaginationWithNumbers } from '../components/ui/PaginationWithNumbers';
@@ -424,6 +426,11 @@ export function DesignerAssignments() {
   const [error, setError] = useState<string | null>(null);
   const [applications, setApplications] = useState<DesignerTaskApplication[]>(loadDesignerApplications);
 
+  // Search state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Pagination
   const PAGE_SIZE = 10;
   const [apiPage, setApiPage] = useState(1);
@@ -480,15 +487,16 @@ export function DesignerAssignments() {
   })();
 
   // ── Fetch tasks from API ──
-  const fetchTasks = useCallback(async (page: number, force = false): Promise<DesignerTaskItem[] | undefined> => {
+  const fetchTasks = useCallback(async (page: number, search: string, force = false): Promise<DesignerTaskItem[] | undefined> => {
     if (!user) return;
     setIsLoading(true);
     setError(null);
     try {
+      const cacheParams = { page, limit: PAGE_SIZE, ...(search ? { search } : {}) };
       if (force) {
-        designerTaskCache.invalidate({ page, limit: PAGE_SIZE });
+        designerTaskCache.invalidate(cacheParams);
       }
-      const result = await designerTaskCache.fetch({ page, limit: PAGE_SIZE });
+      const result = await designerTaskCache.fetch(cacheParams);
       const data = result.data;
       setTasks(data);
       setMeta({ page, limit: PAGE_SIZE, total: result.total, totalPages: Math.ceil(result.total / PAGE_SIZE) });
@@ -524,8 +532,8 @@ export function DesignerAssignments() {
 
   useEffect(() => {
     if (!user) return;
-    fetchTasks(apiPage);
-  }, [user, apiPage, fetchTasks]);
+    fetchTasks(apiPage, searchTerm);
+  }, [user, apiPage, searchTerm, fetchTasks]);
 
   // ── Auto-open detail from query parameter ──
   const [searchParams, setSearchParams] = useSearchParams();
@@ -711,8 +719,36 @@ export function DesignerAssignments() {
   // ── Pagination logic ──
   const totalDisplayPages = meta ? Math.ceil(meta.total / PAGE_SIZE) : 1;
   const handlePageChange = (page: number) => {
-    designerTaskCache.invalidate({ page: apiPage, limit: PAGE_SIZE });
+    designerTaskCache.invalidate({ page: apiPage, limit: PAGE_SIZE, ...(searchTerm ? { search: searchTerm } : {}) });
     setApiPage(page);
+  };
+
+  // ── Search handling (debounced) ──
+  const handleSearchChange = (value: string) => {
+    setSearchInput(value);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      const trimmed = value.trim();
+      if (trimmed !== searchTerm) {
+        designerTaskCache.invalidate();
+        setApiPage(1);
+        setSearchTerm(trimmed);
+      }
+    }, 300);
+  };
+
+  const handleClearSearch = () => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    setSearchInput('');
+    if (searchTerm) {
+      designerTaskCache.invalidate();
+      setApiPage(1);
+      setSearchTerm('');
+    }
   };
 
   const handleStatusChange = (taskId: string, newStatus: TaskStatus) => {
@@ -1034,7 +1070,7 @@ export function DesignerAssignments() {
         await designerApi.createReview(targetSubmission.id, payload);
       }
       updateDraft(taskId, phase, '');
-      const refreshedTasks = await fetchTasks(apiPage, true);
+      const refreshedTasks = await fetchTasks(apiPage, searchTerm, true);
       if (refreshedTasks) {
         const refreshed = refreshedTasks.find((t) => t.id === taskId);
         if (refreshed) {
@@ -1345,6 +1381,31 @@ export function DesignerAssignments() {
         </div>
       </div>
 
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+        <input
+          type="text"
+          placeholder="Search by title or description..."
+          value={searchInput}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+        />
+        {searchInput && (
+          <button
+            onClick={handleClearSearch}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+        {meta && searchTerm && (
+          <p className="mt-1 text-xs text-gray-500">
+            Found {meta.total} {meta.total === 1 ? 'result' : 'results'} for "{searchTerm}"
+          </p>
+        )}
+      </div>
+
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">{error}</div>
       )}
@@ -1353,7 +1414,11 @@ export function DesignerAssignments() {
       {sortedTasks.length === 0 && !isLoading ? (
         <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
           <Briefcase className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No assigned designer tasks yet.</p>
+          <p className="text-gray-500">
+            {searchTerm
+              ? `No tasks matching "${searchTerm}"`
+              : 'No assigned designer tasks yet.'}
+          </p>
         </div>
       ) : (
         <>
