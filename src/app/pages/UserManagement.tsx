@@ -146,17 +146,12 @@ function UserFormFields({
           required={mode === 'create'}
           disabled={isSubmitting}
         >
-          {Object.entries(ROLE_LABELS)
-            .filter(([value]) => mode !== 'create' || value !== 'ceo')
-            .map(([value, label]) => (
+          {Object.entries(ROLE_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
               </option>
             ))}
         </select>
-        {mode === 'create' && (
-          <p className="text-xs text-gray-400 mt-1">CEO role cannot be created through this form.</p>
-        )}
       </div>
 
       <div>
