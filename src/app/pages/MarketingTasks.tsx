@@ -23,6 +23,7 @@ import {
   ThumbsDown,
   Plus,
   Image,
+  Search,
   Send,
   X,
   Paperclip,
@@ -377,6 +378,10 @@ export function MarketingTasks() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [apiPage, setApiPage] = useState(1);
   const [meta, setMeta] = useState<MarketingTaskListMeta | null>(null);
 
@@ -466,7 +471,7 @@ export function MarketingTasks() {
   const canManage = user?.role === 'marketing_lead' || user?.role === 'ceo';
   const canReview = user?.role === 'ceo' || user?.role === 'general_manager';
 
-  const fetchTasks = useCallback(async (page: number, force = false) => {
+  const fetchTasks = useCallback(async (page: number, search: string, force = false) => {
     if (!user) return;
     if (!force && cachedTasks && cachedMeta) {
       setTasks(cachedTasks);
@@ -512,7 +517,7 @@ export function MarketingTasks() {
     };
 
     try {
-      const response = await marketingApi.getMarketingTasks({ page, limit: PAGE_SIZE });
+      const response = await marketingApi.getMarketingTasks({ page, limit: PAGE_SIZE, ...(search ? { search } : {}) });
       if (response.success) {
         applyTasks(response.data, response.meta.total);
         persistLocalTasks(response.data);
@@ -536,8 +541,8 @@ export function MarketingTasks() {
 
   useEffect(() => {
     if (!user) return;
-    fetchTasks(apiPage);
-  }, [user, apiPage, fetchTasks]);
+    fetchTasks(apiPage, searchTerm);
+  }, [user, apiPage, searchTerm, fetchTasks]);
 
   // IntersectionObserver for auto-mark-read
   useEffect(() => {
@@ -597,6 +602,35 @@ export function MarketingTasks() {
     cachedTasks = null;
     cachedMeta = null;
     setApiPage(page);
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchInput(value);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      const trimmed = value.trim();
+      if (trimmed !== searchTerm) {
+        cachedTasks = null;
+        cachedMeta = null;
+        setApiPage(1);
+        setSearchTerm(trimmed);
+      }
+    }, 300);
+  };
+
+  const handleClearSearch = () => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    setSearchInput('');
+    if (searchTerm) {
+      cachedTasks = null;
+      cachedMeta = null;
+      setApiPage(1);
+      setSearchTerm('');
+    }
   };
 
   const openDetail = (task: MarketingTaskItem) => {
@@ -785,7 +819,7 @@ export function MarketingTasks() {
         : await marketingApi.createSubmission(taskId, formData);
 
       if (response.success) {
-        await fetchTasks(apiPage, true);
+        await fetchTasks(apiPage, searchTerm, true);
         if (cachedTasks) {
           const refreshed = cachedTasks.find((t) => t.id === taskId);
           if (refreshed) setSelectedTask(refreshed);
@@ -871,7 +905,7 @@ export function MarketingTasks() {
     } else {
       setEditingReviewId(null);
       setReviewDraft((prev) => ({ ...prev, [taskId]: '' }));
-      await fetchTasks(apiPage, true);
+      await fetchTasks(apiPage, searchTerm, true);
       if (cachedTasks) {
         const refreshed = cachedTasks.find((t) => t.id === taskId);
         if (refreshed) setSelectedTask(refreshed);
@@ -965,7 +999,7 @@ export function MarketingTasks() {
         setShowCreateModal(false);
         cachedTasks = null;
         cachedMeta = null;
-        await fetchTasks(apiPage, true);
+        await fetchTasks(apiPage, searchTerm, true);
       } else {
         setError(response.message || 'Failed to create task');
       }
@@ -1075,7 +1109,7 @@ export function MarketingTasks() {
         setEditFormErrors({});
         cachedTasks = null;
         cachedMeta = null;
-        await fetchTasks(apiPage, true);
+        await fetchTasks(apiPage, searchTerm, true);
       } else {
         setEditError(response.message || 'Failed to update task');
       }
@@ -1149,6 +1183,30 @@ export function MarketingTasks() {
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-green-700 text-sm">{taskSuccessMsg}</div>
       )}
 
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+        <input
+          type="text"
+          placeholder="Search by title, description, customer name, or phone..."
+          value={searchInput}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+        />
+        {searchInput && (
+          <button
+            onClick={handleClearSearch}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+        {meta && searchTerm && (
+          <p className="mt-1 text-xs text-gray-500">
+            Found {meta.total} {meta.total === 1 ? 'result' : 'results'} for "{searchTerm}"
+          </p>
+        )}
+      </div>
+
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         {[
           { label: 'Total', value: summary.total },
@@ -1167,7 +1225,11 @@ export function MarketingTasks() {
       {sortedTasks.length === 0 ? (
         <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
           <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No marketing tasks yet.</p>
+          <p className="text-gray-500">
+            {searchTerm
+              ? `No tasks matching "${searchTerm}"`
+              : 'No marketing tasks yet.'}
+          </p>
         </div>
       ) : (
         <>

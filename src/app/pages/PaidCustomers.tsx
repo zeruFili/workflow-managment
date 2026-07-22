@@ -29,6 +29,7 @@ import {
   Upload,
   Paperclip,
   CheckCircle2,
+  Search,
   XCircle,
   AlertCircle,
 } from 'lucide-react';
@@ -299,6 +300,10 @@ export function PaidCustomers() {
   const { decrement } = useNotificationCounts();
   const navigate = useNavigate();
 
+  const [searchInput, setSearchInput] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [marketingTasks, setMarketingTasks] = useState<MarketingTaskItem[]>(() => getCachedMarketingTasks() ?? []);
   const [marketingTasksLoading, setMarketingTasksLoading] = useState(() => !getCachedMarketingTasks());
 
@@ -323,14 +328,14 @@ export function PaidCustomers() {
 
   useEffect(() => {
     if (!user || (user.role !== 'marketing_lead' && user.role !== 'ceo' && user.role !== 'general_manager' && user.role !== 'finance_officer')) return;
-    const cached = getCachedMarketingTasks();
+    const cached = getCachedMarketingTasks(searchTerm);
     if (cached) {
       applyTasks(cached);
       setMarketingTasksLoading(false);
       return;
     }
     setMarketingTasksLoading(true);
-    fetchMarketingTasks().then((tasks) => {
+    fetchMarketingTasks(searchTerm).then((tasks) => {
       if (tasks.length > 0) {
         applyTasks(tasks);
         persistLocalTasks(tasks);
@@ -340,7 +345,7 @@ export function PaidCustomers() {
       }
       setMarketingTasksLoading(false);
     });
-  }, [user]);
+  }, [user, searchTerm]);
 
   // ── Auto-open detail from query parameter ──
   const [searchParams, setSearchParams] = useSearchParams();
@@ -376,6 +381,31 @@ export function PaidCustomers() {
     const unseen = [...marketingNotificationIds].filter((id) => !viewedMarketingCards.has(id));
     publishBadgeCount(unseen.length);
   }
+
+  const handleSearchChange = (value: string) => {
+    setSearchInput(value);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      const trimmed = value.trim();
+      if (trimmed !== searchTerm) {
+        invalidateMarketingTaskCache();
+        setSearchTerm(trimmed);
+      }
+    }, 300);
+  };
+
+  const handleClearSearch = () => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    setSearchInput('');
+    if (searchTerm) {
+      invalidateMarketingTaskCache();
+      setSearchTerm('');
+    }
+  };
 
   const marketingTasksWithSubmissions = marketingTasks.filter(
     (t) => {
@@ -820,14 +850,43 @@ export function PaidCustomers() {
         </div>
       </div>
 
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+        <input
+          type="text"
+          placeholder="Search by title, description, customer name, or phone..."
+          value={searchInput}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+        />
+        {searchInput && (
+          <button
+            onClick={handleClearSearch}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+        {searchTerm && !marketingTasksLoading && (
+          <p className="mt-1 text-xs text-gray-500">
+            Found {marketingTasksWithSubmissions.length} {marketingTasksWithSubmissions.length === 1 ? 'result' : 'results'} for "{searchTerm}"
+          </p>
+        )}
+      </div>
+
       {marketingTasksLoading ? (
         <div className="flex justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         </div>
       ) : marketingTasksWithSubmissions.length === 0 ? (
         <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
-          <p className="text-gray-500">No paid customer records yet.</p>
-          <p className="text-sm text-gray-400 mt-1">Marketing tasks appear here once they receive their first submission.</p>
+          <p className="text-gray-500">
+            {searchTerm
+              ? `No paid customer records matching "${searchTerm}"`
+              : 'No paid customer records yet.'}
+          </p>
+          {!searchTerm && <p className="text-sm text-gray-400 mt-1">Marketing tasks appear here once they receive their first submission.</p>}
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

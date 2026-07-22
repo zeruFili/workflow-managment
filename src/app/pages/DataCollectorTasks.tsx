@@ -30,6 +30,7 @@ import {
   ThumbsDown,
   Plus,
   Image,
+  Search,
   Send,
   X,
   Database,
@@ -409,6 +410,10 @@ export function DataCollectorTasks() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [apiPage, setApiPage] = useState(1);
   const [meta, setMeta] = useState<DataCollectorTaskListMeta | null>(null);
 
@@ -500,9 +505,9 @@ export function DataCollectorTasks() {
     ? selectedTask.status !== 'rejected' && selectedTask.task_state === 'active'
     : false;
 
-  const fetchTasks = useCallback(async (page: number, force = false): Promise<DataCollectorTaskItem[] | undefined> => {
+  const fetchTasks = useCallback(async (page: number, search: string, force = false): Promise<DataCollectorTaskItem[] | undefined> => {
     if (!user) return;
-    const cacheParams = { page, limit: PAGE_SIZE };
+    const cacheParams = { page, limit: PAGE_SIZE, ...(search ? { search } : {}) };
     if (!force) {
       const cached = dataCollectorTaskCache.get(cacheParams);
       if (cached) {
@@ -547,8 +552,8 @@ export function DataCollectorTasks() {
 
   useEffect(() => {
     if (!user) return;
-    fetchTasks(apiPage);
-  }, [user, apiPage, fetchTasks]);
+    fetchTasks(apiPage, searchTerm);
+  }, [user, apiPage, searchTerm, fetchTasks]);
 
   useEffect(() => {
     if (observerRef.current) {
@@ -644,8 +649,35 @@ export function DataCollectorTasks() {
 
   const totalDisplayPages = meta ? Math.ceil(meta.total / PAGE_SIZE) : 1;
   const handlePageChange = (page: number) => {
-    dataCollectorTaskCache.invalidate({ page: apiPage, limit: PAGE_SIZE });
+    dataCollectorTaskCache.invalidate({ page: apiPage, limit: PAGE_SIZE, ...(searchTerm ? { search: searchTerm } : {}) });
     setApiPage(page);
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchInput(value);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      const trimmed = value.trim();
+      if (trimmed !== searchTerm) {
+        dataCollectorTaskCache.invalidate();
+        setApiPage(1);
+        setSearchTerm(trimmed);
+      }
+    }, 300);
+  };
+
+  const handleClearSearch = () => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    setSearchInput('');
+    if (searchTerm) {
+      dataCollectorTaskCache.invalidate();
+      setApiPage(1);
+      setSearchTerm('');
+    }
   };
 
   const getLatestActivity = (task: DataCollectorTaskItem): {
@@ -861,7 +893,7 @@ export function DataCollectorTasks() {
     } else {
       setEditingReviewId(null);
       setReviewDraft((prev) => ({ ...prev, [taskId]: '' }));
-      const refreshedList = await fetchTasks(apiPage, true);
+      const refreshedList = await fetchTasks(apiPage, searchTerm, true);
       if (refreshedList) {
         const refreshed = refreshedList.find((t) => t.id === taskId);
         if (refreshed) setSelectedTask(refreshed);
@@ -990,7 +1022,7 @@ export function DataCollectorTasks() {
         : await dataCollectorApi.createSubmission(taskId, formData);
 
       if (response.success) {
-        const refreshedList = await fetchTasks(apiPage, true);
+        const refreshedList = await fetchTasks(apiPage, searchTerm, true);
         if (refreshedList) {
           const refreshed = refreshedList.find((t) => t.id === taskId);
           if (refreshed) setSelectedTask(refreshed);
@@ -1140,7 +1172,7 @@ export function DataCollectorTasks() {
         setEditingTaskId(null);
         setEditFormErrors({});
         dataCollectorTaskCache.invalidate();
-        await fetchTasks(apiPage, true);
+        await fetchTasks(apiPage, searchTerm, true);
       } else {
         setEditError(response.message || 'Failed to update task');
       }
@@ -1175,7 +1207,7 @@ export function DataCollectorTasks() {
         setShowDeleteConfirm(false);
         setDeletingTaskId(null);
         dataCollectorTaskCache.invalidate();
-        await fetchTasks(apiPage, true);
+        await fetchTasks(apiPage, searchTerm, true);
       } else {
         setDeleteError(response.message || 'Failed to delete task');
       }
@@ -1252,7 +1284,7 @@ export function DataCollectorTasks() {
         setFieldErrors({});
         setShowCreateModal(false);
         dataCollectorTaskCache.invalidate();
-        await fetchTasks(apiPage, true);
+        await fetchTasks(apiPage, searchTerm, true);
       } else {
         setError(response.message || 'Failed to create task');
       }
@@ -1328,6 +1360,30 @@ export function DataCollectorTasks() {
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-green-700 text-sm">{taskSuccessMsg}</div>
       )}
 
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+        <input
+          type="text"
+          placeholder="Search by title or description..."
+          value={searchInput}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+        />
+        {searchInput && (
+          <button
+            onClick={handleClearSearch}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+        {meta && searchTerm && (
+          <p className="mt-1 text-xs text-gray-500">
+            Found {meta.total} {meta.total === 1 ? 'result' : 'results'} for "{searchTerm}"
+          </p>
+        )}
+      </div>
+
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: 'Total', value: summary.total },
@@ -1345,7 +1401,11 @@ export function DataCollectorTasks() {
       {sortedTasks.length === 0 ? (
         <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-12 shadow-sm border border-gray-200 text-center">
           <Database className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No data collection tasks yet.</p>
+          <p className="text-gray-500">
+            {searchTerm
+              ? `No tasks matching "${searchTerm}"`
+              : 'No data collection tasks yet.'}
+          </p>
         </div>
       ) : (
         <>
