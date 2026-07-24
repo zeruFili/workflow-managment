@@ -14,13 +14,15 @@ import {
   FolderKanban,
   CheckSquare,
   Clock,
-  AlertCircle,
   TrendingUp,
   CheckCircle,
   Plus,
   Upload,
   Briefcase,
   Megaphone,
+  ShieldCheck,
+  Users,
+  ClipboardCheck,
 } from 'lucide-react';
 import { LeadershipQuickAccess } from '../components/LeadershipQuickAccess';
 import {
@@ -271,41 +273,58 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
-        <p className="text-gray-600 mt-1">Welcome back, {user.full_name}</p>
-        <p className="text-sm text-gray-500">{getRoleName(user.role)}</p>
+      <div className="card-safe overflow-hidden min-w-0 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-3xl">
+            <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+              <ShieldCheck className="h-4 w-4" />
+              {getRoleName(user.role)} Role
+            </div>
+            <h2 className="mt-3 text-2xl font-bold text-slate-900">Dashboard</h2>
+            {leadershipRoles && (
+              <p className="mt-1 text-sm text-slate-500">Welcome back, {user.full_name}</p>
+            )}
+          </div>
+          <div className="card-safe overflow-hidden min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm min-w-0 flex-1 sm:min-w-[240px]">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Viewing as</p>
+            <p className="mt-1 font-medium text-slate-900">{user.full_name}</p>
+            <p className="text-sm text-slate-500">{getRoleName(user.role)}</p>
+          </div>
+        </div>
       </div>
 
       {isDesignerDashboard ? <DesignerQuickAccess /> : leadershipRoles && <LeadershipQuickAccess />}
 
       {leadershipRoles && leadershipNotifications.length > 0 && (
-        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-lg">Recent Notifications</h3>
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl shadow-sm border border-gray-200">
+          <div className="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h3 className="font-semibold text-base sm:text-lg text-gray-900">Recent Notifications</h3>
+              <p className="text-sm text-gray-500">Review the latest quantity surveyor updates.</p>
+            </div>
             <button
               onClick={markQuantityNotificationsRead}
-              className="text-sm text-blue-600 hover:text-blue-700"
+              className="text-sm font-medium text-blue-600 hover:text-blue-700 sm:shrink-0"
             >
               Mark all as read
             </button>
           </div>
-          <div className="space-y-3">
+          <div className="divide-y divide-gray-100">
             {leadershipNotifications.slice(0, 8).map((n) => (
               <div
                 key={n.id}
-                className={`p-3 rounded-lg transition-colors ${
+                className={`px-4 py-3 transition-colors ${
                   !n.readByRoles.includes(user.role)
-                    ? 'bg-indigo-50 border border-indigo-100'
+                    ? 'bg-gradient-to-r from-indigo-50/80 via-indigo-50/40 to-white border-l-4 border-indigo-400'
                     : 'bg-gray-50'
                 }`}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 flex-1">
                     <p className="font-medium text-gray-900 text-sm">{n.message}</p>
-                    <p className="text-xs text-gray-500 mt-0.5 truncate">{n.description}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{n.description}</p>
                   </div>
-                  <span className="text-xs text-gray-400 whitespace-nowrap">
+                  <span className="text-xs text-gray-400 sm:shrink-0">
                     {new Date(n.createdAt).toLocaleDateString()}
                   </span>
                 </div>
@@ -315,49 +334,89 @@ export function Dashboard() {
         </div>
       )}
 
-      {!leadershipRoles && !isDesignerDashboard && (
-        <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {stats.map((stat) => {
-              const Icon = stat.icon;
-              return (
-                <div key={stat.label} className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">{stat.label}</p>
-                      <p className="text-3xl font-bold mt-2">{stat.value}</p>
-                    </div>
-                    <div className={`p-3 rounded-lg ${stat.bgColor}`}>
-                      <Icon className={`w-6 h-6 ${stat.color}`} />
-                    </div>
+      <div className="card-safe overflow-hidden min-w-0 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="mb-4">
+          <h3 className="text-base font-semibold text-gray-900 sm:text-lg">Key Metrics</h3>
+          <p className="text-sm text-gray-500">High-level overview of the current work pipeline.</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {stats.map((stat) => {
+            const Icon = stat.icon;
+            return (
+              <div key={stat.label} className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">{stat.label}</p>
+                    <p className="text-2xl font-bold mt-1 text-gray-900">{stat.value}</p>
+                  </div>
+                  <div className={`p-2.5 rounded-lg ${stat.bgColor}`}>
+                    <Icon className={`w-5 h-5 ${stat.color}`} />
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
+      {leadershipRoles && (
+        <div className="card-safe overflow-hidden min-w-0 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+          <h3 className="text-base font-semibold text-gray-900 sm:text-lg">Quick Links</h3>
+          <p className="text-sm text-gray-500 mt-1 mb-4">Navigate to key operational sections.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <Link to="/projects" className="card-safe overflow-hidden min-w-0 flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md hover:border-slate-300">
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-blue-600"><FolderKanban className="h-5 w-5" /></span>
+              <span className="min-w-0 font-medium text-gray-900">Projects</span>
+              <span className="ml-auto text-xs text-gray-400">{activeProjects} active</span>
+            </Link>
+            <Link to="/tasks" className="card-safe overflow-hidden min-w-0 flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md hover:border-slate-300">
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100 text-orange-600"><CheckSquare className="h-5 w-5" /></span>
+              <span className="min-w-0 font-medium text-gray-900">Tasks</span>
+              <span className="ml-auto text-xs text-gray-400">{pendingTasks} pending</span>
+            </Link>
+            <Link to="/users" className="card-safe overflow-hidden min-w-0 flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md hover:border-slate-300">
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100 text-purple-600"><Users className="h-5 w-5" /></span>
+              <span className="min-w-0 font-medium text-gray-900">User Management</span>
+            </Link>
+            <Link to="/designer-performance" className="card-safe overflow-hidden min-w-0 flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md hover:border-slate-300">
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100 text-green-600"><TrendingUp className="h-5 w-5" /></span>
+              <span className="min-w-0 font-medium text-gray-900">Performance</span>
+            </Link>
+            <Link to="/finance-verifications" className="card-safe overflow-hidden min-w-0 flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md hover:border-slate-300">
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600"><ClipboardCheck className="h-5 w-5" /></span>
+              <span className="min-w-0 font-medium text-gray-900">Finance Verifications</span>
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {!leadershipRoles && !isDesignerDashboard && (
+        <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="card-safe overflow-hidden min-w-0 hidden lg:block bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-lg">Recent Projects</h3>
-                <Link to="/projects" className="text-sm text-blue-600 hover:text-blue-700">
+            <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl shadow-sm border border-gray-200">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-base sm:text-lg text-gray-900">Recent Projects</h3>
+                  <p className="text-sm text-gray-500">Latest project activity</p>
+                </div>
+                <Link to="/projects" className="text-sm font-medium text-blue-600 hover:text-blue-700 sm:shrink-0">
                   View all
                 </Link>
               </div>
-              <div className="space-y-3">
+              <div className="divide-y divide-gray-100">
                 {userProjects.slice(0, 5).map((project) => (
                   <Link
                     key={project.id}
                     to={`/projects/${project.id}`}
-                    className="block p-3 hover:bg-gray-50 rounded-lg transition-colors"
+                    className="block px-4 py-3 hover:bg-gray-50 transition-colors"
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0 flex-1">
                         <p className="font-medium text-gray-900">{project.name}</p>
                         <p className="text-sm text-gray-500 mt-1">{project.clientName}</p>
                       </div>
                       <span className={`
-                        px-2 py-1 rounded text-xs font-medium
+                        inline-flex px-2 py-1 rounded text-xs font-medium self-start sm:self-center shrink-0
                         ${project.stage === 'completed' ? 'bg-green-100 text-green-700' :
                           project.stage === 'approval' ? 'bg-yellow-100 text-yellow-700' :
                           project.stage === 'execution' ? 'bg-blue-100 text-blue-700' :
@@ -369,37 +428,40 @@ export function Dashboard() {
                   </Link>
                 ))}
                 {userProjects.length === 0 && (
-                  <p className="text-center text-gray-500 py-8">No projects found</p>
+                  <p className="text-center text-gray-500 py-8 px-4">No projects found</p>
                 )}
               </div>
             </div>
 
-            <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-lg">My Tasks</h3>
+            <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl shadow-sm border border-gray-200">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-base sm:text-lg text-gray-900">My Tasks</h3>
+                  <p className="text-sm text-gray-500">Assigned work items</p>
+                </div>
                 <div className="flex items-center gap-3">
                   {user.role === 'marketing_lead' && (
                     <button
                       onClick={() => setShowCreateTask(true)}
-                      className="hidden md:flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg transition-colors text-sm"
+                      className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg transition-colors text-sm"
                     >
                       <Plus className="w-4 h-4" />
-                      <span>Create Task</span>
+                      <span className="sm:inline">Create Task</span>
                     </button>
                   )}
-                  <Link to="/tasks" className="text-sm text-blue-600 hover:text-blue-700">
+                  <Link to="/tasks" className="text-sm font-medium text-blue-600 hover:text-blue-700 sm:shrink-0">
                     View all
                   </Link>
                 </div>
               </div>
-              <div className="space-y-3">
+              <div className="divide-y divide-gray-100">
                 {userTasks.slice(0, 5).map((task) => (
                   <div
                     key={task.id}
-                    className="p-3 hover:bg-gray-50 rounded-lg transition-colors"
+                    className="px-4 py-3 hover:bg-gray-50 transition-colors"
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0 flex-1">
                         <p className="font-medium text-gray-900">{task.title}</p>
                         {task.deadline && (
                           <p className="text-xs text-gray-500 mt-1">
@@ -408,7 +470,7 @@ export function Dashboard() {
                         )}
                       </div>
                       <span className={`
-                        px-2 py-1 rounded text-xs font-medium
+                        inline-flex px-2 py-1 rounded text-xs font-medium self-start sm:self-center shrink-0
                         ${task.status === 'completed' ? 'bg-green-100 text-green-700' :
                           task.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
                           task.status === 'rejected' ? 'bg-red-100 text-red-700' :
@@ -420,12 +482,11 @@ export function Dashboard() {
                   </div>
                 ))}
                 {userTasks.length === 0 && (
-                  <p className="text-center text-gray-500 py-8">No tasks assigned</p>
+                  <p className="text-center text-gray-500 py-8 px-4">No tasks assigned</p>
                 )}
               </div>
             </div>
           </div>
-
         </>
       )}
 
