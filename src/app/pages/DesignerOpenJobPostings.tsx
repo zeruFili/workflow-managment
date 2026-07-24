@@ -428,7 +428,7 @@ export function DesignerOpenJobPostings() {
               </p>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4 lg:min-w-[420px]">
+          <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
             <div className="rounded-xl bg-slate-50 px-3 py-3 text-center">
               <p className="text-xs uppercase tracking-wide text-slate-500">Total</p>
               <p className="mt-1 text-lg font-semibold text-slate-900">{summary.total}</p>
@@ -455,7 +455,7 @@ export function DesignerOpenJobPostings() {
           <p className="mt-4 text-slate-500">No job postings are available yet.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4 auto-rows-auto">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-auto">
           {displayPostings.map((posting) => {
             const assignedByLabel =
               posting.assigned_by_user?.full_name || `User ${posting.assigned_by_user_id}`;

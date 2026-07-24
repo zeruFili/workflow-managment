@@ -1768,7 +1768,7 @@ export function MarketingTasks() {
                           )}
                         </div>
                         {(keptAttachmentUrls[selectedTask.id]?.length > 0 || (draftFilesRef.current[selectedTask.id]?.length ?? 0) > 0) && (
-                          <div className="mt-2 grid grid-cols-3 gap-2">
+                          <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                             {keptAttachmentUrls[selectedTask.id]?.map((url, idx) => (
                               <div key={`kept-${idx}`} className="relative group border rounded-lg overflow-hidden bg-gray-50">
                                 <img
@@ -2038,7 +2038,7 @@ export function MarketingTasks() {
                   )}
                 </div>
                 {createFilesRef.current.length > 0 && (
-                  <div className="mt-2 grid grid-cols-3 gap-2">
+                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                     {createFilesRef.current.map((file, idx) => (
                       <div key={idx} className="relative group border rounded-lg overflow-hidden bg-gray-50">
                         {file.type?.startsWith('image/') ? (
@@ -2258,7 +2258,7 @@ export function MarketingTasks() {
                   )}
                 </div>
                 {(keptTaskUrls.length > 0 || editFilesRef.current.length > 0) && (
-                  <div className="mt-2 grid grid-cols-3 gap-2">
+                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                     {keptTaskUrls.map((url, idx) => (
                       <div key={`kept-${idx}`} className="relative group border rounded-lg overflow-hidden bg-gray-50">
                         <img src={resolveAttachmentUrl(url)} alt={`Existing ${idx + 1}`} className="w-full h-24 object-contain" />

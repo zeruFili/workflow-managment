@@ -840,7 +840,7 @@ export function PaidCustomers() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl border border-gray-200 px-4 py-3 shadow-sm min-w-[220px]">
+          <div className="card-safe overflow-hidden min-w-0 flex-1 bg-white rounded-xl border border-gray-200 px-4 py-3 shadow-sm min-w-0 sm:min-w-[220px]">
             <div className="flex items-center gap-3">
               <Users className="w-5 h-5 text-green-600" />
               <div>
@@ -1331,7 +1331,7 @@ export function PaidCustomers() {
                           )}
                         </div>
                         {(keptAttachmentUrls[selectedTask.id]?.length > 0 || (draftFilesRef.current[selectedTask.id]?.length ?? 0) > 0) && (
-                          <div className="mt-2 grid grid-cols-3 gap-2">
+                          <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                             {keptAttachmentUrls[selectedTask.id]?.map((url, idx) => (
                               <div key={`kept-${idx}`} className="relative group border rounded-lg overflow-hidden bg-gray-50">
                                 <img src={resolveAttachmentUrl(url)} alt={`Existing attachment ${idx + 1}`} className="w-full h-24 object-contain" />

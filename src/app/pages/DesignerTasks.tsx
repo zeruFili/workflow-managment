@@ -2263,7 +2263,7 @@ export function DesignerTasks() {
                                             )}
                                           </div>
                                           {(keptAttachmentUrls[taskId]?.[phase.key]?.length > 0 || newScreenshot || (draftFilesRef.current[taskId]?.[phase.key]?.length ?? 0) > 0) && (
-                                            <div className="mt-2 grid grid-cols-3 gap-2">
+                                            <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                                               {keptAttachmentUrls[taskId]?.[phase.key]?.map((url, idx) => (
                                                 <div key={`kept-${idx}`} className="relative group border rounded-lg overflow-hidden bg-gray-50">
                                                   <img

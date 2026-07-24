@@ -539,7 +539,7 @@ export function CustomerData() {
               <span>Create Marketing Task</span>
             </button>
           )}
-          <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl border border-gray-200 px-4 py-3 shadow-sm min-w-[220px]">
+          <div className="card-safe overflow-hidden min-w-0 flex-1 bg-white rounded-xl border border-gray-200 px-4 py-3 shadow-sm min-w-0 sm:min-w-[220px]">
             <div className="flex items-center gap-3">
               <Users className="w-5 h-5 text-blue-600" />
               <div>

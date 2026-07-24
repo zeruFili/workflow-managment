@@ -763,7 +763,7 @@ export function Approvals() {
                             Choose Images
                           </label>
                           {clarificationForm.files.length > 0 && (
-                            <div className="mt-3 grid grid-cols-2 gap-2">
+                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
                               {clarificationForm.files.map((file, idx) => {
                                 const url = URL.createObjectURL(file);
                                 if (!clarificationObjectUrlsRef.current[idx]) {
@@ -812,7 +812,7 @@ export function Approvals() {
                     <p className="text-sm text-gray-700 mt-1">{clarificationResponse.description}</p>
                     {/* ✅ FIX: use ?? 0 to safely compare against possibly-undefined length */}
                     {(clarificationResponse.attachments?.length ?? 0) > 0 && (
-                      <div className="mt-2 grid grid-cols-2 gap-2">
+                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {clarificationResponse.attachments!.map((att, idx) => (
                           <img
                             key={idx}

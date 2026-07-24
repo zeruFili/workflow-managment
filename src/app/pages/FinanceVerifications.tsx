@@ -958,7 +958,7 @@ export function FinanceVerifications() {
             <h2 className="mt-3 text-2xl font-bold text-slate-900">Payment Verification Center</h2>
 
           </div>
-          <div className="card-safe overflow-hidden min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm min-w-[240px]">
+          <div className="card-safe overflow-hidden min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm min-w-0 flex-1 sm:min-w-[240px]">
             <p className="text-xs uppercase tracking-wide text-slate-500">Viewing as</p>
             <p className="mt-1 font-medium text-slate-900">{user.full_name}</p>
             <p className="text-sm text-slate-500">{categoryLabel}</p>
