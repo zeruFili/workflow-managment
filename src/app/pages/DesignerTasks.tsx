@@ -1393,7 +1393,7 @@ export function DesignerTasks() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 min-w-0">
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-col md:flex-row">
         <div>
@@ -1411,7 +1411,7 @@ export function DesignerTasks() {
       </div>
 
       {/* Search & Filter */}
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-3 flex-wrap sm:flex-nowrap">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
@@ -1463,7 +1463,7 @@ export function DesignerTasks() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {sortedTasks.map((task) => {
               const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'approved';
               const { currentPhaseKey, currentPhaseLabel, currentPhaseStatus } = getCurrentPhaseInfo(task);
@@ -1499,9 +1499,9 @@ export function DesignerTasks() {
                     </div>
                   )}
 
-                  <div className="flex items-start justify-between mb-3 gap-3">
-                    <div>
-                      <h3 className="font-semibold text-lg text-gray-900">{task.title}</h3>
+                  <div className="flex flex-wrap items-start justify-between mb-3 gap-3">
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-lg text-gray-900 break-words">{task.title}</h3>
                       <p className="text-xs text-gray-500 mt-1">
                         Assigned to: {getAssigneeDisplayName(task)}
                       </p>
@@ -1540,11 +1540,11 @@ export function DesignerTasks() {
                     <span className="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium">
                       Story Points: {task.story_point}
                     </span>
-                    <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-medium">
+                    <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-medium break-all">
                       Created by {getCreatorDisplayName(task)}
                     </span>
                     {task.assigned_to_user_id && (
-                      <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-medium">
+                      <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-medium break-all">
                         Assigned to {getAssigneeDisplayName(task)}
                       </span>
                     )}
@@ -1739,16 +1739,16 @@ export function DesignerTasks() {
 
       {/* Detail Modal */}
       {showDetail && selectedTaskDetail && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-6 overflow-y-auto">
-          <div className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl max-h-[92vh] overflow-y-auto">
-            <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-6 py-5">
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-2 py-4 sm:px-4 sm:py-6 overflow-y-auto">
+          <div className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl max-h-[92vh] overflow-y-auto min-w-0">
+            <div className="flex flex-wrap items-start justify-between gap-4 border-b border-gray-200 px-4 py-4 md:px-6 md:py-5">
               <div>
                 <h3 className="text-2xl font-semibold text-gray-900">Submission Detail</h3>
                 <p className="mt-1 text-sm text-gray-500">
                   {selectedTaskDetail.is_paused ? 'This task is currently paused.' : 'Submit your work and view feedback'}
                 </p>
                 {selectedTaskDetail.is_paused && selectedTaskDetail.pause_reason && (
-                  <div className="mt-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className="mt-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg overflow-hidden break-words">
                     <div className="flex items-center gap-1.5 mb-1">
                       <PauseCircle className="w-4 h-4 text-amber-600" />
                       <span className="text-sm font-medium text-amber-700">Pause Reason</span>
@@ -1760,7 +1760,7 @@ export function DesignerTasks() {
                   <p className="text-xs text-blue-600 mt-1">Loading submission data...</p>
                 )}
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
                 {user?.role === 'designer' && !selectedTaskDetail.is_paused && selectedTaskDetail.task_state === 'active' && (
                   <button
                     onClick={() => {
@@ -1790,12 +1790,12 @@ export function DesignerTasks() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-6 px-6 py-5 lg:grid-cols-3">
-              <div className="lg:col-span-2 space-y-5">
+            <div className="grid grid-cols-1 gap-6 px-4 py-4 md:px-6 md:py-5 lg:grid-cols-3">
+              <div className="md:col-span-2 space-y-5">
                 <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h4 className="text-xl font-semibold text-gray-900">{selectedTaskDetail.title}</h4>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-xl font-semibold text-gray-900 break-words">{selectedTaskDetail.title}</h4>
                       <p className="mt-1 text-sm text-gray-500">ID: {selectedTaskDetail.id}</p>
                     </div>
                     <span className="rounded-full bg-indigo-100 px-2 py-1 text-xs font-medium text-indigo-700">
@@ -1803,10 +1803,10 @@ export function DesignerTasks() {
                     </span>
                   </div>
                    <div className="mt-3 flex flex-wrap gap-2">
-                    <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
+                    <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 break-all">
                       Created by {getCreatorDisplayName(selectedTaskDetail)}
                     </span>
-                    <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">
+                    <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700 break-all">
                       Assigned to {getAssigneeDisplayName(selectedTaskDetail)}
                     </span>
                     {selectedTaskDetail.is_paused ? (
@@ -2185,7 +2185,7 @@ export function DesignerTasks() {
                                   })()}
 
                                   {canSubmit && (
-                                    <div className="border border-dashed border-gray-300 rounded-lg p-4 bg-blue-50/50">
+                                    <div className="border border-dashed border-gray-300 rounded-lg p-4 bg-blue-50/50 overflow-hidden min-w-0">
                                       <h6 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
                                         <MessageSquare className="w-4 h-4" />
                                         {editingSubmission?.taskId === taskId && editingSubmission?.phase === phase.key ? 'Update' : 'Submit'} to {phase.label}
@@ -2218,7 +2218,7 @@ export function DesignerTasks() {
                                               <span className="text-gray-400 text-xs ml-1">(optional)</span>
                                             )}
                                           </label>
-                                          <div className="flex items-center gap-2">
+                                          <div className="flex flex-wrap items-center gap-2">
                                             <label className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-sm text-gray-700">
                                               <Upload className="w-4 h-4" />
                                               {draftFilesRef.current[taskId]?.[phase.key]?.length
@@ -2292,7 +2292,7 @@ export function DesignerTasks() {
                                                       onLoad={(e) => URL.revokeObjectURL((e.target as HTMLImageElement).src)}
                                                     />
                                                   ) : (
-                                                    <div className="w-full h-24 flex items-center justify-center text-xs text-gray-500 p-2">
+                                                    <div className="w-full h-24 flex items-center justify-center text-xs text-gray-500 p-2 break-all overflow-hidden">
                                                       {file.name}
                                                     </div>
                                                   )}
@@ -2315,7 +2315,7 @@ export function DesignerTasks() {
                                             <p className="mt-1 text-xs text-gray-400">No preview available.</p>
                                           )}
                                         </div>
-                                        <div className="flex gap-2 pt-2">
+                                        <div className="flex flex-wrap gap-2 pt-2">
                                           <button
                                             onClick={() => handleSubmitPhaseProgress(taskId, phase.key)}
                                             disabled={submissionDraftLoading[taskId]?.[phase.key]}

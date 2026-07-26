@@ -48,7 +48,7 @@ export function PaginationWithNumbers({
           ? `Page ${currentPage} of ${totalPages} (${totalItems} total)`
           : `Page ${currentPage} of ${totalPages}`}
       </div>
-      <nav className="flex items-center gap-1">
+      <nav className="flex flex-wrap items-center gap-1">
         <button
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage <= 1}
