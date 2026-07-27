@@ -833,10 +833,93 @@ export function DataCollectorTasks() {
         review_outcome: outcome,
         task_state: selectedTask?.task_state || 'active',
       };
+      let res;
       if (effectiveReviewId) {
-        await dataCollectorApi.updateReview(effectiveReviewId, payload);
+        res = await dataCollectorApi.updateReview(effectiveReviewId, payload);
       } else {
-        await dataCollectorApi.createReview(subId, payload);
+        res = await dataCollectorApi.createReview(subId, payload);
+      }
+      if (res.success) {
+        const responseData = res.data;
+        if (responseData) {
+          setEditingReviewId(null);
+          setReviewDraft((prev) => ({ ...prev, [taskId]: '' }));
+
+          const all = tasksRef.current;
+          const now = new Date().toISOString();
+          let updated: DataCollectorTaskItem[];
+          if (effectiveReviewId) {
+            updated = all.map((t) =>
+              t.id === taskId
+                ? {
+                    ...t,
+                    updated_at: now,
+                    submissionsWithReviews: {
+                      ...t.submissionsWithReviews,
+                      submissions: (t.submissionsWithReviews?.submissions || []).map((w) => {
+                        const reviews = (w.submission?.reviews || []).map((r) =>
+                          r.id === effectiveReviewId ? { ...responseData, hasNotification: false, notificationId: null } : r
+                        );
+                        return { ...w, submission: { ...w.submission, reviews } };
+                      }),
+                      latestActivityTs: Date.now(),
+                    },
+                  }
+                : t
+            );
+          } else {
+            const newReview = { ...responseData, hasNotification: false, notificationId: null };
+            updated = all.map((t) =>
+              t.id === taskId
+                ? {
+                    ...t,
+                    updated_at: now,
+                    hasNestedNotification: true,
+                    taskNotification: { hasNotification: true, notificationId: t.taskNotification?.notificationId || `notif-dc-t${Date.now()}` },
+                    submissionsWithReviews: {
+                      ...t.submissionsWithReviews,
+                      submissions: (t.submissionsWithReviews?.submissions || []).map((w) =>
+                        w.submission?.id === subId
+                          ? {
+                              ...w,
+                              hasNotification: true,
+                              notificationId: `notif-dc-${Date.now()}`,
+                              submission: {
+                                ...w.submission,
+                                reviews: [...(w.submission?.reviews || []), newReview],
+                              },
+                            }
+                          : w
+                      ),
+                      latestActivityTs: Date.now(),
+                    },
+                  }
+                : t
+            );
+          }
+          dataCollectorTaskCache.invalidate();
+          setTasks(updated);
+          tasksRef.current = updated;
+          const updatedSelected = updated.find((t) => t.id === taskId);
+          if (updatedSelected) setSelectedTask(updatedSelected);
+
+          if (user) {
+            const existing = loadQuantityReviewNotifications();
+            const taskTitle = selectedTask?.title || `Task ${taskId}`;
+            saveQuantityReviewNotifications([
+              createGeneralNotification({
+                type: 'dc_review',
+                taskId,
+                actorRole: user.role,
+                message: `Data collector task reviewed: ${outcome}`,
+                description: `Review submitted for data collector task: ${taskTitle} (${outcome})`,
+              }),
+              ...existing,
+            ]);
+          }
+        }
+      } else {
+        errorMsg = res.message || 'Unable to submit review. Please try again.';
       }
     } catch (err: unknown) {
       errorMsg =
@@ -848,29 +931,6 @@ export function DataCollectorTasks() {
 
     if (errorMsg) {
       setReviewError((prev) => ({ ...prev, [taskId]: errorMsg! }));
-    } else {
-      setEditingReviewId(null);
-      setReviewDraft((prev) => ({ ...prev, [taskId]: '' }));
-      const refreshedList = await fetchTasks(apiPage, searchTerm, statusFilter, true);
-      if (refreshedList) {
-        const refreshed = refreshedList.find((t) => t.id === taskId);
-        if (refreshed) setSelectedTask(refreshed);
-      }
-
-      if (user) {
-        const existing = loadQuantityReviewNotifications();
-        const taskTitle = selectedTask?.title || `Task ${taskId}`;
-        saveQuantityReviewNotifications([
-          createGeneralNotification({
-            type: 'dc_review',
-            taskId,
-            actorRole: user.role,
-            message: `Data collector task reviewed: ${outcome}`,
-            description: `Review submitted for data collector task: ${taskTitle} (${outcome})`,
-          }),
-          ...existing,
-        ]);
-      }
     }
   };
 
@@ -919,12 +979,64 @@ export function DataCollectorTasks() {
           })()
         : await dataCollectorApi.createSubmission(taskId, formData);
 
-      if (response.success) {
-        const refreshedList = await fetchTasks(apiPage, searchTerm, statusFilter, true);
-        if (refreshedList) {
-          const refreshed = refreshedList.find((t) => t.id === taskId);
-          if (refreshed) setSelectedTask(refreshed);
+      if (response.success && response.data) {
+        const all = tasksRef.current;
+        const now = new Date().toISOString();
+        let updated: DataCollectorTaskItem[];
+        if (isEditing) {
+          const updatedSub = {
+            ...response.data,
+            reviews: (response.data as any).reviews || [],
+          } as DataCollectorSubmissionRaw;
+          updated = all.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  updated_at: now,
+                  submissionsWithReviews: {
+                    ...t.submissionsWithReviews,
+                    submissions: (t.submissionsWithReviews?.submissions || []).map((w) =>
+                      w.submission?.id === editingSubmissionId
+                        ? { ...w, submission: updatedSub }
+                        : w
+                    ),
+                    latestActivityTs: Date.now(),
+                  },
+                }
+              : t
+          );
+        } else {
+          const newSub = {
+            ...response.data,
+            reviews: (response.data as any).reviews || [],
+          } as DataCollectorSubmissionRaw;
+          const newWrapper: DataCollectorSubmissionWrapper = {
+            submissionId: newSub.id,
+            hasNotification: false,
+            notificationId: null,
+            submission: newSub,
+          };
+          updated = all.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  updated_at: now,
+                  hasNestedNotification: true,
+                  taskNotification: { hasNotification: true, notificationId: t.taskNotification?.notificationId || `notif-dc-t${Date.now()}` },
+                  submissionsWithReviews: {
+                    ...t.submissionsWithReviews,
+                    submissions: [...(t.submissionsWithReviews?.submissions || []), newWrapper],
+                    latestActivityTs: Date.now(),
+                  },
+                }
+              : t
+          );
         }
+        dataCollectorTaskCache.invalidate();
+        setTasks(updated);
+        tasksRef.current = updated;
+        const updatedSelected = updated.find((t) => t.id === taskId);
+        if (updatedSelected) setSelectedTask(updatedSelected);
       } else {
         errorMsg = response.message || 'Submission failed. Please refresh the page.';
       }

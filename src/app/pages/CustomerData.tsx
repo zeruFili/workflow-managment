@@ -3,6 +3,8 @@ import { useAuth } from '../contexts/AuthContext';
 import marketingApi, {
   MarketingTaskItem,
   MarketingSubmissionWrapper,
+  MarketingSubmissionRaw,
+  MarketingReviewRaw,
 } from '../../api/marketingApi';
 import { fetchMarketingTasks, getCachedMarketingTasks, isMarketingTasksLoading, invalidateMarketingTaskCache } from '../data/marketingTaskCache';
 import {
@@ -297,19 +299,67 @@ export function CustomerData() {
       const response = isEditing
         ? await marketingApi.updateSubmission(editingSubmissionId!, formData)
         : await marketingApi.createSubmission(taskId, formData);
-      if (response.success) {
+      if (response.success && response.data) {
         setEditingSubmissionId(null);
         const oldUrl = detailDraftScreenshots[taskId] ?? null;
         if (oldUrl && oldUrl.startsWith('blob:')) URL.revokeObjectURL(oldUrl);
         setDetailDraftScreenshots((prev) => ({ ...prev, [taskId]: null }));
         setDetailDraftNote((prev) => ({ ...prev, [taskId]: '' }));
         detailDraftFilesRef.current = { ...detailDraftFilesRef.current, [taskId]: [] };
-        invalidateMarketingTaskCache();
-        const refreshed = await marketingApi.getMarketingTasks({ limit: 100 });
-        if (refreshed.success) {
-          setMarketingTasks(refreshed.data);
-          const found = refreshed.data.find((t) => t.id === taskId);
-          if (found) setSelectedTask(found);
+
+        const now = new Date().toISOString();
+        if (isEditing) {
+          const updatedSub = {
+            ...response.data,
+            reviews: (response.data as any).reviews || [],
+          } as MarketingSubmissionRaw;
+          const updatedTasks = marketingTasks.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  updated_at: now,
+                  submissionsWithReviews: {
+                    ...t.submissionsWithReviews,
+                    submissions: (t.submissionsWithReviews?.submissions || []).map((w) =>
+                      w.submission?.id === editingSubmissionId
+                        ? { ...w, submission: updatedSub }
+                        : w
+                    ),
+                    latestActivityTs: Date.now(),
+                  },
+                }
+              : t
+          );
+          setMarketingTasks(updatedTasks);
+          const updatedSelected = updatedTasks.find((t) => t.id === taskId);
+          if (updatedSelected) setSelectedTask(updatedSelected);
+        } else {
+          const newSub = {
+            ...response.data,
+            reviews: (response.data as any).reviews || [],
+          } as MarketingSubmissionRaw;
+          const newWrapper: MarketingSubmissionWrapper = {
+            submissionId: newSub.id,
+            hasNotification: false,
+            notificationId: null,
+            submission: newSub,
+          };
+          const updatedTasks = marketingTasks.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  updated_at: now,
+                  submissionsWithReviews: {
+                    ...t.submissionsWithReviews,
+                    submissions: [...(t.submissionsWithReviews?.submissions || []), newWrapper],
+                    latestActivityTs: Date.now(),
+                  },
+                }
+              : t
+          );
+          setMarketingTasks(updatedTasks);
+          const updatedSelected = updatedTasks.find((t) => t.id === taskId);
+          if (updatedSelected) setSelectedTask(updatedSelected);
         }
       } else {
         const msg = response.message || 'Submission failed.';
@@ -329,6 +379,7 @@ export function CustomerData() {
     const note = reviewDraft[taskId] ?? '';
     setReviewDetailError((prev) => ({ ...prev, [taskId]: '' }));
     let errorMsg: string | null = null;
+    let responseData: MarketingReviewRaw | undefined;
 
     let effectiveReviewId = editingReviewId;
     if (effectiveReviewId && selectedTask) {
@@ -347,9 +398,13 @@ export function CustomerData() {
         review_outcome: outcome,
       };
       if (effectiveReviewId) {
-        await marketingApi.updateReview(effectiveReviewId, payload);
+        const res = await marketingApi.updateReview(effectiveReviewId, payload);
+        if (res.success) responseData = res.data;
+        else errorMsg = res.message || 'Unable to update review. Please try again.';
       } else {
-        await marketingApi.createReview(subId, payload);
+        const res = await marketingApi.createReview(subId, payload);
+        if (res.success) responseData = res.data;
+        else errorMsg = res.message || 'Unable to submit review. Please try again.';
       }
     } catch (err: unknown) {
       errorMsg = err && typeof err === 'object' && 'response' in err
@@ -358,15 +413,60 @@ export function CustomerData() {
     }
     if (errorMsg) {
       setReviewDetailError((prev) => ({ ...prev, [taskId]: errorMsg! }));
-    } else {
+    } else if (responseData) {
       setEditingReviewId(null);
       setReviewDraft((prev) => ({ ...prev, [taskId]: '' }));
-      invalidateMarketingTaskCache();
-      const refreshed = await marketingApi.getMarketingTasks({ limit: 100 });
-      if (refreshed.success) {
-        setMarketingTasks(refreshed.data);
-        const found = refreshed.data.find((t) => t.id === taskId);
-        if (found) setSelectedTask(found);
+
+      const now = new Date().toISOString();
+      if (effectiveReviewId) {
+        const updatedTasks = marketingTasks.map((t) =>
+          t.id === taskId
+            ? {
+                ...t,
+                updated_at: now,
+                submissionsWithReviews: {
+                  ...t.submissionsWithReviews,
+                  submissions: (t.submissionsWithReviews?.submissions || []).map((w) => {
+                    const reviews = (w.submission?.reviews || []).map((r) =>
+                      r.id === effectiveReviewId ? responseData! : r
+                    );
+                    return { ...w, submission: { ...w.submission, reviews } };
+                  }),
+                  latestActivityTs: Date.now(),
+                },
+              }
+            : t
+        );
+        setMarketingTasks(updatedTasks);
+        const updatedSelected = updatedTasks.find((t) => t.id === taskId);
+        if (updatedSelected) setSelectedTask(updatedSelected);
+      } else {
+        const updatedTasks = marketingTasks.map((t) =>
+          t.id === taskId
+            ? {
+                ...t,
+                updated_at: now,
+                submissionsWithReviews: {
+                  ...t.submissionsWithReviews,
+                  submissions: (t.submissionsWithReviews?.submissions || []).map((w) =>
+                    w.submission?.id === subId
+                      ? {
+                          ...w,
+                          submission: {
+                            ...w.submission,
+                            reviews: [...(w.submission?.reviews || []), responseData!],
+                          },
+                        }
+                      : w
+                  ),
+                  latestActivityTs: Date.now(),
+                },
+              }
+            : t
+        );
+        setMarketingTasks(updatedTasks);
+        const updatedSelected = updatedTasks.find((t) => t.id === taskId);
+        if (updatedSelected) setSelectedTask(updatedSelected);
       }
     }
   };

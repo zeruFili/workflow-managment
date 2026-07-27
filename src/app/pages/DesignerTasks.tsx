@@ -90,6 +90,16 @@ interface ReviewData {
   updatedAt: string | null;
 }
 
+function backendStageToRawKey(backend: string): keyof SubmissionsWithReviewsData {
+  const map: Record<string, keyof SubmissionsWithReviewsData> = {
+    'case study': 'caseStudy',
+    designing: 'designing',
+    rendering: 'rendering',
+    'final stage': 'finalStage',
+  };
+  return map[backend] || 'caseStudy';
+}
+
 const PHASES: { key: PhaseKey; label: string; backendStage: string }[] = [
   { key: 'caseStudy', label: 'Case Study', backendStage: 'case study' },
   { key: 'designStage', label: 'Design Stage', backendStage: 'designing' },
@@ -1008,22 +1018,56 @@ export function DesignerTasks() {
         : await designerApi.createSubmission(taskId, formData);
 
       if (response.success && response.data) {
-        // Refresh submissions from backend first
-        setSubmissionsLoading((prev) => ({ ...prev, [taskId]: true }));
-        try {
-          const refreshedList = await fetchTasks(apiPage, searchTerm, statusFilter, true);
-          const refreshed = refreshedList?.find((t) => t.id === taskId);
-          if (refreshed) {
-            setSelectedTaskDetail(refreshed);
-            if (refreshed.submissionsWithReviews) {
-              const freshProgress = apiSubmissionsToProgress(refreshed.submissionsWithReviews);
-              setSubmissionProgress((prev) => ({ ...prev, [taskId]: freshProgress }));
-              setSubmissionsRawData((prev) => ({ ...prev, [taskId]: refreshed.submissionsWithReviews }));
-            }
-          }
-        } finally {
-          setSubmissionsLoading((prev) => ({ ...prev, [taskId]: false }));
+        const created = response.data;
+        const backendStage = phaseToBackendStage(phase);
+        const stageKey = backendStageToRawKey(backendStage);
+        const newSub: SubmissionItem = {
+          id: created.id,
+          designer_task_id: created.designer_task_id,
+          stage: created.stage,
+          description: created.description,
+          attachment_urls: created.attachment_urls,
+          created_at: created.created_at,
+          updated_at: created.updated_at,
+          hasNotification: false,
+          notificationId: null,
+          reviews: [],
+        };
+
+        const prevRaw = submissionsRawData[taskId] ?? { caseStudy: [], designing: [], rendering: [], finalStage: [] };
+        const updatedStageArr: SubmissionItem[] = [...(prevRaw[stageKey] as SubmissionItem[])];
+
+        if (isEditing && editingSubmission) {
+          const idx = updatedStageArr.findIndex((s) => s.id === editingSubmission.submissionId);
+          if (idx !== -1) updatedStageArr[idx] = newSub;
+        } else {
+          updatedStageArr.push(newSub);
         }
+
+        const updatedRaw: SubmissionsWithReviewsData = { ...prevRaw, [stageKey]: updatedStageArr };
+        setSubmissionsRawData((prev) => ({ ...prev, [taskId]: updatedRaw }));
+
+        const freshProgress = apiSubmissionsToProgress(updatedRaw);
+        setSubmissionProgress((prev) => ({ ...prev, [taskId]: freshProgress }));
+
+        if (selectedTaskDetail?.id === taskId) {
+          setSelectedTaskDetail((prev) =>
+            prev ? { ...prev, submissionsWithReviews: updatedRaw } : prev
+          );
+        }
+
+        cachedRawData = { ...cachedRawData, [taskId]: updatedRaw };
+        cachedProgress = { ...cachedProgress, [taskId]: freshProgress };
+
+        const updatedTasks = tasks.map((t) =>
+          t.id === taskId
+            ? { ...t, updated_at: new Date().toISOString(), submissionsWithReviews: updatedRaw }
+            : t
+        );
+        setTasks(updatedTasks);
+        tasksRef.current = updatedTasks;
+
+        designerTaskCache.invalidate();
       } else {
         setPhaseErrors((prev) => ({
           ...prev,

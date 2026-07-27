@@ -775,11 +775,63 @@ export function MarketingTasks() {
           })()
         : await marketingApi.createSubmission(taskId, formData);
 
-      if (response.success) {
-        await fetchTasks(apiPage, searchTerm, statusFilter, true);
-        if (cachedTasks) {
-          const refreshed = cachedTasks.find((t) => t.id === taskId);
-          if (refreshed) setSelectedTask(refreshed);
+      if (response.success && response.data) {
+        const all = cachedTasks ?? [];
+        const now = new Date().toISOString();
+        if (isEditing) {
+          const updatedSub = {
+            ...response.data,
+            reviews: response.data.reviews ?? [],
+          } as MarketingSubmissionRaw;
+          const updated = all.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  updated_at: now,
+                  submissionsWithReviews: {
+                    ...t.submissionsWithReviews,
+                    submissions: (t.submissionsWithReviews?.submissions || []).map((w) =>
+                      w.submission?.id === editingSubmissionId
+                        ? { ...w, submission: updatedSub }
+                        : w
+                    ),
+                    latestActivityTs: Date.now(),
+                  },
+                }
+              : t
+          );
+          cachedTasks = updated;
+          setTasks(updated);
+          const updatedSelected = updated.find((t) => t.id === taskId);
+          if (updatedSelected) setSelectedTask(updatedSelected);
+        } else {
+          const newSub = {
+            ...response.data,
+            reviews: response.data.reviews ?? [],
+          } as MarketingSubmissionRaw;
+          const newWrapper: MarketingSubmissionWrapper = {
+            submissionId: newSub.id,
+            hasNotification: false,
+            notificationId: null,
+            submission: newSub,
+          };
+          const updated = all.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  updated_at: now,
+                  submissionsWithReviews: {
+                    ...t.submissionsWithReviews,
+                    submissions: [...(t.submissionsWithReviews?.submissions || []), newWrapper],
+                    latestActivityTs: Date.now(),
+                  },
+                }
+              : t
+          );
+          cachedTasks = updated;
+          setTasks(updated);
+          const updatedSelected = updated.find((t) => t.id === taskId);
+          if (updatedSelected) setSelectedTask(updatedSelected);
         }
       } else {
         errorMsg = response.message || 'Submission failed. Please try again.';
@@ -836,6 +888,7 @@ export function MarketingTasks() {
     setReviewError((prev) => ({ ...prev, [taskId]: '' }));
 
     let errorMsg: string | null = null;
+    let responseData: MarketingReviewRaw | undefined;
 
     try {
       const payload = {
@@ -843,9 +896,13 @@ export function MarketingTasks() {
         review_outcome: outcome,
       };
       if (editingReviewId) {
-        await marketingApi.updateReview(editingReviewId, payload);
+        const res = await marketingApi.updateReview(editingReviewId, payload);
+        if (res.success) responseData = res.data;
+        else errorMsg = res.message || 'Unable to update review. Please try again.';
       } else {
-        await marketingApi.createReview(subId, payload);
+        const res = await marketingApi.createReview(subId, payload);
+        if (res.success) responseData = res.data;
+        else errorMsg = res.message || 'Unable to submit review. Please try again.';
       }
     } catch (err: unknown) {
       errorMsg =
@@ -857,13 +914,63 @@ export function MarketingTasks() {
 
     if (errorMsg) {
       setReviewError((prev) => ({ ...prev, [taskId]: errorMsg! }));
-    } else {
+    } else if (responseData) {
       setEditingReviewId(null);
       setReviewDraft((prev) => ({ ...prev, [taskId]: '' }));
-      await fetchTasks(apiPage, searchTerm, statusFilter, true);
-      if (cachedTasks) {
-        const refreshed = cachedTasks.find((t) => t.id === taskId);
-        if (refreshed) setSelectedTask(refreshed);
+
+      const all = cachedTasks ?? [];
+      const now = new Date().toISOString();
+      if (editingReviewId) {
+        const updated = all.map((t) =>
+          t.id === taskId
+            ? {
+                ...t,
+                updated_at: now,
+                submissionsWithReviews: {
+                  ...t.submissionsWithReviews,
+                  submissions: (t.submissionsWithReviews?.submissions || []).map((w) => {
+                    const reviews = (w.submission?.reviews || []).map((r) =>
+                      r.id === editingReviewId ? responseData! : r
+                    );
+                    return { ...w, submission: { ...w.submission, reviews } };
+                  }),
+                  latestActivityTs: Date.now(),
+                },
+              }
+            : t
+        );
+        cachedTasks = updated;
+        setTasks(updated);
+        const updatedSelected = updated.find((t) => t.id === taskId);
+        if (updatedSelected) setSelectedTask(updatedSelected);
+      } else {
+        const updated = all.map((t) =>
+          t.id === taskId
+            ? {
+                ...t,
+                updated_at: now,
+                submissionsWithReviews: {
+                  ...t.submissionsWithReviews,
+                  submissions: (t.submissionsWithReviews?.submissions || []).map((w) =>
+                    w.submission?.id === subId
+                      ? {
+                          ...w,
+                          submission: {
+                            ...w.submission,
+                            reviews: [...(w.submission?.reviews || []), responseData!],
+                          },
+                        }
+                      : w
+                  ),
+                  latestActivityTs: Date.now(),
+                },
+              }
+            : t
+        );
+        cachedTasks = updated;
+        setTasks(updated);
+        const updatedSelected = updated.find((t) => t.id === taskId);
+        if (updatedSelected) setSelectedTask(updatedSelected);
       }
     }
   };

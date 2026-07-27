@@ -17,6 +17,7 @@ import designerApi, {
   DesignerTaskItem,
   DesignerTaskListMeta,
   SubmissionItem,
+  SubmissionReview,
   SubmissionsWithReviewsData,
   TaskReviewData,
 } from '../../api/designerApi';
@@ -1061,6 +1062,7 @@ export function DesignerAssignments() {
         review_outcome: outcome,
         task_state: selectedTaskDetail.task_state,
       };
+      let responseData: SubmissionReview | undefined;
       if (editingReviewId) {
         const editingSubmission = submissions.find((s) =>
           s.reviews?.some((r) => r.id === editingReviewId)
@@ -1069,41 +1071,62 @@ export function DesignerAssignments() {
           setEditingReviewId(null);
           return;
         }
-        await designerApi.updateReview(editingReviewId, {
+        const res = await designerApi.updateReview(editingReviewId, {
           ...payload,
           submission_id: editingSubmission.id,
           task_id: taskId,
         });
+        if (res.success) responseData = res.data;
+        else {
+          setReviewError((prev) => ({ ...prev, [errorKey]: res.message || 'Unable to update review. Please try again.' }));
+          return;
+        }
         setEditingReviewId(null);
       } else {
-        await designerApi.createReview(targetSubmission.id, payload);
-      }
-      updateDraft(taskId, phase, '');
-      const refreshedTasks = await fetchTasks(apiPage, searchTerm, statusFilter, true);
-      if (refreshedTasks) {
-        const refreshed = refreshedTasks.find((t) => t.id === taskId);
-        if (refreshed) {
-          setSelectedTaskDetail(refreshed);
-          if (refreshed.submissionsWithReviews) {
-            const freshProgress = apiSubmissionsToProgress(refreshed.submissionsWithReviews);
-            setSubmissionProgress((prev) => ({ ...prev, [taskId]: freshProgress }));
-          }
+        const res = await designerApi.createReview(targetSubmission.id, payload);
+        if (res.success) responseData = res.data;
+        else {
+          setReviewError((prev) => ({ ...prev, [errorKey]: res.message || 'Unable to submit review. Please try again.' }));
+          return;
         }
       }
 
-      if (user) {
-        const existing = loadQuantityReviewNotifications();
-        const phaseLabel = PHASES.find((p) => p.key === phase)?.label || phase;
-        saveQuantityReviewNotifications([
-          createGeneralNotification({
-            type: 'designer_review',
-            taskId,
-            actorRole: user.role,
-            message: `Designer task reviewed: ${outcome} (${phaseLabel})`,
-            description: `Review submitted for designer task ${selectedTaskDetail?.title || taskId} (${phaseLabel}: ${outcome})`,
-          }),
-          ...existing,
-        ]);
+      if (responseData) {
+        updateDraft(taskId, phase, '');
+
+        if (selectedTaskDetail) {
+          const updatedRaw = { ...selectedTaskDetail.submissionsWithReviews } as SubmissionsWithReviewsData;
+          const stageArr = [...(updatedRaw[apiKey as keyof SubmissionsWithReviewsData] as SubmissionItem[])] as SubmissionItem[];
+          const subIdx = stageArr.findIndex((s) => s.id === submissionId);
+          if (subIdx !== -1) {
+            const reviews = editingReviewId
+              ? stageArr[subIdx].reviews.map((r) => r.id === editingReviewId ? responseData : r)
+              : [...(stageArr[subIdx].reviews || []), responseData];
+            stageArr[subIdx] = { ...stageArr[subIdx], reviews };
+          }
+          Object.assign(updatedRaw, { [apiKey]: stageArr });
+          setSelectedTaskDetail({ ...selectedTaskDetail, submissionsWithReviews: updatedRaw });
+
+          const freshProgress = apiSubmissionsToProgress(updatedRaw);
+          setSubmissionProgress((prev) => ({ ...prev, [taskId]: freshProgress }));
+        }
+
+        designerTaskCache.invalidate();
+
+        if (user) {
+          const existing = loadQuantityReviewNotifications();
+          const phaseLabel = PHASES.find((p) => p.key === phase)?.label || phase;
+          saveQuantityReviewNotifications([
+            createGeneralNotification({
+              type: 'designer_review',
+              taskId,
+              actorRole: user.role,
+              message: `Designer task reviewed: ${outcome} (${phaseLabel})`,
+              description: `Review submitted for designer task ${selectedTaskDetail?.title || taskId} (${phaseLabel}: ${outcome})`,
+            }),
+            ...existing,
+          ]);
+        }
       }
     } catch (err: unknown) {
       const msg =

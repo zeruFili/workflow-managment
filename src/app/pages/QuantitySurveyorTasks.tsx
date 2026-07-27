@@ -815,6 +815,7 @@ export function QuantitySurveyorTasks() {
     setReviewError((prev) => ({ ...prev, [taskId]: '' }));
 
     let errorMsg: string | null = null;
+    let responseData: QuantitySurveyorSubmissionReview | undefined;
 
     try {
       const payload = {
@@ -823,9 +824,13 @@ export function QuantitySurveyorTasks() {
         task_state: selectedTask?.task_state || 'active',
       };
       if (editingReviewId) {
-        await quantitySurveyorApi.updateReview(editingReviewId, payload);
+        const res = await quantitySurveyorApi.updateReview(editingReviewId, payload);
+        if (res.success) responseData = res.data;
+        else errorMsg = res.message || 'Unable to update review. Please try again.';
       } else {
-        await quantitySurveyorApi.createReview(subId, payload);
+        const res = await quantitySurveyorApi.createReview(subId, payload);
+        if (res.success) responseData = res.data;
+        else errorMsg = res.message || 'Unable to submit review. Please try again.';
       }
     } catch (err: unknown) {
       errorMsg =
@@ -837,14 +842,69 @@ export function QuantitySurveyorTasks() {
 
     if (errorMsg) {
       setReviewError((prev) => ({ ...prev, [taskId]: errorMsg! }));
-    } else {
+    } else if (responseData) {
       setEditingReviewId(null);
       setReviewDraft((prev) => ({ ...prev, [taskId]: '' }));
-      const refreshedList = await fetchTasks(apiPage, searchTerm, statusFilter, true);
-      if (refreshedList) {
-        const refreshed = refreshedList.find((t) => t.id === taskId);
-        if (refreshed) setSelectedTask(refreshed);
+
+      const all = tasksRef.current;
+      const now = new Date().toISOString();
+      let updated: QuantitySurveyorTaskItem[];
+      if (editingReviewId) {
+        updated = all.map((t) =>
+          t.id === taskId
+            ? {
+                ...t,
+                updated_at: now,
+                hasNestedNotification: true,
+                taskNotification: { hasNotification: true, notificationId: t.taskNotification?.notificationId || `notif-qs-t${Date.now()}` },
+                submissionsWithReviews: {
+                  ...t.submissionsWithReviews,
+                  submissions: (t.submissionsWithReviews?.submissions || []).map((w) => {
+                    const reviews = (w.submission?.reviews || []).map((r) =>
+                      r.id === editingReviewId ? { ...responseData!, hasNotification: false, notificationId: null } : r
+                    );
+                    return { ...w, submission: { ...w.submission, reviews } };
+                  }),
+                  latestActivityTs: Date.now(),
+                },
+              }
+            : t
+        );
+      } else {
+        const newReview = { ...responseData!, hasNotification: false, notificationId: null };
+        updated = all.map((t) =>
+          t.id === taskId
+            ? {
+                ...t,
+                updated_at: now,
+                hasNestedNotification: true,
+                taskNotification: { hasNotification: true, notificationId: t.taskNotification?.notificationId || `notif-qs-t${Date.now()}` },
+                submissionsWithReviews: {
+                  ...t.submissionsWithReviews,
+                  submissions: (t.submissionsWithReviews?.submissions || []).map((w) =>
+                    w.submission?.id === subId
+                      ? {
+                          ...w,
+                          hasNotification: true,
+                          notificationId: `notif-qs-${Date.now()}`,
+                          submission: {
+                            ...w.submission,
+                            reviews: [...(w.submission?.reviews || []), newReview],
+                          },
+                        }
+                      : w
+                  ),
+                  latestActivityTs: Date.now(),
+                },
+              }
+            : t
+        );
       }
+      quantitySurveyorTaskCache.invalidate();
+      setTasks(updated);
+      tasksRef.current = updated;
+      const updatedSelected = updated.find((t) => t.id === taskId);
+      if (updatedSelected) setSelectedTask(updatedSelected);
 
       if (user) {
         const existing = loadQuantityReviewNotifications();
@@ -913,12 +973,64 @@ export function QuantitySurveyorTasks() {
           })()
         : await quantitySurveyorApi.createSubmission(taskId, formData);
 
-      if (response.success) {
-        const refreshedList = await fetchTasks(apiPage, searchTerm, statusFilter, true);
-        if (refreshedList) {
-          const refreshed = refreshedList.find((t) => t.id === taskId);
-          if (refreshed) setSelectedTask(refreshed);
+      if (response.success && response.data) {
+        const all = tasksRef.current;
+        const now = new Date().toISOString();
+        let updated: QuantitySurveyorTaskItem[];
+        if (isEditing) {
+          const updatedSub = {
+            ...response.data,
+            reviews: (response.data as any).reviews || [],
+          } as QuantitySurveyorSubmissionRaw;
+          updated = all.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  updated_at: now,
+                  submissionsWithReviews: {
+                    ...t.submissionsWithReviews,
+                    submissions: (t.submissionsWithReviews?.submissions || []).map((w) =>
+                      w.submission?.id === editingSubmissionId
+                        ? { ...w, submission: updatedSub }
+                        : w
+                    ),
+                    latestActivityTs: Date.now(),
+                  },
+                }
+              : t
+          );
+        } else {
+          const newSub = {
+            ...response.data,
+            reviews: (response.data as any).reviews || [],
+          } as QuantitySurveyorSubmissionRaw;
+          const newWrapper: QuantitySurveyorSubmissionWrapper = {
+            submissionId: newSub.id,
+            hasNotification: false,
+            notificationId: null,
+            submission: newSub,
+          };
+          updated = all.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  updated_at: now,
+                  hasNestedNotification: true,
+                  taskNotification: { hasNotification: true, notificationId: t.taskNotification?.notificationId || `notif-qs-t${Date.now()}` },
+                  submissionsWithReviews: {
+                    ...t.submissionsWithReviews,
+                    submissions: [...(t.submissionsWithReviews?.submissions || []), newWrapper],
+                    latestActivityTs: Date.now(),
+                  },
+                }
+              : t
+          );
         }
+        quantitySurveyorTaskCache.invalidate();
+        setTasks(updated);
+        tasksRef.current = updated;
+        const updatedSelected = updated.find((t) => t.id === taskId);
+        if (updatedSelected) setSelectedTask(updatedSelected);
       } else {
         errorMsg = response.message || 'Submission failed. Please refresh the page.';
       }

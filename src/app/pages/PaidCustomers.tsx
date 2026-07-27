@@ -588,17 +588,63 @@ export function PaidCustomers() {
           })()
         : await marketingApi.createSubmission(taskId, formData);
 
-      if (response.success) {
+      if (response.success && response.data) {
         setSubmissionSuccess((prev) => ({ ...prev, [taskId]: 'Submission has been sent successfully.' }));
-        invalidateMarketingTaskCache();
-        const refreshed = await marketingApi.getMarketingTasks({ limit: 100 });
-        if (refreshed.success) {
-          applyTasks(refreshed.data);
-          persistLocalTasks(refreshed.data);
-          if (selectedTask?.id === taskId) {
-            const found = refreshed.data.find((t) => t.id === taskId);
-            if (found) setSelectedTask(found);
-          }
+        const now = new Date().toISOString();
+        if (isEditing) {
+          const updatedSub = {
+            ...response.data,
+            reviews: (response.data as any).reviews || [],
+          } as MarketingSubmissionRaw;
+          const updated = marketingTasks.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  updated_at: now,
+                  submissionsWithReviews: {
+                    ...t.submissionsWithReviews,
+                    submissions: (t.submissionsWithReviews?.submissions || []).map((w) =>
+                      w.submission?.id === editingSubmissionId
+                        ? { ...w, submission: updatedSub }
+                        : w
+                    ),
+                    latestActivityTs: Date.now(),
+                  },
+                }
+              : t
+          );
+          applyTasks(updated);
+          persistLocalTasks(updated);
+          const updatedSelected = updated.find((t) => t.id === taskId);
+          if (updatedSelected) setSelectedTask(updatedSelected);
+        } else {
+          const newSub = {
+            ...response.data,
+            reviews: (response.data as any).reviews || [],
+          } as MarketingSubmissionRaw;
+          const newWrapper: MarketingSubmissionWrapper = {
+            submissionId: newSub.id,
+            hasNotification: false,
+            notificationId: null,
+            submission: newSub,
+          };
+          const updated = marketingTasks.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  updated_at: now,
+                  submissionsWithReviews: {
+                    ...t.submissionsWithReviews,
+                    submissions: [...(t.submissionsWithReviews?.submissions || []), newWrapper],
+                    latestActivityTs: Date.now(),
+                  },
+                }
+              : t
+          );
+          applyTasks(updated);
+          persistLocalTasks(updated);
+          const updatedSelected = updated.find((t) => t.id === taskId);
+          if (updatedSelected) setSelectedTask(updatedSelected);
         }
       } else {
         errorMsg = response.message || 'Submission failed.';
@@ -651,6 +697,7 @@ export function PaidCustomers() {
     const note = reviewDraft[taskId] ?? '';
     setReviewError((prev) => ({ ...prev, [taskId]: '' }));
     let errorMsg: string | null = null;
+    let responseData: MarketingReviewRaw | undefined;
 
     const isEditing = editingReviewId !== null;
     const effectiveReviewId = editingReviewId;
@@ -661,9 +708,13 @@ export function PaidCustomers() {
         review_outcome: outcome,
       };
       if (isEditing && effectiveReviewId) {
-        await marketingApi.updateReview(effectiveReviewId, payload);
+        const res = await marketingApi.updateReview(effectiveReviewId, payload);
+        if (res.success) responseData = res.data;
+        else errorMsg = res.message || 'Unable to update review. Please try again.';
       } else {
-        await marketingApi.createReview(subId, payload);
+        const res = await marketingApi.createReview(subId, payload);
+        if (res.success) responseData = res.data;
+        else errorMsg = res.message || 'Unable to submit review. Please try again.';
       }
     } catch (err: unknown) {
       errorMsg = (err && typeof err === 'object' && 'response' in err
@@ -673,23 +724,62 @@ export function PaidCustomers() {
 
     if (errorMsg) {
       setReviewError((prev) => ({ ...prev, [taskId]: errorMsg! }));
-    } else {
+    } else if (responseData) {
       setEditingReviewId(null);
       setReviewDraft((prev) => ({ ...prev, [taskId]: '' }));
-    }
 
-    if (!errorMsg) {
-      invalidateMarketingTaskCache();
-      try {
-        const refreshed = await marketingApi.getMarketingTasks({ limit: 100 });
-        if (refreshed.success) {
-          applyTasks(refreshed.data);
-          persistLocalTasks(refreshed.data);
-          const found = refreshed.data.find((t) => t.id === taskId);
-          if (found) setSelectedTask(found);
-        }
-      } catch {
-        // Refresh failed — will show what we have
+      const now = new Date().toISOString();
+      if (isEditing && effectiveReviewId) {
+        const updated = marketingTasks.map((t) =>
+          t.id === taskId
+            ? {
+                ...t,
+                updated_at: now,
+                submissionsWithReviews: {
+                  ...t.submissionsWithReviews,
+                  submissions: (t.submissionsWithReviews?.submissions || []).map((w) => {
+                    const reviews = (w.submission?.reviews || []).map((r) =>
+                      r.id === effectiveReviewId ? responseData! : r
+                    );
+                    return { ...w, submission: { ...w.submission, reviews } };
+                  }),
+                  latestActivityTs: Date.now(),
+                },
+              }
+            : t
+        );
+        applyTasks(updated);
+        persistLocalTasks(updated);
+        const updatedSelected = updated.find((t) => t.id === taskId);
+        if (updatedSelected) setSelectedTask(updatedSelected);
+      } else {
+        const updated = marketingTasks.map((t) =>
+          t.id === taskId
+            ? {
+                ...t,
+                updated_at: now,
+                submissionsWithReviews: {
+                  ...t.submissionsWithReviews,
+                  submissions: (t.submissionsWithReviews?.submissions || []).map((w) =>
+                    w.submission?.id === subId
+                      ? {
+                          ...w,
+                          submission: {
+                            ...w.submission,
+                            reviews: [...(w.submission?.reviews || []), responseData!],
+                          },
+                        }
+                      : w
+                  ),
+                  latestActivityTs: Date.now(),
+                },
+              }
+            : t
+        );
+        applyTasks(updated);
+        persistLocalTasks(updated);
+        const updatedSelected = updated.find((t) => t.id === taskId);
+        if (updatedSelected) setSelectedTask(updatedSelected);
       }
     }
   };
