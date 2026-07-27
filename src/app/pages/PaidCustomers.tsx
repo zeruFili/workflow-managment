@@ -569,46 +569,7 @@ export function PaidCustomers() {
 
     const isEditing = editingSubmissionId !== null;
 
-    const addLocalSubmission = () => {
-      const now = new Date().toISOString();
-      const subId = `mkt-sub-${Date.now()}`;
-      const newWrapper: MarketingSubmissionWrapper = {
-        submissionId: subId,
-        hasNotification: true,
-        notificationId: `notif-mkt-${Date.now()}`,
-        submission: {
-          id: subId,
-          marketing_task_id: taskId,
-          description: note,
-          attachment_urls: files.length > 0 ? files.map((f) => URL.createObjectURL(f)) : null,
-          created_at: now,
-          updated_at: null,
-          reviews: [],
-        },
-      };
-      const updated = marketingTasks.map((t) =>
-        t.id === taskId
-          ? {
-              ...t,
-              updated_at: now,
-              hasNestedNotification: true,
-              taskNotification: { hasNotification: true, notificationId: t.taskNotification?.notificationId || `notif-mkt-t${Date.now()}` },
-              submissionsWithReviews: {
-                ...t.submissionsWithReviews,
-                submissions: [...(t.submissionsWithReviews?.submissions || []), newWrapper],
-                latestActivityTs: Date.now(),
-              },
-            }
-          : t
-      );
-      applyTasks(updated);
-      persistLocalTasks(updated);
-      const updatedSelected = updated.find((t) => t.id === taskId);
-      if (updatedSelected) setSelectedTask(updatedSelected);
-    };
-
     let errorMsg: string | null = null;
-    let isSuccess = false;
 
     try {
       const formData = new FormData();
@@ -628,7 +589,6 @@ export function PaidCustomers() {
         : await marketingApi.createSubmission(taskId, formData);
 
       if (response.success) {
-        isSuccess = true;
         setSubmissionSuccess((prev) => ({ ...prev, [taskId]: 'Submission has been sent successfully.' }));
         invalidateMarketingTaskCache();
         const refreshed = await marketingApi.getMarketingTasks({ limit: 100 });
@@ -642,10 +602,8 @@ export function PaidCustomers() {
         }
       } else {
         errorMsg = response.message || 'Submission failed.';
-        if (!isEditing) addLocalSubmission();
       }
     } catch (err: unknown) {
-      if (!isEditing) addLocalSubmission();
       errorMsg = (err && typeof err === 'object' && 'response' in err
         ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
         : undefined) || 'Unable to connect to server.';
@@ -664,7 +622,7 @@ export function PaidCustomers() {
         setKeptAttachmentUrls((prev) => ({ ...prev, [taskId]: [] }));
         draftFilesRef.current = { ...draftFilesRef.current, [taskId]: [] };
       }
-    } else if (isSuccess) {
+    } else {
       setEditingSubmissionId(null);
       const oldUrl = draftScreenshots[taskId] ?? null;
       if (oldUrl && oldUrl.startsWith('blob:')) URL.revokeObjectURL(oldUrl);
@@ -697,83 +655,6 @@ export function PaidCustomers() {
     const isEditing = editingReviewId !== null;
     const effectiveReviewId = editingReviewId;
 
-    const addLocalReview = () => {
-      const now = new Date().toISOString();
-      const allTasks = initLocalWithSeed();
-      let updatedTasks: MarketingTaskItem[];
-
-      if (isEditing && effectiveReviewId) {
-        updatedTasks = allTasks.map((t) => {
-          if (t.id !== taskId) return t;
-          const submissions = (t.submissionsWithReviews?.submissions || []).map((w) => {
-            const reviews = (w.submission?.reviews || []).map((r) => {
-              if (r.id !== effectiveReviewId) return r;
-              return {
-                ...r,
-                review_outcome: outcome,
-                description: note.trim() || `Review: ${outcome}`,
-                updated_at: now,
-              };
-            });
-            return { ...w, submission: { ...w.submission, reviews } };
-          });
-          return {
-            ...t,
-            updated_at: now,
-            submissionsWithReviews: {
-              ...t.submissionsWithReviews,
-              submissions,
-              latestActivityTs: Date.now(),
-            },
-          };
-        });
-      } else {
-        const newReview: MarketingReviewRaw = {
-          id: `mkt-rev-${Date.now()}`,
-          marketing_submission_id: subId,
-          reviewer_user_id: user?.id || '1',
-          reviewer_user: { id: user?.id || '1', full_name: user?.full_name || 'Admin', role: user?.role || 'ceo' },
-          review_outcome: outcome,
-          description: note.trim() || `Review: ${outcome}`,
-          created_at: now,
-          updated_at: null,
-          hasNotification: true,
-          notificationId: `notif-mkt-r${Date.now()}`,
-        };
-        updatedTasks = allTasks.map((t) => {
-          if (t.id !== taskId) return t;
-          const submissions = (t.submissionsWithReviews?.submissions || []).map((w) => {
-            if (w.submission?.id !== subId) return w;
-            return {
-              ...w,
-              hasNotification: true,
-              notificationId: w.notificationId || `notif-mkt-s${Date.now()}`,
-              submission: {
-                ...w.submission,
-                reviews: [...(w.submission.reviews || []), newReview],
-              },
-            };
-          });
-          return {
-            ...t,
-            updated_at: now,
-            hasNestedNotification: true,
-            taskNotification: { hasNotification: true, notificationId: t.taskNotification?.notificationId || `notif-mkt-t${Date.now()}` },
-            submissionsWithReviews: {
-              ...t.submissionsWithReviews,
-              submissions,
-              latestActivityTs: Date.now(),
-            },
-          };
-        });
-      }
-
-      persistLocalTasks(updatedTasks);
-      applyTasks(updatedTasks);
-      const updatedSelected = updatedTasks.find((t) => t.id === taskId);
-      if (updatedSelected) setSelectedTask(updatedSelected);
-    };
-
     try {
       const payload = {
         description: note.trim() || `Review: ${outcome}`,
@@ -785,14 +666,17 @@ export function PaidCustomers() {
         await marketingApi.createReview(subId, payload);
       }
     } catch (err: unknown) {
-      addLocalReview();
       errorMsg = (err && typeof err === 'object' && 'response' in err
         ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
-        : undefined) || null;
+        : undefined) || 'Unable to submit review. Please try again.';
     }
 
-    setEditingReviewId(null);
-    setReviewDraft((prev) => ({ ...prev, [taskId]: '' }));
+    if (errorMsg) {
+      setReviewError((prev) => ({ ...prev, [taskId]: errorMsg! }));
+    } else {
+      setEditingReviewId(null);
+      setReviewDraft((prev) => ({ ...prev, [taskId]: '' }));
+    }
 
     if (!errorMsg) {
       invalidateMarketingTaskCache();
@@ -805,7 +689,7 @@ export function PaidCustomers() {
           if (found) setSelectedTask(found);
         }
       } catch {
-        // already handled locally via addLocalReview
+        // Refresh failed — will show what we have
       }
     }
   };

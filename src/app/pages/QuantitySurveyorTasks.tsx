@@ -816,56 +816,6 @@ export function QuantitySurveyorTasks() {
 
     let errorMsg: string | null = null;
 
-    const addLocalReview = () => {
-      const all = loadLocalTasks().length > 0 ? loadLocalTasks() : seedTasks;
-      const now = new Date().toISOString();
-      const reviewId = `qs-rev-${Date.now()}`;
-      const newReview: QuantitySurveyorSubmissionReview = {
-        id: reviewId,
-        quantity_surveyor_submission_id: subId,
-        reviewer_user_id: user?.id || '',
-        reviewer_user: { id: user?.id || '', full_name: user?.full_name || 'Unknown', role: user?.role || '' },
-        review_outcome: outcome,
-        description: note.trim() || `Review: ${outcome}`,
-        created_at: now,
-        updated_at: null,
-        hasNotification: true,
-        notificationId: `notif-qs-${Date.now()}`,
-      };
-      const updated = all.map((t) =>
-        t.id === taskId
-          ? {
-              ...t,
-              updated_at: now,
-              hasNestedNotification: true,
-              taskNotification: { hasNotification: true, notificationId: t.taskNotification?.notificationId || `notif-qs-t${Date.now()}` },
-              submissionsWithReviews: {
-                ...t.submissionsWithReviews,
-                submissions: (t.submissionsWithReviews?.submissions || []).map((w) =>
-                  w.submission?.id === subId
-                    ? {
-                        ...w,
-                        hasNotification: true,
-                        notificationId: `notif-qs-${Date.now()}`,
-                        submission: {
-                          ...w.submission,
-                          reviews: [...(w.submission?.reviews || []), newReview],
-                        },
-                      }
-                    : w
-                ),
-                latestActivityTs: Date.now(),
-              },
-            }
-          : t
-      );
-      persistLocalTasks(updated);
-      quantitySurveyorTaskCache.invalidate();
-      setTasks(updated);
-      const updatedSelected = updated.find((t) => t.id === taskId);
-      if (updatedSelected) setSelectedTask(updatedSelected);
-    };
-
     try {
       const payload = {
         description: note.trim() || `Review: ${outcome}`,
@@ -878,16 +828,11 @@ export function QuantitySurveyorTasks() {
         await quantitySurveyorApi.createReview(subId, payload);
       }
     } catch (err: unknown) {
-      if (editingReviewId) {
-        errorMsg =
-          (err && typeof err === 'object' && 'response' in err
-            ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
-            : undefined) ||
-          'Unable to update review. Please try again.';
-      } else {
-        addLocalReview();
-        errorMsg = null;
-      }
+      errorMsg =
+        (err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined) ||
+        'Unable to submit review. Please try again.';
     }
 
     if (errorMsg) {
@@ -943,68 +888,6 @@ export function QuantitySurveyorTasks() {
 
     const isEditing = editingSubmissionId !== null;
 
-    const addLocalSubmission = () => {
-      const all = loadLocalTasks().length > 0 ? loadLocalTasks() : seedTasks;
-      const now = new Date().toISOString();
-      const subId = `qs-sub-${Date.now()}`;
-      const statusVal = draftStatus[taskId] || undefined;
-      const newWrapper: QuantitySurveyorSubmissionWrapper = {
-        submissionId: subId,
-        hasNotification: true,
-        notificationId: `notif-qs-${Date.now()}`,
-        submission: {
-          id: subId,
-          quantity_surveyor_task_id: taskId,
-          description: note.trim() || 'Quantity surveyor submission',
-          attachment_urls: files.length > 0 ? files.map((f) => URL.createObjectURL(f)) : null,
-          created_at: now,
-          updated_at: null,
-          review_status: statusVal,
-          reviews: [],
-        },
-      };
-      const updated = all.map((t) =>
-        t.id === taskId
-          ? {
-              ...t,
-              updated_at: now,
-              hasNestedNotification: true,
-              taskNotification: { hasNotification: true, notificationId: t.taskNotification?.notificationId || `notif-qs-t${Date.now()}` },
-              submissionsWithReviews: {
-                ...t.submissionsWithReviews,
-                submissions: [...(t.submissionsWithReviews?.submissions || []), newWrapper],
-                latestActivityTs: Date.now(),
-              },
-            }
-          : t
-      );
-      persistLocalTasks(updated);
-
-      const existingIds = new Set(quantitySurveyorNotificationIds);
-      existingIds.add(taskId);
-      quantitySurveyorNotificationIds = existingIds;
-
-      const updatedCache = all.map((t) =>
-        t.id === taskId
-          ? {
-              ...t,
-              updated_at: now,
-              hasNestedNotification: true,
-              taskNotification: { hasNotification: true, notificationId: t.taskNotification?.notificationId || `notif-qs-t${Date.now()}` },
-              submissionsWithReviews: {
-                ...t.submissionsWithReviews,
-                submissions: [...(t.submissionsWithReviews?.submissions || []), newWrapper],
-                latestActivityTs: Date.now(),
-              },
-            }
-          : t
-      );
-      quantitySurveyorTaskCache.invalidate();
-      setTasks(updatedCache);
-      const updatedSelected = updatedCache.find((t) => t.id === taskId);
-      if (updatedSelected) setSelectedTask(updatedSelected);
-    };
-
     let errorMsg: string | null = null;
 
     try {
@@ -1038,19 +921,13 @@ export function QuantitySurveyorTasks() {
         }
       } else {
         errorMsg = response.message || 'Submission failed. Please refresh the page.';
-        if (!isEditing) addLocalSubmission();
       }
     } catch (err: unknown) {
-      if (!isEditing) {
-        addLocalSubmission();
-        errorMsg = null;
-      } else {
-        errorMsg =
-          (err && typeof err === 'object' && 'response' in err
-            ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
-            : undefined) ||
-          'Unable to connect to server. Please try again.';
-      }
+      errorMsg =
+        (err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined) ||
+        'Unable to connect to server. Please try again.';
     } finally {
       setSubmissionDraftLoading((prev) => ({ ...prev, [taskId]: false }));
     }

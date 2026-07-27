@@ -754,66 +754,6 @@ export function MarketingTasks() {
 
     const isEditing = editingSubmissionId !== null;
 
-    const addLocalSubmission = () => {
-      const all = loadLocalTasks().length > 0 ? loadLocalTasks() : seedTasks;
-      const now = new Date().toISOString();
-      const subId = `mkt-sub-${Date.now()}`;
-      const newWrapper: MarketingSubmissionWrapper = {
-        submissionId: subId,
-        hasNotification: true,
-        notificationId: `notif-mkt-${Date.now()}`,
-        submission: {
-          id: subId,
-          marketing_task_id: taskId,
-          description: note,
-          attachment_urls: files.length > 0 ? files.map((f) => URL.createObjectURL(f)) : null,
-          created_at: now,
-          updated_at: null,
-          reviews: [],
-        },
-      };
-      const updated = all.map((t) =>
-        t.id === taskId
-          ? {
-              ...t,
-              updated_at: now,
-              hasNestedNotification: true,
-              taskNotification: { hasNotification: true, notificationId: t.taskNotification?.notificationId || `notif-mkt-t${Date.now()}` },
-              submissionsWithReviews: {
-                ...t.submissionsWithReviews,
-                submissions: [...(t.submissionsWithReviews?.submissions || []), newWrapper],
-                latestActivityTs: Date.now(),
-              },
-            }
-          : t
-      );
-      persistLocalTasks(updated);
-
-      const existingIds = new Set(marketingNotificationIds);
-      existingIds.add(taskId);
-      marketingNotificationIds = existingIds;
-
-      const updatedCache = (cachedTasks || all).map((t) =>
-        t.id === taskId
-          ? {
-              ...t,
-              updated_at: now,
-              hasNestedNotification: true,
-              taskNotification: { hasNotification: true, notificationId: t.taskNotification?.notificationId || `notif-mkt-t${Date.now()}` },
-              submissionsWithReviews: {
-                ...t.submissionsWithReviews,
-                submissions: [...(t.submissionsWithReviews?.submissions || []), newWrapper],
-                latestActivityTs: Date.now(),
-              },
-            }
-          : t
-      );
-      cachedTasks = updatedCache;
-      setTasks(updatedCache);
-      const updatedSelected = updatedCache.find((t) => t.id === taskId);
-      if (updatedSelected) setSelectedTask(updatedSelected);
-    };
-
     let errorMsg: string | null = null;
 
     try {
@@ -843,10 +783,8 @@ export function MarketingTasks() {
         }
       } else {
         errorMsg = response.message || 'Submission failed. Please try again.';
-        if (!isEditing) addLocalSubmission();
       }
     } catch (err: unknown) {
-      if (!isEditing) addLocalSubmission();
       errorMsg =
         (err && typeof err === 'object' && 'response' in err
           ? (err as { response?: { data?: { message?: string } } }).response?.data?.message

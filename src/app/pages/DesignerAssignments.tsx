@@ -1298,23 +1298,7 @@ export function DesignerAssignments() {
         }
       }
     } catch {
-      const reviewerName = user?.full_name || 'CEO';
-      const now = new Date().toISOString();
-      const newReview: ReviewData = {
-        reviewerName,
-        reviewText: comment,
-        ratings: { ...ratings },
-        submittedAt: reviews[taskId]?.submittedAt || now,
-        updatedAt: now,
-      };
-      setReviews((prev) => ({ ...prev, [taskId]: newReview }));
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === taskId
-            ? { ...t, taskReview: { id: 'local', reviewerName, reviewText: comment, ratings: { ...ratings }, reviewer_user: { id: '', full_name: reviewerName, role: '' }, submittedAt: reviews[taskId]?.submittedAt || now, updatedAt: now } }
-            : t
-        )
-      );
+      // Leave UI unchanged — backend did not confirm
     } finally {
       setReviewSubmitting((prev) => ({ ...prev, [taskId]: false }));
       setReviewTaskId(null);
