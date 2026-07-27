@@ -25,9 +25,6 @@ import {
   ClipboardCheck,
 } from 'lucide-react';
 import { LeadershipQuickAccess } from '../components/LeadershipQuickAccess';
-import {
-  getUnseenDesignerTaskHighlightedIds,
-} from '../pages/DesignerTasks';
 import designerApi, { DesignerTaskItem } from '../../api/designerApi';
 import { designerTaskCache } from '../data/designerTaskCache';
 
@@ -74,35 +71,23 @@ function DesignerQuickAccess() {
   const { user } = useAuth();
   const { counts } = useNotificationCounts();
   const [designerTasks, setDesignerTasks] = useState<DesignerTaskItem[]>([]);
-  const highlightedTaskIds = getUnseenDesignerTaskHighlightedIds();
-
-  const sortedTasks = [...designerTasks].sort((a, b) => {
-    const aHighlighted = highlightedTaskIds.has(a.id) ? 1 : 0;
-    const bHighlighted = highlightedTaskIds.has(b.id) ? 1 : 0;
-
-    if (bHighlighted !== aHighlighted) return bHighlighted - aHighlighted;
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-  });
 
   useEffect(() => {
-    const onDesignerTasksUpdated = (event: Event) => {
-      const customEvent = event as CustomEvent<number>;
-      setDesignerTaskCount(customEvent.detail ?? 0);
-    };
+    if (!user) return;
+    const cached = designerTaskCache.get({ limit: 5 });
+    if (cached) {
+      setDesignerTasks(cached.data);
+      return;
+    }
+    designerTaskCache.fetch({ limit: 5 })
+      .then((result) => {
+        setDesignerTasks(result.data);
+      })
+      .catch(() => {});
+  }, [user]);
 
-    const onOpenJobPostingsUpdated = (event: Event) => {
-      const customEvent = event as CustomEvent<number>;
-      setOpenJobPostingsCount(customEvent.detail ?? 0);
-    };
-
-    window.addEventListener('designer-tasks-notifications-updated', onDesignerTasksUpdated);
-    window.addEventListener('open-job-postings-notifications-updated', onOpenJobPostingsUpdated);
-
-    return () => {
-      window.removeEventListener('designer-tasks-notifications-updated', onDesignerTasksUpdated);
-      window.removeEventListener('open-job-postings-notifications-updated', onOpenJobPostingsUpdated);
-    };
-  }, []);
+  const recentTasks = [...designerTasks]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   return (
     <div className="card-safe overflow-hidden min-w-0 space-y-5 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
@@ -136,7 +121,7 @@ function DesignerQuickAccess() {
         <div className="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <h4 className="text-sm font-semibold text-gray-900 sm:text-base">Designer Task List</h4>
-            <p className="text-sm text-gray-500">Highlighted tasks stay at the top so they are easy to review.</p>
+            <p className="text-sm text-gray-500">Most recent tasks from the Designer Task page.</p>
           </div>
           <Link to="/designer-tasks" className="text-sm font-medium text-blue-600 hover:text-blue-700 sm:shrink-0">
             Open full page
@@ -144,27 +129,20 @@ function DesignerQuickAccess() {
         </div>
 
         <div className="divide-y divide-gray-100">
-          {sortedTasks.length === 0 ? (
+          {recentTasks.length === 0 ? (
             <div className="px-4 py-8 text-center text-sm text-gray-500">No assigned designer tasks yet.</div>
           ) : (
-            sortedTasks.slice(0, 6).map((task) => {
-              const isHighlighted = highlightedTaskIds.has(task.id);
-
+            recentTasks.slice(0, 5).map((task) => {
               return (
                 <Link
                   key={task.id}
                   to={`/designer-tasks?open=${task.id}`}
-                  className={`block px-4 py-4 transition-colors hover:bg-gray-50 ${isHighlighted ? 'bg-blue-50/70' : ''}`}
+                  className="block px-4 py-4 transition-colors hover:bg-gray-50"
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <h5 className="truncate font-medium text-gray-900">{task.title}</h5>
-                        {isHighlighted && (
-                          <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
-                            New
-                          </span>
-                        )}
                       </div>
                       <p className="mt-1 text-sm text-gray-600 line-clamp-2">{task.description}</p>
                       {task.due_date && (
