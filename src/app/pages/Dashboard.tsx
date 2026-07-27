@@ -4,25 +4,11 @@ import { useNotificationCounts } from '../contexts/NotificationCountsContext';
 import { Link } from 'react-router-dom';
 import { mockProjects, mockTasks } from '../data/mockData';
 import {
-  getLeadershipNotificationCount,
-  markLeadershipNotificationsRead,
-  loadQuantityReviewNotifications,
-  QuantityReviewNotification,
-  saveQuantityReviewNotifications,
-} from '../data/quantitySurveyorWorkflow';
-import {
-  FolderKanban,
-  CheckSquare,
-  Clock,
-  TrendingUp,
-  CheckCircle,
   Plus,
   Upload,
   Briefcase,
   Megaphone,
   ShieldCheck,
-  Users,
-  ClipboardCheck,
 } from 'lucide-react';
 import { LeadershipQuickAccess } from '../components/LeadershipQuickAccess';
 import designerApi, { DesignerTaskItem } from '../../api/designerApi';
@@ -164,9 +150,6 @@ function DesignerQuickAccess() {
 export function Dashboard() {
   const { user } = useAuth();
   const [showCreateTask, setShowCreateTask] = useState(false);
-  const [quantityNotifications, setQuantityNotifications] = useState<QuantityReviewNotification[]>(
-    () => loadQuantityReviewNotifications()
-  );
 
   if (!user) return null;
 
@@ -197,57 +180,7 @@ export function Dashboard() {
   });
 
   const leadershipRoles = user.role === 'general_manager' || user.role === 'ceo';
-  const unreadQuantityReviewCount = getLeadershipNotificationCount(quantityNotifications, user.role);
-  const leadershipNotifications = quantityNotifications.filter(
-    (notification) =>
-      notification.targetRoles.includes(user.role)
-  );
-
-  const markQuantityNotificationsRead = () => {
-    const nextNotifications = markLeadershipNotificationsRead(quantityNotifications, user.role);
-    setQuantityNotifications(nextNotifications);
-    saveQuantityReviewNotifications(nextNotifications);
-  };
-
   const isDesignerDashboard = user.role === 'designer';
-
-  const activeProjects = userProjects.filter(p => p.status === 'active').length;
-  const pendingTasks = userTasks.filter(t => t.status === 'pending' || t.status === 'in_progress').length;
-  const completedTasks = userTasks.filter(t => t.status === 'completed').length;
-
-  const stats = [
-    {
-      label: 'Active Projects',
-      value: activeProjects,
-      icon: FolderKanban,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-100'
-    },
-    {
-      label: 'Pending Tasks',
-      value: pendingTasks,
-      icon: Clock,
-      color: 'text-orange-600',
-      bgColor: 'bg-orange-100'
-    },
-    {
-      label: 'Completed Tasks',
-      value: completedTasks,
-      icon: CheckCircle,
-      color: 'text-green-600',
-      bgColor: 'bg-green-100'
-    },
-  ];
-
-  if (leadershipRoles) {
-    stats.push({
-      label: 'Unread Notifications',
-      value: unreadQuantityReviewCount,
-      icon: Briefcase,
-      color: 'text-indigo-600',
-      bgColor: 'bg-indigo-100'
-    });
-  }
 
   return (
     <div className="space-y-6">
@@ -272,101 +205,6 @@ export function Dashboard() {
       </div>
 
       {isDesignerDashboard ? <DesignerQuickAccess /> : leadershipRoles && <LeadershipQuickAccess />}
-
-      {leadershipRoles && leadershipNotifications.length > 0 && (
-        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl shadow-sm border border-gray-200">
-          <div className="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <h3 className="font-semibold text-base sm:text-lg text-gray-900">Recent Notifications</h3>
-              <p className="text-sm text-gray-500">Review the latest quantity surveyor updates.</p>
-            </div>
-            <button
-              onClick={markQuantityNotificationsRead}
-              className="text-sm font-medium text-blue-600 hover:text-blue-700 sm:shrink-0"
-            >
-              Mark all as read
-            </button>
-          </div>
-          <div className="divide-y divide-gray-100">
-            {leadershipNotifications.slice(0, 8).map((n) => (
-              <div
-                key={n.id}
-                className={`px-4 py-3 transition-colors ${
-                  !n.readByRoles.includes(user.role)
-                    ? 'bg-gradient-to-r from-indigo-50/80 via-indigo-50/40 to-white border-l-4 border-indigo-400'
-                    : 'bg-gray-50'
-                }`}
-              >
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-gray-900 text-sm">{n.message}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">{n.description}</p>
-                  </div>
-                  <span className="text-xs text-gray-400 sm:shrink-0">
-                    {new Date(n.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="card-safe overflow-hidden min-w-0 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-        <div className="mb-4">
-          <h3 className="text-base font-semibold text-gray-900 sm:text-lg">Key Metrics</h3>
-          <p className="text-sm text-gray-500">High-level overview of the current work pipeline.</p>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {stats.map((stat) => {
-            const Icon = stat.icon;
-            return (
-              <div key={stat.label} className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">{stat.label}</p>
-                    <p className="text-2xl font-bold mt-1 text-gray-900">{stat.value}</p>
-                  </div>
-                  <div className={`p-2.5 rounded-lg ${stat.bgColor}`}>
-                    <Icon className={`w-5 h-5 ${stat.color}`} />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {leadershipRoles && (
-        <div className="card-safe overflow-hidden min-w-0 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-          <h3 className="text-base font-semibold text-gray-900 sm:text-lg">Quick Links</h3>
-          <p className="text-sm text-gray-500 mt-1 mb-4">Navigate to key operational sections.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            <Link to="/projects" className="card-safe overflow-hidden min-w-0 flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md hover:border-slate-300">
-              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-blue-600"><FolderKanban className="h-5 w-5" /></span>
-              <span className="min-w-0 font-medium text-gray-900">Projects</span>
-              <span className="ml-auto text-xs text-gray-400">{activeProjects} active</span>
-            </Link>
-            <Link to="/tasks" className="card-safe overflow-hidden min-w-0 flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md hover:border-slate-300">
-              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100 text-orange-600"><CheckSquare className="h-5 w-5" /></span>
-              <span className="min-w-0 font-medium text-gray-900">Tasks</span>
-              <span className="ml-auto text-xs text-gray-400">{pendingTasks} pending</span>
-            </Link>
-            <Link to="/users" className="card-safe overflow-hidden min-w-0 flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md hover:border-slate-300">
-              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100 text-purple-600"><Users className="h-5 w-5" /></span>
-              <span className="min-w-0 font-medium text-gray-900">User Management</span>
-            </Link>
-            <Link to="/designer-performance" className="card-safe overflow-hidden min-w-0 flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md hover:border-slate-300">
-              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100 text-green-600"><TrendingUp className="h-5 w-5" /></span>
-              <span className="min-w-0 font-medium text-gray-900">Performance</span>
-            </Link>
-            <Link to="/finance-verifications" className="card-safe overflow-hidden min-w-0 flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md hover:border-slate-300">
-              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600"><ClipboardCheck className="h-5 w-5" /></span>
-              <span className="min-w-0 font-medium text-gray-900">Finance Verifications</span>
-            </Link>
-          </div>
-        </div>
-      )}
 
       {!leadershipRoles && !isDesignerDashboard && (
         <>
