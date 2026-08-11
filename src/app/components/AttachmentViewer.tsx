@@ -5,7 +5,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 
-const API_BASE_URL = 'http://localhost:3001';
+const API_BASE_URL = 'https://workflow.back.etaginterior.com';
 const API_BASE_ORIGIN = API_BASE_URL.replace(/\/+$/, '');
 
 function resolveUrl(url: string): string {
