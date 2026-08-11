@@ -467,6 +467,7 @@ export function DesignerAssignments() {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const tasksRef = useRef<DesignerTaskItem[]>([]);
   const pendingTaskNotifIds = useRef<Map<string, string>>(new Map());
+  const decrementedTaskIds = useRef<Set<string>>(new Set());
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
 
   useEffect(() => {
@@ -941,7 +942,10 @@ export function DesignerAssignments() {
         .map((t) => t.id)
     );
     if (!newNotifIds.has(task.id)) {
-      decrement('designerTasks');
+      if (!decrementedTaskIds.current.has(task.id)) {
+        decrementedTaskIds.current.add(task.id);
+        decrement('designerTasks');
+      }
     }
     setDesignerAssignmentNotificationIds(newNotifIds);
   };
@@ -1183,15 +1187,20 @@ export function DesignerAssignments() {
             };
           });
 
-          // Update tasks array to clear card-level highlight if no notifications remain
-          const updatedSwr = { ...selectedTaskDetail.submissionsWithReviews, [apiKey]: updatedStageSubs } as SubmissionsWithReviewsData;
+          // Update tasks array to clear card-level highlight if no submissions/reviews remain
+          const currentTaskData = tasksRef.current.find((t) => t.id === taskId);
+          const updatedSwr = { ...(currentTaskData?.submissionsWithReviews || {}), [apiKey]: updatedStageSubs } as SubmissionsWithReviewsData;
           const stillHasAny = designerTaskHasAnyNotification({
-            ...tasksRef.current.find((t) => t.id === taskId)!,
+            ...currentTaskData!,
             submissionsWithReviews: updatedSwr,
             taskNotification: null,
+            taskReview: null,
           } as DesignerTaskItem);
           if (!stillHasAny) {
-            decrement('designerTasks');
+            if (!decrementedTaskIds.current.has(taskId)) {
+              decrementedTaskIds.current.add(taskId);
+              decrement('designerTasks');
+            }
             markPendingReviewCardsViewed([taskId]);
           }
           const updatedFullTasks = tasksRef.current.map((t) =>

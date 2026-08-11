@@ -1265,12 +1265,13 @@ export function DesignerTasks() {
               };
             });
 
-            // Update tasks array to clear card-level highlight if no notifications remain
+            // Update tasks array to clear card-level highlight if no submissions/reviews remain
             const updatedSwr = { ...rawData, [apiKey]: updatedStageSubs } as SubmissionsWithReviewsData;
             const stillHasAny = designerTaskHasAnyNotification({
               ...tasksRef.current.find((t) => t.id === taskId)!,
               submissionsWithReviews: updatedSwr,
               taskNotification: null,
+              taskReview: null,
             } as DesignerTaskItem);
             if (!stillHasAny) {
               decrement('designerTasks');
