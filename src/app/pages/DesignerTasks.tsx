@@ -1382,11 +1382,9 @@ export function DesignerTasks() {
     return latest;
   };
 
-  // Filter: only assigned tasks
-  const assignedTasks = tasks.filter((task) => !!task.assigned_to_user_id);
   const visibleTasks = user.role === 'designer'
-    ? assignedTasks.filter((task) => task.assigned_to_user_id === user.id)
-    : assignedTasks;
+    ? tasks.filter((task) => task.assigned_to_user_id === user.id || (task.is_public && !task.assigned_to_user_id))
+    : tasks.filter((task) => !!task.assigned_to_user_id);
 
   const getLatestActivityTs = (task: DesignerTaskItem): number => {
     const raw = task.submissionsWithReviews;
