@@ -1383,7 +1383,7 @@ export function DesignerTasks() {
   };
 
   const visibleTasks = user.role === 'designer'
-    ? tasks.filter((task) => task.assigned_to_user_id === user.id || (task.is_public && !task.assigned_to_user_id))
+    ? tasks
     : tasks.filter((task) => !!task.assigned_to_user_id);
 
   const getLatestActivityTs = (task: DesignerTaskItem): number => {
