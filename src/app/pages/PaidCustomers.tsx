@@ -35,15 +35,7 @@ import {
 } from 'lucide-react';
 import AttachmentViewer from '../components/AttachmentViewer';
 import ImageRemoveButton from '../components/ImageRemoveButton';
-
-const API_BASE_URL = 'https://workflow.back.etaginterior.com';
-function resolveAttachmentUrl(url: string): string {
-  if (!url) return url;
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) {
-    return url;
-  }
-  return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
-}
+import { resolveAttachmentUrl } from '../../api/baseApi';
 
 import { useNavigate, useSearchParams } from 'react-router-dom';
 

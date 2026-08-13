@@ -8,6 +8,21 @@ import Cookies from "js-cookie";
 
 const BASE_URL = "http://localhost:3001/api/v1/";
 
+export const API_BASE_URL = "http://localhost:3001";
+
+export function resolveAttachmentUrl(url: string): string {
+  if (!url) return url;
+  if (
+    url.startsWith("http://") ||
+    url.startsWith("https://") ||
+    url.startsWith("data:") ||
+    url.startsWith("blob:")
+  ) {
+    return url;
+  }
+  return `${API_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
+}
+
 const api: AxiosInstance = axios.create({ baseURL: BASE_URL });
 
 api.interceptors.request.use(

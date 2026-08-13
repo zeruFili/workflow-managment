@@ -4,17 +4,9 @@ import {
   Download,
   ExternalLink,
 } from 'lucide-react';
+import { resolveAttachmentUrl } from '../../api/baseApi';
 
-const API_BASE_URL = 'https://workflow.back.etaginterior.com';
-const API_BASE_ORIGIN = API_BASE_URL.replace(/\/+$/, '');
-
-function resolveUrl(url: string): string {
-  if (!url) return url;
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) {
-    return url;
-  }
-  return `${API_BASE_ORIGIN}${url.startsWith('/') ? '' : '/'}${url}`;
-}
+const resolveUrl = resolveAttachmentUrl;
 
 export interface AttachmentItem {
   url: string;

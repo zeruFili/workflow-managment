@@ -2,17 +2,10 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext';
 import { CheckCircle2, User, Users, Loader2, AlertCircle, Clock, Edit, XCircle, Image, Lock, Trash2, X, Plus } from 'lucide-react';
 import designerApi, { DesignerTaskItem, DesignerApplicationItem } from '../../api/designerApi';
+import { resolveAttachmentUrl } from '../../api/baseApi';
 import ImageRemoveButton from '../components/ImageRemoveButton';
 import { PaginationWithNumbers } from '../components/ui/PaginationWithNumbers';
 
-const API_BASE_URL = 'https://workflow.back.etaginterior.com';
-function resolveAttachmentUrl(url: string): string {
-  if (!url) return url;
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) {
-    return url;
-  }
-  return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
-}
 import { designerTaskCache } from '../data/designerTaskCache';
 import userApi, { UserItem } from '../../api/userApi';
 import { userCache } from '../data/userCache';
