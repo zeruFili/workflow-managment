@@ -186,15 +186,6 @@ function defaultPhase(): PhaseData {
   return { note: '', screenshot: null, history: [] };
 }
 
-function stripSubmissionNotifications(sub: SubmissionItem): SubmissionItem {
-  return {
-    ...sub,
-    hasNotification: false,
-    notificationId: null,
-    reviews: (sub.reviews || []).map((r) => ({ ...r, hasNotification: false, notificationId: null })),
-  };
-}
-
 function designerTaskHasAnyNotification(task: DesignerTaskItem): boolean {
   if ((task as any).taskNotification?.hasNotification) return true;
   const swr = task.submissionsWithReviews;
@@ -217,20 +208,28 @@ function designerTaskHasAnyNotification(task: DesignerTaskItem): boolean {
   return task.hasNestedNotification || hasReviewNotif;
 }
 
-function hasNestedDesignerNotifications(task: DesignerTaskItem): boolean {
-  const swr = task.submissionsWithReviews;
-  if (!swr) return task.hasNestedNotification;
-  const stages: (keyof SubmissionsWithReviewsData)[] = ['caseStudy', 'designing', 'rendering', 'finalStage'];
-  for (const stage of stages) {
-    const subs: SubmissionItem[] = (swr as any)?.[stage] || [];
+function collectDesignerTaskNotificationIds(task: DesignerTaskItem | undefined): string[] {
+  if (!task) return [];
+  const ids: string[] = [];
+  const topNotif = (task as any)?.taskNotification;
+  if (topNotif?.hasNotification && topNotif.notificationId) ids.push(topNotif.notificationId);
+  const swrNotif = task?.submissionsWithReviews?.taskNotification;
+  if (swrNotif?.hasNotification && swrNotif.notificationId) ids.push(swrNotif.notificationId);
+  const reviewNotif = (task as any)?.taskReview;
+  if (reviewNotif?.hasNotification && reviewNotif.notificationId) ids.push(reviewNotif.notificationId);
+  const swr = task?.submissionsWithReviews;
+  const stages: SubmissionItem[][] = swr
+    ? [swr.caseStudy || [], swr.designing || [], swr.rendering || [], swr.finalStage || []]
+    : [];
+  for (const subs of stages) {
     for (const sub of subs) {
-      if (sub.hasNotification) return true;
+      if (sub.hasNotification && sub.notificationId) ids.push(sub.notificationId);
       for (const r of sub.reviews || []) {
-        if (r.hasNotification) return true;
+        if (r.hasNotification && r.notificationId) ids.push(r.notificationId);
       }
     }
   }
-  return task.hasNestedNotification;
+  return ids;
 }
 
 function createSubmissionScreenshot(phaseLabel: string): string {
@@ -519,7 +518,6 @@ export function DesignerTasks() {
   const observedElements = useRef<Set<string>>(new Set());
   const observerRef = useRef<IntersectionObserver | null>(null);
   const tasksRef = useRef<DesignerTaskItem[]>([]);
-  const pendingTaskNotifIds = useRef<Map<string, string>>(new Map());
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
 
   useEffect(() => {
@@ -650,6 +648,27 @@ export function DesignerTasks() {
   }, [submissionProgress]);
 
   // ── Intersection Observer ──
+  const markTaskNotificationsRead = useCallback(
+    (taskId: string, notifIds: string[]) => {
+      seenThisSession.current.add(taskId);
+      const unmarked = notifIds.filter((nid) => !markedTaskNotificationIds.has(nid));
+      if (unmarked.length === 0) return;
+
+      unmarked.forEach((nid) => markedTaskNotificationIds.add(nid));
+
+      notificationApi
+        .bulkMarkRead(unmarked)
+        .then(() => {
+          decrement('designerTasks');
+          designerTaskCache.invalidate();
+        })
+        .catch(() => {
+          unmarked.forEach((nid) => markedTaskNotificationIds.delete(nid));
+        });
+    },
+    [decrement]
+  );
+
   useEffect(() => {
     if (observerRef.current) {
       observerRef.current.disconnect();
@@ -665,16 +684,12 @@ export function DesignerTasks() {
           if (entry.isIntersecting && entry.intersectionRatio >= 0.7) {
             if (!observedElements.current.has(id)) {
               observedElements.current.add(id);
-              seenThisSession.current.add(id);
               const task = tasksRef.current.find((t) => t.id === id);
-              const topNotif = (task as any)?.taskNotification;
-              const swrNotif = task?.submissionsWithReviews?.taskNotification;
-              const reviewNotif = (task as any)?.taskReview;
-              if ((topNotif?.hasNotification && topNotif.notificationId) || (swrNotif?.hasNotification && swrNotif.notificationId)) {
-                pendingTaskNotifIds.current.set(id, topNotif?.notificationId || swrNotif!.notificationId);
-              }
-              if (reviewNotif?.hasNotification && reviewNotif.notificationId) {
-                pendingTaskNotifIds.current.set(id, reviewNotif.notificationId);
+              const notifIds = collectDesignerTaskNotificationIds(task);
+              if (notifIds.length > 0) {
+                markTaskNotificationsRead(id, notifIds);
+              } else {
+                seenThisSession.current.add(id);
               }
             }
           }
@@ -691,61 +706,16 @@ export function DesignerTasks() {
       observer.disconnect();
       observedElements.current.clear();
     };
-  }, [highlightedIds]);
+  }, [highlightedIds, markTaskNotificationsRead]);
 
-  const commitSeenSession = () => {
-    if (seenThisSession.current.size === 0 && pendingTaskNotifIds.current.size === 0) return;
-    
-    const currentTasks = tasksRef.current;
-    
-    seenThisSession.current.forEach((id) => {
-      const task = currentTasks.find((t) => t.id === id);
-      if (!task || !hasNestedDesignerNotifications(task)) {
-        viewedDesignerTaskCards.add(id);
-      }
-    });
-    seenThisSession.current.clear();
-    observedElements.current.clear();
-    
-    const pending = new Map(pendingTaskNotifIds.current);
-    pendingTaskNotifIds.current.clear();
-    
-    for (const [taskId, notifId] of pending) {
-      if (markedTaskNotificationIds.has(notifId)) continue;
-      markedTaskNotificationIds.add(notifId);
-      
-      notificationApi.markRead(notifId)
-        .then(() => {
-          const tasks = tasksRef.current;
-          const updatedTasks = tasks.map((t) =>
-            t.id === taskId
-              ? {
-                  ...t,
-                  taskNotification: null,
-                  taskReview: (t as any).taskReview
-                    ? { ...(t as any).taskReview, hasNotification: false, notificationId: null }
-                    : null,
-                  submissionsWithReviews: {
-                    ...t.submissionsWithReviews,
-                    taskNotification: { hasNotification: false, notificationId: null },
-                  },
-                }
-              : t
-          );
-          setTasks(updatedTasks as DesignerTaskItem[]);
-          tasksRef.current = updatedTasks as DesignerTaskItem[];
-          if (!designerTaskHasAnyNotification(updatedTasks.find((t) => t.id === taskId)!)) {
-            decrement('designerTasks');
-          }
-          designerTaskCache.invalidate();
-        })
-        .catch(() => {
-          markedTaskNotificationIds.delete(notifId);
-        });
-    }
-  };
-
-  useEffect(() => { return () => { commitSeenSession(); }; }, []);
+  useEffect(() => {
+    return () => {
+      if (seenThisSession.current.size === 0) return;
+      seenThisSession.current.forEach((id) => viewedDesignerTaskCards.add(id));
+      seenThisSession.current.clear();
+      observedElements.current.clear();
+    };
+  }, []);
 
   if (!user) return null;
   if (!designerRoles.has(user.role) && user.role !== 'ceo' && user.role !== 'general_manager') {
