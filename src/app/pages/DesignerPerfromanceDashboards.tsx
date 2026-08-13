@@ -607,21 +607,35 @@ export function DesignerPerformanceDashboard() {
             <span className="text-xs font-medium text-gray-400">{ratedTasks.length} rated</span>
           </div>
           {ratedTasks.length > 0 ? (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {ratedTasks.map((task) => (
                 <div
                   key={task.id}
-                  className="flex items-center justify-between gap-3 py-2 border-b border-gray-50 last:border-0"
+                  className="py-2 border-b border-gray-50 last:border-0"
                 >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{task.title}</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{task.title}</p>
+                    </div>
+                    <span className="text-sm font-semibold text-gray-700 flex-shrink-0">
+                      {task.storyPoint} pts
+                    </span>
                   </div>
-                  <span className="text-sm font-semibold text-gray-700 flex-shrink-0 w-8 text-right">
-                    {task.storyPoint} pts
-                  </span>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <StarRating value={task.rating} size="sm" />
-                    <span className="text-sm font-bold text-gray-700">{task.rating.toFixed(1)}</span>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-2">
+                    {[
+                      { label: 'Creativity', value: task.ratings.creativity },
+                      { label: 'Timeliness', value: task.ratings.timeliness },
+                      { label: 'Rendering Quality', value: task.ratings.renderingQuality },
+                      { label: 'Client Understanding', value: task.ratings.clientUnderstanding },
+                    ].map((r) => (
+                      <div key={r.label} className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-gray-500 truncate">{r.label}</span>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <StarRating value={r.value} size="sm" />
+                          <span className="text-xs font-semibold text-gray-700 w-3">{r.value}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}

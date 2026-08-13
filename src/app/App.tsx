@@ -117,11 +117,7 @@ function RootContent() {
 
 const router = createHashRouter([
   {
-    element: (
-      <AuthProvider>
-        <RootContent />
-      </AuthProvider>
-    ),
+    element: <RootContent />,
     children: [
       { index: true, Component: LoginOrRedirect },
       { path: 'reset-password/:token', Component: ResetPassword },
@@ -242,5 +238,9 @@ const router = createHashRouter([
 ]);
 
 export default function App() {
-  return <RouterProvider router={router} />;
+  return (
+    <AuthProvider>
+      <RouterProvider router={router} />
+    </AuthProvider>
+  );
 }

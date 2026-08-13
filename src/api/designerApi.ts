@@ -215,7 +215,12 @@ export interface DesignerRatedTask {
   id: string;
   title: string;
   storyPoint: number;
-  rating: number;
+  ratings: {
+    creativity: number;
+    timeliness: number;
+    renderingQuality: number;
+    clientUnderstanding: number;
+  };
   reviewedAt: string | null;
 }
 
