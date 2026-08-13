@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { Calendar, CheckCircle2, Clock, Landmark, Megaphone, ShieldCheck, Send, AlertCircle, Loader2, Undo2, Image, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotificationCounts } from '../contexts/NotificationCountsContext';
-import designerApi, { DesignerTaskItem } from '../../api/designerApi';
+import designerApi, { DesignerTaskItem, SubmissionItem } from '../../api/designerApi';
 import { designerTaskCache } from '../data/designerTaskCache';
 import { PaginationWithNumbers } from '../components/ui/PaginationWithNumbers';
 import AttachmentViewer from '../components/AttachmentViewer';
@@ -46,6 +46,28 @@ function getCachedPostings(): { id: string; createdAt: string }[] {
 const viewedOpenJobPostingCards = loadViewedCards();
 const markedTaskNotificationIds = new Set<string>();
 let hasResetForSessionOnce = false;
+
+function collectPostingNotificationIds(posting: DesignerTaskItem | undefined): string[] {
+  if (!posting) return [];
+  const ids: string[] = [];
+  const topNotif = (posting as any)?.taskNotification;
+  if (topNotif?.hasNotification && topNotif.notificationId) ids.push(topNotif.notificationId);
+  const swrNotif = posting?.submissionsWithReviews?.taskNotification;
+  if (swrNotif?.hasNotification && swrNotif.notificationId) ids.push(swrNotif.notificationId);
+  const swr = posting?.submissionsWithReviews;
+  const stages: SubmissionItem[][] = swr
+    ? [swr.caseStudy || [], swr.designing || [], swr.rendering || [], swr.finalStage || []]
+    : [];
+  for (const subs of stages) {
+    for (const sub of subs) {
+      if (sub.hasNotification && sub.notificationId) ids.push(sub.notificationId);
+      for (const r of sub.reviews || []) {
+        if (r.hasNotification && r.notificationId) ids.push(r.notificationId);
+      }
+    }
+  }
+  return ids;
+}
 
 export function resetDesignerOpenJobPostingsHighlightState() {
   viewedOpenJobPostingCards.clear();
@@ -100,14 +122,14 @@ export function DesignerOpenJobPostings() {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editMessage, setEditMessage] = useState('');
 
-  const highlightedIds = (() => {
+  const highlightedIds = useMemo(() => {
     if (postings.length === 0) return new Set<string>();
     return new Set(
       postings
         .filter((p) => (p.taskNotification?.hasNotification || p.hasNestedNotification) && !viewedOpenJobPostingCards.has(p.id))
         .map((p) => p.id)
     );
-  })();
+  }, [postings]);
 
   useEffect(() => {
     publishOpenJobPostingsBadgeCount(highlightedIds.size);
@@ -119,19 +141,21 @@ export function DesignerOpenJobPostings() {
   const postingsRef = useRef(postings);
   useEffect(() => { postingsRef.current = postings; }, [postings]);
 
-  const markPostingNotificationRead = useCallback(
-    (postingId: string, notifId: string) => {
+  const markPostingNotificationsRead = useCallback(
+    (postingId: string, notifIds: string[]) => {
       seenThisSession.current.add(postingId);
-      if (markedTaskNotificationIds.has(notifId)) return;
-      markedTaskNotificationIds.add(notifId);
+      const unmarked = notifIds.filter((nid) => !markedTaskNotificationIds.has(nid));
+      if (unmarked.length === 0) return;
+
+      unmarked.forEach((nid) => markedTaskNotificationIds.add(nid));
 
       notificationApi
-        .markRead(notifId)
+        .bulkMarkRead(unmarked)
         .then(() => {
           decrement('designerJobPostings');
         })
         .catch(() => {
-          markedTaskNotificationIds.delete(notifId);
+          unmarked.forEach((nid) => markedTaskNotificationIds.delete(nid));
         });
     },
     [decrement]
@@ -188,14 +212,9 @@ export function DesignerOpenJobPostings() {
             if (!observedElements.current.has(id)) {
               observedElements.current.add(id);
               const posting = postingsRef.current.find((p) => p.id === id);
-              const topNotif = posting?.taskNotification;
-              const swrNotif = posting?.submissionsWithReviews?.taskNotification;
-              const notificationId =
-                (topNotif?.hasNotification && topNotif.notificationId) ||
-                (swrNotif?.hasNotification && swrNotif.notificationId) ||
-                null;
-              if (notificationId) {
-                markPostingNotificationRead(id, notificationId);
+              const notifIds = collectPostingNotificationIds(posting);
+              if (notifIds.length > 0) {
+                markPostingNotificationsRead(id, notifIds);
               } else {
                 seenThisSession.current.add(id);
               }
@@ -219,7 +238,7 @@ export function DesignerOpenJobPostings() {
       observer.disconnect();
       observedElements.current.clear();
     };
-  }, [highlightedIds]);
+  }, [highlightedIds, markPostingNotificationsRead]);
 
   useEffect(() => {
     return () => {
