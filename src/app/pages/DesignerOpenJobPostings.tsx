@@ -113,12 +113,29 @@ export function DesignerOpenJobPostings() {
     publishOpenJobPostingsBadgeCount(highlightedIds.size);
   }, [highlightedIds]);
 
-  const seenThisSession = useRef<Set<string>>(new Set());
   const observedElements = useRef<Set<string>>(new Set());
   const observerRef = useRef<IntersectionObserver | null>(null);
-  const pendingTaskNotifIds = useRef<Map<string, string>>(new Map());
+  const seenThisSession = useRef<Set<string>>(new Set());
   const postingsRef = useRef(postings);
   useEffect(() => { postingsRef.current = postings; }, [postings]);
+
+  const markPostingNotificationRead = useCallback(
+    (postingId: string, notifId: string) => {
+      seenThisSession.current.add(postingId);
+      if (markedTaskNotificationIds.has(notifId)) return;
+      markedTaskNotificationIds.add(notifId);
+
+      notificationApi
+        .markRead(notifId)
+        .then(() => {
+          decrement('designerJobPostings');
+        })
+        .catch(() => {
+          markedTaskNotificationIds.delete(notifId);
+        });
+    },
+    [decrement]
+  );
 
   useEffect(() => {
     if (user && !hasResetForSessionOnce) {
@@ -170,12 +187,17 @@ export function DesignerOpenJobPostings() {
           if (entry.isIntersecting && entry.intersectionRatio >= 0.7) {
             if (!observedElements.current.has(id)) {
               observedElements.current.add(id);
-              seenThisSession.current.add(id);
               const posting = postingsRef.current.find((p) => p.id === id);
               const topNotif = posting?.taskNotification;
               const swrNotif = posting?.submissionsWithReviews?.taskNotification;
-              if ((topNotif?.hasNotification && topNotif.notificationId) || (swrNotif?.hasNotification && swrNotif.notificationId)) {
-                pendingTaskNotifIds.current.set(id, topNotif?.notificationId || swrNotif!.notificationId);
+              const notificationId =
+                (topNotif?.hasNotification && topNotif.notificationId) ||
+                (swrNotif?.hasNotification && swrNotif.notificationId) ||
+                null;
+              if (notificationId) {
+                markPostingNotificationRead(id, notificationId);
+              } else {
+                seenThisSession.current.add(id);
               }
             }
           }
@@ -201,55 +223,10 @@ export function DesignerOpenJobPostings() {
 
   useEffect(() => {
     return () => {
-      if (seenThisSession.current.size === 0 && pendingTaskNotifIds.current.size === 0) return;
-
-      const currentPostings = postingsRef.current;
-
-      seenThisSession.current.forEach((id) => {
-        const posting = currentPostings.find((p) => p.id === id);
-        const hasRemainingNotif =
-          posting?.hasNestedNotification ||
-          posting?.taskNotification?.hasNotification ||
-          posting?.submissionsWithReviews?.taskNotification?.hasNotification;
-        if (!hasRemainingNotif) {
-          viewedOpenJobPostingCards.add(id);
-        }
-      });
-      saveViewedCards(viewedOpenJobPostingCards);
+      if (seenThisSession.current.size === 0) return;
+      seenThisSession.current.forEach((id) => viewedOpenJobPostingCards.add(id));
       seenThisSession.current.clear();
-      observedElements.current.clear();
-
-      const pending = new Map(pendingTaskNotifIds.current);
-      pendingTaskNotifIds.current.clear();
-
-      for (const [postingId, notifId] of pending) {
-        if (markedTaskNotificationIds.has(notifId)) continue;
-        markedTaskNotificationIds.add(notifId);
-
-        notificationApi.markRead(notifId)
-          .then(() => {
-            decrement('designerJobPostings');
-            viewedOpenJobPostingCards.add(postingId);
-            saveViewedCards(viewedOpenJobPostingCards);
-            setPostings((prev) =>
-              prev.map((p) =>
-                p.id === postingId
-                  ? {
-                      ...p,
-                      taskNotification: null,
-                      submissionsWithReviews: {
-                        ...(p.submissionsWithReviews as any),
-                        taskNotification: { hasNotification: false, notificationId: null },
-                      },
-                    }
-                  : p
-              )
-            );
-          })
-          .catch(() => {
-            markedTaskNotificationIds.delete(notifId);
-          });
-      }
+      saveViewedCards(viewedOpenJobPostingCards);
     };
   }, []);
 
