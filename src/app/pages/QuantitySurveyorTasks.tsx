@@ -1007,8 +1007,6 @@ export function QuantitySurveyorTasks() {
               ? {
                   ...t,
                   updated_at: now,
-                  hasNestedNotification: true,
-                  taskNotification: { hasNotification: true, notificationId: t.taskNotification?.notificationId || `notif-qs-t${Date.now()}` },
                   submissionsWithReviews: {
                     ...t.submissionsWithReviews,
                     submissions: [...(t.submissionsWithReviews?.submissions || []), newWrapper],
