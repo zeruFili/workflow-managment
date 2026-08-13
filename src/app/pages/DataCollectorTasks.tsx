@@ -1021,8 +1021,6 @@ export function DataCollectorTasks() {
               ? {
                   ...t,
                   updated_at: now,
-                  hasNestedNotification: true,
-                  taskNotification: { hasNotification: true, notificationId: t.taskNotification?.notificationId || `notif-dc-t${Date.now()}` },
                   submissionsWithReviews: {
                     ...t.submissionsWithReviews,
                     submissions: [...(t.submissionsWithReviews?.submissions || []), newWrapper],
