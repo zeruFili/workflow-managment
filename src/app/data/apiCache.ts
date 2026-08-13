@@ -7,6 +7,8 @@ type CacheEntry<T> = {
 const entries = new Map<string, CacheEntry<any>>();
 const listeners = new Map<string, Set<(data: any) => void>>();
 
+let cacheNamespaceCounter = 0;
+
 function key(params: Record<string, unknown>): string {
   return JSON.stringify(params, Object.keys(params).sort());
 }
@@ -23,18 +25,30 @@ function notify<T>(k: string, data: T) {
   if (fns) fns.forEach((fn) => fn(data));
 }
 
-export function createCache<T>(fetcher: (params: Record<string, unknown>) => Promise<T>) {
+export function createCache<T>(
+  fetcher: (params: Record<string, unknown>) => Promise<T>,
+  namespace?: string
+) {
+  // Each cache instance gets its own namespace so that identical query
+  // params (e.g. `{ page: 1, limit: 10 }`) on different resources never
+  // collide. Without this, all caches shared a single in-memory store and
+  // data from one page would leak onto another.
+  const ns = namespace || `cache-${++cacheNamespaceCounter}`;
+
+  const cacheKey = (params: Record<string, unknown>): string =>
+    `${ns}:${key(params)}`;
+
   return {
     get(params: Record<string, unknown>): T | null {
-      return getEntry<T>(key(params)).data;
+      return getEntry<T>(cacheKey(params)).data;
     },
 
     isLoading(params: Record<string, unknown>): boolean {
-      return getEntry<T>(key(params)).loading;
+      return getEntry<T>(cacheKey(params)).loading;
     },
 
     subscribe(params: Record<string, unknown>, fn: (data: T) => void): () => void {
-      const k = key(params);
+      const k = cacheKey(params);
       if (!listeners.has(k)) listeners.set(k, new Set());
       listeners.get(k)!.add(fn);
       const entry = getEntry<T>(k);
@@ -49,7 +63,7 @@ export function createCache<T>(fetcher: (params: Record<string, unknown>) => Pro
     },
 
     async fetch(params: Record<string, unknown>): Promise<T> {
-      const k = key(params);
+      const k = cacheKey(params);
       const entry = getEntry<T>(k);
 
       if (entry.data) {
@@ -80,12 +94,18 @@ export function createCache<T>(fetcher: (params: Record<string, unknown>) => Pro
 
     invalidate(params?: Record<string, unknown>) {
       if (params) {
-        const k = key(params);
+        const k = cacheKey(params);
         entries.delete(k);
         listeners.delete(k);
       } else {
-        entries.clear();
-        listeners.clear();
+        // Only clear this cache's own namespace, not other caches.
+        const prefix = `${ns}:`;
+        for (const k of [...entries.keys()]) {
+          if (k.startsWith(prefix)) entries.delete(k);
+        }
+        for (const k of [...listeners.keys()]) {
+          if (k.startsWith(prefix)) listeners.delete(k);
+        }
       }
     },
   };
