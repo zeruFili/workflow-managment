@@ -203,6 +203,22 @@ export interface DesignerPerformanceTrend {
   compliancePercent: number | null;
 }
 
+export interface DesignerAssignedTask {
+  id: string;
+  title: string;
+  status: string | null;
+  storyPoint: number;
+  assignedAt: string | null;
+}
+
+export interface DesignerRatedTask {
+  id: string;
+  title: string;
+  storyPoint: number;
+  rating: number;
+  reviewedAt: string | null;
+}
+
 export interface DesignerPerformanceData {
   designers: DesignerPerformanceDesigner[];
   selected: DesignerPerformanceDesigner | null;
@@ -236,6 +252,8 @@ export interface DesignerPerformanceData {
     total: number;
   } | null;
   trend: DesignerPerformanceTrend[];
+  assignedTasks: DesignerAssignedTask[];
+  ratedTasks: DesignerRatedTask[];
 }
 
 export interface DesignerPerformanceResponse {

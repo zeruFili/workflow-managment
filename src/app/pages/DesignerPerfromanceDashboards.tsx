@@ -153,6 +153,23 @@ export function DesignerPerformanceDashboard() {
     return items.filter((d) => d.value > 0);
   }, [breakdown]);
 
+  const assignedTasks = data?.assignedTasks ?? [];
+  const ratedTasks = data?.ratedTasks ?? [];
+
+  const statusLabel = (status: string | null): string => {
+    if (!status) return 'Pending';
+    return status.charAt(0).toUpperCase() + status.replace('_', ' ').slice(1);
+  };
+
+  const statusColor = (status: string | null): string => {
+    switch (status) {
+      case 'approved': return 'bg-green-100 text-green-700';
+      case 'rejected': return 'bg-red-100 text-red-700';
+      case 'feedback': return 'bg-yellow-100 text-yellow-700';
+      default: return 'bg-gray-100 text-gray-700';
+    }
+  };
+
   const comparisonMetrics = useMemo(() => {
     if (!ratingBd || !prevRatingBd) return [];
     return [
@@ -458,8 +475,7 @@ export function DesignerPerformanceDashboard() {
       {/* ── Story Point Breakdown + Comparison ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-          <p className="text-sm font-semibold text-gray-700 mb-3">Story Point Breakdown</p>
-          {pieSP.length > 0 ? (
+          <p className="text-sm font-semibold text-gray-700 mb-3">Story Point Breakdown</p>          {pieSP.length > 0 ? (
             <div className="flex items-center gap-4">
               <ResponsiveContainer width="50%" height={140}>
                 <PieChart>
@@ -547,6 +563,72 @@ export function DesignerPerformanceDashboard() {
           ) : (
             <div className="h-36 flex items-center justify-center text-sm text-gray-400">
               No comparison data available
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Assigned Tasks & Task Ratings ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold text-gray-700">Assigned Tasks</p>
+            <span className="text-xs font-medium text-gray-400">{assignedTasks.length} tasks</span>
+          </div>
+          {assignedTasks.length > 0 ? (
+            <div className="space-y-2">
+              {assignedTasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="flex items-center justify-between gap-3 py-2 border-b border-gray-50 last:border-0"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{task.title}</p>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0 ${statusColor(task.status)}`}>
+                    {statusLabel(task.status)}
+                  </span>
+                  <span className="text-sm font-semibold text-gray-700 flex-shrink-0 w-8 text-right">
+                    {task.storyPoint} pts
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="h-32 flex items-center justify-center text-sm text-gray-400">
+              No assigned tasks for this period
+            </div>
+          )}
+        </div>
+
+        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold text-gray-700">Task Ratings</p>
+            <span className="text-xs font-medium text-gray-400">{ratedTasks.length} rated</span>
+          </div>
+          {ratedTasks.length > 0 ? (
+            <div className="space-y-2">
+              {ratedTasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="flex items-center justify-between gap-3 py-2 border-b border-gray-50 last:border-0"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{task.title}</p>
+                  </div>
+                  <span className="text-sm font-semibold text-gray-700 flex-shrink-0 w-8 text-right">
+                    {task.storyPoint} pts
+                  </span>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <StarRating value={task.rating} size="sm" />
+                    <span className="text-sm font-bold text-gray-700">{task.rating.toFixed(1)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="h-32 flex items-center justify-center text-sm text-gray-400">
+              No ratings for this period
             </div>
           )}
         </div>
