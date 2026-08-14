@@ -6,7 +6,7 @@ import marketingApi, {
   MarketingSubmissionRaw,
   MarketingReviewRaw,
 } from '../../api/marketingApi';
-import { fetchMarketingTasks, getCachedMarketingTasks, isMarketingTasksLoading, invalidateMarketingTaskCache } from '../data/marketingTaskCache';
+import { fetchMarketingTasks, getCachedMarketingTasks, invalidateMarketingTaskCache } from '../data/marketingTaskCache';
 import {
   ArrowLeft,
   Calendar,
@@ -128,6 +128,16 @@ export function CustomerData() {
     });
   }, [user]);
 
+  const refreshTasks = useCallback(async () => {
+    invalidateMarketingTaskCache();
+    try {
+      const tasks = await fetchMarketingTasks();
+      setMarketingTasks(tasks);
+    } catch {
+      // fetchMarketingTasks already resolves with a fallback; nothing to do here.
+    }
+  }, []);
+
   const marketingTasksNoSubmissions = marketingTasks.filter(
     (t) => (t.submissionsWithReviews?.submissions || []).length === 0
   );
@@ -216,7 +226,7 @@ export function CustomerData() {
       const response = await marketingApi.updateMarketingTask(editingTask.id, fd);
       if (response.success) {
         setEditSuccess('Task updated successfully.');
-        setTimeout(() => { setShowEditModal(false); setEditingTask(null); fetchMarketingTasks(); }, 800);
+        setTimeout(() => { setShowEditModal(false); setEditingTask(null); refreshTasks(); }, 800);
       } else {
         setEditError(response.message || 'Failed to update task.');
       }
@@ -241,7 +251,7 @@ export function CustomerData() {
       const response = await marketingApi.deleteMarketingTask(deletingTaskId);
       if (response.success) {
         setDeletingTaskId(null);
-        fetchMarketingTasks();
+        refreshTasks();
       } else {
         setDeleteError(response.message || 'Failed to delete.');
       }
@@ -524,7 +534,7 @@ export function CustomerData() {
         setMarketingForm({ title: '', description: '', customer_name: '', customer_phone: '', customer_email: '', customer_address: '', category: 'home_design', service_description: '', preferred_start_date: '', budget: '', notes: '' });
         setMarketingFormErrors({});
         setTimeout(() => setShowCreateMarketingTask(false), 800);
-        fetchMarketingTasks();
+        refreshTasks();
       } else {
         setMarketingFormError(response.message || 'Failed to create marketing task');
       }
@@ -606,7 +616,7 @@ export function CustomerData() {
         setSubmissionSuccess('Customer payment request has been submitted successfully. The task has now been moved to the Paid Customers page.');
         setTimeout(() => {
           closeSubmissionModal();
-          fetchMarketingTasks();
+          refreshTasks();
         }, 1500);
       } else {
         setSubmissionError(response.message || 'Failed to create submission. Please try again.');
