@@ -46,7 +46,6 @@ export function Projects() {
 
   const handleCreateProject = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Creating project:', newProject);
     setShowNewProject(false);
     setNewProject({ name: '', clientName: '', description: '', deadline: '' });
   };

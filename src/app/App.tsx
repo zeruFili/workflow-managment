@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { createHashRouter, RouterProvider, Outlet, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useTelegram } from './hooks/useTelegram';
@@ -90,16 +89,7 @@ function AuthenticatedLayout() {
 
 function RootContent() {
   const { isLoading } = useAuth();
-  const { isReady, webApp } = useTelegram();
-
-  useEffect(() => {
-    if (isReady && webApp) {
-      console.log('Telegram Web App initialized:', {
-        colorScheme: webApp.colorScheme,
-        user: webApp.initDataUnsafe?.user,
-      });
-    }
-  }, [isReady, webApp]);
+  useTelegram();
 
   if (isLoading) {
     return (

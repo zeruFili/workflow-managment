@@ -214,7 +214,6 @@ export function SiteEngineerTasks() {
   };
 
   const handleAttachFile = (taskId: string) => {
-    console.log(`Attaching file to task ${taskId}`);
   };
 
   const canEditTask = (task: Task) => task.assignedTo === user.id;

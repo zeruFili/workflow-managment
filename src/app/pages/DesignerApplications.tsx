@@ -46,7 +46,6 @@ function loadViewedCards(): Set<string> {
   try {
     const stored = localStorage.getItem(VIEWED_CARDS_STORAGE_KEY);
     const arr = stored ? JSON.parse(stored) : [];
-    console.log('[DesignerApplications] Loaded viewed cards from storage:', arr);
     return new Set(arr);
   } catch {
     return new Set<string>();
@@ -57,7 +56,6 @@ function saveViewedCards(cards: Set<string>) {
   try {
     const arr = [...cards];
     localStorage.setItem(VIEWED_CARDS_STORAGE_KEY, JSON.stringify(arr));
-    console.log('[DesignerApplications] Saved viewed cards to storage:', arr);
   } catch {
     // Ignore storage errors
   }
@@ -70,7 +68,6 @@ const markedApplicationNotificationIds = new Set<string>();
 let hasResetForSessionOnce = false;
 
 export function resetDesignerApplicationsHighlightState() {
-  console.log('[DesignerApplications] ⚠️ resetDesignerApplicationsHighlightState called - clearing viewed cards!');
   viewedDesignerApplicationCards.clear();
   saveViewedCards(viewedDesignerApplicationCards);
   designerApplicationNotificationIds = new Set<string>();
@@ -178,7 +175,6 @@ export function DesignerApplications() {
 
   useEffect(() => {
     if (user && !hasResetForSessionOnce) {
-      console.log('[DesignerApplications] First time user detected - resetting highlight state');
       resetDesignerApplicationsHighlightState();
       hasResetForSessionOnce = true;
     }
@@ -252,12 +248,10 @@ export function DesignerApplications() {
     const result = new Set(
       [...designerApplicationNotificationIds].filter((id) => !viewedDesignerApplicationCards.has(id))
     );
-    console.log('[DesignerApplications] Computed highlightedIds:', [...result], '| Viewed:', [...viewedDesignerApplicationCards]);
     return result;
   })();
 
   useEffect(() => {
-    console.log('[DesignerApplications] Publishing badge count:', highlightedIds.size);
     publishDesignerApplicationsBadgeCount(highlightedIds.size);
   }, [highlightedIds]);
 
@@ -268,11 +262,8 @@ export function DesignerApplications() {
       observedElements.current.clear();
     }
     if (highlightedIds.size === 0) {
-      console.log('[DesignerApplications] No highlighted IDs, skipping observer');
       return;
     }
-
-    console.log('[DesignerApplications] Setting up observer for highlighted IDs:', [...highlightedIds]);
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -287,7 +278,6 @@ export function DesignerApplications() {
               const topNotif = (task as any)?.taskNotification;
               if (topNotif?.hasNotification && topNotif.notificationId) {
                 pendingTaskNotifIds.current.set(id, topNotif.notificationId);
-                console.log('[DesignerApplications] 🎯 Card 70% visible - queued notification:', topNotif.notificationId, 'for task:', id);
               }
             }
           }
@@ -300,7 +290,6 @@ export function DesignerApplications() {
       const el = document.querySelector(`[data-highlighted-id="${id}"]`);
       if (el && !observedElements.current.has(id)) {
         observer.observe(el);
-        console.log('[DesignerApplications] Observing element:', id);
       }
     });
     return () => {
@@ -312,14 +301,8 @@ export function DesignerApplications() {
   // ── Commit seen session on unmount ──
   const commitSeenSession = () => {
     if (seenThisSession.current.size === 0 && pendingTaskNotifIds.current.size === 0) {
-      console.log('[DesignerApplications] commitSeenSession: nothing to process');
       return;
     }
-    
-    console.log('[DesignerApplications] ========== COMMIT SEEN SESSION ==========');
-    console.log('[DesignerApplications] Seen this session:', [...seenThisSession.current]);
-    console.log('[DesignerApplications] Pending notifications:', [...pendingTaskNotifIds.current.entries()]);
-    console.log('[DesignerApplications] Viewed cards before commit:', [...viewedDesignerApplicationCards]);
     
     const currentTasks = tasksRef.current;
     
@@ -338,25 +321,17 @@ export function DesignerApplications() {
     
     for (const [taskId, notifId] of pending) {
       if (markedApplicationNotificationIds.has(notifId)) {
-        console.log('[DesignerApplications] ⚠️ Notification already marked:', notifId);
         continue;
       }
       markedApplicationNotificationIds.add(notifId);
       
-      console.log('[DesignerApplications] 📞 Calling markRead for:', notifId, '(task:', taskId, ')');
-      
       notificationApi.markRead(notifId)
-        .then((response) => {
-          console.log('[DesignerApplications] ✅ markRead succeeded for:', notifId);
-          console.log('[DesignerApplications] Response viewed:', response.data?.viewed);
-          
+        .then(() => {
           // IMPORTANT: Add taskId (not notifId) to viewed cards
           // This ensures the card stays unhighlighted even if new notifications come for the same task
           viewedDesignerApplicationCards.add(taskId);
           // Persist to localStorage
           saveViewedCards(viewedDesignerApplicationCards);
-          console.log('[DesignerApplications] Added to viewedDesignerApplicationCards:', taskId);
-          console.log('[DesignerApplications] Viewed cards now:', [...viewedDesignerApplicationCards]);
           
           // Update tasks state to clear the notification immediately
           const tasks = tasksRef.current;
@@ -370,7 +345,6 @@ export function DesignerApplications() {
           );
           setTasks(updatedTasks as DesignerTaskItem[]);
           tasksRef.current = updatedTasks as DesignerTaskItem[];
-          console.log('[DesignerApplications] Updated tasks state - cleared notification for:', taskId);
         })
         .catch((err) => {
           console.error('[DesignerApplications] ❌ markRead failed for:', notifId);
@@ -382,8 +356,6 @@ export function DesignerApplications() {
 
   useEffect(() => { 
     return () => { 
-      console.log('[DesignerApplications] Component unmounting - calling commitSeenSession');
-      console.log('[DesignerApplications] Current viewed cards:', [...viewedDesignerApplicationCards]);
       commitSeenSession(); 
     }; 
   }, []);

@@ -43,14 +43,6 @@ export function Layout({ children }: LayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { counts } = useNotificationCounts();
 
-  useEffect(() => {
-    if (!user) return;
-    console.log(
-      `[Layout] Sidebar badges for role="${user.role}" page="${location.pathname}":`,
-      JSON.stringify(counts),
-    );
-  }, [counts, user, location.pathname]);
-
   const [siteEngineerNotifications, setSiteEngineerNotifications] = useState(
     getInitialSiteEngineerNotificationCount()
   );

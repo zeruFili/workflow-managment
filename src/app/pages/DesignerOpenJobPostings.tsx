@@ -338,15 +338,10 @@ export function DesignerOpenJobPostings() {
   };
 
   const withdrawApplication = async (taskId: string) => {
-    console.log('[DesignerOpenJobPostings.withdrawApplication] ========== WITHDRAW START ==========');
-    console.log('[DesignerOpenJobPostings.withdrawApplication] Task ID:', taskId);
-    console.log('[DesignerOpenJobPostings.withdrawApplication] User:', user ? { id: user.id, role: user.role } : 'NONE');
     setWithdrawingTaskId(taskId);
     try {
       const response = await designerApi.withdrawApplication(taskId);
-      console.log('[DesignerOpenJobPostings.withdrawApplication] API response:', response);
       if (response.success) {
-        console.log('[DesignerOpenJobPostings.withdrawApplication] Withdrawal successful, updating local state');
         appliedTaskIds.current.delete(taskId);
         setPostings((prev) => {
           const idx = prev.findIndex((p) => p.id === taskId);
@@ -355,8 +350,6 @@ export function DesignerOpenJobPostings() {
           updated[idx] = { ...updated[idx], applied: false };
           return updated;
         });
-      } else {
-        console.log('[DesignerOpenJobPostings.withdrawApplication] API returned success=false:', response.message);
       }
     } catch (err: any) {
       const status = err?.response?.status;
@@ -365,7 +358,6 @@ export function DesignerOpenJobPostings() {
       console.error('[DesignerOpenJobPostings.withdrawApplication] Full error:', err);
       setApplyError(msg);
     } finally {
-      console.log('[DesignerOpenJobPostings.withdrawApplication] ========== WITHDRAW END ==========');
       setWithdrawingTaskId(null);
     }
   };

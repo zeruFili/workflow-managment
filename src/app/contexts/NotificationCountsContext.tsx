@@ -48,10 +48,6 @@ export function NotificationCountsProvider({ children }: { children: React.React
     if (!user) return;
     try {
       const result = await notificationApi.getUnreadCounts();
-      console.log(
-        `[NotificationCounts] Backend response for role="${user.role}":`,
-        JSON.stringify(result),
-      );
       setCounts({
         marketingTasks: result.marketingTasks ?? 0,
         dataCollectorTasks: result.dataCollectorTasks ?? 0,
@@ -60,7 +56,6 @@ export function NotificationCountsProvider({ children }: { children: React.React
         designerJobPostings: result.designerJobPostings ?? 0,
       });
     } catch {
-      console.warn("[NotificationCounts] Backend unreachable — counts set to 0");
       setCounts(defaultCounts);
     }
   }, [user]);

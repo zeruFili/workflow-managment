@@ -293,7 +293,6 @@ export function Tasks() {
   };
 
   const handleAttachFile = (taskId: string) => {
-    console.log(`Attaching file to task ${taskId}`);
   };
 
   const canEditTask = (task: Task) => {

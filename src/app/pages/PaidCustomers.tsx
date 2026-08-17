@@ -410,13 +410,6 @@ export function PaidCustomers() {
   );
 
   const openDetail = async (task: MarketingTaskItem) => {
-    console.log('[PaidCustomers] openDetail clicked:', {
-      taskId: task.id,
-      title: task.title,
-      rawSubmissions: JSON.stringify(task.submissionsWithReviews?.submissions),
-      rawSubmissionsCount: task.submissionsWithReviews?.submissions?.length || 0,
-      wrappersCount: getSubmissionWrappers(task).length,
-    });
     setSelectedTask(task);
     setDraftNote((prev) => ({ ...prev, [task.id]: '' }));
     setDraftScreenshots((prev) => ({ ...prev, [task.id]: null }));
