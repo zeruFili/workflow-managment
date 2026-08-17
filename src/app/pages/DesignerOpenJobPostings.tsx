@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
-import { Calendar, CheckCircle2, Clock, Landmark, Megaphone, ShieldCheck, Send, AlertCircle, Loader2, Undo2, Image, X } from 'lucide-react';
+import { Calendar, CheckCircle2, Clock, Landmark, Megaphone, ShieldCheck, Send, AlertCircle, Loader2, Undo2, X, Eye, FileText, Paperclip } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotificationCounts } from '../contexts/NotificationCountsContext';
 import designerApi, { DesignerTaskItem, SubmissionItem } from '../../api/designerApi';
@@ -118,9 +118,9 @@ export function DesignerOpenJobPostings() {
   const [applyError, setApplyError] = useState<string | null>(null);
   const [submittingApply, setSubmittingApply] = useState(false);
   const [withdrawingTaskId, setWithdrawingTaskId] = useState<string | null>(null);
-  const [viewImagesTaskId, setViewImagesTaskId] = useState<string | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editMessage, setEditMessage] = useState('');
+  const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
 
   const highlightedIds = useMemo(() => {
     if (postings.length === 0) return new Set<string>();
@@ -282,6 +282,18 @@ export function DesignerOpenJobPostings() {
     setEditMessage('');
     setApplyError(null);
   };
+
+  const openDetail = (taskId: string) => {
+    setDetailTaskId(taskId);
+  };
+
+  const closeDetail = () => {
+    setDetailTaskId(null);
+  };
+
+  const detailPosting = detailTaskId
+    ? postings.find((p) => p.id === detailTaskId) || null
+    : null;
 
   const submitEdit = async (taskId: string) => {
     if (!user || !editMessage.trim()) return;
@@ -485,6 +497,16 @@ export function DesignerOpenJobPostings() {
 
                 <p className="mt-1.5 text-sm text-slate-600 whitespace-pre-wrap">{posting.description}</p>
 
+                <div className="mt-3 shrink-0">
+                  <button
+                    onClick={() => openDetail(posting.id)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 transition-colors"
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                    Detail
+                  </button>
+                </div>
+
                 <div className="mt-3 flex flex-wrap gap-2 text-xs shrink-0">
                   <span className="rounded-full bg-indigo-100 px-2.5 py-1 font-medium text-indigo-700">
                     Story Points: {posting.story_point ?? 0}
@@ -504,36 +526,6 @@ export function DesignerOpenJobPostings() {
                     <span>Created: {new Date(posting.created_at).toLocaleDateString()}</span>
                   </div>
                 </div>
-
-                {posting.attachment_urls && posting.attachment_urls.length > 0 && (
-                  <div className="mt-2 shrink-0">
-                    <button
-                      onClick={() => setViewImagesTaskId(posting.id)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-                    >
-                      <Image className="h-3.5 w-3.5" />
-                      View Images ({posting.attachment_urls.length})
-                    </button>
-                    {viewImagesTaskId === posting.id && (
-                      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-                        <div className="card-safe overflow-hidden min-w-0 bg-white rounded-2xl shadow-2xl w-full max-w-2xl aspect-square max-h-[calc(100vh-4rem)] flex flex-col p-6">
-                          <div className="shrink-0 flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-semibold text-gray-900">Attachments</h3>
-                            <button
-                              onClick={() => setViewImagesTaskId(null)}
-                              className="p-1.5 rounded-lg hover:bg-gray-100"
-                            >
-                              <X className="w-5 h-5 text-gray-500" />
-                            </button>
-                          </div>
-                          <div className="flex-1 overflow-y-auto min-h-0">
-                            <AttachmentViewer attachments={posting.attachment_urls} />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
 
                 {user && (
                   <div className="mt-3 shrink-0">
@@ -651,6 +643,84 @@ export function DesignerOpenJobPostings() {
         totalItems={totalItems}
         onPageChange={handlePageChange}
       />
+
+      {detailPosting && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-6 overflow-y-auto">
+          <div className="card-safe overflow-hidden min-w-0 w-full max-w-3xl rounded-2xl bg-white shadow-2xl max-h-[92vh] overflow-y-auto">
+            <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-6 py-5 sticky top-0 bg-white z-10">
+              <div className="min-w-0">
+                <h3 className="text-xl sm:text-2xl font-semibold text-gray-900 break-words">{detailPosting.title}</h3>
+                <p className="mt-1 text-sm text-gray-500">Task ID: {detailPosting.id}</p>
+              </div>
+              <button onClick={closeDetail} className="rounded-lg p-2 hover:bg-gray-100 shrink-0">
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 px-6 py-5">
+              <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${getStatusTone(detailPosting.status)}`}>
+                    {getStatusLabel(detailPosting.status)}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                    <Landmark className="h-3.5 w-3.5" />
+                    {detailPosting.assigned_by_user?.full_name || `User ${detailPosting.assigned_by_user_id}`}
+                  </span>
+                  <span className="rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-medium text-indigo-700">
+                    Story Points: {detailPosting.story_point ?? 0}
+                  </span>
+                </div>
+              </section>
+
+              <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
+                <h5 className="flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-gray-500">
+                  <FileText className="h-4 w-4" /> Description
+                </h5>
+                <p className="mt-2 text-sm text-gray-700 whitespace-pre-wrap">{detailPosting.description}</p>
+              </section>
+
+              {detailPosting.instruction && (
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-blue-100 bg-blue-50 p-4">
+                  <h5 className="flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-blue-700">
+                    <FileText className="h-4 w-4" /> Instruction
+                  </h5>
+                  <p className="mt-2 text-sm text-gray-700 whitespace-pre-wrap">{detailPosting.instruction}</p>
+                </section>
+              )}
+
+              {detailPosting.attachment_urls && detailPosting.attachment_urls.length > 0 && (
+                <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
+                  <h5 className="flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-gray-500 mb-3">
+                    <Paperclip className="h-4 w-4" /> Attachments
+                  </h5>
+                  <AttachmentViewer attachments={detailPosting.attachment_urls} />
+                </section>
+              )}
+
+              <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
+                <h5 className="flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-gray-500 mb-3">
+                  <Clock className="h-4 w-4" /> Job Posting Details
+                </h5>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <Calendar className="h-4 w-4 shrink-0 text-gray-400" />
+                    <span>Deadline: {detailPosting.due_date ? new Date(detailPosting.due_date).toLocaleDateString() : 'No deadline'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <Clock className="h-4 w-4 shrink-0 text-gray-400" />
+                    <span>Created: {new Date(detailPosting.created_at).toLocaleDateString()}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <ShieldCheck className="h-4 w-4 shrink-0 text-gray-400" />
+                    <span>Public posting open for applications</span>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
