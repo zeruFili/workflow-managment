@@ -1459,8 +1459,6 @@ export function QuantitySurveyorTasks() {
                     )}
                   </div>
 
-                  <p className="text-sm text-gray-600 mb-3">{task.description}</p>
-
                   <div className="flex items-center gap-3 mb-4">
                     <button
                       onClick={() => openDetail(task)}

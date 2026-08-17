@@ -1555,8 +1555,6 @@ export function DesignerTasks() {
                     )}
                   </div>
 
-                  <p className="text-sm text-gray-600 mb-3">{task.description}</p>
-
                   <button
                     onClick={() => openDetail(task)}
                     className="mb-4 text-sm text-blue-600 hover:underline"
