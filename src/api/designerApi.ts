@@ -68,6 +68,7 @@ export interface DesignerTaskItem {
   assigned_by_user_id: string;
   title: string;
   description: string;
+  instruction: string | null;
   status: string | null;
   stage: string | null;
   is_paused: boolean | null;

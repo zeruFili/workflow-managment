@@ -1092,7 +1092,7 @@ export function QuantitySurveyorTasks() {
     setEditForm({
       title: task.title,
       description: task.description,
-      instruction: '',
+      instruction: task.instruction || '',
       deadline: task.due_date ? new Date(task.due_date).toISOString().split('T')[0] : '',
       assigned_to_user_id: task.assigned_to_user_id || '',
     });
@@ -1129,16 +1129,15 @@ export function QuantitySurveyorTasks() {
     setEditFormErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
-    const fullDescription = instruction
-      ? `${description}\n\nInstructions:\n${instruction}`
-      : description;
-
     setIsUpdating(true);
 
     try {
       const formData = new FormData();
       formData.append('title', title);
-      formData.append('description', fullDescription);
+      formData.append('description', description);
+      if (instruction) {
+        formData.append('instruction', instruction);
+      }
       if (deadline) {
         formData.append('due_date', new Date(deadline).toISOString());
       }
@@ -1240,16 +1239,15 @@ export function QuantitySurveyorTasks() {
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
-    const fullDescription = instruction
-      ? `${description}\n\nInstructions:\n${instruction}`
-      : description;
-
     setIsCreating(true);
 
     try {
       const formData = new FormData();
       formData.append('title', title);
-      formData.append('description', fullDescription);
+      formData.append('description', description);
+      if (instruction) {
+        formData.append('instruction', instruction);
+      }
       if (deadline) {
         formData.append('due_date', new Date(deadline).toISOString());
       }
@@ -1463,6 +1461,13 @@ export function QuantitySurveyorTasks() {
 
                   <p className="text-sm text-gray-600 mb-3">{task.description}</p>
 
+                  {task.instruction && (
+                    <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                      <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">Instruction</p>
+                      <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{task.instruction}</p>
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-3 mb-4">
                     <button
                       onClick={() => openDetail(task)}
@@ -1599,6 +1604,13 @@ export function QuantitySurveyorTasks() {
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Description</h5>
                   <p className="mt-2 text-sm text-gray-700">{selectedTask.description}</p>
                 </section>
+
+                {selectedTask.instruction && (
+                  <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-blue-100 bg-blue-50 p-4">
+                    <h5 className="text-sm font-medium uppercase tracking-wide text-blue-700">Instruction</h5>
+                    <p className="mt-2 text-sm text-gray-700 whitespace-pre-wrap">{selectedTask.instruction}</p>
+                  </section>
+                )}
 
                 {selectedTask.attachment_urls && selectedTask.attachment_urls.length > 0 && (
                   <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">

@@ -514,7 +514,7 @@ export function DesignerApplications() {
         setEditForm({
           title: t.title,
           description: t.description,
-          instruction: '',
+          instruction: t.instruction || '',
           storyPoints: String(t.story_point),
           deadline: t.due_date ? new Date(t.due_date).toISOString().split('T')[0] : '',
           is_public: t.is_public ?? false,
@@ -565,10 +565,6 @@ export function DesignerApplications() {
 
     const storyPoints = Number(storyPointsRaw);
 
-    const fullDescription = instruction
-      ? `${description}\n\nInstructions:\n${instruction}`
-      : description;
-
     setIsUpdating(true);
 
     try {
@@ -576,7 +572,10 @@ export function DesignerApplications() {
 
       const formData = new FormData();
       formData.append('title', title);
-      formData.append('description', fullDescription);
+      formData.append('description', description);
+      if (instruction) {
+        formData.append('instruction', instruction);
+      }
       formData.append('story_point', String(storyPoints));
       formData.append('is_public', String(editForm.is_public));
       if (deadline) formData.append('due_date', new Date(deadline).toISOString());
@@ -740,10 +739,6 @@ export function DesignerApplications() {
 
     const storyPoints = Number(storyPointsRaw);
 
-    const fullDescription = instruction
-      ? `${description}\n\nInstructions:\n${instruction}`
-      : description;
-
     setIsCreating(true);
 
     try {
@@ -751,7 +746,10 @@ export function DesignerApplications() {
 
       const formData = new FormData();
       formData.append('title', title);
-      formData.append('description', fullDescription);
+      formData.append('description', description);
+      if (instruction) {
+        formData.append('instruction', instruction);
+      }
       formData.append('story_point', String(storyPoints));
       formData.append('is_public', String(newTask.is_public));
       if (deadline) formData.append('due_date', new Date(deadline).toISOString());
@@ -917,6 +915,12 @@ export function DesignerApplications() {
                   <div>
                     <h3 className="font-semibold text-lg text-gray-900">{task.title}</h3>
                     <p className="text-sm text-gray-500">{task.description}</p>
+                    {task.instruction && (
+                      <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                        <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">Instruction</p>
+                        <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{task.instruction}</p>
+                      </div>
+                    )}
                     {isAssigned && (
                       <p className="text-sm font-medium text-blue-700 mt-2">
                         Assigned to: {task.assigned_to_user?.full_name || getDesignerName(task.assigned_to_user_id!)}

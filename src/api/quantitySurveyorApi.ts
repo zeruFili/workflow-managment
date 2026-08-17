@@ -48,6 +48,7 @@ export interface QuantitySurveyorTaskItem {
   assigned_by_user_id: string;
   title: string;
   description: string;
+  instruction: string | null;
   status: string | null;
   task_state: string;
   due_date: string | null;

@@ -1567,6 +1567,13 @@ export function DesignerAssignments() {
 
                   <p className="text-sm text-gray-600 mb-3">{task.description}</p>
 
+                  {task.instruction && (
+                    <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                      <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">Instruction</p>
+                      <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{task.instruction}</p>
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-3 mb-4">
                     <button
                       onClick={() => openDetail(task)}
@@ -1873,6 +1880,13 @@ export function DesignerAssignments() {
                   <h5 className="text-sm font-medium uppercase tracking-wide text-gray-500">Description</h5>
                   <p className="mt-2 text-sm text-gray-700">{selectedTaskDetail.description}</p>
                 </section>
+
+                {selectedTaskDetail.instruction && (
+                  <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-blue-100 bg-blue-50 p-4">
+                    <h5 className="text-sm font-medium uppercase tracking-wide text-blue-700">Instruction</h5>
+                    <p className="mt-2 text-sm text-gray-700 whitespace-pre-wrap">{selectedTaskDetail.instruction}</p>
+                  </section>
+                )}
 
                 {selectedTaskDetail.attachment_urls && selectedTaskDetail.attachment_urls.length > 0 && (
                   <section className="card-safe overflow-hidden min-w-0 rounded-xl border border-gray-200 bg-white p-4">
