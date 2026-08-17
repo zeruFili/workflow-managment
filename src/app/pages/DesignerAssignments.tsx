@@ -1567,13 +1567,6 @@ export function DesignerAssignments() {
 
                   <p className="text-sm text-gray-600 mb-3">{task.description}</p>
 
-                  {task.instruction && (
-                    <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                      <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">Instruction</p>
-                      <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{task.instruction}</p>
-                    </div>
-                  )}
-
                   <div className="flex items-center gap-3 mb-4">
                     <button
                       onClick={() => openDetail(task)}

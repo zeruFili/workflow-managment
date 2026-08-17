@@ -915,12 +915,6 @@ export function DesignerApplications() {
                   <div>
                     <h3 className="font-semibold text-lg text-gray-900">{task.title}</h3>
                     <p className="text-sm text-gray-500">{task.description}</p>
-                    {task.instruction && (
-                      <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                        <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">Instruction</p>
-                        <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{task.instruction}</p>
-                      </div>
-                    )}
                     {isAssigned && (
                       <p className="text-sm font-medium text-blue-700 mt-2">
                         Assigned to: {task.assigned_to_user?.full_name || getDesignerName(task.assigned_to_user_id!)}
